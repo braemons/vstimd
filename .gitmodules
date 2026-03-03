@@ -1,0 +1,3 @@
+[submodule "StimServer"]
+	path = StimServer
+	url = git@github.com:joschaschmiedt/StimServer.git
