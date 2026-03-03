@@ -237,6 +237,100 @@ The overlay should be toggled by a hotkey (e.g. F1) and must **not** affect fram
 hidden — it should be compiled out of the render pass entirely when the `overlay` Cargo feature
 is not enabled, so production builds have zero overhead.
 
+### 3.4 End-to-End Latency Budget
+
+`INPUT_LATENCY.md` §1–8 covers position-input latency in detail. This section addresses the
+broader **command-to-photon** pipeline and the render-loop design choices that affect it.
+
+> See `INPUT_LATENCY.md` §9–14 for fuller implementation notes on all topics below.
+
+#### Full pipeline breakdown
+
+| Stage | Mechanism | Typical latency |
+|---|---|---|
+| Input generated (hardware) | Eye tracker, joystick, DAQ | hardware-dependent |
+| Written to shared memory | Producer process | < 1 µs |
+| Read by render thread | `AnimExternalPos::advance()` | < 1 µs |
+| Tessellate + `write_buffer` | CPU + PCIe DMA | 0.1–0.5 ms |
+| GPU renders | wgpu render pass | 0.5–2 ms |
+| `surface.present()` blocks | Wait for next vsync | 0–1 frame |
+| Display panel response | LCD/OLED hardware | 1–10 ms |
+| **Total (120 Hz, best case)** | | **~9–27 ms** |
+
+The dominant terms are the vsync wait (0–8.3 ms at 120 Hz, unavoidable without tearing)
+and the display panel response (outside software control). ZMQ command latency adds another
+0–1 frame on top when a command arrives mid-frame (see RwLock contention below).
+
+#### Present mode
+
+Use `PresentMode::Fifo` (vsync, double-buffer) for all production use. `Mailbox`
+(triple-buffer) reduces the vsync wait by up to one frame but makes it impossible to
+determine precisely which vsync a deferred flip was first visible on — unacceptable for
+psychophysics timing. Expose `--present-mode [fifo|mailbox]` as a CLI flag for
+benchmarking, defaulting to `fifo`.
+
+#### RwLock contention window
+
+The ZMQ server acquires a write lock on `SceneState` to process each command; the render
+thread holds a read lock during animation advance and tessellation. A command that arrives
+while the render thread holds the lock is delayed until the next frame's setup, silently
+adding one frame of latency. This mirrors the original deferred-mode behaviour (writes go
+into `*_copy` fields while display runs).
+
+**Client-facing implication:** commands that arrive within the same rendering frame as a
+vsync may not be visible until the following frame. For precise one-frame-accurate delivery,
+use deferred mode explicitly — the server will hold all changes until `DeferredMode{start:
+false}` and flip them atomically on the next frame boundary.
+
+#### Thread priority
+
+The render thread must not be preempted during tessellation and GPU upload. Set OS thread
+priority immediately after the winit event loop starts:
+
+- **Linux:** `libc::pthread_setschedparam` with `SCHED_FIFO`, priority 50.
+- **Windows:** `SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL)`.
+
+Skipping this is the most common cause of multi-millisecond latency spikes on loaded
+machines. The ZMQ server thread and messenger thread should run at normal priority.
+
+#### GPU queue depth
+
+Set `SurfaceConfiguration::desired_maximum_frame_latency = 1` to prevent the driver from
+buffering more than one frame ahead. Higher values reduce GPU idle time but add a full
+frame of latency per extra buffer:
+
+```rust
+config.desired_maximum_frame_latency = 1;
+```
+
+Keep the swap chain at 2 images (double-buffer). Do not request 3 without profiling first.
+
+#### Flip timestamp reporting (open question)
+
+Clients need to know which display frame a deferred flip became visible on. The original
+`CmdQueryTimestamp` returned a Win32 performance-counter value from
+`IDXGISwapChain1::GetFrameStatistics`. wgpu does not expose swap-chain frame statistics
+directly. Options in increasing precision:
+
+1. **Frame counter + known frame rate** — report `(frame_index, frame_rate_hz)` as the
+   timestamp payload. Simple, sufficient for most experiment analysis.
+2. **`Instant::now()` after `surface.present()`** — wall-clock time, within ~1 ms of the
+   actual vsync. Present returns slightly before the vsync on some backends.
+3. **wgpu timestamp queries** (`QuerySet` / `QueryType::Timestamp`) — GPU-side timestamps
+   latched at render-pass start/end. Requires `TIMESTAMP_QUERY` device feature.
+4. **`VK_EXT_present_timing`** — exact Vulkan presentation timestamps; not yet exposed by
+   wgpu, driver support varies.
+
+**Recommended for now:** option 1 (frame counter + rate). Graduate to option 3 when
+experiment pipelines require sub-millisecond flip timing.
+
+#### VRR / GSync / FreeSync
+
+Disable variable refresh rate on the stimulus display. VRR makes frame durations
+non-deterministic, breaking stimulus timing analysis. Disable in the NVIDIA/AMD control
+panel on Windows, or via `xrandr` / DRM connector properties on Linux. Add this to the
+deployment checklist in the README.
+
 ---
 
 ## 4. Crate Dependencies

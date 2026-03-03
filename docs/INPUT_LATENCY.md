@@ -323,11 +323,265 @@ To keep the render server simple and its dependencies minimal:
 | Script-driven position sequences | ZMQ REQ/REP control command `CmdMoveTo` (not per-frame) |
 | Smooth scripted trajectories | `AnimPath` or `AnimLineSeg` (preloaded into server) |
 
-**Short answer to the original question:**  
+**Short answer to the original question:**
 ZeroMQ is fast enough for everything *except* per-frame position tracking at high refresh rates.
 Keep shared memory for that. The hybrid model (ZMQ for commands, shared memory for streaming
 position) gives the best of both worlds with no measurable overhead.
 
 ---
 
-*End of document. See `PLAN.md` for the full porting plan.*
+## 9. Render-Loop Latency: Implementation Notes
+
+The sections below cover the render-side contributors to end-to-end latency that are not
+specific to position input. They complement the command-to-photon breakdown in `PLAN.md §3.4`.
+
+---
+
+## 10. Present Mode and Swap Chain Strategy
+
+### 10.1 Mode comparison
+
+| `wgpu::PresentMode` | Tearing | Latency vs Fifo | Flip timing accuracy | Use case |
+|---|---|---|---|---|
+| `Fifo` | Never | baseline | Highest — blocks on vsync | **Production default** |
+| `Mailbox` | Never | −0.5 to −1 frame | Lower — newest rendered frame shown; exact vsync unknown | Benchmarking only |
+| `Immediate` | Yes | Minimal | N/A | Never appropriate for stimuli |
+| `AutoVsync` | Never (fallback) | Same as Fifo | Same as Fifo | Acceptable alternative |
+
+For psychophysics, **`Fifo` is mandatory in production**. The experiment software must be
+able to reason about which display frame a deferred flip was visible on. `Mailbox` destroys
+that guarantee.
+
+### 10.2 CLI flag
+
+Expose present mode as a CLI flag so it can be changed for benchmarking without a rebuild:
+
+```rust
+// args.rs
+#[derive(clap::ValueEnum, Clone, Debug, Default)]
+pub enum PresentModeArg { #[default] Fifo, Mailbox }
+
+// main.rs / render setup
+let present_mode = match args.present_mode {
+    PresentModeArg::Fifo    => wgpu::PresentMode::Fifo,
+    PresentModeArg::Mailbox => wgpu::PresentMode::Mailbox,
+};
+config.present_mode = present_mode;
+```
+
+Default: `fifo`. Document in the README that changing this invalidates timing measurements.
+
+### 10.3 Number of swap chain images
+
+Set `desired_maximum_frame_latency = 1` on `SurfaceConfiguration`. This requests that the
+driver queue at most one frame ahead. The default (often 2–3) trades latency for throughput:
+
+```rust
+config.desired_maximum_frame_latency = 1;
+```
+
+The GPU will occasionally stall waiting for the previous frame to be presented. At 120 Hz
+this stall is ≤ 8.3 ms and is dwarfed by the vsync wait. The latency saving (one full
+frame at high refresh rates) is worth the mild throughput reduction.
+
+---
+
+## 11. Flip Timestamp Reporting
+
+### 11.1 The problem
+
+The original C++ server answered `CmdQueryTimestamp` with a value from
+`IDXGISwapChain1::GetFrameStatistics::SyncQPCTime` — the hardware-latched presentation
+counter for the most recent flip. Clients used this to correlate stimulus events with
+electrophysiology recordings.
+
+wgpu does not expose swap-chain presentation timestamps. This must be emulated.
+
+### 11.2 Option A — Frame counter + frame rate (implement first)
+
+Report `(frame_index: u64, frame_rate_hz: f32)` in the `CmdQueryTimestamp` response.
+`frame_index` is an atomic counter incremented at the start of each render call (before
+the advance step). The client reconstructs absolute time as
+`session_start + frame_index / frame_rate_hz`.
+
+**Pros:** zero overhead, always available, sufficient for post-hoc analysis.
+**Cons:** requires the client to know `session_start`; accumulates drift if frame rate
+varies (use measured inter-frame intervals, not nominal rate, to reduce drift).
+
+```rust
+// In SceneState or a separate FrameStats struct:
+pub frame_index:    u64,           // incremented atomically each frame
+pub last_frame_ns:  u64,           // Instant::now() at start of last frame, as nanos
+pub frame_rate_hz:  f32,           // rolling average of 1/frame_duration
+```
+
+### 11.3 Option B — Wall clock after present (implement soon)
+
+Record `Instant::now()` immediately after `surface.present()` returns. This captures the
+time the GPU signalled the swap, which is within ~0.5–1 ms of the actual vsync on most
+drivers (DX12 signals slightly before the physical vsync; Vulkan Fifo signals on the vsync
+interrupt).
+
+```rust
+queue.submit(std::iter::once(encoder.finish()));
+let surface_texture = /* acquired earlier */;
+surface_texture.present();
+let flip_instant = Instant::now();  // ← latch here
+scene.write().unwrap().last_flip_ns = flip_instant
+    .duration_since(session_start)
+    .as_nanos() as u64;
+```
+
+**Pros:** simple, platform-agnostic, sufficient for ≥ 1 ms timing requirements.
+**Cons:** not a hardware-latched timestamp; jitter ≈ 0.5–2 ms.
+
+### 11.4 Option C — GPU timestamp queries (implement when needed)
+
+wgpu supports `QueryType::Timestamp` on devices with `TIMESTAMP_QUERY` feature. Insert a
+timestamp query at the end of the render pass to get a GPU-side timestamp latched when
+rendering finished (not when presented). Combine with Option B for a tighter bound:
+`present_time ∈ [gpu_render_done, Instant::now_after_present]`.
+
+Requires `Features::TIMESTAMP_QUERY` at device creation and `wgpu::QuerySet` management.
+GPU timestamp ticks must be converted to nanoseconds using
+`queue.get_timestamp_period()`.
+
+### 11.5 Recommendation
+
+Implement A and B together from day one. Option B costs one `Instant::now()` call per
+frame. Reserve Option C for experiments where timing must be validated to < 1 ms.
+
+---
+
+## 12. RwLock Contention and the Mid-Frame Command Problem
+
+### 12.1 The problem
+
+```
+Frame N:                          Frame N+1:
+  render thread acquires read lock
+  advance animations (~0.1 ms)
+  tessellate (~0.3 ms)            ← ZMQ command arrives HERE
+  write_buffer, submit
+  present (blocks on vsync)
+  release read lock               ← ZMQ server NOW acquires write lock
+                                  next frame sees the change
+```
+
+A command that arrives while the render thread holds the read lock on `SceneState` is
+processed *after* the current frame is already submitted. The change is not visible until
+frame N+2 — one extra frame of silent latency with no error signal to the client.
+
+### 12.2 Why this is acceptable
+
+This matches the behaviour of the original C++ system when a command arrived during the
+display thread's critical section: the pipe thread would block on `g_criticalDrawSection`
+and the change would land in the next frame. The original system documented this as
+"commands may be delayed by up to one frame". The Rust port inherits the same guarantee.
+
+For experiments where exact-frame delivery is required, the client must use **deferred
+mode**: send all commands between `DeferredMode{start: true}` and `DeferredMode{start:
+false}`, then the server atomically promotes all changes on the next `pending_flip` frame.
+
+### 12.3 Mitigation if sub-frame latency becomes critical
+
+If experiments require commands to land in the *same* frame they are received, consider a
+**lock-free double-buffer** for `SceneState`:
+
+- The ZMQ thread writes to a staging state (no lock, only atomic pointer swap).
+- At the start of each frame the render thread atomically adopts the staging state.
+- Deferred mode is always-on at the hardware level; the client chooses when to "commit".
+
+This adds significant complexity. Only implement if the one-frame RwLock delay is measured
+to be experimentally significant.
+
+---
+
+## 13. Thread Priority
+
+### 13.1 Why it matters
+
+Without elevated priority, the OS scheduler can preempt the render thread for 1–15 ms
+(Linux CFS default timeslice) while a background process consumes CPU. At 120 Hz, 15 ms
+is nearly two full frames — a dropped frame, a visible stutter, and a timing artefact.
+
+### 13.2 Linux
+
+Use `SCHED_FIFO` with priority 50 on the render (main) thread. This requires either
+running vstim_server as root or setting the `CAP_SYS_NICE` capability:
+
+```rust
+// In main(), after the event loop is created but before run_app():
+#[cfg(target_os = "linux")]
+unsafe {
+    let mut param = libc::sched_param { sched_priority: 50 };
+    let ret = libc::pthread_setschedparam(
+        libc::pthread_self(),
+        libc::SCHED_FIFO,
+        &param,
+    );
+    if ret != 0 { eprintln!("Warning: could not set SCHED_FIFO ({}). Run as root or set CAP_SYS_NICE.", ret); }
+}
+```
+
+Grant the capability without running as root:
+```bash
+sudo setcap cap_sys_nice+eip ./target/release/vstim_server
+```
+
+The ZMQ server thread and messenger thread should stay at `SCHED_OTHER` (default). Only
+the render thread needs elevated priority.
+
+### 13.3 Windows
+
+```rust
+#[cfg(target_os = "windows")]
+unsafe {
+    windows_sys::Win32::System::Threading::SetThreadPriority(
+        windows_sys::Win32::System::Threading::GetCurrentThread(),
+        windows_sys::Win32::System::Threading::THREAD_PRIORITY_TIME_CRITICAL,
+    );
+}
+```
+
+Or use the `windows-sys` crate already pulled in by wgpu's dependency tree.
+
+### 13.4 CPU affinity (optional)
+
+Pin the render thread to a dedicated core to eliminate cache-invalidation jitter from
+other threads migrating onto the same core. Use `core_affinity` crate (optional feature).
+Only necessary on heavily loaded machines; measure before adding the dependency.
+
+---
+
+## 14. VRR / GSync / FreeSync
+
+Variable refresh rate technology (NVIDIA G-Sync, AMD FreeSync, VESA AdaptiveSync) allows
+the display to vary its refresh period to match the GPU's output rate. This is beneficial
+for gaming (eliminates tearing without fixed-rate vsync stalls) but harmful for
+psychophysics:
+
+- **Non-deterministic frame duration**: the display may hold a frame for 6 ms or 14 ms
+  depending on GPU load. Stimulus onset time relative to the physical frame boundary
+  becomes unknown.
+- **Timing analysis breaks**: inter-stimulus intervals computed from frame indices assume
+  a fixed frame period. VRR violates this assumption.
+- **Photodiode timing misleads**: the photodiode flash appears for a variable duration,
+  making photodiode-based electrophysiology alignment unreliable.
+
+**Recommendation: disable VRR on the stimulus display unconditionally.**
+
+| Platform | How to disable |
+|---|---|
+| Windows (NVIDIA) | NVIDIA Control Panel → Manage 3D Settings → Monitor Technology → Fixed Refresh |
+| Windows (AMD) | AMD Software → Gaming → Display → AMD FreeSync → Off |
+| Linux (KMS/DRM) | `xrandr --output <display> --set "vrr_capable" 0` or set `VRR_ENABLED=0` in DRM connector properties |
+| Linux (Wayland/KWin) | System Settings → Display → Adaptive Sync → Off |
+
+Add VRR-off to the deployment checklist in the README. Consider adding a startup check:
+query the surface capabilities and log a warning if the adapter reports
+`PresentMode::Mailbox` as the only non-tearing mode (may indicate VRR-only hardware).
+
+---
+
+*End of document. See `PLAN.md` for the full porting plan and §3.4 for the latency budget summary.*
