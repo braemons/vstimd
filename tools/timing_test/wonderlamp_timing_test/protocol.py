@@ -1,4 +1,4 @@
-"""Protocol driver: sends flash commands to the vstim_server and records timestamps.
+"""Protocol driver: sends flash commands to the wonderlamp_server and records timestamps.
 
 This module drives the visual stimulus server to display a series of full-field
 flash stimuli, recording when each command was sent so the test tool can
@@ -43,7 +43,7 @@ def run_flash_protocol(
     hz:
         Flash rate in Hz.
     server_address:
-        ZMQ REQ address of the vstim server.
+        ZMQ REQ address of the wonderlamp_server.
     use_zmq_events:
         If True, subscribe to tcp://*:5556 for FrameFlip events (Phase 3).
     verbose:

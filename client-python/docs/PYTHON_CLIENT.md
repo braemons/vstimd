@@ -1,6 +1,6 @@
-# Python Client (`vstim_client`)
+# Python Client (`wonderlamp_client`)
 
-`vstim_client` is a PsychoPy-compatible Python package that controls `vstim_server`
+`wonderlamp_client` is a PsychoPy-compatible Python package that controls `wonderlamp_server`
 over ZeroMQ.  Experiment scripts can swap:
 
 ```python
@@ -8,7 +8,7 @@ over ZeroMQ.  Experiment scripts can swap:
 from psychopy import visual
 
 # After
-from vstim_client import visual
+from wonderlamp_client import visual
 ```
 
 and have their code mostly work without changes.
@@ -18,9 +18,9 @@ and have their code mostly work without changes.
 ## Install
 
 ```bash
-pip install -e vstim_client/
+pip install -e wonderlamp_client/
 # or, with test dependencies:
-pip install -e "vstim_client/[dev]"
+pip install -e "wonderlamp_client/[dev]"
 ```
 
 Requires Python ≥ 3.10 and `pyzmq >= 25`.
@@ -52,9 +52,9 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 
 ## Migration from psychopy
 
-| psychopy | vstim_client | Notes |
+| psychopy | wonderlamp_client | Notes |
 |---|---|---|
-| `from psychopy import visual` | `from vstim_client import visual` | direct swap |
+| `from psychopy import visual` | `from wonderlamp_client import visual` | direct swap |
 | `Window(size=...)` | `Window(size=..., address='tcp://host:port')` | add `address` |
 | `Circle(win, ...)` | identical | ✓ |
 | `Rect(win, ...)` | identical | ✓ |
@@ -137,17 +137,17 @@ assets are planned for v2.
 
 ```bash
 # Print human-readable report
-python vstim_client/compat/check_compat.py
+python wonderlamp_client/compat/check_compat.py
 
 # Generate pytest fixture file and run tests
-python vstim_client/compat/check_compat.py --output-pytest-fixtures vstim_client/tests/_compat_fixtures.py
-pytest vstim_client/tests/test_api_compat.py -v
+python wonderlamp_client/compat/check_compat.py --output-pytest-fixtures wonderlamp_client/tests/_compat_fixtures.py
+pytest wonderlamp_client/tests/test_api_compat.py -v
 ```
 
 Example output:
 
 ```
-vstim_client.visual  ←→  psychopy.visual  compatibility check
+wonderlamp_client.visual  ←→  psychopy.visual  compatibility check
 ==============================================================
   Window             OK  (2 extensions: address, deferred)
   Circle             OK
@@ -163,8 +163,8 @@ vstim_client.visual  ←→  psychopy.visual  compatibility check
 
 ```bash
 # Unit and API compat tests (no server required)
-pytest vstim_client/tests/ -v
+pytest wonderlamp_client/tests/ -v
 
 # Integration tests (requires live server)
-VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 pytest vstim_client/tests/test_integration.py --run-integration -v
+VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 pytest wonderlamp_client/tests/test_integration.py --run-integration -v
 ```

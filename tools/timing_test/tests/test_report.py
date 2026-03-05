@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from vstim_timing_test.analysis import AnalysisResult, Thresholds, analyze
-from vstim_timing_test.backends.simulation import SimulatedBackend
-from vstim_timing_test.report import classify_verdict
+from wonderlamp_timing_test.analysis import AnalysisResult, Thresholds, analyze
+from wonderlamp_timing_test.backends.simulation import SimulatedBackend
+from wonderlamp_timing_test.report import classify_verdict
 
 
 def _make_result(**kwargs) -> AnalysisResult:

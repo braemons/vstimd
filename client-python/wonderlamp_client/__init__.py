@@ -1,8 +1,8 @@
-"""vstim_client — PsychoPy-compatible client for vstim_server.
+"""wonderlamp_client — PsychoPy-compatible client for wonderlamp_server.
 
 Usage
 -----
-    from vstim_client import visual
+    from wonderlamp_client import visual
 
     # Connect to server on the same host (default)
     win = visual.Window(size=(1920, 1080))

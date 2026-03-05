@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from vstim_client._connection import Connection
-from vstim_client import visual
+from wonderlamp_client._connection import Connection
+from wonderlamp_client import visual
 
 
 # ---------------------------------------------------------------------------

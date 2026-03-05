@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import pytest
 
-from vstim_client import visual
-from vstim_client._units import apply_operation
+from wonderlamp_client import visual
+from wonderlamp_client._units import apply_operation
 
 
 # ---------------------------------------------------------------------------

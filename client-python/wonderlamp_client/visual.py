@@ -1,8 +1,8 @@
-"""vstim_client.visual — PsychoPy-compatible stimulus classes.
+"""wonderlamp_client.visual — PsychoPy-compatible stimulus classes.
 
-Drop-in replacement for psychopy.visual for scripts that target vstim_server.
+Drop-in replacement for psychopy.visual for scripts that target wonderlamp_server.
 
-    from vstim_client import visual
+    from wonderlamp_client import visual
     win = visual.Window(size=(1920, 1080), address='tcp://192.168.1.10:5555')
     circle = visual.Circle(win, radius=50, fillColor='red')
     circle.autoDraw = True
@@ -50,7 +50,7 @@ _handle_counter = itertools.count(1)
 # Marker base — no behaviour, only for isinstance() checks
 # ---------------------------------------------------------------------------
 
-class _VStimBase:
+class _WonderlampBase:
     """Marker base. No methods or fields — only used for isinstance() checks."""
 
 
@@ -59,7 +59,7 @@ class _VStimBase:
 # ---------------------------------------------------------------------------
 
 class Window:
-    """Connection to vstim_server plus frame-buffer semantics.
+    """Connection to wonderlamp_server plus frame-buffer semantics.
 
     Parameters
     ----------
@@ -91,7 +91,7 @@ class Window:
         the next render frame.  If False, setters send immediately (changes
         may become visible at different times) and flip() is a no-op.
     address:
-        ZeroMQ endpoint of vstim_server, e.g. 'tcp://192.168.1.10:5555'.
+        ZeroMQ endpoint of wonderlamp_server, e.g. 'tcp://192.168.1.10:5555'.
         Change host and port here to connect to a remote machine.
     autoLog:
         Enable Python logging for this window.
@@ -109,7 +109,7 @@ class Window:
         screen: int = 0,
         waitBlanking: bool = True,
         name: str = "window1",
-        title: str = "vstim",
+        title: str = "wonderlamp",
         deferred: bool = True,
         address: str = "tcp://localhost:5555",
         autoLog: bool = True,
@@ -248,7 +248,7 @@ class Window:
 # Circle
 # ---------------------------------------------------------------------------
 
-class Circle(_VStimBase):
+class Circle(_WonderlampBase):
     def __init__(
         self,
         win: Window,
@@ -404,14 +404,14 @@ class Circle(_VStimBase):
 
     def contains(self, x: Any, y: Any = None, units: str | None = None) -> bool:
         # Stub — spatial queries not yet implemented
-        raise NotImplementedError("contains() is not yet implemented in vstim_client v1")
+        raise NotImplementedError("contains() is not yet implemented in wonderlamp_client v1")
 
 
 # ---------------------------------------------------------------------------
 # Rect
 # ---------------------------------------------------------------------------
 
-class Rect(_VStimBase):
+class Rect(_WonderlampBase):
     def __init__(
         self,
         win: Window,
@@ -563,14 +563,14 @@ class Rect(_VStimBase):
         self.autoDraw = value
 
     def contains(self, x: Any, y: Any = None, units: str | None = None) -> bool:
-        raise NotImplementedError("contains() is not yet implemented in vstim_client v1")
+        raise NotImplementedError("contains() is not yet implemented in wonderlamp_client v1")
 
 
 # ---------------------------------------------------------------------------
 # Polygon
 # ---------------------------------------------------------------------------
 
-class Polygon(_VStimBase):
+class Polygon(_WonderlampBase):
     def __init__(
         self,
         win: Window,
@@ -721,14 +721,14 @@ class Polygon(_VStimBase):
         self.autoDraw = value
 
     def contains(self, x: Any, y: Any = None, units: str | None = None) -> bool:
-        raise NotImplementedError("contains() is not yet implemented in vstim_client v1")
+        raise NotImplementedError("contains() is not yet implemented in wonderlamp_client v1")
 
 
 # ---------------------------------------------------------------------------
 # Line
 # ---------------------------------------------------------------------------
 
-class Line(_VStimBase):
+class Line(_WonderlampBase):
     def __init__(
         self,
         win: Window,
@@ -878,14 +878,14 @@ class Line(_VStimBase):
         self.autoDraw = value
 
     def contains(self, x: Any, y: Any = None, units: str | None = None) -> bool:
-        raise NotImplementedError("contains() is not yet implemented in vstim_client v1")
+        raise NotImplementedError("contains() is not yet implemented in wonderlamp_client v1")
 
 
 # ---------------------------------------------------------------------------
 # ShapeStim
 # ---------------------------------------------------------------------------
 
-class ShapeStim(_VStimBase):
+class ShapeStim(_WonderlampBase):
     def __init__(
         self,
         win: Window,
@@ -1036,4 +1036,4 @@ class ShapeStim(_VStimBase):
         self.autoDraw = value
 
     def contains(self, x: Any, y: Any = None, units: str | None = None) -> bool:
-        raise NotImplementedError("contains() is not yet implemented in vstim_client v1")
+        raise NotImplementedError("contains() is not yet implemented in wonderlamp_client v1")

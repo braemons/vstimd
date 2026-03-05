@@ -3,22 +3,22 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vstim_client"
+name = "wonderlamp_client"
 version = "0.1.0"
-description = "PsychoPy-compatible Python client for vstim_server"
+description = "PsychoPy-compatible Python client for wonderlamp_server"
 requires-python = ">=3.10"
 dependencies = ["pyzmq>=25", "numpy>=1.24"]
 
 [project.optional-dependencies]
 test = ["pytest", "psychopy"]  # psychopy only needed for compat tests
-dev  = ["vstim_client[test]"]
+dev  = ["wonderlamp_client[test]"]
 
 [project.scripts]
-vstim-compat = "vstim_client.compat.check_compat:main"
+wonderlamp-compat = "wonderlamp_client.compat.check_compat:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["vstim_client*"]
+include = ["wonderlamp_client*"]
 
 [dependency-groups]
 dev = [

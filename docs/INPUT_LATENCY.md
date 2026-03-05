@@ -101,7 +101,7 @@ concerns.
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                    vstim_server                         │
+│                    wonderlamp_server                         │
 │                                                         │
 │  ZMQ REP thread          Render thread (main)           │
 │  ┌──────────────┐        ┌──────────────────────────┐   │
@@ -115,9 +115,9 @@ concerns.
 │                                              draw frame │
 │  ┌──────────────────────────────────────────────────┐   │
 │  │  Shared memory regions (one per position source) │   │
-│  │  /vstim/gaze_pos    → f32[2]                     │   │
-│  │  /vstim/joystick    → f32[2]                     │   │
-│  │  /vstim/cursor      → f32[2]                     │   │
+│  │  /wonderlamp/gaze_pos    → f32[2]                     │   │
+│  │  /wonderlamp/joystick    → f32[2]                     │   │
+│  │  /wonderlamp/cursor      → f32[2]                     │   │
 │  └──────────────────────────────────────────────────┘   │
 └─────────────────────────────────────────────────────────┘
          ▲                       ▲
@@ -140,7 +140,7 @@ The `shared_memory` crate (version 0.12) wraps both platforms transparently.
 ```python
 import mmap, struct, posix_ipc
 
-shm = posix_ipc.SharedMemory("/vstim_gaze", posix_ipc.O_CREAT, size=8)
+shm = posix_ipc.SharedMemory("/wonderlamp_gaze", posix_ipc.O_CREAT, size=8)
 mm  = mmap.mmap(shm.fd, 8)
 
 def write_pos(x: float, y: float):
@@ -150,14 +150,14 @@ def write_pos(x: float, y: float):
 
 **C/C++:**
 ```c
-int fd = shm_open("/vstim_gaze", O_RDWR | O_CREAT, 0666);
+int fd = shm_open("/wonderlamp_gaze", O_RDWR | O_CREAT, 0666);
 ftruncate(fd, 8);
 float *pos = mmap(NULL, 8, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 pos[0] = x;
 pos[1] = y;
 ```
 
-### Consumer side (Rust, in vstim_server)
+### Consumer side (Rust, in wonderlamp_server)
 
 ```rust
 use shared_memory::{Shmem, ShmemConf};
@@ -224,7 +224,7 @@ impl Animation for AnimExternalPos {
 }
 ```
 
-Created via: `CmdCreateAnimExternalPos { shm_name: "/vstim_gaze", offset: {x:0, y:0} }`
+Created via: `CmdCreateAnimExternalPos { shm_name: "/wonderlamp_gaze", offset: {x:0, y:0} }`
 
 ### 5.2 `AnimZmqPos` (ZeroMQ SUB — new, for remote producers)
 
@@ -285,10 +285,10 @@ By convention, use POSIX-style names with a leading `/`:
 
 | Source | Shared memory name | Contents |
 |---|---|---|
-| Eye tracker (gaze) | `/vstim_gaze` | `f32[2]`: (x, y) in screen pixels, centre=0 |
-| Joystick / lever | `/vstim_joystick` | `f32[2]`: (x, y), normalised −1..1 or pixels |
-| Second eye | `/vstim_gaze2` | `f32[2]` |
-| Custom DAQ | `/vstim_daq` | user-defined, `f32[N]` |
+| Eye tracker (gaze) | `/wonderlamp_gaze` | `f32[2]`: (x, y) in screen pixels, centre=0 |
+| Joystick / lever | `/wonderlamp_joystick` | `f32[2]`: (x, y), normalised −1..1 or pixels |
+| Second eye | `/wonderlamp_gaze2` | `f32[2]` |
+| Custom DAQ | `/wonderlamp_daq` | user-defined, `f32[N]` |
 
 The stimulus server does not impose a naming convention — the `shm_name` field in
 `CmdCreateAnimExternalPos` is arbitrary. The convention above is a recommendation for
@@ -296,14 +296,14 @@ interoperability between experiment software components.
 
 ---
 
-## 7. What vstim_server Should NOT Own
+## 7. What wonderlamp_server Should NOT Own
 
 To keep the render server simple and its dependencies minimal:
 
 - **Device drivers**: eye tracker SDKs (EyeLink, Tobii, SR Research) stay in their own
   process. They write to shared memory.
 - **Calibration**: gaze calibration is the responsibility of the tracking process or
-  the experiment control script. vstim_server receives already-calibrated screen coordinates.
+  the experiment control script. wonderlamp_server receives already-calibrated screen coordinates.
 - **Input recording**: timestamped logging of gaze/joystick traces belongs in the
   experiment control software, not the render server.
 - **Synchronisation signals**: photodiode flash output is handled by the server (see PLAN.md §10).
@@ -508,7 +508,7 @@ is nearly two full frames — a dropped frame, a visible stutter, and a timing a
 ### 13.2 Linux
 
 Use `SCHED_FIFO` with priority 50 on the render (main) thread. This requires either
-running vstim_server as root or setting the `CAP_SYS_NICE` capability:
+running wonderlamp_server as root or setting the `CAP_SYS_NICE` capability:
 
 ```rust
 // In main(), after the event loop is created but before run_app():
@@ -526,7 +526,7 @@ unsafe {
 
 Grant the capability without running as root:
 ```bash
-sudo setcap cap_sys_nice+eip ./target/release/vstim_server
+sudo setcap cap_sys_nice+eip ./target/release/wonderlamp_server
 ```
 
 The ZMQ server thread and messenger thread should stay at `SCHED_OTHER` (default). Only

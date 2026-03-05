@@ -1,4 +1,4 @@
-"""Command-line interface for vstim_timing_test."""
+"""Command-line interface for wonderlamp_timing_test."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import time
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
-        prog="vstim-timing-test",
+        prog="wonderlamp-timing-test",
         description="Measure visual stimulus frame timing using a photodiode + DAQ.",
     )
     p.add_argument(
@@ -22,7 +22,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--server",
         default="tcp://localhost:5555",
         metavar="ADDR",
-        help="vstim_server ZMQ address (default: tcp://localhost:5555)",
+        help="wonderlamp_server ZMQ address (default: tcp://localhost:5555)",
     )
     p.add_argument(
         "--hz",
@@ -80,7 +80,7 @@ def main(argv: list[str] | None = None) -> int:
     n_flashes = max(1, int(args.duration * args.hz))
 
     # --- Select backend ---
-    print(f"[vstim-timing-test] Backend: {args.backend}")
+    print(f"[wonderlamp-timing-test] Backend: {args.backend}")
     if args.backend == "simulated":
         from .backends.simulation import SimulatedBackend
         backend = SimulatedBackend(hz=args.hz, duration_s=args.duration)
@@ -92,7 +92,7 @@ def main(argv: list[str] | None = None) -> int:
     clock_offset_ms = 0.0
     if not args.no_server and args.use_zmq_events:
         from .protocol import calibrate_clock
-        print("[vstim-timing-test] Calibrating clock offset...")
+        print("[wonderlamp-timing-test] Calibrating clock offset...")
         clock_offset_ms = calibrate_clock(args.server)
         print(f"  Clock offset: {clock_offset_ms:.2f} ms")
 
@@ -115,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
                 verbose=args.verbose,
             )
         except Exception as e:
-            print(f"[vstim-timing-test] WARNING: Could not connect to server: {e}")
+            print(f"[wonderlamp-timing-test] WARNING: Could not connect to server: {e}")
             print("  Running in offline mode (no protocol commands sent).")
     else:
         # Simulated: just wait for the acquisition duration

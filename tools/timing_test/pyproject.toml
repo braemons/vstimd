@@ -1,5 +1,5 @@
 [project]
-name = "vstim_timing_test"
+name = "wonderlamp_timing_test"
 version = "0.1.0"
 requires-python = ">=3.10"
 dependencies = ["pyzmq>=25", "numpy>=1.24", "colorama>=0.4"]
@@ -8,11 +8,11 @@ dependencies = ["pyzmq>=25", "numpy>=1.24", "colorama>=0.4"]
 ni    = ["nidaqmx>=0.9"]
 u3    = ["labjack>=2.0"]
 t4    = ["labjack-ljm>=2022"]
-all   = ["vstim_timing_test[ni,u3,t4]"]
+all   = ["wonderlamp_timing_test[ni,u3,t4]"]
 test  = ["pytest"]
 
 [project.scripts]
-vstim-timing-test = "vstim_timing_test.cli:main"
+wonderlamp-timing-test = "wonderlamp_timing_test.cli:main"
 
 [build-system]
 requires = ["setuptools>=61"]

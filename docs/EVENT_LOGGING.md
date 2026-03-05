@@ -140,7 +140,7 @@ Layer 3 — Log file
   Described in §6.
 ```
 
-The protobuf control protocol (`vstim.proto`) is **unchanged**: ZMQ REQ/REP for commands
+The protobuf control protocol (`wonderlamp.proto`) is **unchanged**: ZMQ REQ/REP for commands
 still uses `prost`. Only the *event log* format switches to FlatBuffers. The raw bytes of
 an incoming ZMQ request (already a protobuf blob) are stored verbatim in the log as an
 opaque `[ubyte]` field — no re-encoding.
@@ -212,7 +212,7 @@ pub enum Event {
 
     // ── ZMQ commands ──────────────────────────────────────────────────────
     /// [ARC] A Request was received over the ZMQ REP socket.
-    /// The bytes are the raw protobuf-encoded vstim::Request, already owned
+    /// The bytes are the raw protobuf-encoded wonderlamp::Request, already owned
     /// by the ZMQ receive buffer. Wrapped in Arc to avoid copying.
     /// Level: Debug.
     CommandReceived { frame_index: u64, timestamp_ns: Ns, bytes: Arc<[u8]> },
@@ -422,7 +422,7 @@ the command bytes in the entire pipeline (ZMQ receive buffer → Arc → FlatBuf
 let record_bytes: &[u8] = file_reader.next_record()?;
 
 // FlatBuffers access — no allocation, no deserialisation:
-let event = vstim_log::root_as_log_event(record_bytes)?;
+let event = wonderlamp_log::root_as_log_event(record_bytes)?;
 
 match event.kind_type() {
     EventKind::CommandReceived => {
@@ -454,7 +454,7 @@ happens on a non-real-time thread with no latency budget.
 - **Crash-safe**: a partial last record is detectable and skippable; all earlier records
   are intact.
 - **Self-describing**: the file header embeds format version and session metadata.
-- **Streamable**: `tail -c +0 -f session.vstlog | reader` works in real time.
+- **Streamable**: `tail -c +0 -f session.wllog | reader` works in real time.
 
 ### 6.2 Binary layout
 
@@ -487,12 +487,12 @@ incomplete and is discarded. All preceding records are valid.
 ### 6.3 File naming
 
 ```
-vstim_<session_id_short>_<YYYYMMDD_HHMMSS>.vstlog
+wonderlamp_<session_id_short>_<YYYYMMDD_HHMMSS>.wllog
 ```
 
-Example: `vstim_a3f2c1d8_20250614_143022.vstlog`
+Example: `wonderlamp_a3f2c1d8_20250614_143022.wllog`
 
-Written to `--log-dir` (default `./logs/`). The `.vstlog` extension is application-specific
+Written to `--log-dir` (default `./logs/`). The `.wllog` extension is application-specific
 and not shared with any other tool.
 
 ### 6.4 Write buffering
@@ -650,7 +650,7 @@ SQLite is therefore kept as an **export** and **deferred monitoring** target onl
 
 ### 10.2 Two modes
 
-**Post-hoc export** (`vstim-convert`): a standalone binary reads a `.vstlog` file and
+**Post-hoc export** (`wonderlamp-convert`): a standalone binary reads a `.wllog` file and
 populates a `.db` file. No latency constraints. The recommended workflow for analysis.
 
 **Deferred real-time** (optional, Info level only): the messenger thread accumulates rows in
@@ -704,13 +704,13 @@ CREATE TABLE stimulus_events (
 CREATE INDEX stim_events_handle ON stimulus_events(session_id, handle, frame_index);
 ```
 
-### 10.4 `vstim-convert` tool
+### 10.4 `wonderlamp-convert` tool
 
 ```
-vstim-convert  input.vstlog  output.db  [--min-level info]  [--frames 0..9999]
+wonderlamp-convert  input.wllog  output.db  [--min-level info]  [--frames 0..9999]
 ```
 
-A small binary in the same Cargo workspace. Reads the `.vstlog` sequentially, decodes each
+A small binary in the same Cargo workspace. Reads the `.wllog` sequentially, decodes each
 FlatBuffer record, and inserts rows. No network or render dependency.
 
 ---
@@ -720,7 +720,7 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 ### 11.1 Invocation
 
 ```
-vstim_server --replay session.vstlog [--speed 1.0] [--start-frame 0] [--end-frame N]
+wonderlamp_server --replay session.wllog [--speed 1.0] [--start-frame 0] [--end-frame N]
 ```
 
 | Flag | Default | Meaning |
@@ -787,7 +787,7 @@ impl ReplayDriver {
 }
 ```
 
-The `LogFileReader` decodes FlatBuffer records from the `.vstlog` file using
+The `LogFileReader` decodes FlatBuffer records from the `.wllog` file using
 `flatbuffers::root_as_log_event(record_bytes)` and converts them back into the internal
 `Event` enum. For `CommandReceived`, the inner `[ubyte]` field is copied into a new
 `Arc<[u8]>` — this is the only allocation during replay, and it happens on the (non-real-time)
@@ -834,7 +834,7 @@ Useful for offline analysis pipelines that generate output images without a real
   the experiment control script are not part of the log.
 - **File-loaded assets**: if a bitmap, mesh, WGSL shader, or `.ply` file referenced in the
   log has moved or changed, replay will diverge. The log stores the file path and a SHA-256
-  hash at load time; `vstim-convert` warns when hashes do not match. (See §16.4.)
+  hash at load time; `wonderlamp-convert` warns when hashes do not match. (See §16.4.)
 
 ---
 
@@ -914,7 +914,7 @@ sha2 = "0.10"
 ```
 
 `flatc` (the FlatBuffers schema compiler) must be installed on the build machine. `build.rs`
-invokes it to generate `src/proto/vstim_log_generated.rs` from `fbs/vstim_log.fbs`.
+invokes it to generate `src/proto/wonderlamp_log_generated.rs` from `fbs/wonderlamp_log.fbs`.
 Alternatively, pre-generated Rust code can be committed to the repository, which removes the
 `flatc` build-time dependency.
 
@@ -923,11 +923,11 @@ Alternatively, pre-generated Rust code can be committed to the repository, which
 ## 14. Schema: FlatBuffers `.fbs` File
 
 ```fbs
-// fbs/vstim_log.fbs
-// FlatBuffers schema for the vstim_server event log.
-// Wire format for .vstlog files and ZMQ PUB event stream.
+// fbs/wonderlamp_log.fbs
+// FlatBuffers schema for the wonderlamp_server event log.
+// Wire format for .wllog files and ZMQ PUB event stream.
 
-namespace vstim.log;
+namespace wonderlamp.log;
 
 // ── Shared types ─────────────────────────────────────────────────────────────
 
@@ -997,7 +997,7 @@ table FrameBegin {
 }
 
 table CommandReceived {
-    // Raw protobuf-encoded vstim::Request bytes, stored verbatim.
+    // Raw protobuf-encoded wonderlamp::Request bytes, stored verbatim.
     // The replay driver decodes these with prost::Message::decode.
     bytes: [uint8] (required);
 }
@@ -1148,10 +1148,10 @@ src/
 ├── replay/
 │   ├── mod.rs              # run_replay entry point, timing modes
 │   ├── driver.rs           # ReplayDriver: lookahead buffer, dispatch
-│   └── log_reader.rs       # LogFileReader: reads and decodes .vstlog records
+│   └── log_reader.rs       # LogFileReader: reads and decodes .wllog records
 │
 └── bin/
-    └── convert.rs          # vstim-convert: .vstlog → SQLite
+    └── convert.rs          # wonderlamp-convert: .wllog → SQLite
 ```
 
 ---
@@ -1184,8 +1184,8 @@ stable. The format version byte in the file header reserves space for this.
 `flatc` must be present at build time. Options:
 
 - **Require `flatc`**: document it in the README. Fine for a lab tool.
-- **Pre-generate and commit**: commit `src/logging/vstim_log_generated.rs` to the repository.
-  `build.rs` only re-runs `flatc` if `fbs/vstim_log.fbs` has changed. Removes the build-time
+- **Pre-generate and commit**: commit `src/logging/wonderlamp_log_generated.rs` to the repository.
+  `build.rs` only re-runs `flatc` if `fbs/wonderlamp_log.fbs` has changed. Removes the build-time
   dependency for users who do not modify the schema.
 - **Use a `flatbuffers` proc-macro**: the `planus` crate offers a proc-macro approach that
   does not require a separate compiler binary.
@@ -1208,7 +1208,7 @@ table ObjectCreated {
 }
 ```
 
-`vstim-convert` and the replay driver both check the hash and emit a warning if it does not
+`wonderlamp-convert` and the replay driver both check the hash and emit a warning if it does not
 match the file currently on disk.
 
 ### 16.5 Dropped event reporting

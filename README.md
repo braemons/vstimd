@@ -1,6 +1,6 @@
-# VStim v3
+# Wonderlamp
 
-A Rust rewrite of the [StimServer](https://github.com/) C++ visual stimulus server, combined with ideas from the **VStim** project.
+A Rust rewrite of the [StimServer](https://github.com/esi-neuroscience/StimServer) C++ visual stimulus server, combined with ideas from the **VStim** project.
 
 The original StimServer used MFC/C++/Direct3D11 with a client/server architecture driven by Windows named pipes with binary messages. This project ports that architecture to Rust, targeting Linux as the primary deployment platform, replacing named pipes with ZeroMQ for cross-platform IPC, and adding a modern GPU rendering stack.
 
@@ -69,4 +69,4 @@ cargo clippy
 | VStim v1 | C++ / MFC | Direct3D 9 | Original monolithic stimulus software |
 | VStim v2 | C++ / MFC | Direct3D 11 | Monolithic rewrite with improved renderer |
 | StimServer | C++ / MFC | Direct3D 11 | Standalone server with client/server architecture over Windows named pipes (binary protocol) |
-| VStim v3 (this repo) | Rust | wgpu (DX12/Vulkan/Metal) | Rust rewrite combining VStim and StimServer, cross-platform |
+| Wonderlamp (this repo) | Rust | wgpu (DX12/Vulkan/Metal) | Rust rewrite combining VStim and StimServer, cross-platform |

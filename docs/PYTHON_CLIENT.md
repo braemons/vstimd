@@ -1,7 +1,7 @@
-# Python Client (`vstim_client`)
+# Python Client (`wonderlamp_client`)
 
 > **Status:** v1 implemented, server-side protocol not yet built
-> **Location:** `vstim_client/` at repo root
+> **Location:** `wonderlamp_client/` at repo root
 > **See also:** `PLAN.md` §9 (Migration Path), `STIMULUS_DATA_MODEL.md`
 
 ---
@@ -28,18 +28,18 @@
 ## 1. Goal
 
 Existing neuroscience experiments are written against `psychopy.visual`. The goal of
-`vstim_client` is to let experimenters swap one import line:
+`wonderlamp_client` is to let experimenters swap one import line:
 
 ```python
 # Before
 from psychopy import visual
 
 # After
-from vstim_client import visual
+from wonderlamp_client import visual
 ```
 
 and have their scripts work without changes, while the rendering is now handled by
-`vstim_server` (GPU-accelerated, sub-millisecond latency, Linux-capable) instead of
+`wonderlamp_server` (GPU-accelerated, sub-millisecond latency, Linux-capable) instead of
 PsychoPy's local renderer.
 
 ---
@@ -48,7 +48,7 @@ PsychoPy's local renderer.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Class hierarchy | Flat — no mixins, no shared base class behavior | PsychoPy has a deep inheritance hierarchy (MRO surprises, hidden state); vstim_client is deliberately flat — each class is self-contained |
+| Class hierarchy | Flat — no mixins, no shared base class behavior | PsychoPy has a deep inheritance hierarchy (MRO surprises, hidden state); wonderlamp_client is deliberately flat — each class is self-contained |
 | Repeated fields | Duplicated explicitly in every class | Intentional — each class is self-contained; matches the plan in `STIMULUS_DATA_MODEL.md` |
 | Wire format v1 | JSON over ZMQ REQ/REP | Easy to inspect and debug during early development |
 | Wire format v2 | Protobuf (planned) | Migrate once server protocol is stable; see `PLAN.md` §5 |
@@ -64,7 +64,7 @@ PsychoPy's local renderer.
 ```
 client-python/                       ← installable Python package
 ├── pyproject.toml                   ← build + dependencies
-├── vstim_client/
+├── wonderlamp_client/
 │   ├── __init__.py                  ← re-exports visual module
 │   ├── visual.py                    ← all stimulus classes + Window
 │   ├── _connection.py               ← ZMQ socket, send/recv, batch send, reconnect
@@ -156,7 +156,7 @@ one-file change in `_connection.py`.
 ### Marker base
 
 ```python
-class _VStimBase:
+class _WonderlampBase:
     """Marker base. No methods or fields — only used for isinstance() checks."""
 ```
 
@@ -344,15 +344,15 @@ uv run pytest tests/test_commands.py -v
 
 ### Layer 2 — API compatibility tests (`test_api_compat.py`) — no server required
 
-Parametrized tests that compare `vstim_client.visual` signatures against
+Parametrized tests that compare `wonderlamp_client.visual` signatures against
 `psychopy.visual` using `inspect.signature`. These tests require:
 1. `psychopy` installed (optional dev dependency)
 2. A generated fixture file `tests/_compat_fixtures.py` (see §11)
 
 **What is tested:**
-- Every class in `CHECKED_CLASSES` exists in `vstim_client.visual`
-- Every public method from `psychopy.visual.<Class>` exists in the vstim counterpart
-- Every `__init__` parameter from psychopy is present in the vstim counterpart
+- Every class in `CHECKED_CLASSES` exists in `wonderlamp_client.visual`
+- Every public method from `psychopy.visual.<Class>` exists in the wonderlamp counterpart
+- Every `__init__` parameter from psychopy is present in the wonderlamp counterpart
 
 **Run:**
 ```bash
@@ -364,7 +364,7 @@ uv run pytest tests/test_api_compat.py -v
 
 ### Layer 3 — Integration tests (`test_integration.py`) — requires live server
 
-Skipped by default. Uses a real `Connection` and a real `vstim_server` process.
+Skipped by default. Uses a real `Connection` and a real `wonderlamp_server` process.
 Server address is set via `VSTIM_SERVER_ADDR` env var.
 
 **What is tested:**
@@ -411,7 +411,7 @@ uv run python compat/check_compat.py
 Output example:
 
 ```
-vstim_client.visual  ←→  psychopy.visual  compatibility check
+wonderlamp_client.visual  ←→  psychopy.visual  compatibility check
 ==============================================================
   Window             OK  (2 extensions: address, deferred)
   Circle             OK
@@ -449,7 +449,7 @@ from psychopy import visual
 win = visual.Window(size=(1920, 1080), color=(-1, -1, -1), units='pix')
 
 # New — add address, everything else unchanged
-from vstim_client import visual
+from wonderlamp_client import visual
 win = visual.Window(size=(1920, 1080), color=(-1, -1, -1), units='pix',
                     address='tcp://192.168.1.10:5555')
 ```

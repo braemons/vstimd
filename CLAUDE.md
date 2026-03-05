@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**VStim v3** is a Rust rewrite of the C++ StimServer visual stimulus server, combined with ideas from the VStim project. The Rust server binary is named `vstim_server`; the overall project (server + Python client + tools) is VStim v3.
+**Wonderlamp** is a Rust rewrite of the C++ StimServer visual stimulus server, combined with ideas from the VStim project. The Rust server binary is named `wonderlamp_server`; the overall project (server + Python client + tools) is Wonderlamp.
 
 The original StimServer used MFC/C++/Direct3D11 with a client/server architecture over Windows named pipes (binary protocol). This project ports that architecture to Rust, targeting Linux as the primary deployment platform, replacing named pipes with ZeroMQ for cross-platform IPC, and adding a modern GPU rendering stack.
 
