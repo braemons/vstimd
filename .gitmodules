@@ -1,6 +1,6 @@
 [submodule "StimServer"]
-	path = StimServer
+	path = extern/StimServer
 	url = git@github.com:joschaschmiedt/StimServer.git
 [submodule "psychopy"]
-	path = psychopy
+	path = extern/psychopy
 	url = git@github.com:joschaschmiedt/psychopy.git
