@@ -3,9 +3,17 @@ name = "vstim_server"
 version = "0.1.0"
 edition = "2024"
 
+[features]
+overlay = ["dep:egui", "dep:egui-wgpu", "dep:egui-winit"]
+
 [dependencies]
 bytemuck = { version = "1", features = ["derive"] }
 kurbo = "0.13.0"
 pollster = "0.3"
 wgpu = "27.0.1"
 winit = "0.30"
+
+# Optional egui overlay (enable with --features overlay)
+egui       = { version = "0.33", optional = true }
+egui-wgpu  = { version = "0.33", optional = true }
+egui-winit = { version = "0.33", optional = true }

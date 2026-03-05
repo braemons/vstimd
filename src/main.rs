@@ -408,6 +408,250 @@ fn create_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::
     })
 }
 
+// ── Frame timing ─────────────────────────────────────────────────────────────
+
+const FRAME_HISTORY: usize = 120; // 2 s at 60 Hz
+
+/// Summary statistics computed from the ring buffer.
+struct FrameSummary {
+    fps: f64,
+    mean_ms: f64,
+    std_ms: f64,
+    min_ms: f64,
+    max_ms: f64,
+    drop_count: u64,
+    frame_index: u64,
+}
+
+/// Alloc-free frame timing tracker using a fixed-size ring buffer.
+///
+/// `on_present()` is called immediately after `SurfaceTexture::present()`.
+/// No heap allocation occurs after construction.
+struct FrameStats {
+    frame_index: u64,
+    last_present: Option<std::time::Instant>,
+    durations_ns: [u64; FRAME_HISTORY],
+    ring_head: usize,
+    valid_count: usize,
+    drop_count: u64,
+    /// Expected frame duration at the nominal Hz, used for drop detection.
+    expected_frame_ns: u64,
+}
+
+impl FrameStats {
+    fn new(target_hz: f64) -> Self {
+        Self {
+            frame_index: 0,
+            last_present: None,
+            durations_ns: [0; FRAME_HISTORY],
+            ring_head: 0,
+            valid_count: 0,
+            drop_count: 0,
+            expected_frame_ns: (1_000_000_000.0 / target_hz) as u64,
+        }
+    }
+
+    /// Call immediately after `SurfaceTexture::present()`.
+    fn on_present(&mut self) {
+        let now = std::time::Instant::now();
+        if let Some(last) = self.last_present {
+            let dur_ns = now.duration_since(last).as_nanos() as u64;
+
+            // Drop detection: gap > 1.5× expected → at least one dropped frame.
+            let threshold = self.expected_frame_ns * 3 / 2;
+            if dur_ns > threshold && self.expected_frame_ns > 0 {
+                let drops = (dur_ns / self.expected_frame_ns).saturating_sub(1);
+                self.drop_count += drops;
+            }
+
+            self.durations_ns[self.ring_head] = dur_ns;
+            self.ring_head = (self.ring_head + 1) % FRAME_HISTORY;
+            if self.valid_count < FRAME_HISTORY {
+                self.valid_count += 1;
+            }
+        }
+        self.last_present = Some(now);
+        self.frame_index += 1;
+    }
+
+    fn valid_durations(&self) -> &[u64] {
+        // When not yet full, valid entries are always at indices 0..valid_count
+        // (ring_head == valid_count before the first wrap).
+        &self.durations_ns[..self.valid_count.min(FRAME_HISTORY)]
+    }
+
+    /// O(N) summary over the ring buffer, N ≤ 120.
+    fn summary(&self) -> FrameSummary {
+        let durations = self.valid_durations();
+        if durations.is_empty() {
+            return FrameSummary {
+                fps: 0.0,
+                mean_ms: 0.0,
+                std_ms: 0.0,
+                min_ms: 0.0,
+                max_ms: 0.0,
+                drop_count: self.drop_count,
+                frame_index: self.frame_index,
+            };
+        }
+
+        let n = durations.len() as f64;
+        let mean_ns = durations.iter().sum::<u64>() as f64 / n;
+        let var_ns = durations
+            .iter()
+            .map(|&d| {
+                let diff = d as f64 - mean_ns;
+                diff * diff
+            })
+            .sum::<f64>()
+            / n;
+        let std_ns = var_ns.sqrt();
+        let min_ns = *durations.iter().min().unwrap() as f64;
+        let max_ns = *durations.iter().max().unwrap() as f64;
+
+        FrameSummary {
+            fps: if mean_ns > 0.0 { 1_000_000_000.0 / mean_ns } else { 0.0 },
+            mean_ms: mean_ns / 1_000_000.0,
+            std_ms: std_ns / 1_000_000.0,
+            min_ms: min_ns / 1_000_000.0,
+            max_ms: max_ns / 1_000_000.0,
+            drop_count: self.drop_count,
+            frame_index: self.frame_index,
+        }
+    }
+}
+
+// ── egui overlay (feature = "overlay") ───────────────────────────────────────
+
+#[cfg(feature = "overlay")]
+struct OverlayRenderer {
+    ctx: egui::Context,
+    renderer: egui_wgpu::Renderer,
+    winit_state: egui_winit::State,
+}
+
+#[cfg(feature = "overlay")]
+impl OverlayRenderer {
+    fn new(
+        device: &wgpu::Device,
+        surface_format: wgpu::TextureFormat,
+        window: &winit::window::Window,
+        event_loop: &winit::event_loop::ActiveEventLoop,
+    ) -> Self {
+        let ctx = egui::Context::default();
+        let renderer = egui_wgpu::Renderer::new(device, surface_format, None, 1, false);
+        let winit_state = egui_winit::State::new(
+            ctx.clone(),
+            egui::ViewportId::ROOT,
+            event_loop,
+            None,
+            None,
+            None,
+        );
+        Self { ctx, renderer, winit_state }
+    }
+
+    fn on_window_event(
+        &mut self,
+        window: &winit::window::Window,
+        event: &winit::event::WindowEvent,
+    ) -> egui_winit::EventResponse {
+        self.winit_state.on_window_event(window, event)
+    }
+
+    fn render(
+        &mut self,
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        window: &winit::window::Window,
+        stats: &FrameSummary,
+        pixels_per_point: f32,
+    ) {
+        let raw_input = self.winit_state.take_egui_input(window);
+        let full_output = self.ctx.run(raw_input, |ctx| {
+            egui::Window::new("Frame Timing")
+                .default_pos([8.0, 8.0])
+                .resizable(false)
+                .show(ctx, |ui| {
+                    // Color FPS red/yellow/green based on deviation from 60 Hz
+                    let fps_color = if stats.fps < 55.0 {
+                        egui::Color32::RED
+                    } else if stats.fps < 58.0 {
+                        egui::Color32::YELLOW
+                    } else {
+                        egui::Color32::GREEN
+                    };
+                    ui.colored_label(fps_color, format!("FPS:    {:5.1}", stats.fps));
+
+                    let jitter_color = if stats.std_ms > 1.0 {
+                        egui::Color32::RED
+                    } else if stats.std_ms > 0.3 {
+                        egui::Color32::YELLOW
+                    } else {
+                        egui::Color32::GREEN
+                    };
+                    ui.colored_label(
+                        jitter_color,
+                        format!("Jitter: {:5.2} ms (std)", stats.std_ms),
+                    );
+                    ui.label(format!("Mean:   {:5.2} ms", stats.mean_ms));
+                    ui.label(format!("Min:    {:5.2} ms", stats.min_ms));
+                    ui.label(format!("Max:    {:5.2} ms", stats.max_ms));
+
+                    let drop_color = if stats.drop_count >= 3 {
+                        egui::Color32::RED
+                    } else if stats.drop_count >= 1 {
+                        egui::Color32::YELLOW
+                    } else {
+                        egui::Color32::GREEN
+                    };
+                    ui.colored_label(drop_color, format!("Drops:  {}", stats.drop_count));
+                    ui.label(format!("Frame:  {}", stats.frame_index));
+                });
+        });
+
+        self.winit_state.handle_platform_output(window, full_output.platform_output);
+
+        let tris = self
+            .ctx
+            .tessellate(full_output.shapes, pixels_per_point);
+        for (id, delta) in full_output.textures_delta.set {
+            self.renderer.update_texture(device, queue, id, &delta);
+        }
+
+        let screen_desc = egui_wgpu::ScreenDescriptor {
+            size_in_pixels: [window.inner_size().width, window.inner_size().height],
+            pixels_per_point,
+        };
+        self.renderer.update_buffers(device, queue, encoder, &tris, &screen_desc);
+
+        {
+            let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("egui overlay pass"),
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load, // composite over the stimulus
+                        store: wgpu::StoreOp::Store,
+                    },
+                    depth_slice: None,
+                })],
+                depth_stencil_attachment: None,
+                occlusion_query_set: None,
+                timestamp_writes: None,
+            });
+            self.renderer.render(&mut rp, &tris, &screen_desc);
+        }
+
+        for id in full_output.textures_delta.free {
+            self.renderer.free_texture(&id);
+        }
+    }
+}
+
 // ── wgpu state ───────────────────────────────────────────────────────────────
 
 const BUF_SIZE: u64 = 512 * 1024; // 512 KB per buffer — plenty for the demo
@@ -423,11 +667,18 @@ struct State {
     index_buffer: wgpu::Buffer,
     index_count: u32,
     start_time: std::time::Instant,
+    frame_stats: FrameStats,
+    show_overlay: bool,
+    #[cfg(feature = "overlay")]
+    overlay: Option<OverlayRenderer>,
     window: std::sync::Arc<winit::window::Window>,
 }
 
 impl State {
-    fn new(window: std::sync::Arc<winit::window::Window>) -> Self {
+    fn new(
+        window: std::sync::Arc<winit::window::Window>,
+        #[cfg(feature = "overlay")] event_loop: &winit::event_loop::ActiveEventLoop,
+    ) -> Self {
         let instance = wgpu::Instance::default();
 
         // SAFETY: `surface` is stored alongside `window` (via the Arc) in the
@@ -472,6 +723,9 @@ impl State {
             mapped_at_creation: false,
         });
 
+        #[cfg(feature = "overlay")]
+        let overlay = Some(OverlayRenderer::new(&device, config.format, &window, event_loop));
+
         Self {
             surface,
             device,
@@ -482,6 +736,10 @@ impl State {
             index_buffer,
             index_count: 0,
             start_time: std::time::Instant::now(),
+            frame_stats: FrameStats::new(60.0),
+            show_overlay: true,
+            #[cfg(feature = "overlay")]
+            overlay,
             window,
         }
     }
@@ -514,7 +772,7 @@ impl State {
         }
     }
 
-    fn render(&self) {
+    fn render(&mut self) {
         let frame = match self.surface.get_current_texture() {
             Ok(f) => f,
             Err(_) => return,
@@ -547,8 +805,30 @@ impl State {
             }
         }
 
+        // egui overlay pass (second pass, LoadOp::Load — composites over stimulus)
+        #[cfg(feature = "overlay")]
+        if self.show_overlay {
+            if let Some(overlay) = &mut self.overlay {
+                let summary = self.frame_stats.summary();
+                let pixels_per_point = self.window.scale_factor() as f32;
+                overlay.render(
+                    &self.device,
+                    &self.queue,
+                    &mut encoder,
+                    &view,
+                    &self.window,
+                    &summary,
+                    pixels_per_point,
+                );
+            }
+        }
+
         self.queue.submit(std::iter::once(encoder.finish()));
         frame.present();
+
+        // Latch timing immediately after present() — as close to the flip as possible.
+        self.frame_stats.on_present();
+
         self.window.request_redraw();
     }
 }
@@ -565,7 +845,11 @@ impl winit::application::ApplicationHandler for App {
             let attrs = winit::window::Window::default_attributes()
                 .with_title("Bézier Stimulus — wgpu + kurbo");
             let window = std::sync::Arc::new(event_loop.create_window(attrs).unwrap());
-            self.state = Some(State::new(window));
+            self.state = Some(State::new(
+                window,
+                #[cfg(feature = "overlay")]
+                event_loop,
+            ));
         }
     }
 
@@ -576,9 +860,31 @@ impl winit::application::ApplicationHandler for App {
         event: winit::event::WindowEvent,
     ) {
         let Some(state) = &mut self.state else { return };
+
+        // Feed egui the raw window event before our own handling.
+        #[cfg(feature = "overlay")]
+        if let Some(overlay) = &mut state.overlay {
+            let response = overlay.on_window_event(&state.window, &event);
+            if response.consumed {
+                return;
+            }
+        }
+
         match event {
             winit::event::WindowEvent::CloseRequested => event_loop.exit(),
             winit::event::WindowEvent::Resized(size) => state.resize(size),
+            winit::event::WindowEvent::KeyboardInput {
+                event:
+                    winit::event::KeyEvent {
+                        physical_key:
+                            winit::keyboard::PhysicalKey::Code(winit::keyboard::KeyCode::F1),
+                        state: winit::event::ElementState::Pressed,
+                        ..
+                    },
+                ..
+            } => {
+                state.show_overlay = !state.show_overlay;
+            }
             winit::event::WindowEvent::RedrawRequested => {
                 state.update();
                 state.render();
