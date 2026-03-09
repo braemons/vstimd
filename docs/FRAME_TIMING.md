@@ -27,7 +27,10 @@ Secondary metrics:
 
 ---
 
-## Layer 1 — Rust `FrameStats` (always-on)
+## Layer 1 — Rust `FrameStats` (always-on) — IMPLEMENTED
+
+> Implemented in `src/timing.rs`. Called from `RenderState::render()` in
+> `src/render/state.rs` immediately after `present()`.
 
 `FrameStats` tracks frame durations in a 120-entry ring buffer (2 s at 60 Hz)
 with no heap allocation after construction.  It is called immediately after
@@ -75,7 +78,10 @@ struct FrameSummary {
 
 ---
 
-## Layer 2 — egui HUD overlay (feature = `"overlay"`)
+## Layer 2 — egui HUD overlay (feature = `"overlay"`) — IMPLEMENTED
+
+> Implemented in `src/render/overlay.rs`. `OverlayRenderer` is created in
+> `RenderState::new()` and called from `RenderState::render()`.
 
 An optional in-window HUD renders timing metrics as a second render pass with
 `LoadOp::Load` (composited over the stimulus).
