@@ -69,10 +69,7 @@ impl winit::application::ApplicationHandler for App {
             } => {
                 state.show_overlay = !state.show_overlay;
             }
-            winit::event::WindowEvent::RedrawRequested => {
-                state.update();
-                state.render();
-            }
+            winit::event::WindowEvent::RedrawRequested => state.tick(),
             _ => {}
         }
     }

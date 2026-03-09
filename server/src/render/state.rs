@@ -93,7 +93,14 @@ impl RenderState {
         }
     }
 
-    pub fn update(&mut self) {
+    /// Main frame tick: advance scene state then render.
+    /// Called once per frame from the winit event loop (see `app.rs`).
+    pub fn tick(&mut self) {
+        self.update();
+        self.render();
+    }
+
+    fn update(&mut self) {
         if self.scene.pending_flip {
             self.scene.apply_flip();
         }
@@ -115,7 +122,7 @@ impl RenderState {
         }
     }
 
-    pub fn render(&mut self) {
+    fn render(&mut self) {
         let frame = match self.surface.get_current_texture() {
             Ok(f) => f,
             Err(_) => return,

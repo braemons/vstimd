@@ -41,6 +41,8 @@ fn main() {
         }),
     );
 
+    // The frame loop: winit fires RedrawRequested → RenderState::tick()
+    // ControlFlow::Poll ensures we redraw continuously (no waiting for input).
     let event_loop = winit::event_loop::EventLoop::new().unwrap();
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
     let mut app = app::App::new(scene);
