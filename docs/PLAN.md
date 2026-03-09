@@ -1,6 +1,6 @@
 # StimServer → Rust Port: Master Plan
 
-> **Status:** Early implementation (Phases 1–2 partial)
+> **Status:** Phases 1–4 + 6 complete; Phases 2, 7 partial
 > **Last updated:** 2026-03-09
 > **Original:** MFC / Direct2D / Direct3D 11 / Windows Named Pipe  
 > **Target:** Rust / wgpu / kurbo / ZeroMQ / protobuf / Linux (also Windows-compatible)
@@ -641,32 +641,19 @@ wonderlamp_server/
 
 ## 7. Phase-by-Phase Implementation Plan
 
-### Phase 3 — Project Scaffolding
+### Phase 3 — Project Scaffolding ✅
 
-- [ ] Update `Cargo.toml` with ZeroMQ / protobuf / tokio / async dependencies (see §4).
-- [ ] Write `build.rs`:
-  ```rust
-  fn main() {
-      prost_build::compile_protos(&["proto/wonderlamp.proto"], &["proto/"]).unwrap();
-  }
-  ```
-- [ ] Write `proto/wonderlamp.proto` (schema in §5).
-- [ ] Add to `main.rs`:
-  ```rust
-  pub mod proto {
-      include!(concat!(env!("OUT_DIR"), "/wonderlamp.rs"));
-  }
-  ```
-- [ ] Add `args.rs` with `clap` CLI:
-  - `--zmq-addr <addr>` (default `tcp://*:5555`)
-  - `--display-index <N>` (default `0`)
-  - `--fullscreen` flag
-  - `--overlay` / `--no-overlay`
+- [x] Updated `Cargo.toml` with ZeroMQ / protobuf / tokio dependencies
+- [x] `build.rs` — `prost_build::compile_protos` compiles `proto/wonderlamp.proto`
+- [x] `proto/wonderlamp.proto` — `CreateRect`, `SetEnabled`, `Delete`, `Request`/`Response` envelope
+- [x] `src/proto.rs` — `include!` of generated types from `OUT_DIR`
+- [x] `src/lib.rs` — exposes all modules as a library crate for integration tests
+- [ ] `args.rs` with `clap` CLI (still to do)
 
-### Phase 1 — Scene State Core (`src/scene/`)
+### Phase 1 — Scene State Core (`src/scene/`) ✅
 
-> **Status:** Partially complete. All data structures implemented. Missing: concrete animation
-> implementations, `SceneState::handle_request` dispatcher (depends on Phase 3 protobuf).
+> **Status:** Complete for the implemented command set. Concrete animation implementations still
+> to do (Phase 7+).
 
 > **See `STIMULUS_DATA_MODEL.md` for the full design rationale.** The summary is below.
 
@@ -699,8 +686,9 @@ implementation.
 **Implemented in:** `src/scene/state.rs` — stimulus/animation registries, handle allocation,
 deferred-mode logic (make_copy/flip on all stimuli + background + photodiode).
 
-Still needed: `SceneState::handle_request(&mut self, req: Request) -> Response` dispatching the
-protobuf `oneof` to the appropriate creation/mutation method (depends on Phase 3 protobuf).
+Still needed: `SceneState::handle_request` is implemented for `CreateRect`, `SetEnabled`, and
+`Delete`. Additional commands (move, colour change, animation assignment, etc.) follow the same
+pattern in `src/scene/command.rs`.
 
 ### Phase 2 — Renderer (`src/render/`)
 
@@ -732,31 +720,33 @@ egui overlay → present → frame stats. See `render/state.rs` for the full imp
 the render thread (no locking), mirrors `SceneState::stimuli` by handle. Meshes rebuilt lazily
 when `stimulus.needs_rebuild()`. Draw dispatch is a plain `match` — no vtable, fully inlinable.
 
-### Phase 4 — ZeroMQ Server (`src/ipc/zmq_server.rs`)
+### Phase 4 — ZeroMQ Server (`src/ipc.rs`) ✅
 
-```rust
-pub async fn run_zmq_server(
-    scene:     Arc<RwLock<SceneState>>,
-    bind_addr: &str,
-) -> anyhow::Result<()> {
-    let mut socket = zeromq::RepSocket::new();
-    socket.bind(bind_addr).await?;
-    loop {
-        let msg   = socket.recv().await?;
-        let bytes = msg.get(0).ok_or(...)?.as_ref();
-        let req   = proto::Request::decode(bytes).map_err(...)?;
-        let resp  = {
-            let mut state = scene.write().unwrap();
-            state.handle_request(req)
-        };
-        let mut out = Vec::new();
-        proto::Response::encode(&resp, &mut out)?;
-        socket.send(out.into()).await?;
-    }
-}
-```
+Implemented in `src/ipc.rs`. `spawn_zmq_thread` starts a dedicated `std::thread` with its own
+single-threaded `tokio` runtime running the async ZMQ REP loop. Bind address must use a concrete
+IP — `tcp://0.0.0.0:5555` to listen on all interfaces (the `zeromq` crate resolves the host
+as DNS; `tcp://*:5555` fails).
 
-Spawn with `tokio::spawn` inside a `std::thread::spawn` that creates its own `tokio::Runtime`.
+Integration tests in `tests/ipc.rs` exercise the full pipeline — real ZMQ socket, real protobuf
+encoding — without a GPU, using `free_port()` to avoid conflicts.
+
+### Phase 6 — Threading & Main (`src/main.rs`) ✅
+
+`SceneState` is wrapped in `Arc<RwLock<SceneState>>` and shared between the render thread
+(write lock in `update()`, read lock in `render()`) and the ZMQ server thread (write lock per
+command). The `Animation` trait was updated to `Send + Sync + 'static` so the `RwLock` is `Sync`.
+
+`src/lib.rs` exposes all modules as a library crate so integration tests can call
+`SceneState::handle_request` directly.
+
+### Python Client (`client-python/`) ✅
+
+`wonderlamp_client.Connection` — thin ZMQ REQ + protobuf wrapper with `create_rect`,
+`set_enabled`, and `delete`. Protobuf stubs generated from `server/proto/wonderlamp.proto` live
+in `client-python/wonderlamp_client/_proto/wonderlamp_pb2.py`.
+
+`client-python/examples/flash_rects.py` — creates a red and a blue rectangle and flashes them
+alternately. Run with `uv run examples/flash_rects.py [--flashes N] [--hz HZ]`.
 
 ### Phase 5 — Shared-Memory Position Reader (`src/ipc/shm_reader.rs`)
 
@@ -952,13 +942,14 @@ The structured protobuf messages are far easier to work with than the hand-packe
 
 ## 10. Suggested Implementation Order
 
-- [x] **Phase 1** *(partial)* — Scene state: `Stimulus` enum + component structs, `Deferred<T>`, `StimulusFlags`, `Transform2D`, `ShapeAppearance`, `SceneState` with deferred-mode logic, `PhotoDiodeState`, `Animation` trait (no concrete impls yet)
+- [x] **Phase 1** — Scene state: `Stimulus` enum + component structs, `Deferred<T>`, `StimulusFlags`, `Transform2D`, `ShapeAppearance`, `SceneState` with deferred-mode logic, `PhotoDiodeState`, `Animation` trait (no concrete impls yet)
 - [x] **Phase 2** *(partial)* — Renderer: `render/` module split (state, pipeline, gpu_buffers, tess, overlay), solid-colour pipeline, Rect/Disc/Ellipse tessellation, frame timing (`FrameStats`/`FrameSummary`), fullscreen borderless + Fifo vsync. Remaining: textured pipeline, shader pipeline, Petal/Wedge tessellation, coordinate-system uniform
-- [ ] **Phase 3** — Scaffolding: ZeroMQ / protobuf deps in `Cargo.toml`, `build.rs`, `proto/wonderlamp.proto`, `args.rs`
-- [ ] **Phase 4** — ZeroMQ server: `ipc/zmq_server.rs`, wire to `SceneState::handle_request`
+- [x] **Phase 3** *(partial)* — Scaffolding: ZeroMQ / protobuf deps, `build.rs`, `proto/wonderlamp.proto`, `src/proto.rs`, `src/lib.rs`. Remaining: `args.rs` CLI
+- [x] **Phase 4** — ZeroMQ server: `src/ipc.rs`, wired to `SceneState::handle_request`; integration tests in `tests/ipc.rs`
 - [ ] **Phase 5** — Shared-memory reader: `ipc/shm_reader.rs`, `AnimExternalPos`
-- [ ] **Phase 6** — Main + threading: thread spawning, `Arc<RwLock>` (fullscreen winit already done in Phase 2)
+- [x] **Phase 6** — Main + threading: `Arc<RwLock<SceneState>>` shared between render and ZMQ threads; `Animation: Send + Sync`; `src/lib.rs`
 - [x] **Phase 7** *(partial)* — Deferred mode: `Deferred<T>`, `make_copy`/`flip` on all stimuli + background + photodiode, `pending_flip` checked in render loop. Remaining: wire to ZMQ command dispatch
+- [x] **Python client** — `wonderlamp_client.Connection` with `create_rect`/`set_enabled`/`delete`; `examples/flash_rects.py`
 - [ ] **Phase 8** — WGSL pixel shader stimuli: runtime pipeline compilation, uniform buffer
 - [ ] **Phase 9** — Bitmap / bitmap-sequence stimuli: `image` crate, textured pipeline
 - [ ] **Phase 10** — Photodiode sync rectangle
