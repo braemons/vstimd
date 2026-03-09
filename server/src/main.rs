@@ -1,5 +1,7 @@
+mod app;
 mod render;
 mod scene;
+mod timing;
 
 use scene::{
     Deferred, DiscStimulus, RectStimulus, SceneState, ShapeAppearance, Stimulus, StimulusFlags,
@@ -41,6 +43,6 @@ fn main() {
 
     let event_loop = winit::event_loop::EventLoop::new().unwrap();
     event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-    let mut app = render::App::new(scene);
+    let mut app = app::App::new(scene);
     event_loop.run_app(&mut app).unwrap();
 }
