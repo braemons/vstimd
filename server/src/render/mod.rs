@@ -362,9 +362,16 @@ impl RenderState {
         let queue = std::sync::Arc::new(queue);
 
         let size = window.inner_size();
-        let config = surface
+        let mut config = surface
             .get_default_config(&adapter, size.width.max(1), size.height.max(1))
             .expect("surface not supported by the selected adapter");
+
+        // Fifo (vsync): tear-free, one frame of latency, presents at vblank.
+        // With the borderless fullscreen window covering the full monitor,
+        // DXGI bypasses DWM and PresentMon should report
+        // "Hardware: Independent Flip".
+        config.present_mode = wgpu::PresentMode::Fifo;
+
         surface.configure(&device, &config);
 
         let pipeline = create_pipeline(&device, config.format);
@@ -499,8 +506,17 @@ impl App {
 impl winit::application::ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &winit::event_loop::ActiveEventLoop) {
         if self.state.is_none() {
+            // Always open on the primary monitor (fallback: first available).
+            // Borderless fullscreen lets the DXGI flip chain go directly to
+            // the display (Hardware: Independent Flip in PresentMon).
+            let monitor = event_loop
+                .primary_monitor()
+                .or_else(|| event_loop.available_monitors().next());
+            let fullscreen = winit::window::Fullscreen::Borderless(monitor);
+
             let attrs = winit::window::Window::default_attributes()
-                .with_title("Wonderlamp — wgpu stimulus demo");
+                .with_title("Wonderlamp")
+                .with_fullscreen(Some(fullscreen));
             let window = std::sync::Arc::new(event_loop.create_window(attrs).unwrap());
             let scene = self.scene.take().expect("scene already consumed");
             self.state = Some(RenderState::new(
