@@ -32,7 +32,7 @@ pub struct RenderState {
     config: wgpu::SurfaceConfiguration,
     pipeline: wgpu::RenderPipeline,
     gpu_buffers: GpuBuffers,
-    scene: Arc<RwLock<SceneState>>,
+    pub scene: Arc<RwLock<SceneState>>,
     frame_stats: FrameStats,
     pub show_overlay: bool,
     #[cfg(feature = "overlay")]
