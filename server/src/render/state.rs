@@ -37,6 +37,10 @@ pub struct RenderState {
     pub show_overlay: bool,
     #[cfg(feature = "overlay")]
     pub overlay: Option<OverlayRenderer>,
+    /// Stimulus handles whose enabled state the overlay toggled last frame.
+    /// Applied at the start of `update()` under the scene write lock.
+    #[cfg(feature = "overlay")]
+    pending_toggles: Vec<u32>,
     pub window: std::sync::Arc<winit::window::Window>,
 }
 
@@ -98,6 +102,8 @@ impl RenderState {
             show_overlay: true,
             #[cfg(feature = "overlay")]
             overlay,
+            #[cfg(feature = "overlay")]
+            pending_toggles: Vec::new(),
             window,
         }
     }
@@ -122,6 +128,15 @@ impl RenderState {
         let fps = self.frame_stats.summary().fps as f32;
 
         let mut scene = self.scene.write().expect("scene lock poisoned");
+
+        // Apply overlay toggle requests from the previous frame.
+        #[cfg(feature = "overlay")]
+        for handle in self.pending_toggles.drain(..) {
+            if let Some(stim) = scene.stimuli.get_mut(&handle) {
+                let f = stim.flags_mut();
+                f.enabled = !f.enabled;
+            }
+        }
 
         if scene.pending_flip {
             scene.apply_flip();
@@ -153,49 +168,65 @@ impl RenderState {
         {
             let scene = self.scene.read().expect("scene lock poisoned");
             let bg = scene.background.live;
-            let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("main pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(wgpu::Color {
-                            r: bg[0] as f64,
-                            g: bg[1] as f64,
-                            b: bg[2] as f64,
-                            a: bg[3] as f64,
-                        }),
-                        store: wgpu::StoreOp::Store,
-                    },
-                    depth_slice: None,
-                })],
-                depth_stencil_attachment: None,
-                occlusion_query_set: None,
-                timestamp_writes: None,
-            });
 
-            rp.set_pipeline(&self.pipeline);
+            // Draw pass — rp must be dropped before the overlay pass begins.
+            {
+                let mut rp = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("main pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(wgpu::Color {
+                                r: bg[0] as f64,
+                                g: bg[1] as f64,
+                                b: bg[2] as f64,
+                                a: bg[3] as f64,
+                            }),
+                            store: wgpu::StoreOp::Store,
+                        },
+                        depth_slice: None,
+                    })],
+                    depth_stencil_attachment: None,
+                    occlusion_query_set: None,
+                    timestamp_writes: None,
+                });
 
-            // Draw stimuli in insertion order (= draw order).
-            for (handle, _) in &scene.stimuli {
-                if let Some(mesh) = self.gpu_buffers.meshes.get(handle) {
-                    if mesh.index_count > 0 {
-                        rp.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
-                        rp.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-                        rp.draw_indexed(0..mesh.index_count, 0, 0..1);
+                rp.set_pipeline(&self.pipeline);
+
+                // Draw stimuli in insertion order (= draw order).
+                for (handle, _) in &scene.stimuli {
+                    if let Some(mesh) = self.gpu_buffers.meshes.get(handle) {
+                        if mesh.index_count > 0 {
+                            rp.set_vertex_buffer(0, mesh.vertex_buffer.slice(..));
+                            rp.set_index_buffer(mesh.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+                            rp.draw_indexed(0..mesh.index_count, 0, 0..1);
+                        }
                     }
                 }
-            }
-        }
+            } // rp dropped — draw pass ended
 
+            // Build the egui UI while the scene read lock is still held —
+            // prepare() reads stimuli and command log directly by reference.
+            #[cfg(feature = "overlay")]
+            if self.show_overlay {
+                if let Some(overlay) = &mut self.overlay {
+                    let summary = self.frame_stats.summary();
+                    self.pending_toggles = overlay.prepare(
+                        &self.window, &summary, &*scene,
+                    );
+                }
+            }
+        } // scene read lock dropped
+
+        // GPU upload + draw — no scene data needed, lock is free.
         #[cfg(feature = "overlay")]
         if self.show_overlay {
             if let Some(overlay) = &mut self.overlay {
-                let summary = self.frame_stats.summary();
                 let ppp = self.window.scale_factor() as f32;
-                overlay.render(
+                overlay.paint(
                     &self.device, &self.queue, &mut encoder,
-                    &view, &self.window, &summary, ppp,
+                    &view, &self.window, ppp,
                 );
             }
         }

@@ -5,6 +5,21 @@ use super::stimulus::{ShapeAppearance, StimulusFlags, Transform2D};
 use super::stimulus::RectStimulus;
 use super::stimulus::Stimulus;
 
+/// Short human-readable label for a request, captured before the body is consumed.
+#[cfg(feature = "overlay")]
+fn command_summary(req: &proto::Request) -> String {
+    match &req.body {
+        Some(proto::request::Body::CreateRect(c)) => {
+            format!("CreateRect {:.0}×{:.0}", c.width, c.height)
+        }
+        Some(proto::request::Body::SetEnabled(c)) => {
+            format!("SetEnabled({})", if c.enabled { "on" } else { "off" })
+        }
+        Some(proto::request::Body::Delete(_)) => "Delete".into(),
+        None => "?".into(),
+    }
+}
+
 impl SceneState {
     /// Dispatch a protobuf `Request` and return a `Response`.
     ///
@@ -12,7 +27,13 @@ impl SceneState {
     /// - `handle == 0` → system command (e.g. create stimulus)
     /// - `handle > 0`  → stimulus command (e.g. enable, delete)
     pub fn handle_request(&mut self, req: proto::Request) -> proto::Response {
-        match req.body {
+        // Capture log fields before `req.body` is consumed by the match below.
+        #[cfg(feature = "overlay")]
+        let log_handle = req.handle;
+        #[cfg(feature = "overlay")]
+        let log_summary = command_summary(&req);
+
+        let response = match req.body {
             None => proto::Response {
                 handle: 0,
                 error: "empty request body".into(),
@@ -24,7 +45,12 @@ impl SceneState {
                     self.handle_stimulus_command(req.handle, body)
                 }
             }
-        }
+        };
+
+        #[cfg(feature = "overlay")]
+        self.push_command_log(log_handle, log_summary, &response);
+
+        response
     }
 
     fn handle_system_command(&mut self, body: proto::request::Body) -> proto::Response {

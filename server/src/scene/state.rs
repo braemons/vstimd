@@ -5,6 +5,22 @@ use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
 use super::stimulus::Stimulus;
 
+// ── Command log (overlay feature only) ────────────────────────────────────────
+
+/// One recorded ZMQ command, held in a capped ring buffer inside `SceneState`.
+/// Written by the ZMQ thread (under the existing write lock) and read by
+/// reference from the render thread (under the read lock) — no extra locking.
+#[cfg(feature = "overlay")]
+pub struct CommandEntry {
+    /// Milliseconds since server start.
+    pub elapsed_ms: f64,
+    pub handle: u32,
+    /// Short human-readable command name + key params, e.g. "CreateRect 100×50".
+    pub summary: String,
+    pub ok: bool,
+    pub response: i32,
+}
+
 /// All shared scene state. Wrapped in `Arc<RwLock<SceneState>>` and shared
 /// between the render thread (read lock) and the ZMQ server thread (write lock).
 ///
@@ -50,6 +66,17 @@ pub struct SceneState {
     pub screen_size: (u32, u32),
     pub error_mask: u16,
     pub error_code: i16,
+
+    /// Command ring buffer — written by ZMQ thread, read by overlay.
+    /// Gated behind the overlay feature so production builds carry no overhead.
+    #[cfg(feature = "overlay")]
+    pub command_log: std::collections::VecDeque<CommandEntry>,
+    #[cfg(feature = "overlay")]
+    pub command_log_total: u64,
+    #[cfg(feature = "overlay")]
+    pub command_log_errors: u64,
+    #[cfg(feature = "overlay")]
+    pub server_start: std::time::Instant,
 }
 
 impl SceneState {
@@ -69,6 +96,14 @@ impl SceneState {
             screen_size: (0, 0),
             error_mask: 0,
             error_code: 0,
+            #[cfg(feature = "overlay")]
+            command_log: std::collections::VecDeque::new(),
+            #[cfg(feature = "overlay")]
+            command_log_total: 0,
+            #[cfg(feature = "overlay")]
+            command_log_errors: 0,
+            #[cfg(feature = "overlay")]
+            server_start: std::time::Instant::now(),
         }
     }
 
@@ -138,6 +173,34 @@ impl SceneState {
             if protected_too || !stim.flags().protected {
                 stim.flags_mut().enabled = enabled;
             }
+        }
+    }
+
+    /// Record a completed command in the ring buffer.
+    /// Called from `handle_request` while the write lock is already held —
+    /// no extra synchronisation needed.
+    #[cfg(feature = "overlay")]
+    pub fn push_command_log(
+        &mut self,
+        handle: u32,
+        summary: String,
+        response: &crate::proto::Response,
+    ) {
+        const MAX_LOG: usize = 200;
+        let ok = response.error.is_empty();
+        if !ok {
+            self.command_log_errors += 1;
+        }
+        self.command_log_total += 1;
+        self.command_log.push_back(CommandEntry {
+            elapsed_ms: self.server_start.elapsed().as_secs_f64() * 1000.0,
+            handle,
+            summary,
+            ok,
+            response: response.handle,
+        });
+        if self.command_log.len() > MAX_LOG {
+            self.command_log.pop_front();
         }
     }
 }

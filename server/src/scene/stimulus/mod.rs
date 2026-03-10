@@ -237,6 +237,23 @@ impl Stimulus {
         }
     }
 
+    // ── Display name ──────────────────────────────────────────────────────────
+
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Stimulus::Rect(_)      => "Rect",
+            Stimulus::Ellipse(_)   => "Ellipse",
+            Stimulus::Petal(_)     => "Petal",
+            Stimulus::Wedge(_)     => "Wedge",
+            Stimulus::Disc(_)      => "Disc",
+            Stimulus::Bitmap(_)    => "Bitmap",
+            Stimulus::BitmapSeq(_) => "BitmapSeq",
+            Stimulus::WgslShader(_)=> "WgslShader",
+            Stimulus::Particle(_)  => "Particle",
+            Stimulus::Pixel(_)     => "Pixel",
+        }
+    }
+
     // ── Animation parameter target ────────────────────────────────────────────
 
     /// Set a type-specific animatable parameter by index.
