@@ -1,26 +1,6 @@
 use super::Vertex;
 
-const WGSL_SHADER: &str = r#"
-struct VertexInput {
-    @location(0) position: vec2<f32>,
-    @location(1) color:    vec4<f32>,
-}
-struct VertexOutput {
-    @builtin(position) clip_pos: vec4<f32>,
-    @location(0)       color:    vec4<f32>,
-}
-@vertex
-fn vs_main(in: VertexInput) -> VertexOutput {
-    var out: VertexOutput;
-    out.clip_pos = vec4<f32>(in.position, 0.0, 1.0);
-    out.color    = in.color;
-    return out;
-}
-@fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return in.color;
-}
-"#;
+const WGSL_SHADER: &str = include_str!("../../shaders/solid.wgsl");
 
 pub fn create_pipeline(device: &wgpu::Device, format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
     let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {

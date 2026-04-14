@@ -5,14 +5,7 @@ use crate::scene::stimulus::{
     DiscStimulus, EllipseStimulus, RectStimulus, Stimulus, Transform2D,
 };
 
-// ── Vertex ────────────────────────────────────────────────────────────────────
-
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct Vertex {
-    pub position: [f32; 2],
-    pub color: [f32; 4],
-}
+use super::vertex::Vertex;
 
 // ── Coordinate conversion ─────────────────────────────────────────────────────
 
