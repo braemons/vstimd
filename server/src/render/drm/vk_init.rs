@@ -69,10 +69,11 @@ impl Drop for VkContext {
 
 // ── Initialisation ────────────────────────────────────────────────────────────
 
-/// Display geometry returned to the caller for logging.
+/// Display geometry of the chosen mode, returned to the caller for logging.
 pub struct DisplayInfo {
     pub width: u32,
     pub height: u32,
+    pub refresh_mhz: u32,
 }
 
 pub fn init() -> (VkContext, DisplayInfo) {
@@ -128,25 +129,18 @@ pub fn init() -> (VkContext, DisplayInfo) {
     );
 
     let vk_display = display_props[0].display;
-    let width = display_props[0].physical_resolution.width;
-    let height = display_props[0].physical_resolution.height;
 
-    // -- Surface via VK_KHR_display -------------------------------------------
+    // -- Interactive mode selection --------------------------------------------
     let mode_props = unsafe {
         display_loader
             .get_display_mode_properties(physical_device, vk_display)
             .expect("failed to get display mode properties")
     };
 
-    // Prefer the mode matching the display's native resolution; fall back to first.
-    let display_mode = mode_props
-        .iter()
-        .find(|m| {
-            m.parameters.visible_region.width == width
-                && m.parameters.visible_region.height == height
-        })
-        .unwrap_or(&mode_props[0])
-        .display_mode;
+    let chosen = pick_mode(&mode_props);
+    let display_mode = chosen.display_mode;
+    let width = chosen.parameters.visible_region.width;
+    let height = chosen.parameters.visible_region.height;
 
     // Find a display plane that supports this display.
     let plane_props = unsafe {
@@ -344,10 +338,36 @@ pub fn init() -> (VkContext, DisplayInfo) {
         entry,
     };
 
-    (ctx, DisplayInfo { width, height })
+    (ctx, DisplayInfo { width, height, refresh_mhz: chosen.parameters.refresh_rate })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/// Print available modes and let the user pick one interactively.
+/// Pressing Enter without a number selects mode 0.
+fn pick_mode(modes: &[vk::DisplayModePropertiesKHR]) -> vk::DisplayModePropertiesKHR {
+    eprintln!("\nAvailable display modes:");
+    for (i, m) in modes.iter().enumerate() {
+        let w = m.parameters.visible_region.width;
+        let h = m.parameters.visible_region.height;
+        let hz = m.parameters.refresh_rate; // millihertz
+        eprintln!("  [{i}] {w}×{h}  {}.{:03} Hz", hz / 1000, hz % 1000);
+    }
+
+    loop {
+        eprint!("Select mode [0]: ");
+        let mut line = String::new();
+        std::io::stdin().read_line(&mut line).expect("failed to read stdin");
+        let trimmed = line.trim();
+        if trimmed.is_empty() {
+            return modes[0];
+        }
+        match trimmed.parse::<usize>() {
+            Ok(i) if i < modes.len() => return modes[i],
+            _ => eprintln!("  Enter a number between 0 and {}", modes.len() - 1),
+        }
+    }
+}
 
 fn find_graphics_queue(
     instance: &ash::Instance,

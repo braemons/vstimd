@@ -36,7 +36,11 @@ impl RenderState {
     pub fn new(scene: Arc<RwLock<SceneState>>) -> Self {
         let (ctx, display) = vk_init::init();
 
-        eprintln!("wonderlamp: display {}×{}", display.width, display.height);
+        eprintln!(
+            "wonderlamp: display {}×{}  {}.{:03} Hz",
+            display.width, display.height,
+            display.refresh_mhz / 1000, display.refresh_mhz % 1000,
+        );
         let pipeline = VkPipeline::new(&ctx.device, ctx.render_pass);
         let gpu_buffers = GpuBuffers::new(&ctx.instance, ctx.physical_device);
         let input = InputState::new();
