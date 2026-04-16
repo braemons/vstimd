@@ -1,9 +1,18 @@
 # Bare-Metal Linux Rendering
 
-> **Status:** Planned
-> **Last updated:** 2026-04-14
+> **Status:** Implemented (Jetson Orin Nano) / Planned (Raspberry Pi 5)
+> **Last updated:** 2026-04-16
 
 Run Wonderlamp without a compositor on Linux using KMS/DRM for display ownership and raw Vulkan for rendering. No X11, no Wayland, no display server required.
+
+---
+
+## Target Platforms
+
+| Platform | Status | Display API | Notes |
+|---|---|---|---|
+| NVIDIA Jetson Orin Nano | Working | `VK_KHR_display` | See setup below |
+| Raspberry Pi 5 | Planned | `VK_EXT_acquire_drm_display` (expected) | Hardware not yet available |
 
 ---
 
@@ -12,6 +21,83 @@ Run Wonderlamp without a compositor on Linux using KMS/DRM for display ownership
 The default stack (`winit` + `wgpu`) assumes a display server is running. For latency-sensitive psychophysics experiments on dedicated hardware — headless servers, embedded systems, single-board computers — the compositor is an unnecessary layer that adds scheduling jitter and prevents direct vblank control.
 
 The bare-metal path removes the compositor entirely, giving the process exclusive ownership of the display plane and deterministic frame timing.
+
+---
+
+## Platform-Specific Setup
+
+### NVIDIA Jetson Orin Nano (L4T R36.x / JetPack 6.x)
+
+#### Hardware architecture
+
+The Jetson Orin Nano has a **split DRM node architecture** — the GPU and display controller are separate hardware blocks:
+
+| DRM node | Hardware | Role |
+|---|---|---|
+| `card0` / `renderD128` | nvgpu (`13e00000.host1x`) | GPU — Vulkan rendering |
+| `card1` / `renderD129` | nvdisplay (`13800000.display`) | Display controller — scanout, KMS connectors |
+
+`VK_EXT_acquire_drm_display` does **not** work on this hardware because that extension requires the Vulkan physical device and the DRM display node to be the same hardware node. They are not. Use `VK_KHR_display` instead — the Vulkan driver enumerates and drives the display controller directly without a DRM fd.
+
+#### One-time kernel configuration
+
+`nvidia-drm` must be loaded with `modeset=1` for the display controller to register as `card1`. Without this, `card1` does not exist and `vkGetPhysicalDeviceDisplayPropertiesKHR` returns `VK_ERROR_UNKNOWN`.
+
+Make it permanent:
+
+```bash
+echo 'options nvidia-drm modeset=1 fbdev=1' | sudo tee /etc/modprobe.d/nvidia-drm.conf
+sudo reboot
+```
+
+`fbdev=1` additionally creates `/dev/fb0`, enabling a framebuffer console on the physical display when no Vulkan app is running.
+
+#### Running without a display manager
+
+GDM (or any compositor) must not be running — it holds the display and `VK_KHR_display` will fail with `VK_ERROR_UNKNOWN`. Stopping GDM alone is not sufficient; logind also holds the seat's DRM master reference and must be released:
+
+```bash
+sudo systemctl stop gdm
+sudo loginctl terminate-seat seat0
+```
+
+Then run the server:
+
+```bash
+cd ~/src/wonderlamp
+cargo run --release
+```
+
+To restore the desktop afterwards:
+
+```bash
+sudo systemctl start gdm
+```
+
+#### Persistent headless setup (no desktop)
+
+If the machine is dedicated to Wonderlamp and you never need a desktop:
+
+```bash
+sudo systemctl disable gdm
+sudo systemctl set-default multi-user.target
+```
+
+The physical display will show a framebuffer console at boot (requires `fbdev=1` above) and the app takes over the display when launched.
+
+#### Permissions
+
+The running user needs:
+- `video` group — DRM access to `/dev/dri/card0`, `/dev/dri/card1`
+- `input` group — libinput access to `/dev/input/*`
+
+---
+
+### Raspberry Pi 5
+
+> **Placeholder — hardware not yet available.**
+>
+> Expected approach: standard `vc4`/`v3d` KMS drivers, `VK_EXT_acquire_drm_display` via Mesa v3dv ICD. Setup notes to be written once the device is in hand.
 
 ---
 
@@ -112,26 +198,41 @@ The `drm::Card` handle stays alive until Vulkan acquires the display, then is dr
 
 ### Phase C — Vulkan Init (`server/src/render/drm/vk_init.rs`)
 
-**Instance extensions:**
-- `VK_KHR_surface`, `VK_KHR_display`, `VK_EXT_acquire_drm_display`, `VK_KHR_get_physical_device_properties2`
+The display acquisition strategy differs by platform:
 
-**Physical device:** first device supporting `VK_KHR_display` with a graphics queue
+| Platform | Extension | Notes |
+|---|---|---|
+| Jetson Orin Nano | `VK_KHR_display` | GPU and display are separate hardware; no DRM fd needed |
+| Raspberry Pi 5 (planned) | `VK_EXT_acquire_drm_display` | Same DRM node for GPU and display |
 
-**Acquire DRM display:**
+**Jetson Orin Nano path (implemented):**
+
+Instance extensions: `VK_KHR_surface`, `VK_KHR_display`
+
+The Vulkan driver enumerates display outputs directly — no DRM fd, no `vkAcquireDrmDisplayEXT`:
+```
+vkGetPhysicalDeviceDisplayPropertiesKHR  →  pick display + mode
+vkGetPhysicalDeviceDisplayPlanePropertiesKHR  →  pick plane
+vkCreateDisplayPlaneSurfaceKHR
+```
+
+**Raspberry Pi 5 path (planned):**
+
+Instance extensions: `VK_KHR_surface`, `VK_KHR_display`, `VK_EXT_acquire_drm_display`
+
+Open DRM fd, enumerate connectors, then hand ownership to Vulkan:
 ```
 vkAcquireDrmDisplayEXT(physical_device, drm_fd, vk_display)
 ```
 Drop the `drm::Card` after this call — Vulkan owns the display.
 
-**Surface:** `vkCreateDisplaySurfaceKHR` with the display mode matching the connector's resolution
+**Common:**
 
 **Logical device:** `VK_KHR_swapchain`
 
 **Swapchain:** `FIFO` present mode, 2 images, `B8G8R8A8_UNORM` / `SRGB_NONLINEAR`
 
 **Per-frame sync:** semaphores (image_available, render_done) + fences × 2 frames-in-flight
-
-> `VK_EXT_acquire_drm_display` is available on Mesa (AMD/Intel/Nouveau) and NVIDIA proprietary ≥ 470. A clear startup error lists available extensions if the device does not support it.
 
 ---
 
