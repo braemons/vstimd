@@ -3,35 +3,20 @@ name = "wonderlamp_server"
 version = "0.1.0"
 edition = "2024"
 
-[features]
-default = ["drm"]
-wgpu-backend = ["dep:wgpu", "dep:winit", "dep:pollster"]
-overlay = ["dep:egui", "dep:egui-wgpu", "dep:egui-winit"]
-drm = ["dep:ash", "dep:drm_sys", "dep:input"]
-
 [dependencies]
-bytemuck = { version = "1", features = ["derive"] }
-indexmap = "2"
-kurbo = "0.13.0"
-pollster = { version = "0.3", optional = true }
-prost = "0.13"
-tokio = { version = "1", features = ["rt", "time"] }
-zeromq = "0.4"
-
-# wgpu-backend path (default)
-wgpu  = { version = "27.0.1", optional = true }
-winit = { version = "0.30",   optional = true }
-
-# Optional egui overlay (requires wgpu-backend)
-egui       = { version = "0.33", optional = true }
-egui-wgpu  = { version = "0.33", optional = true }
-egui-winit = { version = "0.33", optional = true }
-
-# Bare-metal Linux backend (--no-default-features --features drm)
-ash     = { version = "0.38", optional = true }
-drm_sys = { package = "drm", version = "0.14", optional = true }
-input   = { version = "0.9",  optional = true }
+ash        = "0.38"
+ash-window = "0.13"
+bytemuck   = { version = "1", features = ["derive"] }
+egui       = "0.33"
+egui-winit = "0.33"
+indexmap   = "2"
+input      = "0.9"
+kurbo      = "0.13.0"
+prost      = "0.13"
+tokio      = { version = "1", features = ["rt", "time"] }
+winit      = "0.30"
+zeromq     = "0.4"
 
 [build-dependencies]
 prost-build = "0.13"
-naga = { version = "23", features = ["wgsl-in", "spv-out"] }
+naga        = { version = "23", features = ["wgsl-in", "spv-out"] }

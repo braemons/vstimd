@@ -3,11 +3,7 @@ fn main() {
         .compile_protos(&["proto/wonderlamp.proto"], &["proto/"])
         .expect("failed to compile protobuf schema");
 
-    if std::env::var("CARGO_FEATURE_DRM").is_ok() {
-        let target_os = std::env::var("CARGO_CFG_TARGET_OS").unwrap_or_default();
-        assert_eq!(target_os, "linux", "The 'drm' feature is only supported on Linux");
-        compile_shader_to_spirv();
-    }
+    compile_shader_to_spirv();
 }
 
 fn compile_shader_to_spirv() {

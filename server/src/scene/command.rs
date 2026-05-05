@@ -1,12 +1,11 @@
-use crate::proto;
 use super::deferred::Deferred;
 use super::state::SceneState;
-use super::stimulus::{ShapeAppearance, StimulusFlags, Transform2D};
 use super::stimulus::RectStimulus;
 use super::stimulus::Stimulus;
+use super::stimulus::{ShapeAppearance, StimulusFlags, Transform2D};
+use crate::proto;
 
 /// Short human-readable label for a request, captured before the body is consumed.
-#[cfg(feature = "overlay")]
 fn command_summary(req: &proto::Request) -> String {
     match &req.body {
         Some(proto::request::Body::CreateRect(c)) => {
@@ -28,9 +27,7 @@ impl SceneState {
     /// - `handle > 0`  → stimulus command (e.g. enable, delete)
     pub fn handle_request(&mut self, req: proto::Request) -> proto::Response {
         // Capture log fields before `req.body` is consumed by the match below.
-        #[cfg(feature = "overlay")]
         let log_handle = req.handle;
-        #[cfg(feature = "overlay")]
         let log_summary = command_summary(&req);
 
         let response = match req.body {
@@ -47,7 +44,6 @@ impl SceneState {
             }
         };
 
-        #[cfg(feature = "overlay")]
         self.push_command_log(log_handle, log_summary, &response);
 
         response

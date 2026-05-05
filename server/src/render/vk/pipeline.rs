@@ -1,8 +1,7 @@
 use ash::vk;
 
-use crate::render::vertex::Vertex;
+use crate::render::Vertex;
 
-/// Graphics pipeline and its layout for the solid-colour stimulus shader.
 pub struct VkPipeline {
     pub pipeline: vk::Pipeline,
     pub layout: vk::PipelineLayout,
@@ -10,22 +9,18 @@ pub struct VkPipeline {
 
 impl VkPipeline {
     pub fn new(device: &ash::Device, render_pass: vk::RenderPass) -> Self {
-        // -- Load SPIR-V compiled from shaders/solid.wgsl by build.rs ---------
         let spv_bytes = include_bytes!(concat!(env!("OUT_DIR"), "/solid.spv"));
         let spv_u32: Vec<u32> = spv_bytes
             .chunks_exact(4)
             .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
             .collect();
-
-        let shader_info =
-            vk::ShaderModuleCreateInfo::default().code(&spv_u32);
+        let shader_info = vk::ShaderModuleCreateInfo::default().code(&spv_u32);
         let shader_module = unsafe {
             device.create_shader_module(&shader_info, None).expect("failed to create shader module")
         };
 
         let entry_vs = c"vs_main";
         let entry_fs = c"fs_main";
-
         let shader_stages = [
             vk::PipelineShaderStageCreateInfo::default()
                 .stage(vk::ShaderStageFlags::VERTEX)
@@ -37,12 +32,10 @@ impl VkPipeline {
                 .name(entry_fs),
         ];
 
-        // -- Vertex input — matches Vertex { position: [f32;2], color: [f32;4] }
         let binding = vk::VertexInputBindingDescription::default()
             .binding(0)
             .stride(std::mem::size_of::<Vertex>() as u32)
             .input_rate(vk::VertexInputRate::VERTEX);
-
         let attributes = [
             vk::VertexInputAttributeDescription::default()
                 .location(0)
@@ -55,7 +48,6 @@ impl VkPipeline {
                 .format(vk::Format::R32G32B32A32_SFLOAT)
                 .offset(8),
         ];
-
         let vertex_input = vk::PipelineVertexInputStateCreateInfo::default()
             .vertex_binding_descriptions(std::slice::from_ref(&binding))
             .vertex_attribute_descriptions(&attributes);
@@ -63,12 +55,9 @@ impl VkPipeline {
         let input_assembly = vk::PipelineInputAssemblyStateCreateInfo::default()
             .topology(vk::PrimitiveTopology::TRIANGLE_LIST);
 
-        // Dynamic viewport and scissor — set per-frame, no pipeline rebuild on resize.
         let dynamic_states = [vk::DynamicState::VIEWPORT, vk::DynamicState::SCISSOR];
         let dynamic_state =
             vk::PipelineDynamicStateCreateInfo::default().dynamic_states(&dynamic_states);
-
-        // Still need the count even though values are dynamic.
         let viewport_state = vk::PipelineViewportStateCreateInfo::default()
             .viewport_count(1)
             .scissor_count(1);
@@ -78,11 +67,9 @@ impl VkPipeline {
             .cull_mode(vk::CullModeFlags::NONE)
             .front_face(vk::FrontFace::COUNTER_CLOCKWISE)
             .line_width(1.0);
-
         let multisample = vk::PipelineMultisampleStateCreateInfo::default()
             .rasterization_samples(vk::SampleCountFlags::TYPE_1);
 
-        // Alpha blending: dst = src.a * src.rgb + (1 - src.a) * dst.rgb
         let blend_attachment = vk::PipelineColorBlendAttachmentState::default()
             .blend_enable(true)
             .src_color_blend_factor(vk::BlendFactor::SRC_ALPHA)
@@ -92,19 +79,14 @@ impl VkPipeline {
             .dst_alpha_blend_factor(vk::BlendFactor::ZERO)
             .alpha_blend_op(vk::BlendOp::ADD)
             .color_write_mask(vk::ColorComponentFlags::RGBA);
-
         let blend_state = vk::PipelineColorBlendStateCreateInfo::default()
             .attachments(std::slice::from_ref(&blend_attachment));
 
-        // -- Pipeline layout (no descriptors, no push constants) --------------
         let layout_info = vk::PipelineLayoutCreateInfo::default();
         let layout = unsafe {
-            device
-                .create_pipeline_layout(&layout_info, None)
-                .expect("failed to create pipeline layout")
+            device.create_pipeline_layout(&layout_info, None).expect("failed to create layout")
         };
 
-        // -- Graphics pipeline ------------------------------------------------
         let pipeline_info = vk::GraphicsPipelineCreateInfo::default()
             .stages(&shader_stages)
             .vertex_input_state(&vertex_input)
@@ -117,16 +99,13 @@ impl VkPipeline {
             .layout(layout)
             .render_pass(render_pass)
             .subpass(0);
-
         let pipeline = unsafe {
             device
                 .create_graphics_pipelines(vk::PipelineCache::null(), &[pipeline_info], None)
                 .expect("failed to create graphics pipeline")[0]
         };
 
-        // Shader module is no longer needed after pipeline creation.
         unsafe { device.destroy_shader_module(shader_module, None) };
-
         Self { pipeline, layout }
     }
 
