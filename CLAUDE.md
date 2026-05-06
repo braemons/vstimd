@@ -6,7 +6,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Wonderlamp** is a Rust rewrite of the C++ StimServer visual stimulus server, combined with ideas from the VStim project. The Rust server binary is named `wonderlamp_server`; the overall project (server + Python client + tools) is Wonderlamp.
 
-The original StimServer used MFC/C++/Direct3D11 with a client/server architecture over Windows named pipes (binary protocol). This project ports that architecture to Rust, targeting Linux as the primary deployment platform, replacing named pipes with ZeroMQ for cross-platform IPC, and adding a modern GPU rendering stack.
+**Goal:** A remote PsychoPy-compatible visual stimulus server with enhanced features for neuroscience research.
+
+The original StimServer used MFC/C++/Direct3D11 with a client/server architecture over Windows named pipes (binary protocol). This project ports that architecture to Rust, targeting Linux as the primary deployment platform, replacing named pipes with ZeroMQ for cross-platform IPC, and using Vulkan for GPU rendering.
 
 The `extern/` directory contains git submodules for external references: `extern/StimServer/` holds the original C++ reference implementation and `extern/psychopy/` holds PsychoPy for stimulus design reference.
 
@@ -51,14 +53,20 @@ uv run examples/flash_rects.py
 ## Platform Support
 
 ### Linux (Primary Target)
-- **DRM/Console mode:** Direct hardware rendering via `VK_KHR_display`, no compositor required
+**Target hardware:**
+- **Raspberry Pi 5** — Planned, standard `vc4`/`v3d` KMS drivers
+- **NVIDIA Jetson Nano** — Target deployment platform
+- **Regular Linux desktop** — Development and testing
+
+**Rendering modes:**
+- **DRM/Console mode:** Direct hardware rendering via `VK_KHR_display`, no compositor required (bare-metal)
 - **Desktop mode:** Wayland or X11 windowing via winit
 - **Auto-detection:** Checks for `DISPLAY` or `WAYLAND_DISPLAY` environment variables
 
-### Windows (Experimental/Development)
+### Windows (Experimental)
 - **Desktop mode only:** Win32 windowing via winit
+- **Purpose:** Client/server protocol testing and development
 - **Always auto-detected:** DRM not available on Windows
-- **Cross-platform development:** Test client/server protocol and scene logic
 
 ### Platform-Specific Dependencies
 Linux-only dependencies (DRM, libinput, Wayland) are conditionally compiled:
@@ -69,10 +77,8 @@ input = "0.9"
 libc = "0.2"
 wayland-backend = "=0.3.12"
 wayland-client = "=0.31.12"
-wayland-sys = "=0.31.8"
+wayland-sys     = "=0.31.8"
 ```
-
-See `docs/PLATFORM_DETECTION.md` for detailed platform documentation.
 
 ## Architecture
 
@@ -115,9 +121,9 @@ client-python/
     flash_rects.py       # create two rects, flash them, delete them
 ```
 
-### DRM Backend — Tegra Orin Hardware Notes
+### DRM Backend — Jetson Hardware Notes
 
-The target hardware is a **Jetson Orin** (Tegra), which has a split architecture:
+The **Jetson Nano** target hardware has a split architecture similar to the Jetson Orin:
 
 | DRM node | Hardware | Role |
 |---|---|---|

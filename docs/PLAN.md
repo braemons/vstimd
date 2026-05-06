@@ -1,9 +1,10 @@
 # StimServer → Rust Port: Master Plan
 
 > **Status:** Phases 1–4 + 6 complete; Phases 2, 7 partial
-> **Last updated:** 2026-03-09
+> **Last updated:** 2025-05-05
 > **Original:** MFC / Direct2D / Direct3D 11 / Windows Named Pipe  
-> **Target:** Rust / wgpu / kurbo / ZeroMQ / protobuf / Linux (also Windows-compatible)
+> **Target:** Rust / Vulkan (ash) / kurbo / ZeroMQ / protobuf / Linux (also Windows-compatible)
+> **Goal:** Remote PsychoPy-compatible visual stimulus server with enhanced features for neuroscience research
 
 ### Companion documents
 
@@ -129,9 +130,9 @@ process is needed.
 wonderlamp_server (Rust, Linux/Windows)
 ├── zmq_server    (async task / thread)  — protobuf over ZeroMQ REQ/REP
 ├── input_reader  (thread, optional)     — shared-memory / gamepad / mouse position reader
-├── renderer      (main thread)          — wgpu render loop, vsync-locked
+├── renderer      (main thread)          — Vulkan render loop, vsync-locked
 ├── messenger     (thread)               — event log file, ZMQ PUB, SQLite export
-├── overlay       (optional, same thread)— egui or imgui-rs debug overlay
+├── overlay       (optional, same thread)— egui debug overlay
 └── SceneState    (Arc<RwLock<…>>)       — shared between all threads
 ```
 
@@ -139,9 +140,9 @@ wonderlamp_server (Rust, Linux/Windows)
 
 | Component | Thread | Notes |
 |---|---|---|
-| winit event loop | Main thread | Required by most platforms |
-| wgpu render loop | Main thread (inside event loop) | |
-| egui/imgui overlay | Main thread (same render pass) | |
+| winit event loop (desktop) | Main thread | Required on Windows, optional on Linux |
+| Vulkan render loop | Main thread | DRM mode: plain loop; desktop mode: inside winit event loop |
+| egui overlay | Main thread (same render pass) | Desktop mode only; Vulkan renderer TODO |
 | ZeroMQ REP server | Background thread (tokio) | Protobuf encode/decode |
 | ZeroMQ PUB publisher | Messenger thread | Event stream, separate port from REP |
 | Shared-memory reader | Background thread (plain `std::thread`) | High-frequency, no allocation |
@@ -338,21 +339,34 @@ version = "0.1.0"
 edition = "2024"
 
 [features]
-default = ["overlay"]   # overlay is ON by default; use --no-default-features to strip
-overlay = ["egui", "egui-wgpu", "egui-winit"]
+default = []
 
 [dependencies]
-# Existing (implemented)
+# Core rendering
 bytemuck  = { version = "1",    features = ["derive"] }
 indexmap  = "2"
 kurbo     = "0.13"
-wgpu      = "27.0.1"
-winit     = "0.30"
-pollster  = "0.3"
+ash       = "0.38"         # Vulkan bindings (both backends)
+ash-window = "0.13"        # Vulkan surface creation from winit window handle
+
+# Windowing (desktop mode)
+winit     = "0.30"         # Cross-platform windowing (ApplicationHandler trait)
+
+# Debug overlay (desktop mode; tessellation wired, Vulkan renderer TODO)
+egui       = "0.33"
+egui-winit = "0.33"
+
+# DRM/Console mode (Linux only)
+[target.'cfg(target_os = "linux")'.dependencies]
+drm   = "0.15"             # Direct Rendering Manager access
+input = "0.9"              # libinput keyboard reader (DRM/console mode)
+libc  = "0.2"              # VT switching, ioctl calls
+wayland-backend = "=0.3.12"
+wayland-client  = "=0.31.12"
+wayland-sys     = "=0.31.8"
 
 # IPC / networking
 zeromq   = "0.4"          # pure-Rust ZMQ (no libzmq dependency)
-# alternative: zmq = "0.10"  # bindings to libzmq, more battle-tested
 
 # Protobuf
 prost    = "0.13"
@@ -377,11 +391,6 @@ rusqlite          = { version = "0.32", optional = true, features = ["bundled"] 
 # Gamepad (optional)
 gilrs    = { version = "0.10", optional = true }
 
-# Debug overlay (feature-gated) — implemented
-egui       = { version = "0.33", optional = true }
-egui-wgpu  = { version = "0.33", optional = true }
-egui-winit = { version = "0.33", optional = true }
-
 # 3-D mesh loading (Phase D of 3D_ROADMAP.md)
 gltf = { version = "1", optional = true }
 tobj = { version = "4", optional = true }
@@ -404,10 +413,6 @@ name = "wonderlamp-convert"
 path = "src/bin/convert.rs"
 required-features = ["rusqlite"]
 ```
-
-> **Note on zeromq vs zmq:** `zeromq` is a pure-Rust async ZMQ implementation — no native
-> dependency, builds cleanly on Linux and Windows. `zmq` wraps libzmq and is more battle-tested
-> but requires the C library. Either works; the plan uses `zeromq` for maximum portability.
 
 ---
 
@@ -701,31 +706,29 @@ pattern in `src/scene/command.rs`.
 
 ### Phase 2 — Renderer (`src/render/`)
 
-> **Status:** Partially complete. Module structure finalised (`state.rs`, `pipeline.rs`,
-> `gpu_buffers.rs`, `tess.rs`, `overlay.rs`). Solid-colour pipeline working. Rect, Disc,
-> and Ellipse tessellation implemented. `FrameStats`/`FrameSummary` in `timing.rs`.
-> Fullscreen borderless + Fifo vsync configured. Missing: textured pipeline (bitmaps),
-> shader pipeline (custom WGSL), Petal/Wedge tessellation, coordinate-system push constant
-> / uniform (currently using raw NDC conversion in tessellator).
+> **Status:** Partially complete. Vulkan backends implemented (DRM and winit), solid-colour
+> pipeline working, Rect/Disc/Ellipse tessellation working. Missing: textured pipeline (bitmaps),
+> shader pipeline (custom shaders), Petal/Wedge tessellation, egui Vulkan renderer.
 
-**Implemented in:** `render/state.rs` (RenderState), `render/pipeline.rs` (WGSL shader +
-`create_pipeline()`), `render/gpu_buffers.rs`, `render/tess.rs`, `render/overlay.rs`.
+**Backends:**
+- `render/drm/` — DRM/console mode (Linux): `VK_KHR_display` surface, libinput keyboard
+- `render/winit_vk/` — Desktop mode (Linux/Windows): winit window, `VK_KHR_surface` via ash-window
+- `render/vk/` — Shared Vulkan code: `VkContext`, `VkPipeline`, `GkBuffers`, `render_frame`
 
-**Coordinate system:** pixel-space with origin at screen centre, Y-up. The vertex shader
-converts to wgpu NDC. Currently using raw NDC conversion in tessellator; still needed:
-push constant or uniform for `screen_half_size`.
+**Coordinate system:** Pixel-space with origin at screen centre, Y-up. The vertex shader
+converts to Vulkan NDC.
 
-**Tessellation** (`render/tess.rs`): Rect → 4 vertices, Disc/Ellipse → kurbo centroid fan.
+**Tessellation** (`render/vk/tess.rs`): Rect → 4 vertices, Disc/Ellipse → kurbo centroid fan.
 Still needed: Petal (arc + QuadBez) and Wedge (3 line segments) tessellation.
 
 **Pipelines:** Solid-colour pipeline implemented. Still needed: `textured_pipeline` (bitmaps),
-`shader_pipeline` (custom WGSL fragment shader per stimulus).
+`shader_pipeline` (custom fragment shader per stimulus).
 
-**Render loop** (`RenderState::render()`): acquire surface → deferred flip if pending →
-advance animations → clear to background → draw stimuli in insertion order → photodiode →
-egui overlay → present → frame stats. See `render/state.rs` for the full implementation.
+**Render loop:** acquire swapchain image → deferred flip if pending → advance animations →
+clear to background → draw stimuli in insertion order → photodiode → egui overlay (wired,
+Vulkan renderer TODO) → present → frame stats. FIFO present mode provides vsync.
 
-**Implemented in:** `render/gpu_buffers.rs` (`GpuBuffers`, `StimulusMesh`). Owned exclusively by
+**GPU buffers** (`render/vk/gpu_buffers.rs`): `GpuBuffers`, `StimulusMesh`. Owned exclusively by
 the render thread (no locking), mirrors `SceneState::stimuli` by handle. Meshes rebuilt lazily
 when `stimulus.needs_rebuild()`. Draw dispatch is a plain `match` — no vtable, fully inlinable.
 
