@@ -19,6 +19,7 @@ wayland-backend = "=0.3.12"
 wayland-client  = "=0.31.12"
 wayland-sys     = "=0.31.8"
 zeromq     = "0.4"
+libc       = "0.2"
 
 [build-dependencies]
 prost-build = "0.13"

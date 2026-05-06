@@ -41,6 +41,14 @@ pub struct VkContext {
     /// 0 is reserved ("no ID" in the spec); the first frame uses 1.
     /// `Cell` allows mutation through `&VkContext` (render thread only).
     pub next_present_id: std::cell::Cell<u64>,
+    /// Set by the DRM backend when VK_EXT_direct_mode_display is available.
+    /// On exit, `vkReleaseDisplayEXT` is called for every acquired display
+    /// (before swapchain destruction) so the kernel can re-enable all CRTCs
+    /// for fbcon.  All connected displays must be acquired — NVIDIA disables
+    /// the CRTC of any display it doesn't track when it takes DRM master.
+    /// The optional File is the DRM fd used for acquisition; it must stay open
+    /// until after the last release call.
+    pub release_display: Option<(ash::ext::direct_mode_display::Instance, Vec<vk::DisplayKHR>, Option<std::fs::File>)>,
     pub instance: ash::Instance,
     pub entry: ash::Entry,
 }
@@ -48,12 +56,28 @@ pub struct VkContext {
 impl Drop for VkContext {
     fn drop(&mut self) {
         unsafe {
+            eprintln!("wonderlamp: [drop] device_wait_idle");
             self.device.device_wait_idle().ok();
+            // Release the display before tearing down the swapchain so the
+            // driver can hand the CRTC back to fbcon while a scanout buffer
+            // is still live — releasing after surface destruction is too late
+            // and leaves the monitor with no signal.
+            if let Some((ref loader, ref displays, ref _drm_fd)) = self.release_display {
+                // _drm_fd keeps the DRM fd alive through all release calls.
+                for &display in displays {
+                    eprintln!("wonderlamp: [drop] vkReleaseDisplayEXT({display:?})");
+                    let result =
+                        (loader.fp().release_display_ext)(self.physical_device, display);
+                    eprintln!("wonderlamp: [drop] vkReleaseDisplayEXT -> {result:?}");
+                }
+            }
+            eprintln!("wonderlamp: [drop] destroy sync objects");
             for frame in &self.frames {
                 self.device.destroy_semaphore(frame.image_available, None);
                 self.device.destroy_semaphore(frame.render_done, None);
                 self.device.destroy_fence(frame.in_flight, None);
             }
+            eprintln!("wonderlamp: [drop] destroy framebuffers + render pass + image views");
             for &fb in &self.framebuffers {
                 self.device.destroy_framebuffer(fb, None);
             }
@@ -61,12 +85,18 @@ impl Drop for VkContext {
             for &view in &self.swapchain_image_views {
                 self.device.destroy_image_view(view, None);
             }
+            eprintln!("wonderlamp: [drop] destroy command pool");
             self.device.destroy_command_pool(self.command_pool, None);
+            eprintln!("wonderlamp: [drop] destroy swapchain");
             self.swapchain_loader
                 .destroy_swapchain(self.swapchain, None);
+            eprintln!("wonderlamp: [drop] destroy device");
             self.device.destroy_device(None);
+            eprintln!("wonderlamp: [drop] destroy surface");
             self.surface_loader.destroy_surface(self.surface, None);
+            eprintln!("wonderlamp: [drop] destroy instance");
             self.instance.destroy_instance(None);
+            eprintln!("wonderlamp: [drop] done");
         }
     }
 }
@@ -318,6 +348,7 @@ pub fn build_context(
         present_mode: initial_present_mode,
         present_wait: present_wait_loader,
         next_present_id: std::cell::Cell::new(1),
+        release_display: None, // set by DRM backend after acquire
         instance,
         entry,
     }

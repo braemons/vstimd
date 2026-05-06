@@ -1,4 +1,35 @@
-const FRAME_HISTORY: usize = 120;
+const FRAME_HISTORY_SIZE: usize = 120;
+
+/// Timing information for one successfully presented frame.
+///
+/// Returned from `render_frame` on every successful present.
+/// The sequence of `FrameTick` values **is** the time axis of the server:
+/// each tick maps a vblank serial number to the wall-clock time at which
+/// it fired.
+///
+/// # Scheduling
+/// - Use `frame` to express stimulus schedules in vblanks:
+///   "start at frame N, show for M frames". Integer arithmetic, exact.
+/// - Use `vblank_time` for experiment logging: record it as the stimulus
+///   onset time in your data file.
+/// - Check `dropped_frames` each tick; a non-zero value means the GPU
+///   missed a deadline and the previous stimulus was shown for an extra
+///   vblank. Flag the trial if timing precision matters.
+#[derive(Debug, Clone)]
+pub struct FrameTick {
+    /// Present-ID assigned to this frame (1-based, resets after swapchain
+    /// recreation). Monotonically increasing within a session.
+    /// Use as the frame-number axis for scheduling stimuli.
+    pub frame: u64,
+    /// `Instant` captured immediately after `vkWaitForPresentKHR` returned,
+    /// i.e. the best available proxy for the vblank that confirmed the
+    /// *previous* frame on screen. On the first frame (no prior present)
+    /// this is the time `render_frame` was entered.
+    pub vblank_time: std::time::Instant,
+    /// Extra vblanks elapsed beyond the expected one since the previous tick.
+    /// 0 = on time.  1 = one dropped frame (GPU overran its budget once).
+    pub dropped_frames: u32,
+}
 
 pub struct FrameSummary {
     pub fps: f64,
@@ -13,7 +44,7 @@ pub struct FrameSummary {
 pub struct FrameStats {
     frame_index: u64,
     last_present: Option<std::time::Instant>,
-    durations_ns: [u64; FRAME_HISTORY],
+    durations_ns: [u64; FRAME_HISTORY_SIZE],
     ring_head: usize,
     valid_count: usize,
     drop_count: u64,
@@ -25,7 +56,7 @@ impl FrameStats {
         Self {
             frame_index: 0,
             last_present: None,
-            durations_ns: [0; FRAME_HISTORY],
+            durations_ns: [0; FRAME_HISTORY_SIZE],
             ring_head: 0,
             valid_count: 0,
             drop_count: 0,
@@ -33,43 +64,73 @@ impl FrameStats {
         }
     }
 
-    pub fn on_present(&mut self) {
-        let now = std::time::Instant::now();
-        if let Some(last) = self.last_present {
-            let dur_ns = now.duration_since(last).as_nanos() as u64;
+    /// Record a presented frame using the vblank timestamp captured
+    /// immediately after `vkWaitForPresentKHR` returned.
+    ///
+    /// Using the actual vblank time rather than `Instant::now()` gives
+    /// accurate inter-frame intervals independent of render duration.
+    ///
+    /// Returns the number of frames dropped since the previous call
+    /// (0 = on time). The same value is included in the `FrameTick`
+    /// returned from `render_frame`.
+    pub fn on_present(&mut self, vblank_time: std::time::Instant) -> u32 {
+        let dropped = if let Some(last) = self.last_present {
+            let dur_ns = vblank_time.duration_since(last).as_nanos() as u64;
             let threshold = self.expected_frame_ns * 3 / 2;
-            if dur_ns > threshold && self.expected_frame_ns > 0 {
-                self.drop_count += (dur_ns / self.expected_frame_ns).saturating_sub(1);
-            }
+            let d = if dur_ns > threshold && self.expected_frame_ns > 0 {
+                let n = (dur_ns / self.expected_frame_ns).saturating_sub(1) as u32;
+                self.drop_count += n as u64;
+                n
+            } else {
+                0
+            };
             self.durations_ns[self.ring_head] = dur_ns;
-            self.ring_head = (self.ring_head + 1) % FRAME_HISTORY;
-            if self.valid_count < FRAME_HISTORY {
+            self.ring_head = (self.ring_head + 1) % FRAME_HISTORY_SIZE;
+            if self.valid_count < FRAME_HISTORY_SIZE {
                 self.valid_count += 1;
             }
-        }
-        self.last_present = Some(now);
+            d
+        } else {
+            0
+        };
+        self.last_present = Some(vblank_time);
         self.frame_index += 1;
+        dropped
     }
 
     pub fn summary(&self) -> FrameSummary {
-        let durations = &self.durations_ns[..self.valid_count.min(FRAME_HISTORY)];
+        let durations = &self.durations_ns[..self.valid_count.min(FRAME_HISTORY_SIZE)];
         if durations.is_empty() {
             return FrameSummary {
-                fps: 0.0, mean_ms: 0.0, std_ms: 0.0,
-                min_ms: 0.0, max_ms: 0.0,
+                fps: 0.0,
+                mean_ms: 0.0,
+                std_ms: 0.0,
+                min_ms: 0.0,
+                max_ms: 0.0,
                 drop_count: self.drop_count,
                 frame_index: self.frame_index,
             };
         }
         let n = durations.len() as f64;
         let mean_ns = durations.iter().sum::<u64>() as f64 / n;
-        let var_ns = durations.iter().map(|&d| { let x = d as f64 - mean_ns; x * x }).sum::<f64>() / n;
+        let var_ns = durations
+            .iter()
+            .map(|&d| {
+                let x = d as f64 - mean_ns;
+                x * x
+            })
+            .sum::<f64>()
+            / n;
         FrameSummary {
-            fps:        if mean_ns > 0.0 { 1_000_000_000.0 / mean_ns } else { 0.0 },
-            mean_ms:    mean_ns / 1_000_000.0,
-            std_ms:     var_ns.sqrt() / 1_000_000.0,
-            min_ms:     *durations.iter().min().unwrap() as f64 / 1_000_000.0,
-            max_ms:     *durations.iter().max().unwrap() as f64 / 1_000_000.0,
+            fps: if mean_ns > 0.0 {
+                1_000_000_000.0 / mean_ns
+            } else {
+                0.0
+            },
+            mean_ms: mean_ns / 1_000_000.0,
+            std_ms: var_ns.sqrt() / 1_000_000.0,
+            min_ms: *durations.iter().min().unwrap() as f64 / 1_000_000.0,
+            max_ms: *durations.iter().max().unwrap() as f64 / 1_000_000.0,
             drop_count: self.drop_count,
             frame_index: self.frame_index,
         }

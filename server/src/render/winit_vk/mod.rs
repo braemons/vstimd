@@ -111,7 +111,7 @@ impl State {
             // upload to a Vulkan egui renderer pass after the main pass.
         }
 
-        let ok = render_frame(
+        let tick = render_frame(
             &self.ctx,
             &self.pipeline,
             &mut self.gpu_buffers,
@@ -119,13 +119,20 @@ impl State {
             &mut self.frame_index,
             &mut self.frame_stats,
         );
-        if !ok {
-            let size = self.window.inner_size();
-            let extent = ash::vk::Extent2D {
-                width: size.width.max(1),
-                height: size.height.max(1),
-            };
-            self.ctx.recreate_swapchain(extent);
+        match tick {
+            None => {
+                // Swapchain out of date (resize, monitor change, etc.).
+                let size = self.window.inner_size();
+                let extent = ash::vk::Extent2D {
+                    width: size.width.max(1),
+                    height: size.height.max(1),
+                };
+                self.ctx.recreate_swapchain(extent);
+            }
+            Some(_tick) => {
+                // Tick is available here for stimulus scheduling.
+                // TODO: forward to scene / scheduler once that layer exists.
+            }
         }
     }
 }

@@ -4,7 +4,7 @@ use ash::vk;
 
 use crate::render::tess;
 use crate::scene::SceneState;
-use crate::timing::FrameStats;
+use crate::timing::{FrameStats, FrameTick};
 
 use super::buffers::GpuBuffers;
 use super::context::VkContext;
@@ -12,8 +12,12 @@ use super::pipeline::VkPipeline;
 
 /// Record and submit one frame.
 ///
-/// Returns `false` when the swapchain is out of date and must be recreated
-/// before the next call (winit resize / first DRM frame after resolution change).
+/// Returns `Some(FrameTick)` on success. The tick contains the vblank
+/// timestamp and dropped-frame count for this frame — together these form
+/// the time axis of the stimulus server.
+///
+/// Returns `None` when the swapchain is out of date; the caller must call
+/// `ctx.recreate_swapchain(new_extent)` before the next call.
 pub fn render_frame(
     ctx: &VkContext,
     pipeline: &VkPipeline,
@@ -21,14 +25,15 @@ pub fn render_frame(
     scene: &Arc<RwLock<SceneState>>,
     frame_index: &mut usize,
     frame_stats: &mut FrameStats,
-) -> bool {
+) -> Option<FrameTick> {
     // ── Waitable screen clock (VK_KHR_present_wait) ───────────────────────────
     // Block until the previously presented frame is confirmed on-screen.
-    // This is the Vulkan equivalent of the D3D11 waitable swap chain:
-    // the post-vblank signal that showed frame N-1 is the "tick" that starts
-    // work on frame N.  Skip on the very first call (no prior present yet).
+    // The Instant captured here is the best available proxy for the vblank
+    // that just fired — this is the "tick" that starts work on the new frame.
+    // On the first call (no prior present) we fall through immediately and
+    // use the current time as a starting-point approximation.
     let this_present_id = ctx.next_present_id.get();
-    if let (Some(pw), true) = (&ctx.present_wait, this_present_id > 1) {
+    let vblank_time = if let (Some(pw), true) = (&ctx.present_wait, this_present_id > 1) {
         unsafe {
             match pw.wait_for_present(ctx.swapchain, this_present_id - 1, 3_000_000_000) {
                 Ok(()) => {}
@@ -39,12 +44,16 @@ pub fn render_frame(
                     );
                 }
                 Err(vk::Result::ERROR_OUT_OF_DATE_KHR | vk::Result::ERROR_SURFACE_LOST_KHR) => {
-                    return false;
+                    return None;
                 }
                 Err(e) => panic!("vkWaitForPresentKHR: {e}"),
             }
         }
-    }
+        std::time::Instant::now()
+    } else {
+        // First frame or no present_wait support: use current time.
+        std::time::Instant::now()
+    };
     // -- Update: tessellate scene into GPU buffers ----------------------------
     {
         let fps = frame_stats.summary().fps as f32;
@@ -78,7 +87,7 @@ pub fn render_frame(
     }
 
     // -- Acquire swapchain image ----------------------------------------------
-    let (image_index, suboptimal) = match unsafe {
+    let (image_index, _suboptimal) = match unsafe {
         ctx.swapchain_loader.acquire_next_image(
             ctx.swapchain,
             u64::MAX,
@@ -87,7 +96,7 @@ pub fn render_frame(
         )
     } {
         Ok(r) => r,
-        Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return false, // fence still signaled ✔
+        Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return None, // fence still signaled
         Err(e) => panic!("acquire_next_image: {e}"),
     };
 
@@ -215,15 +224,24 @@ pub fn render_frame(
         Ok(_) | Err(vk::Result::SUBOPTIMAL_KHR) => {}
         Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
             *frame_index = frame_index.wrapping_add(1);
-            frame_stats.on_present();
-            return false;
+            return None;
         }
         Err(e) => panic!("queue_present: {e}"),
     }
 
-    frame_stats.on_present();
+    let dropped_frames = frame_stats.on_present(vblank_time);
+    if dropped_frames > 0 {
+        eprintln!(
+            "wonderlamp: {} dropped frame(s) before frame {}",
+            dropped_frames, this_present_id
+        );
+    }
     *frame_index = frame_index.wrapping_add(1);
     ctx.next_present_id.set(this_present_id + 1);
 
-    !suboptimal
+    Some(FrameTick {
+        frame: this_present_id,
+        vblank_time,
+        dropped_frames,
+    })
 }

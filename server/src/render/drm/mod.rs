@@ -26,7 +26,14 @@ impl DrmRenderState {
         let pipeline = VkPipeline::new(&ctx.device, ctx.render_pass);
         let gpu_buffers = GpuBuffers::new(&ctx.instance, ctx.physical_device);
         let input = InputState::new();
-        Self { ctx, pipeline, gpu_buffers, input, scene, frame_stats: FrameStats::new(60.0) }
+        Self {
+            ctx,
+            pipeline,
+            gpu_buffers,
+            input,
+            scene,
+            frame_stats: FrameStats::new(60.0),
+        }
     }
 
     pub fn run_loop(mut self) {
@@ -42,7 +49,10 @@ impl DrmRenderState {
                     AppKey::F1 => {} // overlay not implemented for DRM yet
                 }
             }
-            render_frame(
+            // `None` means the swapchain is out of date (rare in DRM mode,
+            // but handle gracefully). The tick is available for stimulus
+            // scheduling once that layer is wired up.
+            let _tick = render_frame(
                 &self.ctx,
                 &self.pipeline,
                 &mut self.gpu_buffers,

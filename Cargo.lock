@@ -3362,6 +3362,7 @@ dependencies = [
  "indexmap",
  "input",
  "kurbo",
+ "libc",
  "naga",
  "prost",
  "prost-build",
