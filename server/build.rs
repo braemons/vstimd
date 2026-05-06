@@ -3,25 +3,25 @@ fn main() {
         .compile_protos(&["proto/wonderlamp.proto"], &["proto/"])
         .expect("failed to compile protobuf schema");
 
-    compile_shader_to_spirv();
+    compile_shader("shaders/solid.wgsl", "solid.spv");
+    compile_shader("src/render/vk/egui/shaders.wgsl", "egui.spv");
 }
 
-fn compile_shader_to_spirv() {
-    let wgsl_path = "shaders/solid.wgsl";
-    println!("cargo:rerun-if-changed={wgsl_path}");
+fn compile_shader(wgsl_path: &str, output_name: &str) {
+    println!("cargo:rerun-if-changed={}", wgsl_path);
 
     let wgsl = std::fs::read_to_string(wgsl_path)
-        .expect("failed to read shaders/solid.wgsl");
+        .unwrap_or_else(|e| panic!("failed to read {}: {}", wgsl_path, e));
 
     let module = naga::front::wgsl::parse_str(&wgsl)
-        .expect("failed to parse WGSL shader");
+        .unwrap_or_else(|e| panic!("failed to parse {}: {}", wgsl_path, e));
 
-    let info = naga::valid::Validator::new(
-        naga::valid::ValidationFlags::all(),
-        naga::valid::Capabilities::empty(),
-    )
-    .validate(&module)
-    .expect("WGSL shader validation failed");
+    let mut capabilities = naga::valid::Capabilities::empty();
+    capabilities.insert(naga::valid::Capabilities::PUSH_CONSTANT);
+
+    let info = naga::valid::Validator::new(naga::valid::ValidationFlags::all(), capabilities)
+        .validate(&module)
+        .unwrap_or_else(|e| panic!("WGSL validation failed for {}: {}", wgsl_path, e));
 
     let options = naga::back::spv::Options {
         lang_version: (1, 0),
@@ -29,11 +29,11 @@ fn compile_shader_to_spirv() {
     };
 
     let spv_words = naga::back::spv::write_vec(&module, &info, &options, None)
-        .expect("failed to write SPIR-V");
+        .unwrap_or_else(|e| panic!("failed to write SPIR-V for {}: {}", wgsl_path, e));
 
     let spv_bytes: Vec<u8> = spv_words.iter().flat_map(|&w| w.to_le_bytes()).collect();
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
-    std::fs::write(format!("{out_dir}/solid.spv"), &spv_bytes)
-        .expect("failed to write solid.spv");
+    std::fs::write(format!("{}/{}", out_dir, output_name), &spv_bytes)
+        .unwrap_or_else(|e| panic!("failed to write {}: {}", output_name, e));
 }

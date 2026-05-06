@@ -17,6 +17,7 @@ pub struct VkContext {
     pub frames: Vec<FrameSync>,
     pub framebuffers: Vec<vk::Framebuffer>,
     pub render_pass: vk::RenderPass,
+    pub egui_render_pass: vk::RenderPass,
     pub swapchain_image_views: Vec<vk::ImageView>,
     pub swapchain_images: Vec<vk::Image>,
     pub command_pool: vk::CommandPool,
@@ -48,7 +49,11 @@ pub struct VkContext {
     /// the CRTC of any display it doesn't track when it takes DRM master.
     /// The optional File is the DRM fd used for acquisition; it must stay open
     /// until after the last release call.
-    pub release_display: Option<(ash::ext::direct_mode_display::Instance, Vec<vk::DisplayKHR>, Option<std::fs::File>)>,
+    pub release_display: Option<(
+        ash::ext::direct_mode_display::Instance,
+        Vec<vk::DisplayKHR>,
+        Option<std::fs::File>,
+    )>,
     pub instance: ash::Instance,
     pub entry: ash::Entry,
 }
@@ -66,8 +71,7 @@ impl Drop for VkContext {
                 // _drm_fd keeps the DRM fd alive through all release calls.
                 for &display in displays {
                     eprintln!("wonderlamp: [drop] vkReleaseDisplayEXT({display:?})");
-                    let result =
-                        (loader.fp().release_display_ext)(self.physical_device, display);
+                    let result = (loader.fp().release_display_ext)(self.physical_device, display);
                     eprintln!("wonderlamp: [drop] vkReleaseDisplayEXT -> {result:?}");
                 }
             }
@@ -82,6 +86,7 @@ impl Drop for VkContext {
                 self.device.destroy_framebuffer(fb, None);
             }
             self.device.destroy_render_pass(self.render_pass, None);
+            self.device.destroy_render_pass(self.egui_render_pass, None);
             for &view in &self.swapchain_image_views {
                 self.device.destroy_image_view(view, None);
             }
@@ -326,12 +331,14 @@ pub fn build_context(
 
     // -- Render pass + framebuffers -------------------------------------------
     let render_pass = create_render_pass(&device, format);
+    let egui_render_pass = create_egui_render_pass(&device, format);
     let framebuffers = create_framebuffers(&device, render_pass, &swapchain_image_views, extent);
 
     VkContext {
         frames,
         framebuffers,
         render_pass,
+        egui_render_pass,
         swapchain_image_views,
         swapchain_images,
         command_pool,
@@ -386,6 +393,41 @@ pub fn create_render_pass(device: &ash::Device, format: vk::Format) -> vk::Rende
         device
             .create_render_pass(&info, None)
             .expect("failed to create render pass")
+    }
+}
+
+/// Create a render pass for egui overlay that LOADs the existing color attachment
+/// (to composite on top of the stimulus pass) and STOREs the result.
+pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::RenderPass {
+    let attachment = vk::AttachmentDescription::default()
+        .format(format)
+        .samples(vk::SampleCountFlags::TYPE_1)
+        .load_op(vk::AttachmentLoadOp::LOAD) // LOAD existing content
+        .store_op(vk::AttachmentStoreOp::STORE)
+        .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
+        .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
+        .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL) // Already rendered to
+        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
+    let color_ref =
+        vk::AttachmentReference::default().layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
+    let subpass = vk::SubpassDescription::default()
+        .pipeline_bind_point(vk::PipelineBindPoint::GRAPHICS)
+        .color_attachments(std::slice::from_ref(&color_ref));
+    let dep = vk::SubpassDependency::default()
+        .src_subpass(vk::SUBPASS_EXTERNAL)
+        .dst_subpass(0)
+        .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
+        .src_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE) // Previous pass wrote
+        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE); // This pass also writes
+    let info = vk::RenderPassCreateInfo::default()
+        .attachments(std::slice::from_ref(&attachment))
+        .subpasses(std::slice::from_ref(&subpass))
+        .dependencies(std::slice::from_ref(&dep));
+    unsafe {
+        device
+            .create_render_pass(&info, None)
+            .expect("failed to create egui render pass")
     }
 }
 

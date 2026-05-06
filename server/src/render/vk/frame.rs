@@ -8,7 +8,15 @@ use crate::timing::{FrameStats, FrameTick};
 
 use super::buffers::GpuBuffers;
 use super::context::VkContext;
+use super::egui::VkEguiRenderer;
 use super::pipeline::VkPipeline;
+
+/// Optional egui overlay data for a frame
+pub struct EguiFrameData<'a> {
+    pub textures_delta: &'a egui::TexturesDelta,
+    pub primitives: &'a [egui::ClippedPrimitive],
+    pub pixels_per_point: f32,
+}
 
 /// Record and submit one frame.
 ///
@@ -25,6 +33,8 @@ pub fn render_frame(
     scene: &Arc<RwLock<SceneState>>,
     frame_index: &mut usize,
     frame_stats: &mut FrameStats,
+    mut egui_renderer: Option<&mut VkEguiRenderer>,
+    egui_data: Option<EguiFrameData>,
 ) -> Option<FrameTick> {
     // ── Waitable screen clock (VK_KHR_present_wait) ───────────────────────────
     // Block until the previously presented frame is confirmed on-screen.
@@ -170,6 +180,41 @@ pub fn render_frame(
         drop(sc);
 
         ctx.device.cmd_end_render_pass(cb);
+
+        // -- Optional egui overlay pass ---------------------------------------
+        if let (Some(renderer), Some(data)) = (egui_renderer.as_mut(), egui_data.as_ref()) {
+            // Update textures
+            renderer.update_textures(
+                &ctx.device,
+                ctx.graphics_queue,
+                ctx.command_pool,
+                data.textures_delta,
+            );
+
+            // Upload mesh data
+            renderer.upload_meshes(&ctx.device, data.primitives, data.pixels_per_point);
+
+            // Begin egui render pass (LOADs existing color attachment)
+            let egui_rp_info = vk::RenderPassBeginInfo::default()
+                .render_pass(ctx.egui_render_pass)
+                .framebuffer(ctx.framebuffers[image_index as usize])
+                .render_area(render_area);
+
+            ctx.device
+                .cmd_begin_render_pass(cb, &egui_rp_info, vk::SubpassContents::INLINE);
+
+            // Paint egui
+            renderer.paint(
+                &ctx.device,
+                cb,
+                data.primitives,
+                (ctx.extent.width, ctx.extent.height),
+                data.pixels_per_point,
+            );
+
+            ctx.device.cmd_end_render_pass(cb);
+        }
+
         ctx.device
             .end_command_buffer(cb)
             .expect("end_command_buffer");

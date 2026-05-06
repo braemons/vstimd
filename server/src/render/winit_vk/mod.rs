@@ -8,9 +8,11 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
-use crate::render::vk::{GpuBuffers, VkContext, VkPipeline, render_frame};
+use crate::render::vk::{
+    EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkPipeline, render_frame,
+};
 use crate::scene::SceneState;
-use crate::timing::FrameStats;
+use crate::timing::{FrameStats, FrameTick};
 
 // FIFO is the only present mode used throughout the application.
 //
@@ -49,6 +51,7 @@ struct State {
     ctx: VkContext,
     pipeline: VkPipeline,
     gpu_buffers: GpuBuffers,
+    egui_renderer: VkEguiRenderer,
     egui_winit: egui_winit::State, // holds display-handle references
     // ── Window comes after all borrowers ─────────────────────────────────────
     window: Arc<Window>,
@@ -72,6 +75,12 @@ impl State {
 
         let pipeline = VkPipeline::new(&ctx.device, ctx.render_pass);
         let gpu_buffers = GpuBuffers::new(&ctx.instance, ctx.physical_device);
+        let egui_renderer = VkEguiRenderer::new(
+            &ctx.device,
+            &ctx.instance,
+            ctx.physical_device,
+            ctx.egui_render_pass,
+        );
 
         let egui_ctx = egui::Context::default();
         let viewport_id = egui_ctx.viewport_id();
@@ -89,6 +98,7 @@ impl State {
             ctx,
             pipeline,
             gpu_buffers,
+            egui_renderer,
             scene,
             frame_stats: FrameStats::new(60.0),
             frame_index: 0,
@@ -102,23 +112,50 @@ impl State {
         // Build the egui overlay if enabled.
         if self.show_overlay {
             let raw_input = self.egui_winit.take_egui_input(&self.window);
-            let output = self.egui_ctx.run(raw_input, |ctx| {
+            let output = self.egui_ctx.run_ui(raw_input, |ctx| {
                 build_overlay_ui(ctx, &self.scene, &self.frame_stats);
             });
             self.egui_winit
                 .handle_platform_output(&self.window, output.platform_output);
-            // TODO: tessellate output.shapes with egui_ctx.tessellate() and
-            // upload to a Vulkan egui renderer pass after the main pass.
-        }
 
-        let tick = render_frame(
-            &self.ctx,
-            &self.pipeline,
-            &mut self.gpu_buffers,
-            &self.scene,
-            &mut self.frame_index,
-            &mut self.frame_stats,
-        );
+            // Tessellate egui output
+            let primitives = self
+                .egui_ctx
+                .tessellate(output.shapes, output.pixels_per_point);
+
+            let data = EguiFrameData {
+                textures_delta: &output.textures_delta,
+                primitives: &primitives,
+                pixels_per_point: output.pixels_per_point,
+            };
+
+            let tick = render_frame(
+                &self.ctx,
+                &self.pipeline,
+                &mut self.gpu_buffers,
+                &self.scene,
+                &mut self.frame_index,
+                &mut self.frame_stats,
+                Some(&mut self.egui_renderer),
+                Some(data),
+            );
+            self.handle_tick(tick);
+        } else {
+            let tick = render_frame(
+                &self.ctx,
+                &self.pipeline,
+                &mut self.gpu_buffers,
+                &self.scene,
+                &mut self.frame_index,
+                &mut self.frame_stats,
+                None,
+                None,
+            );
+            self.handle_tick(tick);
+        }
+    }
+
+    fn handle_tick(&mut self, tick: Option<FrameTick>) {
         match tick {
             None => {
                 // Swapchain out of date (resize, monitor change, etc.).
