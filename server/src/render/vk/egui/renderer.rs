@@ -118,38 +118,52 @@ impl VkEguiRenderer {
         textures_delta: &egui::TexturesDelta,
     ) {
         for (id, image_delta) in &textures_delta.set {
-            if image_delta.pos.is_some() {
-                // Partial update not yet implemented
-                eprintln!("wonderlamp: egui partial texture update not implemented");
-                continue;
-            }
+            let (width, height, pixels) = Self::image_to_rgba(&image_delta.image);
 
-            // Full texture set
-            let (width, height, pixels) = match &image_delta.image {
-                egui::ImageData::Color(color_img) => {
-                    let width = color_img.width() as u32;
-                    let height = color_img.height() as u32;
-                    let pixels: Vec<u8> =
-                        color_img.pixels.iter().flat_map(|c| c.to_array()).collect();
-                    (width, height, pixels)
+            if let Some([x, y]) = image_delta.pos {
+                // Partial update: patch a sub-region of the existing texture
+                if let Some(tex) = self.textures.get(id) {
+                    let image = tex.image;
+                    self.update_texture_region(
+                        device,
+                        queue,
+                        command_pool,
+                        image,
+                        x as i32,
+                        y as i32,
+                        width,
+                        height,
+                        &pixels,
+                    );
                 }
-            };
-
-            // Create or replace texture
-            if let Some(old) = self.textures.remove(id) {
-                unsafe { old.destroy(device) };
-                // Descriptor set will be recreated below
-                self.descriptor_sets.remove(id);
+            } else {
+                // Full replace: destroy old texture and allocate a new one
+                if let Some(old) = self.textures.remove(id) {
+                    unsafe { old.destroy(device) };
+                    self.descriptor_sets.remove(id);
+                }
+                let texture =
+                    self.create_texture(device, queue, command_pool, width, height, &pixels);
+                self.textures.insert(*id, texture);
             }
-
-            let texture = self.create_texture(device, queue, command_pool, width, height, &pixels);
-            self.textures.insert(*id, texture);
         }
 
         for id in &textures_delta.free {
             if let Some(tex) = self.textures.remove(id) {
                 unsafe { tex.destroy(device) };
                 self.descriptor_sets.remove(id);
+            }
+        }
+    }
+
+    fn image_to_rgba(image: &egui::ImageData) -> (u32, u32, Vec<u8>) {
+        match image {
+            egui::ImageData::Color(color_img) => {
+                let width = color_img.width() as u32;
+                let height = color_img.height() as u32;
+                let pixels: Vec<u8> =
+                    color_img.pixels.iter().flat_map(|c| c.to_array()).collect();
+                (width, height, pixels)
             }
         }
     }
@@ -580,6 +594,149 @@ impl VkEguiRenderer {
             device.queue_wait_idle(queue).unwrap();
 
             // Cleanup
+            device.free_command_buffers(command_pool, &[cmd_buffer]);
+            device.destroy_buffer(staging_buffer, None);
+            device.free_memory(staging_memory, None);
+        }
+    }
+
+    /// Upload pixel data into a sub-region of an existing texture that is
+    /// currently in `SHADER_READ_ONLY_OPTIMAL` layout.
+    fn update_texture_region(
+        &self,
+        device: &ash::Device,
+        queue: vk::Queue,
+        command_pool: vk::CommandPool,
+        image: vk::Image,
+        x: i32,
+        y: i32,
+        width: u32,
+        height: u32,
+        pixels: &[u8],
+    ) {
+        let size = pixels.len() as vk::DeviceSize;
+
+        unsafe {
+            let buffer_info = vk::BufferCreateInfo::default()
+                .size(size)
+                .usage(vk::BufferUsageFlags::TRANSFER_SRC)
+                .sharing_mode(vk::SharingMode::EXCLUSIVE);
+            let staging_buffer = device
+                .create_buffer(&buffer_info, None)
+                .expect("failed to create staging buffer for partial update");
+
+            let mem_reqs = device.get_buffer_memory_requirements(staging_buffer);
+            let mem_type = self
+                .find_memory_type(
+                    mem_reqs.memory_type_bits,
+                    vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+                )
+                .expect("no host-visible memory");
+            let alloc_info = vk::MemoryAllocateInfo::default()
+                .allocation_size(mem_reqs.size)
+                .memory_type_index(mem_type);
+            let staging_memory = device
+                .allocate_memory(&alloc_info, None)
+                .expect("failed to allocate staging memory for partial update");
+            device
+                .bind_buffer_memory(staging_buffer, staging_memory, 0)
+                .unwrap();
+
+            let ptr = device
+                .map_memory(staging_memory, 0, size, vk::MemoryMapFlags::empty())
+                .expect("failed to map staging buffer");
+            std::ptr::copy_nonoverlapping(pixels.as_ptr(), ptr as *mut u8, pixels.len());
+            device.unmap_memory(staging_memory);
+
+            let cmd_info = vk::CommandBufferAllocateInfo::default()
+                .command_pool(command_pool)
+                .level(vk::CommandBufferLevel::PRIMARY)
+                .command_buffer_count(1);
+            let cmd_buffer = device.allocate_command_buffers(&cmd_info).unwrap()[0];
+            let begin_info = vk::CommandBufferBeginInfo::default()
+                .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT);
+            device.begin_command_buffer(cmd_buffer, &begin_info).unwrap();
+
+            let subresource = vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            };
+
+            // SHADER_READ_ONLY_OPTIMAL → TRANSFER_DST_OPTIMAL
+            let to_transfer = vk::ImageMemoryBarrier::default()
+                .old_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .new_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(image)
+                .subresource_range(subresource)
+                .src_access_mask(vk::AccessFlags::SHADER_READ)
+                .dst_access_mask(vk::AccessFlags::TRANSFER_WRITE);
+            device.cmd_pipeline_barrier(
+                cmd_buffer,
+                vk::PipelineStageFlags::FRAGMENT_SHADER,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[to_transfer],
+            );
+
+            let region = vk::BufferImageCopy::default()
+                .buffer_offset(0)
+                .buffer_row_length(0)
+                .buffer_image_height(0)
+                .image_subresource(vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: 0,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                })
+                .image_offset(vk::Offset3D { x, y, z: 0 })
+                .image_extent(vk::Extent3D {
+                    width,
+                    height,
+                    depth: 1,
+                });
+            device.cmd_copy_buffer_to_image(
+                cmd_buffer,
+                staging_buffer,
+                image,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &[region],
+            );
+
+            // TRANSFER_DST_OPTIMAL → SHADER_READ_ONLY_OPTIMAL
+            let to_shader = vk::ImageMemoryBarrier::default()
+                .old_layout(vk::ImageLayout::TRANSFER_DST_OPTIMAL)
+                .new_layout(vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(image)
+                .subresource_range(subresource)
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ);
+            device.cmd_pipeline_barrier(
+                cmd_buffer,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::PipelineStageFlags::FRAGMENT_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[to_shader],
+            );
+
+            device.end_command_buffer(cmd_buffer).unwrap();
+            let cmd_buffers = [cmd_buffer];
+            let submit_info = vk::SubmitInfo::default().command_buffers(&cmd_buffers);
+            device
+                .queue_submit(queue, &[submit_info], vk::Fence::null())
+                .unwrap();
+            device.queue_wait_idle(queue).unwrap();
+
             device.free_command_buffers(command_pool, &[cmd_buffer]);
             device.destroy_buffer(staging_buffer, None);
             device.free_memory(staging_memory, None);

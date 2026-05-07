@@ -78,34 +78,49 @@ impl DrmRenderState {
                 }
             }
 
-            // Build egui overlay if enabled (keyboard-only interaction)
-            let (egui_renderer, egui_data) = if self.show_overlay {
+            // Build egui overlay if enabled (keyboard-only interaction).
+            // Stored outside the `if` so the borrows in `EguiFrameData` live
+            // long enough to reach `render_frame`.
+            let mut egui_output_store: Option<(
+                egui::epaint::textures::TexturesDelta,
+                Vec<egui::ClippedPrimitive>,
+                f32,
+            )> = None;
+            if self.show_overlay {
                 let raw_input = egui::RawInput {
                     screen_rect: Some(egui::Rect::from_min_size(
                         egui::Pos2::ZERO,
                         egui::vec2(self.ctx.extent.width as f32, self.ctx.extent.height as f32),
                     )),
-                    pixels_per_point: Some(1.0), // TODO: compute from EDID DPI or make configurable
+                    viewports: std::iter::once((
+                        egui::ViewportId::ROOT,
+                        egui::ViewportInfo {
+                            native_pixels_per_point: Some(1.0), // TODO: compute from EDID DPI or make configurable
+                            ..Default::default()
+                        },
+                    ))
+                    .collect(),
                     ..Default::default()
                 };
                 let output = self.egui_ctx.run_ui(raw_input, |ctx| {
                     build_overlay_ui(ctx, &self.scene, &self.frame_stats);
                 });
-
-                // Tessellate egui output
-                let primitives = self
-                    .egui_ctx
-                    .tessellate(output.shapes, output.pixels_per_point);
-
-                let data = EguiFrameData {
-                    textures_delta: &output.textures_delta,
-                    primitives: &primitives,
-                    pixels_per_point: output.pixels_per_point,
+                let ppp = output.pixels_per_point;
+                let textures_delta = output.textures_delta;
+                let primitives = self.egui_ctx.tessellate(output.shapes, ppp);
+                egui_output_store = Some((textures_delta, primitives, ppp));
+            }
+            let (egui_renderer, egui_data) =
+                if let Some((textures_delta, primitives, ppp)) = egui_output_store.as_ref() {
+                    let data = EguiFrameData {
+                        textures_delta,
+                        primitives,
+                        pixels_per_point: *ppp,
+                    };
+                    (Some(&mut self.egui_renderer), Some(data))
+                } else {
+                    (None, None)
                 };
-                (Some(&mut self.egui_renderer), Some(data))
-            } else {
-                (None, None)
-            };
 
             // `None` means the swapchain is out of date (rare in DRM mode).
             let _tick = render_frame(
