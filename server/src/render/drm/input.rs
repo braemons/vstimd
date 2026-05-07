@@ -12,6 +12,58 @@ pub enum AppKey {
     D,
 }
 
+// ── TTY keyboard suppression guard ───────────────────────────────────────────
+
+/// Disables echo and canonical processing on the controlling TTY for the
+/// lifetime of DRM mode. Flushes any buffered input on drop so characters
+/// typed during the session don't appear in the shell afterwards.
+///
+/// Uses tcsetattr rather than KDSKBMODE: the latter only works on real VT
+/// console nodes and requires CAP_SYS_TTY_CONFIG; tcsetattr works on any
+/// tty type (VT or pts) without elevated permissions.
+struct TtyKbdGuard {
+    fd: libc::c_int,
+    saved: libc::termios,
+}
+
+impl TtyKbdGuard {
+    fn acquire() -> Option<Self> {
+        let fd = unsafe {
+            libc::open(b"/dev/tty\0".as_ptr() as *const libc::c_char, libc::O_RDWR | libc::O_CLOEXEC)
+        };
+        if fd < 0 {
+            eprintln!("wonderlamp: could not open /dev/tty — keys may echo to terminal");
+            return None;
+        }
+        let mut saved: libc::termios = unsafe { std::mem::zeroed() };
+        if unsafe { libc::tcgetattr(fd, &mut saved) } < 0 {
+            unsafe { libc::close(fd) };
+            return None;
+        }
+        let mut raw = saved;
+        // Disable echo and canonical (line-buffered) mode.
+        raw.c_lflag &= !(libc::ECHO | libc::ECHOE | libc::ECHOK | libc::ECHONL
+            | libc::ICANON | libc::ISIG);
+        if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &raw) } < 0 {
+            eprintln!("wonderlamp: tcsetattr failed — keys may echo to terminal");
+            unsafe { libc::close(fd) };
+            return None;
+        }
+        Some(Self { fd, saved })
+    }
+}
+
+impl Drop for TtyKbdGuard {
+    fn drop(&mut self) {
+        unsafe {
+            // Discard any keys buffered during DRM mode before restoring.
+            libc::tcflush(self.fd, libc::TCIFLUSH);
+            libc::tcsetattr(self.fd, libc::TCSANOW, &self.saved);
+            libc::close(self.fd);
+        }
+    }
+}
+
 // ── libinput interface impl ───────────────────────────────────────────────────
 
 struct Interface;
@@ -41,19 +93,22 @@ impl input::LibinputInterface for Interface {
 /// an empty list so the server still runs headlessly via ZMQ commands.
 pub struct InputState {
     ctx: Option<input::Libinput>,
+    #[allow(dead_code)] // held for its Drop side-effect
+    tty_kbd_guard: Option<TtyKbdGuard>,
 }
 
 impl InputState {
     pub fn new() -> Self {
+        let tty_kbd_guard = TtyKbdGuard::acquire();
         let mut ctx = input::Libinput::new_with_udev(Interface);
         match ctx.udev_assign_seat("seat0") {
-            Ok(()) => Self { ctx: Some(ctx) },
+            Ok(()) => Self { ctx: Some(ctx), tty_kbd_guard },
             Err(()) => {
                 eprintln!(
                     "wonderlamp: libinput failed to open seat0 — \
                      keyboard shortcuts unavailable (is the 'input' group set?)"
                 );
-                Self { ctx: None }
+                Self { ctx: None, tty_kbd_guard }
             }
         }
     }
