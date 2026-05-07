@@ -12,7 +12,7 @@ use crate::timing::FrameStats;
 
 use self::display_guard::DisplayGuard;
 use self::input::{AppKey, InputState};
-use crate::render::overlay::build_overlay_ui;
+use crate::render::overlay::{SystemInfo, build_overlay_ui, query_local_ip};
 use crate::timing::FramePhases;
 
 /// Bare-metal Linux render state — drives the display directly via
@@ -31,6 +31,8 @@ pub struct DrmRenderState {
     frame_stats: FrameStats,
     last_phases: FramePhases,
     show_overlay: bool,
+    refresh_hz: f64,
+    local_ip: String,
     /// display_guard and vt_guard are Option<_> so they can survive the
     /// DrmRenderState and be dropped in the correct order.  The compiler
     /// warns "never read" but they are consumed by their Drop impls.
@@ -67,6 +69,8 @@ impl DrmRenderState {
             frame_stats: FrameStats::new(display_info.refresh_mhz as f64 / 1000.0),
             last_phases: FramePhases::default(),
             show_overlay: false,
+            refresh_hz: display_info.refresh_mhz as f64 / 1000.0,
+            local_ip: query_local_ip(),
             display_guard,
         }
     }
@@ -113,8 +117,14 @@ impl DrmRenderState {
                     ..Default::default()
                 };
                 let phases = self.last_phases;
+                let sys = SystemInfo {
+                    screen_width: self.ctx.extent.width,
+                    screen_height: self.ctx.extent.height,
+                    refresh_hz: self.refresh_hz,
+                    local_ip: self.local_ip.clone(),
+                };
                 let output = self.egui_ctx.run_ui(raw_input, |ctx| {
-                    build_overlay_ui(ctx, &self.scene, &self.frame_stats, phases);
+                    build_overlay_ui(ctx, &self.scene, &self.frame_stats, phases, &sys);
                 });
                 let ppp = output.pixels_per_point;
                 let textures_delta = output.textures_delta;

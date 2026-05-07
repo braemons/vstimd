@@ -8,7 +8,7 @@ use winit::event_loop::ActiveEventLoop;
 use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
-use crate::render::overlay::build_overlay_ui;
+use crate::render::overlay::{SystemInfo, build_overlay_ui, query_local_ip};
 use crate::render::vk::{
     EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkPipeline, render_frame,
 };
@@ -63,6 +63,8 @@ struct State {
     frame_index: usize,
     egui_ctx: egui::Context,
     show_overlay: bool,
+    refresh_hz: f64,
+    local_ip: String,
 }
 
 impl State {
@@ -96,11 +98,7 @@ impl State {
             Some(4096), // max texture side
         );
 
-        let hz = window
-            .current_monitor()
-            .and_then(|m| m.refresh_rate_millihertz())
-            .map(|mhz| mhz as f64 / 1000.0)
-            .unwrap_or(60.0);
+        let hz = detect_refresh_hz(&window);
 
         Self {
             window,
@@ -115,6 +113,8 @@ impl State {
             egui_ctx,
             egui_winit,
             show_overlay: false,
+            refresh_hz: hz,
+            local_ip: query_local_ip(),
         }
     }
 
@@ -123,8 +123,15 @@ impl State {
         if self.show_overlay {
             let raw_input = self.egui_winit.take_egui_input(&self.window);
             let phases = self.last_phases;
+            let size = self.window.inner_size();
+            let sys = SystemInfo {
+                screen_width: size.width,
+                screen_height: size.height,
+                refresh_hz: self.refresh_hz,
+                local_ip: self.local_ip.clone(),
+            };
             let output = self.egui_ctx.run_ui(raw_input, |ctx| {
-                build_overlay_ui(ctx, &self.scene, &self.frame_stats, phases);
+                build_overlay_ui(ctx, &self.scene, &self.frame_stats, phases, &sys);
             });
             self.egui_winit
                 .handle_platform_output(&self.window, output.platform_output);
@@ -336,3 +343,102 @@ impl ApplicationHandler for WinitApp {
     }
 }
 
+// ── Refresh-rate detection ────────────────────────────────────────────────────
+
+/// Determine the display refresh rate by trying several methods in order:
+///
+/// 1. DRM kernel interface (Linux only) — reads the active connector mode
+///    directly from the kernel, compositor-independent.
+/// 2. winit `video_modes()` filtered by current window resolution.
+/// 3. winit `refresh_rate_millihertz()` on the current monitor.
+///
+/// Panics if the refresh rate cannot be determined. No silent fallback is
+/// allowed — an unknown rate would cause drop detection to produce garbage.
+fn detect_refresh_hz(window: &Window) -> f64 {
+    // 1. DRM kernel interface (Linux only).
+    #[cfg(target_os = "linux")]
+    if let Some(hz) = query_refresh_hz_from_drm() {
+        eprintln!("wonderlamp: display clock (DRM): {hz:.3} Hz");
+        return hz;
+    }
+
+    // 2. winit video_modes() — works on X11 and some Wayland compositors.
+    if let Some(hz) = window.current_monitor().and_then(|m| {
+        let size = window.inner_size();
+        m.video_modes()
+            .filter(|vm| vm.size() == size)
+            .map(|vm| vm.refresh_rate_millihertz())
+            .max()
+            .map(|mhz| mhz as f64 / 1000.0)
+    }) {
+        eprintln!("wonderlamp: display clock (video_modes): {hz:.3} Hz");
+        return hz;
+    }
+
+    // 3. refresh_rate_millihertz() directly.
+    if let Some(mhz) = window
+        .current_monitor()
+        .and_then(|m| m.refresh_rate_millihertz())
+    {
+        let hz = mhz as f64 / 1000.0;
+        eprintln!("wonderlamp: display clock (monitor API): {hz:.3} Hz");
+        return hz;
+    }
+
+    panic!(
+        "wonderlamp: cannot determine display refresh rate — \
+         DRM query failed and compositor did not report refresh rate. \
+         Check driver, permissions (/dev/dri/card*), and compositor."
+    );
+}
+
+/// Query the refresh rate of the first connected DRM connector by reading the
+/// active mode from the kernel. Does not require DRM master.
+///
+/// Refresh rate is computed precisely as `clock_kHz × 1000 / (htotal × vtotal)`.
+#[cfg(target_os = "linux")]
+fn query_refresh_hz_from_drm() -> Option<f64> {
+    use drm::control::Device as ControlDevice;
+    use std::os::fd::{AsFd, BorrowedFd};
+
+    struct Card(std::fs::File);
+    impl AsFd for Card {
+        fn as_fd(&self) -> BorrowedFd<'_> {
+            self.0.as_fd()
+        }
+    }
+    impl drm::Device for Card {}
+    impl ControlDevice for Card {}
+
+    for n in 0..8u8 {
+        let path = format!("/dev/dri/card{n}");
+        let Ok(file) = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&path)
+        else {
+            continue;
+        };
+        let card = Card(file);
+        let Ok(res) = card.resource_handles() else {
+            continue;
+        };
+        for &conn_handle in res.connectors() {
+            let Ok(conn) = card.get_connector(conn_handle, false) else {
+                continue;
+            };
+            if conn.state() != drm::control::connector::State::Connected {
+                continue;
+            }
+            if let Some(mode) = conn.modes().first() {
+                let clock_hz = mode.clock() as f64 * 1000.0;
+                let (_, _, htotal) = mode.hsync();
+                let (_, _, vtotal) = mode.vsync();
+                if htotal > 0 && vtotal > 0 {
+                    return Some(clock_hz / (htotal as f64 * vtotal as f64));
+                }
+            }
+        }
+    }
+    None
+}

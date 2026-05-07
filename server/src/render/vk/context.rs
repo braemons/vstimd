@@ -42,6 +42,9 @@ pub struct VkContext {
     /// 0 is reserved ("no ID" in the spec); the first frame uses 1.
     /// `Cell` allows mutation through `&VkContext` (render thread only).
     pub next_present_id: std::cell::Cell<u64>,
+    /// Loader for VK_GOOGLE_display_timing.  None when the extension is absent.
+    /// Used to query the actual display refresh period from the driver.
+    pub display_timing: Option<ash::google::display_timing::Device>,
     pub instance: ash::Instance,
     pub entry: ash::Entry,
 }
@@ -124,6 +127,14 @@ impl VkContext {
         // frame skips the wait and starts a fresh ID sequence.
         self.next_present_id.set(1);
     }
+
+    /// Query the display refresh period in nanoseconds via VK_GOOGLE_display_timing.
+    /// Returns None if the extension is unavailable or the query fails.
+    pub fn query_refresh_cycle_duration_ns(&self) -> Option<u64> {
+        let loader = self.display_timing.as_ref()?;
+        let result = unsafe { loader.get_refresh_cycle_duration(self.swapchain) };
+        result.ok().map(|r| r.refresh_duration)
+    }
 }
 
 /// Pick the best available present mode from a priority list.
@@ -205,6 +216,7 @@ pub fn build_context(
     //   present_id  — attach a monotonic u64 to each vkQueuePresentKHR
     //   present_wait — vkWaitForPresentKHR blocks until that frame is on screen
     let use_present_wait = has_ext("VK_KHR_present_id") && has_ext("VK_KHR_present_wait");
+    let use_display_timing = has_ext("VK_GOOGLE_display_timing");
 
     // -- Logical device -------------------------------------------------------
     let queue_priorities = [1.0_f32];
@@ -216,6 +228,9 @@ pub fn build_context(
     if use_present_wait {
         device_exts.push(ash::khr::present_id::NAME.as_ptr());
         device_exts.push(ash::khr::present_wait::NAME.as_ptr());
+    }
+    if use_display_timing {
+        device_exts.push(ash::google::display_timing::NAME.as_ptr());
     }
 
     // Feature structs must outlive `device_info` (referenced via p_next chain).
@@ -239,6 +254,8 @@ pub fn build_context(
     let swapchain_loader = ash::khr::swapchain::Device::new(&instance, &device);
     let present_wait_loader =
         use_present_wait.then(|| ash::khr::present_wait::Device::new(&instance, &device));
+    let display_timing_loader =
+        use_display_timing.then(|| ash::google::display_timing::Device::new(&instance, &device));
     if use_present_wait {
         eprintln!("wonderlamp: VK_KHR_present_wait enabled — waitable screen clock active");
     }
@@ -332,6 +349,7 @@ pub fn build_context(
         present_mode: initial_present_mode,
         present_wait: present_wait_loader,
         next_present_id: std::cell::Cell::new(1),
+        display_timing: display_timing_loader,
         instance,
         entry,
     }
