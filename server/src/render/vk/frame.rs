@@ -50,7 +50,7 @@ pub fn render_frame(
             match pw.wait_for_present(ctx.swapchain, this_present_id - 1, 3_000_000_000) {
                 Ok(()) => {}
                 Err(vk::Result::TIMEOUT) => {
-                    eprintln!(
+                    log::warn!(
                         "wonderlamp: vkWaitForPresentKHR timed out (id {})",
                         this_present_id - 1
                     );
@@ -96,8 +96,23 @@ pub fn render_frame(
             sc.stimuli[&handle].flags_mut().dirty = false;
         }
         sc.photodiode.advance();
-        let (pd_verts, pd_idxs) = tessellate_photodiode(&sc.photodiode, screen_size);
-        gpu_buffers.upload(PHOTODIODE_HANDLE, &ctx.device, &pd_verts, &pd_idxs);
+        let pd = &sc.photodiode;
+        let geometry_changed = (pd.enabled != gpu_buffers.pd_enabled)
+            || (pd.enabled
+                && (pd.position != gpu_buffers.pd_position
+                    || screen_size != gpu_buffers.pd_screen_size));
+        if geometry_changed {
+            let (pd_verts, pd_idxs) = tessellate_photodiode(pd, screen_size);
+            gpu_buffers.upload(PHOTODIODE_HANDLE, &ctx.device, &pd_verts, &pd_idxs);
+            gpu_buffers.pd_enabled = pd.enabled;
+            gpu_buffers.pd_lit = pd.enabled.then_some(pd.lit);
+            gpu_buffers.pd_position = pd.position;
+            gpu_buffers.pd_screen_size = screen_size;
+        } else if pd.enabled && gpu_buffers.pd_lit != Some(pd.lit) {
+            let (pd_verts, _) = tessellate_photodiode(pd, screen_size);
+            gpu_buffers.overwrite_vertices(PHOTODIODE_HANDLE, &ctx.device, &pd_verts);
+            gpu_buffers.pd_lit = Some(pd.lit);
+        }
     } // write lock dropped — ZMQ thread can run
     let tessellate_us = t_tess_start.elapsed().as_micros() as u32;
 
@@ -318,7 +333,7 @@ pub fn render_frame(
 
     let dropped_frames = frame_stats.on_present(vblank_time);
     if dropped_frames > 0 {
-        eprintln!(
+        log::warn!(
             "wonderlamp: {} dropped frame(s) before frame {}",
             dropped_frames, this_present_id
         );

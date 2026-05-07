@@ -26,13 +26,25 @@ impl VkMesh {
 pub struct GpuBuffers {
     pub meshes: HashMap<u32, VkMesh>,
     mem_props: vk::PhysicalDeviceMemoryProperties,
+    // Cached photodiode render state — used to skip redundant uploads
+    pub pd_enabled: bool,
+    pub pd_lit: Option<bool>,
+    pub pd_position: u32,
+    pub pd_screen_size: (u32, u32),
 }
 
 impl GpuBuffers {
     pub fn new(instance: &ash::Instance, physical_device: vk::PhysicalDevice) -> Self {
         let mem_props =
             unsafe { instance.get_physical_device_memory_properties(physical_device) };
-        Self { meshes: HashMap::new(), mem_props }
+        Self {
+            meshes: HashMap::new(),
+            mem_props,
+            pd_enabled: false,
+            pd_lit: None,
+            pd_position: 0,
+            pd_screen_size: (0, 0),
+        }
     }
 
     pub fn upload(
@@ -57,6 +69,20 @@ impl GpuBuffers {
             index_memory: im,
             index_count: idxs.len() as u32,
         });
+    }
+
+    /// Overwrite vertex data in an existing buffer without reallocation.
+    /// The new slice must be the same byte size as what was originally uploaded.
+    pub fn overwrite_vertices(&self, handle: u32, device: &ash::Device, verts: &[Vertex]) {
+        let Some(mesh) = self.meshes.get(&handle) else { return };
+        let data: &[u8] = bytemuck::cast_slice(verts);
+        unsafe {
+            let ptr = device
+                .map_memory(mesh.vertex_memory, 0, data.len() as vk::DeviceSize, vk::MemoryMapFlags::empty())
+                .expect("map") as *mut u8;
+            std::ptr::copy_nonoverlapping(data.as_ptr(), ptr, data.len());
+            device.unmap_memory(mesh.vertex_memory);
+        }
     }
 
     pub fn destroy_all(&mut self, device: &ash::Device) {
