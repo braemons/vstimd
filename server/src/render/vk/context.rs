@@ -1,6 +1,6 @@
 use ash::vk;
 
-pub const FRAMES_IN_FLIGHT: usize = 2;
+pub const FRAMES_IN_FLIGHT: usize = 1;
 
 pub struct FrameSync {
     pub image_available: vk::Semaphore,
@@ -184,6 +184,16 @@ pub fn build_context(
         })
         .expect("no Vulkan device with graphics+present support");
 
+    // Log which physical device was selected.
+    {
+        let props = unsafe { instance.get_physical_device_properties(physical_device) };
+        let name = unsafe { std::ffi::CStr::from_ptr(props.device_name.as_ptr()) };
+        log::info!(
+            "wonderlamp: Vulkan physical device: {:?}  type={:?}  driver=0x{:x}  vendor=0x{:x}",
+            name, props.device_type, props.driver_version, props.vendor_id
+        );
+    }
+
     // -- Device extension inventory -------------------------------------------
     // Enumerate once; reused for both the capability log and device creation.
     let available_device_exts: Vec<String> = unsafe {
@@ -266,18 +276,27 @@ pub fn build_context(
             .get_physical_device_surface_formats(physical_device, surface)
             .expect("failed to query surface formats")
     };
-    let format = formats
+    log::debug!("wonderlamp: surface formats ({}):", formats.len());
+    for f in &formats {
+        log::debug!("  {:?}  {:?}", f.format, f.color_space);
+    }
+    let chosen_sf = formats
         .iter()
         .find(|f| {
             f.format == vk::Format::B8G8R8A8_UNORM
                 && f.color_space == vk::ColorSpaceKHR::SRGB_NONLINEAR
         })
         .copied()
-        .unwrap_or(formats[0])
-        .format;
+        .unwrap_or(formats[0]);
+    let format = chosen_sf.format;
+    log::debug!(
+        "wonderlamp: chosen surface format: {:?}  {:?}",
+        chosen_sf.format, chosen_sf.color_space
+    );
 
     // -- Swapchain + image views ----------------------------------------------
     let initial_present_mode = vk::PresentModeKHR::FIFO;
+    log::debug!("wonderlamp: chosen present mode: {:?}", initial_present_mode);
     let (swapchain, swapchain_images, swapchain_image_views, extent) = create_swapchain(
         &swapchain_loader,
         &surface_loader,
@@ -470,6 +489,14 @@ fn create_swapchain(
             .get_physical_device_surface_capabilities(physical_device, surface)
             .expect("failed to query surface capabilities")
     };
+    log::debug!(
+        "wonderlamp: surface caps: min_images={} max_images={} current_transform={:?} \
+         supported_composite_alpha={:?} current_extent={:?}",
+        caps.min_image_count, caps.max_image_count,
+        caps.current_transform,
+        caps.supported_composite_alpha,
+        caps.current_extent,
+    );
     let image_count = 2
         .max(caps.min_image_count)
         .min(if caps.max_image_count == 0 {
@@ -489,6 +516,27 @@ fn create_swapchain(
                 .clamp(caps.min_image_extent.height, caps.max_image_extent.height),
         }
     };
+
+    // Warn if we're requesting a transform/alpha the surface doesn't support.
+    if !caps.current_transform.contains(vk::SurfaceTransformFlagsKHR::IDENTITY) {
+        log::warn!(
+            "wonderlamp: surface does not list IDENTITY in current_transform ({:?}); \
+             using IDENTITY anyway",
+            caps.current_transform
+        );
+    }
+    if !caps.supported_composite_alpha.contains(vk::CompositeAlphaFlagsKHR::OPAQUE) {
+        log::warn!(
+            "wonderlamp: surface does not support OPAQUE composite alpha ({:?}); \
+             using OPAQUE anyway — this may cause a GPU fault",
+            caps.supported_composite_alpha
+        );
+    }
+
+    log::debug!(
+        "wonderlamp: creating swapchain: {}×{} images={} format={:?} present_mode={:?}",
+        extent.width, extent.height, image_count, format, present_mode
+    );
 
     let info = vk::SwapchainCreateInfoKHR::default()
         .surface(surface)

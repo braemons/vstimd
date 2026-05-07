@@ -130,6 +130,22 @@ impl DisplayGuard {
                 saved.len()
             );
 
+            // Disable VRR (Variable Refresh Rate / G-Sync) on all active CRTCs
+            // and connectors before handing the display to Vulkan.
+            //
+            // When nvidia-modeset sees a VRR-capable display it tries to set up
+            // a "VRR Rgline active session" during VK_KHR_display surface
+            // creation. On JetPack 6.x this allocation fails
+            // ("nvRmApiAlloc(memory) failed for vrr 0x22"), which corrupts the
+            // GPU presentation semaphore pathway and causes a PBDMA semaphore
+            // acquire timeout ~4 s later → ERROR_DEVICE_LOST.
+            // Explicitly setting VRR_ENABLED = 0 on the CRTC and "Adaptive Sync"
+            // / "vrr_capable" to 0 on the connector suppresses the attempt.
+            for out in &saved {
+                disable_vrr_on_crtc(&card, out.crtc_handle);
+                disable_vrr_on_connector(&card, out.connector_handle);
+            }
+
             // Release master so Vulkan (VK_KHR_display) can take it.
             if let Err(e) = card.release_master_lock() {
                 log::warn!("wonderlamp: release_master_lock on {path}: {e} (continuing)");
@@ -143,6 +159,59 @@ impl DisplayGuard {
              CRTC restore on exit will be skipped"
         );
         None
+    }
+}
+
+// ── VRR suppression helpers ───────────────────────────────────────────────────
+
+/// Try to set VRR_ENABLED = 0 on a CRTC.
+fn disable_vrr_on_crtc(card: &Card, crtc: drm::control::crtc::Handle) {
+    let props = match card.get_properties(crtc) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    for (&prop_handle, _) in &props {
+        let info = match card.get_property(prop_handle) {
+            Ok(i) => i,
+            Err(_) => continue,
+        };
+        let name = info.name().to_string_lossy();
+        if name.eq_ignore_ascii_case("VRR_ENABLED") || name.eq_ignore_ascii_case("vrr_enabled") {
+            match card.set_property(crtc, prop_handle, 0) {
+                Ok(()) => log::debug!("wonderlamp: disabled VRR_ENABLED on CRTC {crtc:?}"),
+                Err(e) => log::debug!("wonderlamp: set VRR_ENABLED=0 on {crtc:?}: {e}"),
+            }
+            return;
+        }
+    }
+}
+
+/// Try to clear VRR / Adaptive Sync properties on a connector.
+fn disable_vrr_on_connector(card: &Card, conn: drm::control::connector::Handle) {
+    let props = match card.get_properties(conn) {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+    for (&prop_handle, _) in &props {
+        let info = match card.get_property(prop_handle) {
+            Ok(i) => i,
+            Err(_) => continue,
+        };
+        let name = info.name().to_string_lossy();
+        // Names seen in the wild: "Adaptive Sync", "VRR_CAPABLE", "vrr_capable"
+        if name.eq_ignore_ascii_case("Adaptive Sync")
+            || name.eq_ignore_ascii_case("VRR_CAPABLE")
+            || name.eq_ignore_ascii_case("vrr_capable")
+        {
+            match card.set_property(conn, prop_handle, 0) {
+                Ok(()) => log::debug!(
+                    "wonderlamp: set {name}=0 on connector {conn:?}"
+                ),
+                Err(e) => log::debug!(
+                    "wonderlamp: set {name}=0 on {conn:?}: {e}"
+                ),
+            }
+        }
     }
 }
 

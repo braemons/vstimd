@@ -183,54 +183,46 @@ pub fn render_frame(
 
         ctx.device
             .cmd_begin_render_pass(cb, &rp_info, vk::SubpassContents::INLINE);
-        ctx.device
-            .cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
 
-        let viewport = vk::Viewport {
-            x: 0.0,
-            y: 0.0,
-            width: ctx.extent.width as f32,
-            height: ctx.extent.height as f32,
-            min_depth: 0.0,
-            max_depth: 1.0,
-        };
-        ctx.device
-            .cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
-        ctx.device
-            .cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
-
+        // Collect draws; only bind the pipeline if there is something to draw.
         let sc = scene.read().expect("scene lock poisoned");
-        for (handle, _) in &sc.stimuli {
-            if let Some(mesh) = gpu_buffers.meshes.get(handle) {
-                if mesh.index_count > 0 {
-                    ctx.device
-                        .cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
-                    ctx.device.cmd_bind_index_buffer(
-                        cb,
-                        mesh.index_buffer,
-                        0,
-                        vk::IndexType::UINT32,
-                    );
-                    ctx.device
-                        .cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
-                }
-            }
-        }
-        // Photodiode corner square is drawn on top of all stimuli.
-        if let Some(mesh) = gpu_buffers.meshes.get(&PHOTODIODE_HANDLE) {
-            if mesh.index_count > 0 {
-                ctx.device
-                    .cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
-                ctx.device.cmd_bind_index_buffer(
-                    cb,
-                    mesh.index_buffer,
-                    0,
-                    vk::IndexType::UINT32,
-                );
-                ctx.device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
-            }
-        }
+        let draws: Vec<(vk::Buffer, vk::Buffer, u32)> = sc
+            .stimuli
+            .keys()
+            .filter_map(|h| gpu_buffers.meshes.get(h).filter(|m| m.index_count > 0))
+            .chain(
+                gpu_buffers
+                    .meshes
+                    .get(&PHOTODIODE_HANDLE)
+                    .filter(|m| m.index_count > 0),
+            )
+            .map(|m| (m.vertex_buffer, m.index_buffer, m.index_count))
+            .collect();
         drop(sc);
+
+        if !draws.is_empty() {
+            ctx.device
+                .cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
+
+            let viewport = vk::Viewport {
+                x: 0.0,
+                y: 0.0,
+                width: ctx.extent.width as f32,
+                height: ctx.extent.height as f32,
+                min_depth: 0.0,
+                max_depth: 1.0,
+            };
+            ctx.device
+                .cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+            ctx.device
+                .cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+
+            for (vbuf, ibuf, index_count) in draws {
+                ctx.device.cmd_bind_vertex_buffers(cb, 0, &[vbuf], &[0]);
+                ctx.device.cmd_bind_index_buffer(cb, ibuf, 0, vk::IndexType::UINT32);
+                ctx.device.cmd_draw_indexed(cb, index_count, 1, 0, 0, 0);
+            }
+        }
 
         ctx.device.cmd_end_render_pass(cb);
 
@@ -289,17 +281,22 @@ pub fn render_frame(
     let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
     let cbs = [cb];
     unsafe {
-        ctx.device
-            .queue_submit(
-                ctx.graphics_queue,
-                &[vk::SubmitInfo::default()
-                    .wait_semaphores(&wait_sems)
-                    .wait_dst_stage_mask(&wait_stages)
-                    .command_buffers(&cbs)
-                    .signal_semaphores(&signal_sems)],
-                frame.in_flight,
-            )
-            .expect("queue_submit");
+        if let Err(e) = ctx.device.queue_submit(
+            ctx.graphics_queue,
+            &[vk::SubmitInfo::default()
+                .wait_semaphores(&wait_sems)
+                .wait_dst_stage_mask(&wait_stages)
+                .command_buffers(&cbs)
+                .signal_semaphores(&signal_sems)],
+            frame.in_flight,
+        ) {
+            log::error!(
+                "wonderlamp: queue_submit failed: {e} \
+                 [frame={} tess={}µs fence={}µs acquire={}µs record={}µs]",
+                this_present_id, tessellate_us, fence_us, acquire_us, record_us
+            );
+            std::process::exit(1);
+        }
     }
 
     // -- Present --------------------------------------------------------------
@@ -334,8 +331,10 @@ pub fn render_frame(
     let dropped_frames = frame_stats.on_present(vblank_time);
     if dropped_frames > 0 {
         log::warn!(
-            "wonderlamp: {} dropped frame(s) before frame {}",
-            dropped_frames, this_present_id
+            "wonderlamp: {} dropped frame(s) before frame {} \
+             [tess={}µs fence={}µs acquire={}µs record={}µs submit={}µs]",
+            dropped_frames, this_present_id,
+            tessellate_us, fence_us, acquire_us, record_us, submit_us
         );
     }
     *frame_index = frame_index.wrapping_add(1);
