@@ -40,8 +40,54 @@ pub struct DrmRenderState {
     display_guard: Option<DisplayGuard>,
 }
 
+fn check_device_permissions() {
+    let mut missing: Vec<String> = Vec::new();
+
+    // DRM node: need read+write on at least one card
+    let drm_ok = (0..8u32).any(|n| {
+        let path = format!("/dev/dri/card{n}\0");
+        unsafe { libc::access(path.as_ptr() as *const libc::c_char, libc::R_OK | libc::W_OK) == 0 }
+    });
+    if !drm_ok {
+        missing.push(
+            "  /dev/dri/card* — add user to 'video' group:\n    sudo usermod -aG video $USER"
+                .to_string(),
+        );
+    }
+
+    // Input devices: need read on at least one event node
+    let input_ok = std::fs::read_dir("/dev/input")
+        .ok()
+        .map(|dir| {
+            dir.filter_map(|e| e.ok())
+                .filter(|e| e.file_name().to_string_lossy().starts_with("event"))
+                .any(|e| {
+                    let path = e.path();
+                    let c_path = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
+                    unsafe { libc::access(c_path.as_ptr(), libc::R_OK) == 0 }
+                })
+        })
+        .unwrap_or(false);
+    if !input_ok {
+        missing.push(
+            "  /dev/input/event* — add user to 'input' group:\n    sudo usermod -aG input $USER"
+                .to_string(),
+        );
+    }
+
+    if !missing.is_empty() {
+        log::error!(
+            "wonderlamp: missing device permissions — log out and back in after fixing:\n{}",
+            missing.join("\n")
+        );
+        std::process::exit(1);
+    }
+}
+
 impl DrmRenderState {
     pub fn new(scene: Arc<RwLock<SceneState>>) -> Self {
+        check_device_permissions();
+
         // Snapshot display state before Vulkan takes DRM master.
         let display_guard = DisplayGuard::acquire();
 

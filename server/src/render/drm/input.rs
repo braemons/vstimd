@@ -88,11 +88,8 @@ impl input::LibinputInterface for Interface {
 // ── InputState ───────────────────────────────────────────────────────────────
 
 /// Wraps a libinput context and provides a simple per-frame key event drain.
-///
-/// If libinput fails to initialise (e.g. missing permissions), `poll` returns
-/// an empty list so the server still runs headlessly via ZMQ commands.
 pub struct InputState {
-    ctx: Option<input::Libinput>,
+    ctx: input::Libinput,
     #[allow(dead_code)] // held for its Drop side-effect
     tty_kbd_guard: Option<TtyKbdGuard>,
 }
@@ -102,13 +99,14 @@ impl InputState {
         let tty_kbd_guard = TtyKbdGuard::acquire();
         let mut ctx = input::Libinput::new_with_udev(Interface);
         match ctx.udev_assign_seat("seat0") {
-            Ok(()) => Self { ctx: Some(ctx), tty_kbd_guard },
+            Ok(()) => Self { ctx, tty_kbd_guard },
             Err(()) => {
-                log::warn!(
-                    "wonderlamp: libinput failed to open seat0 — \
-                     keyboard shortcuts unavailable (is the 'input' group set?)"
+                log::error!(
+                    "wonderlamp: libinput could not open seat0 — \
+                     add the current user to the 'input' group and log out/in:\n  \
+                     sudo usermod -aG input $USER"
                 );
-                Self { ctx: None, tty_kbd_guard }
+                std::process::exit(1);
             }
         }
     }
@@ -116,16 +114,12 @@ impl InputState {
     /// Drain pending events and return any recognised key presses.
     /// Non-blocking — returns immediately if there are no events.
     pub fn poll(&mut self) -> Vec<AppKey> {
-        let Some(ctx) = &mut self.ctx else {
-            return vec![];
-        };
-
-        if ctx.dispatch().is_err() {
+        if self.ctx.dispatch().is_err() {
             return vec![];
         }
 
         let mut keys = Vec::new();
-        while let Some(event) = ctx.next() {
+        while let Some(event) = self.ctx.next() {
             if let input::Event::Keyboard(kb) = event {
                 if kb.key_state() == input::event::keyboard::KeyState::Pressed {
                     // Evdev key codes (from linux/input-event-codes.h)
