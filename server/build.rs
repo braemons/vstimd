@@ -1,6 +1,14 @@
 fn main() {
     prost_build::Config::new()
-        .compile_protos(&["../proto/wonderlamp.proto"], &["../proto/"])
+        .compile_protos(
+            &[
+                "../proto/v1/common.proto",
+                "../proto/v1/stimuli.proto",
+                "../proto/v1/system.proto",
+                "../proto/v1/service.proto",
+            ],
+            &["../proto/"],
+        )
         .expect("failed to compile protobuf schema");
 
     compile_shader("shaders/solid.wgsl", "solid.spv");

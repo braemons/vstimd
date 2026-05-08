@@ -1,0 +1,61 @@
+syntax = "proto3";
+package wonderlamp.v1;
+
+import "v1/common.proto";
+
+// ── System mutations ──────────────────────────────────────────────────────────
+
+// System command: set the background clear colour.
+message SetBackground {
+  Color color = 1;
+}
+
+// System command: enter or exit deferred (frame-batched) mode.
+// - active=true           → begin deferred mode (snapshot all live state)
+// - active=false          → end deferred mode (schedule atomic flip on next vsync)
+// - active=false, cancel=true → cancel deferred mode (discard pending changes)
+message SetDeferredMode {
+  bool active = 1;
+  bool cancel = 2;
+}
+
+// System command: remove all stimuli from the scene (except protected ones).
+message DeleteAll {}
+
+// System command: enable or disable all stimuli (except protected ones).
+message SetAllEnabled {
+  bool enabled = 1;
+}
+
+// ── System queries ────────────────────────────────────────────────────────────
+
+// System command: query server/display properties.
+// Returns ServerInfo in Response.body.
+message QueryServerInfo {}
+
+// System command: list all stimuli in scene order.
+// Returns StimulusList in Response.body.
+message ListStimuli {}
+
+// ── System query response payloads ────────────────────────────────────────────
+
+// Response payload for QueryServerInfo.
+message ServerInfo {
+  uint32  width            = 1;   // display width in pixels
+  uint32  height           = 2;   // display height in pixels
+  float   frame_rate       = 3;   // measured frame rate in Hz
+  Color   background_color = 4;
+  Backend backend          = 5;
+}
+
+// One row in a StimulusList.
+message StimulusEntry {
+  uint32       handle        = 1;
+  StimulusType stimulus_type = 2;
+  bool         enabled       = 3;
+}
+
+// Response payload for ListStimuli.
+message StimulusList {
+  repeated StimulusEntry entries = 1;
+}

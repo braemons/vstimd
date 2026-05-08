@@ -1,0 +1,111 @@
+syntax = "proto3";
+package wonderlamp.v1;
+
+import "v1/stimuli.proto";
+import "v1/system.proto";
+
+// ── Error codes ───────────────────────────────────────────────────────────────
+
+enum ErrorCode {
+  // Success. Always set on non-error responses.
+  ERROR_CODE_OK                  = 0;
+  // Unexpected server-side error.
+  ERROR_CODE_UNKNOWN             = 1;
+  // The stimulus handle does not exist.
+  ERROR_CODE_HANDLE_NOT_FOUND    = 2;
+  // The mutation is not applicable to this stimulus type (e.g. SetDiscRadius on Rect).
+  ERROR_CODE_WRONG_STIMULUS_TYPE = 3;
+  // A system command was sent with a stimulus handle, or vice versa.
+  ERROR_CODE_WRONG_TARGET        = 4;
+  // Could not create the stimulus (resource exhaustion, etc.).
+  ERROR_CODE_CREATION_FAILED     = 5;
+  // A field value is out of range or logically invalid.
+  ERROR_CODE_INVALID_ARGUMENT    = 6;
+  // Command exists but is not supported in the current configuration.
+  ERROR_CODE_NOT_SUPPORTED       = 7;
+}
+
+// ── Request routing ───────────────────────────────────────────────────────────
+
+// Sentinel for system-level commands (handle == 0 in the legacy protocol).
+// Presence in Request.target signals "this is a scene-wide command, not
+// addressed to any specific stimulus".
+message SystemTarget {}
+
+// ── Request envelope ──────────────────────────────────────────────────────────
+
+// Client → server. Every ZMQ frame carries exactly one Request.
+message Request {
+  // Routing: either a scene-wide system command or an addressed stimulus command.
+  oneof target {
+    SystemTarget system   = 1;
+    uint32       stimulus = 2;
+  }
+
+  oneof body {
+    // ── Stimulus creation (system target only) ──────────────────────────────
+    CreateRect    create_rect    = 10;
+    CreateCircle  create_circle  = 11;
+    CreateEllipse create_ellipse = 12;
+
+    // ── Stimulus mutations (stimulus target only) ───────────────────────────
+    SetEnabled     set_enabled      = 30;
+    Delete         delete           = 31;
+    SetPosition    set_position     = 32;
+    SetOrientation set_orientation  = 33;
+    SetFillColor   set_fill_color   = 34;
+    SetAlpha       set_alpha        = 35;
+    SetRectSize    set_rect_size    = 36;
+    SetDiscRadius  set_disc_radius  = 37;
+    SetEllipseSize set_ellipse_size = 38;
+    SetDrawMode    set_draw_mode    = 39;
+    SetOutlineColor set_outline_color = 40;
+    SetOutlineWidth set_outline_width = 41;
+
+    // ── System mutations (system target only) ───────────────────────────────
+    SetBackground   set_background   = 60;
+    SetDeferredMode set_deferred_mode = 61;
+    DeleteAll       delete_all       = 62;
+    SetAllEnabled   set_all_enabled  = 63;
+
+    // ── Queries ─────────────────────────────────────────────────────────────
+    QueryServerInfo query_server_info = 80;  // system target
+    QueryStimulus   query_stimulus    = 81;  // stimulus target
+    ListStimuli     list_stimuli      = 82;  // system target
+  }
+}
+
+// ── Response envelope ─────────────────────────────────────────────────────────
+
+// Server → client. One Response is sent per Request.
+message Response {
+  // For create commands: the newly allocated handle (> 0).
+  // For mutations / deletes: -1 (ack).
+  // On error: 0.
+  int32     handle = 1;
+
+  // Machine-readable result code. Always set; OK (0) on success.
+  ErrorCode code   = 2;
+
+  // Human-readable error detail. Non-empty only when code != OK.
+  string    error  = 3;
+
+  // Query payload — present only on successful query responses.
+  oneof body {
+    ServerInfo   server_info   = 10;
+    StimulusInfo stimulus_info = 11;
+    StimulusList stimulus_list = 12;
+  }
+}
+
+// ── Service definition (for future gRPC transport) ────────────────────────────
+
+// Primary transport is ZMQ REQ/REP; this service block is included for tooling
+// compatibility (grpcurl, reflection) and to preserve the option of a gRPC
+// adapter on a separate port without any schema changes.
+service WonderlampService {
+  // Execute a single command.
+  rpc Execute(Request) returns (Response);
+  // Execute a deferred batch: stream N commands, end with SetDeferredMode{active:false}.
+  rpc ExecuteBatch(stream Request) returns (Response);
+}

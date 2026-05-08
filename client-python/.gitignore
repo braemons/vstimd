@@ -6,5 +6,5 @@ dist/
 build/
 
 # Generated protobuf stubs — regenerate with: make proto
-wonderlamp/_proto/wonderlamp_pb2.py
-wonderlamp/_proto/wonderlamp_pb2.pyi
+wonderlamp/_proto/**/*_pb2.py
+wonderlamp/_proto/**/*_pb2.pyi
