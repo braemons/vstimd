@@ -74,6 +74,21 @@ impl Stimulus {
 
     /// Returns `None` for stimulus types that have no fill/stroke appearance
     /// (bitmaps, shaders, particles, pixels).
+    pub fn appearance(&self) -> Option<&Deferred<ShapeAppearance>> {
+        match self {
+            Stimulus::Rect(s) => Some(&s.appearance),
+            Stimulus::Ellipse(s) => Some(&s.appearance),
+            Stimulus::Petal(s) => Some(&s.appearance),
+            Stimulus::Wedge(s) => Some(&s.appearance),
+            Stimulus::Disc(s) => Some(&s.appearance),
+            Stimulus::Bitmap(_)
+            | Stimulus::BitmapSeq(_)
+            | Stimulus::WgslShader(_)
+            | Stimulus::Particle(_)
+            | Stimulus::Pixel(_) => None,
+        }
+    }
+
     pub fn appearance_mut(&mut self) -> Option<&mut Deferred<ShapeAppearance>> {
         match self {
             Stimulus::Rect(s) => Some(&mut s.appearance),

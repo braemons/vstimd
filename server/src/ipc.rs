@@ -76,7 +76,9 @@ async fn zmq_loop(scene: Arc<RwLock<SceneState>>, addr: &str) {
             }
             Err(e) => proto::Response {
                 handle: 0,
+                code: proto::ErrorCode::Unknown as i32,
                 error: format!("protobuf decode error: {e}"),
+                body: None,
             },
         };
 

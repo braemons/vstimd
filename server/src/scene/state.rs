@@ -181,7 +181,7 @@ impl SceneState {
         response: &crate::proto::Response,
     ) {
         const MAX_LOG: usize = 200;
-        let ok = response.error.is_empty();
+        let ok = response.code == 0;
         if !ok {
             self.command_log_errors += 1;
         }
