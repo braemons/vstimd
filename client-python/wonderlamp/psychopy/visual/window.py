@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any, Callable
+
 from ..._connection import Connection
 from ._colors import normalize_color
 from ._types import ColorInput, MonitorProtocol
@@ -33,14 +35,14 @@ class Window:
         self.colorSpace = colorSpace
 
         self._conn = Connection(address)
-        self._queue: list[tuple[str, ...]] = []
+        self._queue: list[tuple[Callable[..., Any], tuple[Any, ...]]] = []
         self._to_draw_once: list[int] = []
 
-    def _dispatch(self, method: str, *args: float | int | bool) -> None:
+    def _dispatch(self, fn: Callable[..., Any], *args: Any) -> None:
         if self.deferred:
-            self._queue.append((method, *args))
+            self._queue.append((fn, args))
         else:
-            getattr(self._conn, method)(*args)
+            fn(*args)
 
     def _resolve_units(self, stim_units: str) -> str:
         return stim_units if stim_units else self.units
@@ -50,13 +52,12 @@ class Window:
         if not self.deferred:
             return
         for h in self._to_draw_once:
-            self._conn.set_enabled(h, True)
-        for item in self._queue:
-            method, *args = item
-            getattr(self._conn, method)(*args)
+            self._conn.stimuli.set_enabled(h, True)
+        for fn, args in self._queue:
+            fn(*args)
         self._queue.clear()
         for h in self._to_draw_once:
-            self._conn.set_enabled(h, False)
+            self._conn.stimuli.set_enabled(h, False)
         self._to_draw_once.clear()
 
     def close(self) -> None:

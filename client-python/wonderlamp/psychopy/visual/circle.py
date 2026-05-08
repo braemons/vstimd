@@ -53,7 +53,7 @@ class Circle:
         px, py = self._to_px(self._pos)
         pr = self._scalar_px(self._radius)
         rgba = normalize_color(fillColor, colorSpace, opacity) or (0.0, 0.0, 0.0, 0.0)
-        self._handle: int = win._conn.create_circle(
+        self._handle: int = win._conn.stimuli.create_circle(
             x=px, y=py, radius=pr,
             r=rgba[0], g=rgba[1], b=rgba[2], a=rgba[3],
         )
@@ -81,7 +81,7 @@ class Circle:
     @autoDraw.setter
     def autoDraw(self, value: bool) -> None:
         self._auto_draw = bool(value)
-        self._win._dispatch("set_enabled", self._handle, self._auto_draw)
+        self._win._dispatch(self._win._conn.stimuli.set_enabled, self._handle, self._auto_draw)
 
     def setAutoDraw(self, value: bool, log: bool | None = None) -> None:
         self.autoDraw = value
@@ -97,7 +97,7 @@ class Circle:
     def pos(self, value: Vec2) -> None:
         self._pos = (float(value[0]), float(value[1]))
         px, py = self._to_px(self._pos)
-        self._win._dispatch("move_circle", self._handle, px, py)
+        self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, px, py)
 
     def setPos(self, value: Vec2, operation: str = "", log: bool | None = None) -> None:
         if operation == "+":
@@ -114,7 +114,7 @@ class Circle:
     def radius(self, value: float) -> None:
         self._radius = float(value)
         pr = self._scalar_px(self._radius)
-        self._win._dispatch("resize_circle", self._handle, pr)
+        self._win._dispatch(self._win._conn.stimuli.set_disc_radius, self._handle, pr)
 
     def setRadius(self, value: float, log: bool | None = None) -> None:
         self.radius = value
@@ -126,7 +126,7 @@ class Circle:
     @ori.setter
     def ori(self, value: float) -> None:
         self._ori = float(value)
-        self._win._dispatch("set_angle", self._handle, self._ori)
+        self._win._dispatch(self._win._conn.stimuli.set_orientation, self._handle, self._ori)
 
     def setOri(self, value: float, operation: str = "", log: bool | None = None) -> None:
         self.ori = value
@@ -162,4 +162,7 @@ class Circle:
 
     def _resend_color(self) -> None:
         rgba = normalize_color(self._fill_color, self._color_space, self._opacity) or (0.0, 0.0, 0.0, 0.0)
-        self._win._dispatch("set_circle_color", self._handle, *rgba)
+        self._win._dispatch(
+            self._win._conn.stimuli.set_fill_color,
+            self._handle, rgba[0], rgba[1], rgba[2], rgba[3],
+        )

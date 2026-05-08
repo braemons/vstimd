@@ -14,7 +14,7 @@ import pytest
 import zmq
 
 from wonderlamp import Connection
-from wonderlamp._proto import wonderlamp_pb2 as pb
+from wonderlamp._proto import service_pb2, system_pb2
 from ._e2e_cases import *  # noqa: F401, F403
 
 _REPO_ROOT = pathlib.Path(__file__).parents[2]
@@ -28,7 +28,11 @@ def _reachable(address: str, timeout_ms: int = 500) -> bool:
     sock.setsockopt(zmq.RCVTIMEO, timeout_ms)
     sock.connect(address)
     try:
-        sock.send(pb.Request(handle=0).SerializeToString())
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            query_server_info=system_pb2.QueryServerInfo(),
+        )
+        sock.send(req.SerializeToString())
         sock.recv()
         return True
     except zmq.Again:

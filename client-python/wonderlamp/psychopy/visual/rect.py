@@ -61,7 +61,7 @@ class Rect:
         pw = self._scalar_px(self._width)
         ph = self._scalar_px(self._height)
         rgba = normalize_color(fillColor, colorSpace, opacity) or (0.0, 0.0, 0.0, 0.0)
-        self._handle: int = win._conn.create_rect(
+        self._handle: int = win._conn.stimuli.create_rect(
             x=px, y=py, width=pw, height=ph,
             r=rgba[0], g=rgba[1], b=rgba[2], a=rgba[3],
         )
@@ -89,7 +89,7 @@ class Rect:
     @autoDraw.setter
     def autoDraw(self, value: bool) -> None:
         self._auto_draw = bool(value)
-        self._win._dispatch("set_enabled", self._handle, self._auto_draw)
+        self._win._dispatch(self._win._conn.stimuli.set_enabled, self._handle, self._auto_draw)
 
     def setAutoDraw(self, value: bool, log: bool | None = None) -> None:
         self.autoDraw = value
@@ -105,7 +105,7 @@ class Rect:
     def pos(self, value: Vec2) -> None:
         self._pos = (float(value[0]), float(value[1]))
         px, py = self._to_px(self._pos)
-        self._win._dispatch("move_rect", self._handle, px, py)
+        self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, px, py)
 
     def setPos(self, value: Vec2, operation: str = "", log: bool | None = None) -> None:
         if operation == "+":
@@ -126,7 +126,7 @@ class Rect:
             self._width, self._height = float(value[0]), float(value[1])
         pw = self._scalar_px(self._width)
         ph = self._scalar_px(self._height)
-        self._win._dispatch("resize_rect", self._handle, pw, ph)
+        self._win._dispatch(self._win._conn.stimuli.set_rect_size, self._handle, pw, ph)
 
     def setSize(self, value: Vec2 | float, operation: str = "", log: bool | None = None) -> None:
         self.size = value
@@ -154,7 +154,7 @@ class Rect:
     @ori.setter
     def ori(self, value: float) -> None:
         self._ori = float(value)
-        self._win._dispatch("set_angle", self._handle, self._ori)
+        self._win._dispatch(self._win._conn.stimuli.set_orientation, self._handle, self._ori)
 
     def setOri(self, value: float, operation: str = "", log: bool | None = None) -> None:
         self.ori = value
@@ -190,4 +190,7 @@ class Rect:
 
     def _resend_color(self) -> None:
         rgba = normalize_color(self._fill_color, self._color_space, self._opacity) or (0.0, 0.0, 0.0, 0.0)
-        self._win._dispatch("set_rect_color", self._handle, *rgba)
+        self._win._dispatch(
+            self._win._conn.stimuli.set_fill_color,
+            self._handle, rgba[0], rgba[1], rgba[2], rgba[3],
+        )
