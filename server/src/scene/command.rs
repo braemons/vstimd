@@ -590,12 +590,14 @@ impl SceneState {
 
     fn cmd_query_server_info(&self) -> proto::Response {
         let bg = self.background.live;
+        let version = parse_cargo_version();
         ok_body(proto::response::Body::ServerInfo(proto::ServerInfo {
             width: self.screen_size.0,
             height: self.screen_size.1,
             frame_rate: self.frame_rate,
             background_color: Some(proto::Color { r: bg[0], g: bg[1], b: bg[2], a: bg[3] }),
             backend: proto::Backend::Unknown as i32,
+            version: Some(version),
         }))
     }
 
@@ -711,4 +713,14 @@ impl SceneState {
 
 fn color_or_default(c: Option<proto::Color>, default: [f32; 4]) -> [f32; 4] {
     c.map(|c| [c.r, c.g, c.b, c.a]).unwrap_or(default)
+}
+
+fn parse_cargo_version() -> proto::Version {
+    let s = env!("CARGO_PKG_VERSION");
+    let mut parts = s.splitn(3, '.').map(|p| p.parse::<u32>().unwrap_or(0));
+    proto::Version {
+        major: parts.next().unwrap_or(0),
+        minor: parts.next().unwrap_or(0),
+        patch: parts.next().unwrap_or(0),
+    }
 }

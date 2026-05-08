@@ -1,22 +1,66 @@
-"""Low-level ZMQ + protobuf connection to wonderlamp_server.
-
-Wraps a ZMQ REQ socket and exposes the three commands currently implemented
-by the server: :meth:`create_rect`, :meth:`set_enabled`, :meth:`delete`.
-
-Example::
-
-    with Connection() as conn:
-        handle = conn.create_rect(x=0, y=0, width=200, height=100,
-                                  r=1.0, g=0.0, b=0.0)
-        conn.set_enabled(handle, False)
-        conn.delete(handle)
-"""
+"""Low-level ZMQ + protobuf connection to wonderlamp_server."""
 
 from __future__ import annotations
 
+import sys
+import os
+
+# The generated stubs use bare `from v1 import ...` imports.
+_PROTO_DIR = os.path.join(os.path.dirname(__file__), "_proto")
+if _PROTO_DIR not in sys.path:
+    sys.path.insert(0, _PROTO_DIR)
+
 import zmq  # type: ignore[import]
 
-from ._proto import wonderlamp_pb2 as pb
+from v1 import service_pb2 as _svc
+from v1 import stimuli_pb2 as _stim
+from v1 import system_pb2 as _sys
+from v1 import common_pb2 as _common
+
+
+class ServerVersion:
+    """Version triple returned by :meth:`Connection.query_server_info`."""
+
+    def __init__(self, major: int, minor: int, patch: int) -> None:
+        self.major = major
+        self.minor = minor
+        self.patch = patch
+
+    def __repr__(self) -> str:
+        return f"ServerVersion({self.major}, {self.minor}, {self.patch})"
+
+    def __str__(self) -> str:
+        return f"{self.major}.{self.minor}.{self.patch}"
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, ServerVersion):
+            return NotImplemented
+        return (self.major, self.minor, self.patch) == (other.major, other.minor, other.patch)
+
+    def __lt__(self, other: "ServerVersion") -> bool:
+        return (self.major, self.minor, self.patch) < (other.major, other.minor, other.patch)
+
+
+class ServerInfo:
+    """Display and version information returned by :meth:`Connection.query_server_info`."""
+
+    def __init__(
+        self,
+        width: int,
+        height: int,
+        frame_rate: float,
+        version: ServerVersion,
+    ) -> None:
+        self.width = width
+        self.height = height
+        self.frame_rate = frame_rate
+        self.version = version
+
+    def __repr__(self) -> str:
+        return (
+            f"ServerInfo(width={self.width}, height={self.height}, "
+            f"frame_rate={self.frame_rate:.1f}, version={self.version})"
+        )
 
 
 class Connection:
@@ -36,14 +80,32 @@ class Connection:
 
     # ── internal ──────────────────────────────────────────────────────────────
 
-    def _send(self, req: pb.Request) -> pb.Response:
+    def _send(self, req: _svc.Request) -> _svc.Response:
         self._sock.send(req.SerializeToString())
         raw = self._sock.recv()
-        resp = pb.Response()
+        resp = _svc.Response()
         resp.ParseFromString(raw)
         if resp.error:
             raise RuntimeError(f"server error: {resp.error}")
         return resp
+
+    # ── queries ───────────────────────────────────────────────────────────────
+
+    def query_server_info(self) -> ServerInfo:
+        """Query server display properties and version."""
+        req = _svc.Request(
+            system=_svc.SystemTarget(),
+            query_server_info=_sys.QueryServerInfo(),
+        )
+        resp = self._send(req)
+        info = resp.server_info
+        v = info.version
+        return ServerInfo(
+            width=info.width,
+            height=info.height,
+            frame_rate=info.frame_rate,
+            version=ServerVersion(v.major, v.minor, v.patch),
+        )
 
     # ── commands ──────────────────────────────────────────────────────────────
 
@@ -59,12 +121,12 @@ class Connection:
         a: float = 1.0,
     ) -> int:
         """Create a disc stimulus and return its handle."""
-        req = pb.Request(
-            handle=0,
-            create_circle=pb.CreateCircle(
-                center=pb.Vec2(x=x, y=y),
+        req = _svc.Request(
+            system=_svc.SystemTarget(),
+            create_circle=_stim.CreateCircle(
+                center=_common.Vec2(x=x, y=y),
                 radius=radius,
-                fill=pb.Color(r=r, g=g, b=b, a=a),
+                fill=_common.Color(r=r, g=g, b=b, a=a),
             ),
         )
         return self._send(req).handle
@@ -81,33 +143,29 @@ class Connection:
         b: float = 1.0,
         a: float = 1.0,
     ) -> int:
-        """Create a rectangle stimulus and return its handle.
-
-        Coordinates are in pixel-space with the origin at the screen centre
-        and Y pointing up (matching the server convention).
-        """
-        req = pb.Request(
-            handle=0,
-            create_rect=pb.CreateRect(
-                center=pb.Vec2(x=x, y=y),
+        """Create a rectangle stimulus and return its handle."""
+        req = _svc.Request(
+            system=_svc.SystemTarget(),
+            create_rect=_stim.CreateRect(
+                center=_common.Vec2(x=x, y=y),
                 width=width,
                 height=height,
-                fill=pb.Color(r=r, g=g, b=b, a=a),
+                fill=_common.Color(r=r, g=g, b=b, a=a),
             ),
         )
         return self._send(req).handle
 
     def set_enabled(self, handle: int, enabled: bool) -> None:
         """Enable or disable the stimulus identified by *handle*."""
-        req = pb.Request(
-            handle=handle,
-            set_enabled=pb.SetEnabled(enabled=enabled),
+        req = _svc.Request(
+            stimulus=handle,
+            set_enabled=_stim.SetEnabled(enabled=enabled),
         )
         self._send(req)
 
     def delete(self, handle: int) -> None:
         """Permanently remove the stimulus identified by *handle*."""
-        req = pb.Request(handle=handle, delete=pb.Delete())
+        req = _svc.Request(stimulus=handle, delete=_stim.Delete())
         self._send(req)
 
     # ── context manager ───────────────────────────────────────────────────────

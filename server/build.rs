@@ -1,4 +1,13 @@
 fn main() {
+    for proto in &[
+        "../proto/v1/common.proto",
+        "../proto/v1/stimuli.proto",
+        "../proto/v1/system.proto",
+        "../proto/v1/service.proto",
+    ] {
+        println!("cargo:rerun-if-changed={}", proto);
+    }
+
     prost_build::Config::new()
         .compile_protos(
             &[

@@ -13,8 +13,8 @@ Example::
         conn.delete(handle)
 """
 
-from ._connection import Connection
+from ._connection import Connection, ServerInfo, ServerVersion
 from . import psychopy
 
-__all__ = ["Connection", "psychopy"]
+__all__ = ["Connection", "ServerInfo", "ServerVersion", "psychopy"]
 

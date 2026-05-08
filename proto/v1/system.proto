@@ -39,6 +39,13 @@ message ListStimuli {}
 
 // ── System query response payloads ────────────────────────────────────────────
 
+// Server version (semver).
+message Version {
+  uint32 major = 1;
+  uint32 minor = 2;
+  uint32 patch = 3;
+}
+
 // Response payload for QueryServerInfo.
 message ServerInfo {
   uint32  width            = 1;   // display width in pixels
@@ -46,6 +53,7 @@ message ServerInfo {
   float   frame_rate       = 3;   // measured frame rate in Hz
   Color   background_color = 4;
   Backend backend          = 5;
+  Version version          = 6;
 }
 
 // One row in a StimulusList.
