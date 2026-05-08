@@ -432,7 +432,15 @@ fn query_refresh_hz_from_drm() -> Option<f64> {
             if conn.state() != drm::control::connector::State::Connected {
                 continue;
             }
-            if let Some(mode) = conn.modes().first() {
+            // Follow connector → encoder → CRTC to get the *active* mode,
+            // not just the first supported mode in the connector's list.
+            let active_mode = conn
+                .current_encoder()
+                .and_then(|enc_h| card.get_encoder(enc_h).ok())
+                .and_then(|enc| enc.crtc())
+                .and_then(|crtc_h| card.get_crtc(crtc_h).ok())
+                .and_then(|crtc| crtc.mode());
+            if let Some(mode) = active_mode {
                 let clock_hz = mode.clock() as f64 * 1000.0;
                 let (_, _, htotal) = mode.hsync();
                 let (_, _, vtotal) = mode.vsync();
