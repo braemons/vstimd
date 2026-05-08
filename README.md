@@ -7,7 +7,7 @@ The original StimServer used MFC/C++/Direct3D11 with a client/server architectur
 ## Goals
 
 - Spiritual successor to the C++ StimServer, using ZeroMQ in place of Windows named pipes for cross-platform IPC
-- GPU-accelerated 2-D and 3-D stimulus rendering via **wgpu**
+- GPU-accelerated 2-D and 3-D stimulus rendering via **Vulkan** (ash 0.38)
 - Low-latency rendering loop with no blocking on the render thread
 - Deterministic event logging for experiment replay and analysis
 - Shared-memory position input (gaze/joystick) to avoid ZeroMQ round-trip latency
@@ -18,9 +18,9 @@ The IPC pipeline is working end-to-end:
 
 - The server opens a fullscreen window and binds a ZMQ REP socket on `tcp://0.0.0.0:5555`
 - Clients send protobuf-encoded `Request` messages; the server dispatches them to the scene and replies with a `Response`
-- Three commands are implemented: **CreateRect**, **SetEnabled**, **Delete**
+- Stimulus creation (`CreateRect`, `CreateCircle`, `CreateEllipse`), mutation, and system commands are implemented
 - The Python client (`client-python/`) wraps the ZMQ + protobuf layer and includes an example script that creates and flashes rectangles
-- An egui debug overlay (press **F1**) shows live frame timing, a stimulus list with enable toggles, and a scrolling command log
+- An egui debug overlay (press **F1**) is rendered via a custom Vulkan renderer (`render/vk/egui/`)
 
 The `extern/` directory contains git submodules for external references:
 
@@ -31,7 +31,6 @@ The `extern/` directory contains git submodules for external references:
 
 ```sh
 # Terminal 1 — start the server
-cd server
 cargo run --release
 # Press D to spawn demo stimuli (cyan disc + magenta rect)
 # Press F1 to toggle the debug overlay (frame timing, stimulus list, command log)
@@ -45,26 +44,29 @@ uv run examples/flash_rects.py --flashes 8 --hz 4
 Or drive the server directly from Python:
 
 ```python
-from wonderlamp_client import Connection
+from wonderlamp import Connection
 
 with Connection() as conn:
-    handle = conn.create_rect(x=-200, y=0, width=300, height=200, r=1.0, g=0.0, b=0.0)
-    conn.set_enabled(handle, False)
-    conn.delete(handle)
+    h = conn.stimuli.create_rect(x=-200, y=0, width=300, height=200, r=1.0, g=0.0, b=0.0)
+    conn.stimuli.set_enabled(h, False)
+    conn.stimuli.delete(h)
+    info = conn.system.query_server_info()
+    print(info.version)
 ```
 
 ## Stack
 
 | Crate / Library | Role |
 |---|---|
-| [wgpu](https://github.com/gfx-rs/wgpu) | GPU rendering (DirectX 12 / Vulkan / Metal) |
-| [winit](https://github.com/rust-windowing/winit) | Cross-platform window and event loop |
-| [kurbo](https://github.com/linebender/kurbo) | Bézier path representation and evaluation |
-| [prost](https://github.com/tokio-rs/prost) | Protobuf encode/decode |
-| [zeromq](https://github.com/zeromq/zmq.rs) | Pure-Rust async ZMQ (no libzmq dependency) |
-| [tokio](https://tokio.rs) | Async runtime for the ZMQ server thread |
-| [bytemuck](https://github.com/Lokathor/bytemuck) | Safe `&[Vertex]` → `&[u8]` casts for buffer uploads |
-| [egui](https://github.com/emilk/egui) + egui-wgpu + egui-winit | Debug overlay (enabled by default, `--no-default-features` to strip) |
+| [ash 0.38](https://github.com/ash-rs/ash) | Raw Vulkan bindings (both DRM and desktop backends) |
+| [ash-window 0.13](https://github.com/ash-rs/ash) | Vulkan surface creation from winit window handle |
+| [winit 0.30](https://github.com/rust-windowing/winit) | Cross-platform window and event loop (desktop mode) |
+| [kurbo 0.13](https://github.com/linebender/kurbo) | Bézier path representation and tessellation |
+| [prost 0.13](https://github.com/tokio-rs/prost) | Protobuf encode/decode |
+| [zeromq 0.4](https://github.com/zeromq/zmq.rs) | Pure-Rust async ZMQ (no libzmq dependency) |
+| [tokio 1](https://tokio.rs) | Async runtime for the ZMQ server thread |
+| [bytemuck 1](https://github.com/Lokathor/bytemuck) | Safe `&[Vertex]` → `&[u8]` casts for buffer uploads |
+| [egui 0.34](https://github.com/emilk/egui) + egui-winit + custom Vulkan renderer | Debug overlay (`render/vk/egui/`) |
 | [pyzmq](https://pyzmq.readthedocs.io) | Python ZMQ bindings (client) |
 | [protobuf](https://pypi.org/project/protobuf/) | Python protobuf runtime (client) |
 
@@ -83,17 +85,51 @@ The ZMQ thread holds the write lock only while dispatching one command; the rend
 
 ### Wire Protocol
 
-`server/proto/wonderlamp.proto` defines the schema. All messages are protobuf-encoded over a ZMQ REQ/REP socket pair.
+`proto/v1/` defines the schema across four files (`common.proto`, `service.proto`, `stimuli.proto`, `system.proto`). All messages are protobuf-encoded over a ZMQ REQ/REP socket pair.
 
-| Command | Route | Effect |
-|---|---|---|
-| `CreateRect` | handle = 0 | Creates a rectangle, returns new handle |
-| `SetEnabled` | handle > 0 | Shows or hides a stimulus |
-| `Delete` | handle > 0 | Removes a stimulus |
+**Creation (system target → returns new handle):**
+
+| Command | Effect |
+|---|---|
+| `CreateRect` | Create a rectangle |
+| `CreateCircle` | Create a disc/circle |
+| `CreateEllipse` | Create an ellipse |
+
+**Stimulus commands (handle > 0):**
+
+| Command | Effect |
+|---|---|
+| `SetEnabled` | Show / hide a stimulus |
+| `Delete` | Remove a stimulus |
+| `SetPosition` | Move to (x, y) |
+| `SetOrientation` | Set rotation angle |
+| `SetFillColor` | Set fill RGBA |
+| `SetAlpha` | Set opacity |
+| `SetOutlineColor` | Set outline RGBA |
+| `SetOutlineWidth` | Set outline line width |
+| `SetRectSize` | Resize a rectangle |
+| `SetDiscRadius` | Resize a disc |
+| `SetEllipseSize` | Resize an ellipse |
+| `QueryStimulus` | Query current state |
+
+**System commands (system target):**
+
+| Command | Effect |
+|---|---|
+| `SetBackground` | Set background color |
+| `SetDeferredMode` | Batch-commit multiple mutations atomically |
+| `DeleteAll` | Remove all stimuli |
+| `SetAllEnabled` | Show / hide all stimuli |
+| `QueryServerInfo` | Get display size, frame rate, server version |
 
 ### Python Client
 
-`client-python/wonderlamp_client/` is a minimal Python package with a single `Connection` class. The protobuf stubs in `_proto/` are generated from `server/proto/wonderlamp.proto`.
+`client-python/wonderlamp/` is the Python package. `Connection` exposes two sub-clients:
+
+- `conn.stimuli` — `StimuliClient`: create, mutate, and delete individual stimuli
+- `conn.system` — `SystemClient`: scene-wide mutations and server queries
+
+Protobuf stubs in `_proto/` are generated from the four `proto/v1/` schema files.
 
 ### Planned Architecture
 
@@ -108,6 +144,11 @@ cargo build --release
 cargo test
 cargo clippy
 
+# Run options
+cargo run --release                   # fullscreen (auto-detects DRM or desktop)
+cargo run --release -- --windowed 1280x720
+cargo run --release -- --null         # ZMQ only, no display (also: WONDERLAMP_NULL=1)
+
 # Python client (requires uv)
 cd client-python
 uv sync
@@ -121,4 +162,4 @@ uv run examples/flash_rects.py
 | VStim v1 | C++ / MFC | Direct3D 9 | Original monolithic stimulus software |
 | VStim v2 | C++ / MFC | Direct3D 11 | Monolithic rewrite with improved renderer |
 | StimServer | C++ / MFC | Direct3D 11 | Standalone server with client/server architecture over Windows named pipes (binary protocol) |
-| Wonderlamp (this repo) | Rust | wgpu (DX12/Vulkan/Metal) | Rust rewrite combining VStim and StimServer, cross-platform |
+| Wonderlamp (this repo) | Rust | Vulkan (ash 0.38, Linux + Windows) | Rust rewrite combining VStim and StimServer, cross-platform |
