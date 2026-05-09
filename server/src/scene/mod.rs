@@ -1,4 +1,3 @@
-pub mod animation;
 pub mod command;
 pub mod deferred;
 pub mod photodiode;
@@ -14,4 +13,3 @@ pub use stimulus::{
     ShaderParams, ShapeAppearance, Stimulus, StimulusFlags, Transform2D, WedgeStimulus,
     WgslShaderStimulus,
 };
-pub use animation::{Animation, FinalActionMask};

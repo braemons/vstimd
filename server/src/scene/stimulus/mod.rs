@@ -269,36 +269,4 @@ impl Stimulus {
             Stimulus::Pixel(_)     => "Pixel",
         }
     }
-
-    // ── Animation parameter target ────────────────────────────────────────────
-
-    /// Set a type-specific animatable parameter by index.
-    /// Returns `false` if the index is unsupported for this stimulus type.
-    pub fn set_anim_param(&mut self, index: u8, value: f32) -> bool {
-        let changed = match self {
-            Stimulus::WgslShader(s) => {
-                let i = index as usize;
-                if i < 8 {
-                    s.params.live.params[i] = value;
-                    true
-                } else {
-                    false
-                }
-            }
-            Stimulus::Wedge(s) if index == 1 => {
-                let pos = s.transform.live.pos;
-                s.transform.set(false, Transform2D { pos, angle: value });
-                true
-            }
-            Stimulus::Bitmap(s) if index == 1 => {
-                s.alpha.live = value;
-                true
-            }
-            _ => false,
-        };
-        if changed {
-            self.flags_mut().mark_dirty();
-        }
-        changed
-    }
 }
