@@ -1,6 +1,5 @@
 use indexmap::IndexMap;
 
-use super::animation::Animation;
 use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
 use super::stimulus::Stimulus;
@@ -38,19 +37,11 @@ pub struct CommandEntry {
 /// `handle_request()` call, so it releases it before the next ZMQ recv.
 /// The render thread takes a write lock briefly in `update()` for
 /// `apply_flip()` and scene bookkeeping, then drops it before drawing.
-///
-/// `SceneState: Send + Sync` follows automatically from its fields as long
-/// as every `Box<dyn Animation>` stored in `animations` is also
-/// `Send + Sync`.  See `Animation` trait for details.
 pub struct SceneState {
     /// Stimulus objects in insertion order (insertion order = draw order).
     pub stimuli: IndexMap<u32, Stimulus>,
-    /// Animation objects, each potentially assigned to a stimulus.
-    pub animations: IndexMap<u32, Box<dyn Animation>>,
     /// Next handle to allocate for a new stimulus (starts at 1).
     pub next_stim_handle: u32,
-    /// Next handle to allocate for a new animation (starts at 0x8000).
-    pub next_anim_handle: u32,
     /// Background clear colour with deferred-copy support.
     pub background: Deferred<[f32; 4]>,
     /// True while commands should write into copy fields instead of live fields.
@@ -81,9 +72,7 @@ impl SceneState {
     pub fn new() -> Self {
         Self {
             stimuli: IndexMap::new(),
-            animations: IndexMap::new(),
             next_stim_handle: 1,
-            next_anim_handle: 0x8000,
             background: Deferred::new([0.0, 0.0, 0.0, 1.0]),
             deferred_mode: false,
             pending_flip: false,
@@ -107,12 +96,6 @@ impl SceneState {
     pub fn alloc_stim_handle(&mut self) -> u32 {
         let h = self.next_stim_handle;
         self.next_stim_handle += 1;
-        h
-    }
-
-    pub fn alloc_anim_handle(&mut self) -> u32 {
-        let h = self.next_anim_handle;
-        self.next_anim_handle += 1;
         h
     }
 
@@ -150,16 +133,8 @@ impl SceneState {
     pub fn clear_all(&mut self, protected_too: bool) {
         if protected_too {
             self.stimuli.clear();
-            self.animations.clear();
         } else {
             self.stimuli.retain(|_, s| s.flags().protected);
-            // Remove animations whose assigned stimulus was deleted
-            let live_handles: std::collections::HashSet<u32> =
-                self.stimuli.keys().copied().collect();
-            self.animations.retain(|_, a| {
-                a.stimulus_handle()
-                    .map_or(true, |h| live_handles.contains(&h))
-            });
         }
     }
 

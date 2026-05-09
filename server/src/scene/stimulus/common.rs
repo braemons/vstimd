@@ -5,9 +5,7 @@
 pub struct StimulusFlags {
     pub enabled: bool,
     pub enabled_copy: bool,
-    pub suppressed: bool, // set by Flicker animation
     pub protected: bool,  // survives RemoveAll
-    pub anim_handle: Option<u32>,
     /// Set on creation, mutation, or flip. Cleared by the render thread after
     /// tessellation+upload. Prevents redundant vkAllocateMemory every frame.
     pub dirty: bool,
@@ -18,9 +16,7 @@ impl Default for StimulusFlags {
         Self {
             enabled: false,
             enabled_copy: false,
-            suppressed: false,
             protected: false,
-            anim_handle: None,
             dirty: true,
         }
     }
@@ -39,7 +35,7 @@ impl StimulusFlags {
     }
 
     pub fn is_visible(&self) -> bool {
-        self.enabled && !self.suppressed
+        self.enabled
     }
 }
 
