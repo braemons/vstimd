@@ -295,7 +295,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
         body: Some(request::Body::SetDrawMode(proto::SetDrawMode {
-            mode: proto::DrawMode::Stroke as i32,
+            mode: proto::DrawMode::Outlined as i32,
         })),
     });
     assert!(is_ok(&resp));
@@ -319,7 +319,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
 
     let app = stim.appearance().unwrap();
     assert_eq!(app.live.fill_color, [0.1, 0.2, 0.3, 0.9]);
-    assert_eq!(app.live.draw_mode, wonderlamp_server::scene::DrawMode::Stroke);
+    assert!(app.live.draw_mode == wonderlamp_server::scene::DrawMode::Stroke);
     assert_eq!(app.live.outline_color, [0.8, 0.7, 0.6, 0.5]);
     assert_eq!(app.live.stroke_width, 7.0);
     assert!(stim.flags().dirty);
@@ -332,17 +332,17 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
         .handle_request(create_rect_req(sys(), proto::CreateRect::default()))
         .handle as u32;
 
-    let stim = scene.stimuli.get_mut(&h).unwrap();
-    if let Some(t) = stim.transform_mut() {
+    let stim_obj = scene.stimuli.get_mut(&h).unwrap();
+    if let Some(t) = stim_obj.transform_mut() {
         t.live = wonderlamp_server::scene::Transform2D { pos: [1.0, 2.0], angle: 3.0 };
     }
-    if let Some(app) = stim.appearance_mut() {
+    if let Some(app) = stim_obj.appearance_mut() {
         app.live.fill_color = [0.11, 0.12, 0.13, 0.14];
         app.live.outline_color = [0.21, 0.22, 0.23, 0.24];
         app.live.stroke_width = 2.5;
         app.live.draw_mode = wonderlamp_server::scene::DrawMode::FillAndStroke;
     }
-    stim.flags_mut().dirty = false;
+    stim_obj.flags_mut().dirty = false;
 
     let resp = scene.handle_request(set_deferred_mode_req(true, false));
     assert!(is_ok(&resp));
@@ -373,7 +373,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
         body: Some(request::Body::SetDrawMode(proto::SetDrawMode {
-            mode: proto::DrawMode::Stroke as i32,
+            mode: proto::DrawMode::Outlined as i32,
         })),
     });
     assert!(is_ok(&resp));
@@ -401,11 +401,11 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(app.live.fill_color, [0.11, 0.12, 0.13, 0.14]);
     assert_eq!(app.live.outline_color, [0.21, 0.22, 0.23, 0.24]);
     assert_eq!(app.live.stroke_width, 2.5);
-    assert_eq!(app.live.draw_mode, wonderlamp_server::scene::DrawMode::FillAndStroke);
+    assert!(app.live.draw_mode == wonderlamp_server::scene::DrawMode::FillAndStroke);
     assert_eq!(app.copy.fill_color, [0.1, 0.2, 0.3, 0.9]);
     assert_eq!(app.copy.outline_color, [0.8, 0.7, 0.6, 0.5]);
     assert_eq!(app.copy.stroke_width, 7.0);
-    assert_eq!(app.copy.draw_mode, wonderlamp_server::scene::DrawMode::Stroke);
+    assert!(app.copy.draw_mode == wonderlamp_server::scene::DrawMode::Stroke);
     assert!(!stim.flags().dirty);
 
     let resp = scene.handle_request(set_deferred_mode_req(false, false));
@@ -424,7 +424,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(app.live.fill_color, [0.1, 0.2, 0.3, 0.9]);
     assert_eq!(app.live.outline_color, [0.8, 0.7, 0.6, 0.5]);
     assert_eq!(app.live.stroke_width, 7.0);
-    assert_eq!(app.live.draw_mode, wonderlamp_server::scene::DrawMode::Stroke);
+    assert!(app.live.draw_mode == wonderlamp_server::scene::DrawMode::Stroke);
     assert!(stim.flags().dirty);
 }
 
