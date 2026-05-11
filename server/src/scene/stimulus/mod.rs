@@ -1,11 +1,12 @@
 mod common;
+pub mod grating;
 mod types;
 
 pub use common::{DrawMode, ShapeAppearance, StimulusFlags, Transform2D};
 pub use types::{
-    BitmapSeqStimulus, BitmapStimulus, DiscStimulus, EllipseStimulus, ParticleParams,
-    ParticleStimulus, PetalParams, PetalStimulus, PixelStimulus, RectStimulus, ShaderParams,
-    WedgeStimulus, WgslShaderStimulus,
+    BitmapSeqStimulus, BitmapStimulus, DiscStimulus, EllipseStimulus, GratingMask, GratingParams,
+    GratingStimulus, ParticleParams, ParticleStimulus, PetalParams, PetalStimulus, PixelStimulus,
+    RectStimulus, ShaderParams, WedgeStimulus, Waveform, WgslShaderStimulus,
 };
 
 use super::deferred::Deferred;
@@ -32,6 +33,7 @@ macro_rules! stim_field {
             Stimulus::WgslShader($s) => $expr,
             Stimulus::Particle($s) => $expr,
             Stimulus::Pixel($s) => $expr,
+            Stimulus::Grating($s) => $expr,
         }
     };
 }
@@ -49,6 +51,7 @@ pub enum Stimulus {
     WgslShader(WgslShaderStimulus),
     Particle(ParticleStimulus),
     Pixel(PixelStimulus),
+    Grating(GratingStimulus),
 }
 
 impl Stimulus {
@@ -73,7 +76,7 @@ impl Stimulus {
     }
 
     /// Returns `None` for stimulus types that have no fill/stroke appearance
-    /// (bitmaps, shaders, particles, pixels).
+    /// (bitmaps, shaders, particles, pixels, gratings).
     pub fn appearance(&self) -> Option<&Deferred<ShapeAppearance>> {
         match self {
             Stimulus::Rect(s) => Some(&s.appearance),
@@ -85,7 +88,8 @@ impl Stimulus {
             | Stimulus::BitmapSeq(_)
             | Stimulus::WgslShader(_)
             | Stimulus::Particle(_)
-            | Stimulus::Pixel(_) => None,
+            | Stimulus::Pixel(_)
+            | Stimulus::Grating(_) => None,
         }
     }
 
@@ -100,7 +104,8 @@ impl Stimulus {
             | Stimulus::BitmapSeq(_)
             | Stimulus::WgslShader(_)
             | Stimulus::Particle(_)
-            | Stimulus::Pixel(_) => None,
+            | Stimulus::Pixel(_)
+            | Stimulus::Grating(_) => None,
         }
     }
 
@@ -148,6 +153,11 @@ impl Stimulus {
             }
             Stimulus::Pixel(s) => {
                 s.color.make_copy();
+            }
+            Stimulus::Grating(s) => {
+                s.color.make_copy();
+                s.size.make_copy();
+                s.params.make_copy();
             }
         }
     }
@@ -197,6 +207,11 @@ impl Stimulus {
             }
             Stimulus::Pixel(s) => {
                 s.color.flip();
+            }
+            Stimulus::Grating(s) => {
+                s.color.flip();
+                s.size.flip();
+                s.params.flip();
             }
         }
     }
@@ -267,6 +282,7 @@ impl Stimulus {
             Stimulus::WgslShader(_)=> "WgslShader",
             Stimulus::Particle(_)  => "Particle",
             Stimulus::Pixel(_)     => "Pixel",
+            Stimulus::Grating(_)   => "Grating",
         }
     }
 }

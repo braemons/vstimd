@@ -124,3 +124,66 @@ pub struct PixelStimulus {
     pub transform: Deferred<Transform2D>,
     pub color: Deferred<[f32; 4]>,
 }
+
+// ── Grating stimulus ──────────────────────────────────────────────────────────
+
+/// Waveform shape of the grating carrier.
+#[derive(Clone, Copy, Default, PartialEq)]
+#[repr(u8)]
+pub enum Waveform {
+    #[default]
+    Sin = 0,
+    Sqr = 1,
+    Saw = 2,
+    Tri = 3,
+}
+
+/// Aperture mask applied over the grating patch.
+#[derive(Clone, Copy, Default, PartialEq)]
+#[repr(u8)]
+pub enum GratingMask {
+    #[default]
+    None   = 0,
+    Circle = 1,
+    Gauss  = 2,
+}
+
+#[derive(Clone, Copy)]
+pub struct GratingParams {
+    pub sf: f32,           // cycles/pixel
+    pub phase: f32,        // static phase offset [0, 1]
+    pub contrast: f32,     // [0, 1]
+    pub waveform: Waveform,
+    pub mask: GratingMask,
+    pub drift_speed: f32,  // cycles/second; negative reverses direction
+    /// When true the drift direction equals the grating stripe orientation
+    /// (perpendicular to the stripes).  When false `drift_angle` is used instead.
+    pub drift_coupled: bool,
+    pub drift_angle: f32,  // degrees CCW; used only when !drift_coupled
+}
+
+impl Default for GratingParams {
+    fn default() -> Self {
+        Self {
+            sf: 0.05,
+            phase: 0.0,
+            contrast: 1.0,
+            waveform: Waveform::Sin,
+            mask: GratingMask::None,
+            drift_speed: 0.0,
+            drift_coupled: true,
+            drift_angle: 0.0,
+        }
+    }
+}
+
+pub struct GratingStimulus {
+    pub flags: StimulusFlags,
+    pub transform: Deferred<Transform2D>,
+    pub color: Deferred<[f32; 4]>,     // rgba; alpha = opacity
+    pub size: Deferred<[f32; 2]>,      // [half_width, half_height] in pixels
+    pub params: Deferred<GratingParams>,
+    /// Phase accumulated by the render thread each frame from `drift_speed`.
+    /// Not deferred — updated in place; reset to 0 when drift_speed is set to 0.
+    pub phase_accum: f32,
+}

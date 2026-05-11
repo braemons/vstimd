@@ -4,7 +4,7 @@ use kurbo::Shape as _;
 use crate::geom::Vertex;
 use crate::scene::photodiode::PhotoDiodeState;
 use crate::scene::stimulus::{
-    DiscStimulus, EllipseStimulus, RectStimulus, Stimulus, Transform2D,
+    DiscStimulus, EllipseStimulus, GratingStimulus, RectStimulus, Stimulus, Transform2D,
 };
 
 // ── Coordinate conversion ─────────────────────────────────────────────────────
@@ -36,6 +36,7 @@ pub fn tessellate_stimulus(
         Stimulus::Rect(s)    => tessellate_rect(s, half_w, half_h),
         Stimulus::Ellipse(s) => tessellate_ellipse(s, half_w, half_h),
         Stimulus::Disc(s)    => tessellate_disc(s, half_w, half_h),
+        Stimulus::Grating(s) => tessellate_grating(s, half_w, half_h),
         _ => (vec![], vec![]),
     }
 }
@@ -86,6 +87,27 @@ fn tessellate_ellipse(s: &EllipseStimulus, half_w: f32, half_h: f32) -> (Vec<Ver
     )
     .to_path(1.0);
     tessellate_filled_path(&path, s.transform.live, s.appearance.live.fill_color, half_w, half_h)
+}
+
+fn tessellate_grating(s: &GratingStimulus, half_w: f32, half_h: f32) -> (Vec<Vertex>, Vec<u32>) {
+    let [hw, hh] = s.size.live;
+    let [cx, cy] = s.transform.live.pos;
+    // Axis-aligned quad in NDC — the fragment shader handles orientation internally.
+    let corners = [
+        (cx - hw, cy - hh),
+        (cx + hw, cy - hh),
+        (cx + hw, cy + hh),
+        (cx - hw, cy + hh),
+    ];
+    let v = |(x, y): (f32, f32)| Vertex {
+        position: px_to_ndc(x, y, half_w, half_h),
+        normal: FRONT_NORMAL,
+        uv: [0.0, 0.0],
+        color: [0.0; 4],
+    };
+    let vertices = corners.map(v).to_vec();
+    let indices = vec![0, 1, 2, 0, 2, 3];
+    (vertices, indices)
 }
 
 // ── Photodiode corner square ──────────────────────────────────────────────────

@@ -86,6 +86,25 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::SetAllEnabled(c)) => {
             format!("SetAllEnabled({})", if c.enabled { "on" } else { "off" })
         }
+        Some(request::Body::CreateGrating(c)) => {
+            format!("CreateGrating {:.0}×{:.0} sf={:.4}", c.width, c.height, c.sf)
+        }
+        Some(request::Body::SetGratingPhase(c)) => format!("SetGratingPhase({:.3})", c.phase),
+        Some(request::Body::SetGratingSf(c)) => format!("SetGratingSf({:.4})", c.sf),
+        Some(request::Body::SetGratingContrast(c)) => {
+            format!("SetGratingContrast({:.2})", c.contrast)
+        }
+        Some(request::Body::SetGratingWaveform(_)) => "SetGratingWaveform".into(),
+        Some(request::Body::SetGratingMask(_)) => "SetGratingMask".into(),
+        Some(request::Body::SetGratingDriftSpeed(c)) => {
+            format!("SetGratingDriftSpeed({:.3})", c.speed)
+        }
+        Some(request::Body::SetGratingDriftDecoupled(c)) => {
+            format!("SetGratingDriftDecoupled({})", c.decoupled)
+        }
+        Some(request::Body::SetGratingDriftAngle(c)) => {
+            format!("SetGratingDriftAngle({:.1}°)", c.angle_deg)
+        }
         Some(request::Body::QueryServerInfo(_)) => "QueryServerInfo".into(),
         Some(request::Body::QueryStimulus(_)) => "QueryStimulus".into(),
         Some(request::Body::ListStimuli(_)) => "ListStimuli".into(),
@@ -146,6 +165,7 @@ impl SceneState {
             request::Body::CreateRect(cmd) => self.cmd_create_rect(cmd),
             request::Body::CreateCircle(cmd) => self.cmd_create_circle(cmd),
             request::Body::CreateEllipse(cmd) => self.cmd_create_ellipse(cmd),
+            request::Body::CreateGrating(cmd) => self.cmd_create_grating(cmd),
             request::Body::SetBackground(cmd) => self.cmd_set_background(cmd),
             request::Body::SetDeferredMode(cmd) => self.cmd_set_deferred_mode(cmd),
             request::Body::DeleteAll(_) => self.cmd_delete_all(),
@@ -166,6 +186,7 @@ impl SceneState {
             request::Body::CreateRect(_)
             | request::Body::CreateCircle(_)
             | request::Body::CreateEllipse(_)
+            | request::Body::CreateGrating(_)
             | request::Body::SetBackground(_)
             | request::Body::SetDeferredMode(_)
             | request::Body::DeleteAll(_)
@@ -187,6 +208,20 @@ impl SceneState {
             request::Body::SetDrawMode(cmd) => self.cmd_set_draw_mode(handle, cmd),
             request::Body::SetOutlineColor(cmd) => self.cmd_set_outline_color(handle, cmd),
             request::Body::SetOutlineWidth(cmd) => self.cmd_set_outline_width(handle, cmd),
+            request::Body::SetGratingPhase(cmd) => self.cmd_set_grating_phase(handle, cmd),
+            request::Body::SetGratingSf(cmd) => self.cmd_set_grating_sf(handle, cmd),
+            request::Body::SetGratingContrast(cmd) => self.cmd_set_grating_contrast(handle, cmd),
+            request::Body::SetGratingWaveform(cmd) => self.cmd_set_grating_waveform(handle, cmd),
+            request::Body::SetGratingMask(cmd) => self.cmd_set_grating_mask(handle, cmd),
+            request::Body::SetGratingDriftSpeed(cmd) => {
+                self.cmd_set_grating_drift_speed(handle, cmd)
+            }
+            request::Body::SetGratingDriftDecoupled(cmd) => {
+                self.cmd_set_grating_drift_decoupled(handle, cmd)
+            }
+            request::Body::SetGratingDriftAngle(cmd) => {
+                self.cmd_set_grating_drift_angle(handle, cmd)
+            }
             request::Body::QueryStimulus(_) => self.cmd_query_stimulus(handle),
         }
     }
@@ -696,6 +731,10 @@ impl SceneState {
                     })),
                 }),
             ),
+            Stimulus::Grating(s) => (
+                proto::StimulusType::Grating as i32,
+                Some(SceneState::grating_query_params(s)),
+            ),
             _ => (proto::StimulusType::Unspecified as i32, None),
         };
 
@@ -727,6 +766,7 @@ impl SceneState {
                     Stimulus::Bitmap(_) | Stimulus::BitmapSeq(_) => proto::StimulusType::Bitmap,
                     Stimulus::WgslShader(_) => proto::StimulusType::Shader,
                     Stimulus::Particle(_) => proto::StimulusType::Particle,
+                    Stimulus::Grating(_) => proto::StimulusType::Grating,
                     _ => proto::StimulusType::Unspecified,
                 } as i32;
                 proto::StimulusEntry { handle, stimulus_type, enabled: stim.flags().enabled }

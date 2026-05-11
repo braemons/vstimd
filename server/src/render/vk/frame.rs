@@ -3,6 +3,7 @@ use std::sync::{Arc, RwLock};
 use ash::vk;
 
 use crate::render::tess::{self, tessellate_photodiode};
+use crate::scene::stimulus::{GratingStimulus, Stimulus};
 
 const PHOTODIODE_HANDLE: u32 = u32::MAX;
 use crate::scene::SceneState;
@@ -11,7 +12,7 @@ use crate::timing::{FramePhases, FrameStats, FrameTick};
 use super::buffers::GpuBuffers;
 use super::context::VkContext;
 use super::egui::VkEguiRenderer;
-use super::pipeline::VkPipeline;
+use super::pipeline::{GratingPushConstants, VkGratingPipeline, VkPipeline};
 
 /// Optional egui overlay data for a frame
 pub struct EguiFrameData<'a> {
@@ -32,6 +33,7 @@ pub struct EguiFrameData<'a> {
 pub fn render_frame(
     ctx: &VkContext,
     pipeline: &VkPipeline,
+    grating_pipeline: &VkGratingPipeline,
     gpu_buffers: &mut GpuBuffers,
     scene: &Arc<RwLock<SceneState>>,
     frame_index: &mut usize,
@@ -88,6 +90,14 @@ pub fn render_frame(
         gpu_buffers.meshes.retain(|h, _| *h == PHOTODIODE_HANDLE || sc.stimuli.contains_key(h));
         let handles: Vec<u32> = sc.stimuli.keys().copied().collect();
         for handle in handles {
+            // Advance drift accumulator for visible gratings before tessellation.
+            if let Some(Stimulus::Grating(s)) = sc.stimuli.get_mut(&handle) {
+                if s.flags.is_visible() && s.params.live.drift_speed != 0.0 {
+                    let inc = grating_phase_inc(s, fps);
+                    s.phase_accum += inc;
+                }
+            }
+
             let stim = &sc.stimuli[&handle];
             if !stim.flags().dirty && gpu_buffers.meshes.contains_key(&handle) {
                 continue;
@@ -185,40 +195,79 @@ pub fn render_frame(
         ctx.device
             .cmd_begin_render_pass(cb, &rp_info, vk::SubpassContents::INLINE);
 
-        // Collect draws; only bind the pipeline if there is something to draw.
+        // Collect draws, separating solid stimuli from gratings.
+        // Gratings carry push constants computed from the current scene state.
         let sc = scene.read().expect("scene lock poisoned");
-        let draws: Vec<(vk::Buffer, vk::Buffer, u32)> = sc
-            .stimuli
-            .keys()
-            .filter_map(|h| gpu_buffers.meshes.get(h).filter(|m| m.index_count > 0))
-            .chain(
-                gpu_buffers
-                    .meshes
-                    .get(&PHOTODIODE_HANDLE)
-                    .filter(|m| m.index_count > 0),
-            )
-            .map(|m| (m.vertex_buffer, m.index_buffer, m.index_count))
-            .collect();
+        let screen_w = ctx.extent.width as f32;
+        let screen_h = ctx.extent.height as f32;
+
+        let mut solid_draws: Vec<(vk::Buffer, vk::Buffer, u32)> = Vec::new();
+        let mut grating_draws: Vec<(vk::Buffer, vk::Buffer, u32, GratingPushConstants)> =
+            Vec::new();
+
+        for (h, stim) in &sc.stimuli {
+            if let Some(mesh) = gpu_buffers.meshes.get(h).filter(|m| m.index_count > 0) {
+                if let Stimulus::Grating(s) = stim {
+                    let pc = build_grating_push_constants(s, screen_w, screen_h);
+                    grating_draws.push((
+                        mesh.vertex_buffer,
+                        mesh.index_buffer,
+                        mesh.index_count,
+                        pc,
+                    ));
+                } else {
+                    solid_draws.push((mesh.vertex_buffer, mesh.index_buffer, mesh.index_count));
+                }
+            }
+        }
+        // Photodiode is always solid.
+        if let Some(m) = gpu_buffers.meshes.get(&PHOTODIODE_HANDLE).filter(|m| m.index_count > 0) {
+            solid_draws.push((m.vertex_buffer, m.index_buffer, m.index_count));
+        }
         drop(sc);
 
-        if !draws.is_empty() {
+        let viewport = vk::Viewport {
+            x: 0.0,
+            y: 0.0,
+            width: ctx.extent.width as f32,
+            height: ctx.extent.height as f32,
+            min_depth: 0.0,
+            max_depth: 1.0,
+        };
+
+        // ── Pass 1: solid stimuli ─────────────────────────────────────────────
+        if !solid_draws.is_empty() {
             ctx.device
                 .cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
+            ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+            ctx.device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
 
-            let viewport = vk::Viewport {
-                x: 0.0,
-                y: 0.0,
-                width: ctx.extent.width as f32,
-                height: ctx.extent.height as f32,
-                min_depth: 0.0,
-                max_depth: 1.0,
-            };
-            ctx.device
-                .cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
-            ctx.device
-                .cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+            for (vbuf, ibuf, index_count) in solid_draws {
+                ctx.device.cmd_bind_vertex_buffers(cb, 0, &[vbuf], &[0]);
+                ctx.device.cmd_bind_index_buffer(cb, ibuf, 0, vk::IndexType::UINT32);
+                ctx.device.cmd_draw_indexed(cb, index_count, 1, 0, 0, 0);
+            }
+        }
 
-            for (vbuf, ibuf, index_count) in draws {
+        // ── Pass 2: grating stimuli ───────────────────────────────────────────
+        if !grating_draws.is_empty() {
+            ctx.device.cmd_bind_pipeline(
+                cb,
+                vk::PipelineBindPoint::GRAPHICS,
+                grating_pipeline.pipeline,
+            );
+            ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+            ctx.device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+
+            for (vbuf, ibuf, index_count, pc) in grating_draws {
+                let pc_bytes: &[u8] = bytemuck::bytes_of(&pc);
+                ctx.device.cmd_push_constants(
+                    cb,
+                    grating_pipeline.layout,
+                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                    0,
+                    pc_bytes,
+                );
                 ctx.device.cmd_bind_vertex_buffers(cb, 0, &[vbuf], &[0]);
                 ctx.device.cmd_bind_index_buffer(cb, ibuf, 0, vk::IndexType::UINT32);
                 ctx.device.cmd_draw_indexed(cb, index_count, 1, 0, 0, 0);
@@ -353,4 +402,44 @@ pub fn render_frame(
             submit_us,
         },
     })
+}
+
+// ── Grating helpers ───────────────────────────────────────────────────────────
+
+/// Per-frame phase increment (cycles) for the drift accumulator.
+fn grating_phase_inc(s: &GratingStimulus, fps: f32) -> f32 {
+    let p = &s.params.live;
+    if fps <= 0.0 {
+        return 0.0;
+    }
+    if p.drift_coupled {
+        p.drift_speed / fps
+    } else {
+        // Project drift velocity onto the grating axis.
+        let grating_rad = s.transform.live.angle.to_radians();
+        let drift_rad = p.drift_angle.to_radians();
+        p.drift_speed * (drift_rad - grating_rad).cos() / fps
+    }
+}
+
+/// Build push constants for one grating draw call.
+fn build_grating_push_constants(
+    s: &GratingStimulus,
+    screen_w: f32,
+    screen_h: f32,
+) -> GratingPushConstants {
+    let p = &s.params.live;
+    GratingPushConstants {
+        screen_half: [screen_w * 0.5, screen_h * 0.5],
+        center_px: s.transform.live.pos,
+        half_size: s.size.live,
+        sf: p.sf,
+        phase: p.phase + s.phase_accum,
+        ori_rad: s.transform.live.angle.to_radians(),
+        contrast: p.contrast,
+        color: s.color.live,
+        waveform: p.waveform as u32,
+        mask_type: p.mask as u32,
+        _pad: [0; 2],
+    }
 }

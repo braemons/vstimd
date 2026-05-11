@@ -3,6 +3,23 @@ package vstimd.v1;
 
 import "vstimd/v1/common.proto";
 
+// ── Grating enumerations ──────────────────────────────────────────────────────
+
+enum WaveformType {
+  WAVEFORM_TYPE_UNSPECIFIED = 0;
+  WAVEFORM_TYPE_SIN = 1;
+  WAVEFORM_TYPE_SQR = 2;
+  WAVEFORM_TYPE_SAW = 3;
+  WAVEFORM_TYPE_TRI = 4;
+}
+
+enum MaskType {
+  MASK_TYPE_UNSPECIFIED = 0;
+  MASK_TYPE_NONE = 1;
+  MASK_TYPE_CIRCLE = 2;
+  MASK_TYPE_GAUSS = 3;
+}
+
 // ── Stimulus creation ─────────────────────────────────────────────────────────
 
 // System command: create a rectangle stimulus.
@@ -30,6 +47,33 @@ message CreateEllipseRequest {
   float height = 3;   // full height in pixels (0 → default 100)
   Color fill   = 4;   // fill colour (absent → scene default_fill)
   float angle  = 5;   // orientation in degrees (CCW)
+}
+
+// System command: create a grating stimulus.
+// Returns the new handle in Response.handle.
+//
+// The grating is rendered analytically in a fragment shader over a rectangular
+// patch.  `angle` controls the orientation of the stripes (not the patch):
+// 0° = vertical stripes varying along X, 90° = horizontal stripes varying along Y.
+message CreateGratingRequest {
+  Vec2         center      = 1;  // pixel-space position (origin = screen centre, Y-up)
+  float        width       = 2;  // full width in pixels  (0 → default 200)
+  float        height      = 3;  // full height in pixels (0 → default 200)
+  float        sf          = 4;  // spatial frequency in cycles/pixel (0 → default 0.05)
+  float        phase       = 5;  // static phase offset [0, 1] (default 0)
+  float        angle       = 6;  // stripe orientation in degrees CCW (default 0)
+  float        contrast    = 7;  // contrast in [0, 1] (0 → default 1)
+  Color        color       = 8;  // grating peak colour (absent → white)
+  WaveformType waveform    = 9;  // carrier waveform (default SIN)
+  MaskType     mask        = 10; // aperture mask (default NONE)
+  float        opacity     = 11; // global opacity [0, 1] (0 → default 1)
+  float        drift_speed    = 12; // drift rate in cycles/second (default 0 = static)
+  // When drift_decoupled is false (default / absent) the drift direction follows
+  // the grating orientation (perpendicular to the stripes).  Set to true and
+  // supply drift_angle to use an independent drift direction.
+  bool         drift_decoupled = 13;
+  float        drift_angle     = 14; // drift direction in degrees CCW; used only when
+                                     // drift_decoupled is true (default 0)
 }
 
 // ── Generic stimulus mutations (all types) ────────────────────────────────────
@@ -61,6 +105,58 @@ message SetFillColorRequest {
 // Stimulus command: set global opacity (0.0 = transparent, 1.0 = opaque).
 message SetAlphaRequest {
   float opacity = 1;
+}
+
+// ── Grating-specific mutations ────────────────────────────────────────────────
+
+// Stimulus command: set the phase of a Grating stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
+message SetGratingPhaseRequest {
+  float phase = 1;  // [0, 1]; wraps automatically
+}
+
+// Stimulus command: set the spatial frequency of a Grating stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
+message SetGratingSfRequest {
+  float sf = 1;  // cycles/pixel
+}
+
+// Stimulus command: set the contrast of a Grating stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
+message SetGratingContrastRequest {
+  float contrast = 1;  // [0, 1]
+}
+
+// Stimulus command: set the waveform of a Grating stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
+message SetGratingWaveformRequest {
+  WaveformType waveform = 1;
+}
+
+// Stimulus command: set the aperture mask of a Grating stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
+message SetGratingMaskRequest {
+  MaskType mask = 1;
+}
+
+// Stimulus command: set the drift speed of a Grating stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
+message SetGratingDriftSpeedRequest {
+  float speed = 1;  // cycles/second; negative reverses direction
+}
+
+// Stimulus command: decouple drift direction from stripe orientation.
+// When decoupled is false (default) drift follows grating orientation.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
+message SetGratingDriftDecoupledRequest {
+  bool decoupled = 1;
+}
+
+// Stimulus command: set the drift direction when not coupled to grating orientation.
+// Has no effect when drift_coupled is true.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
+message SetGratingDriftAngleRequest {
+  float angle_deg = 1;  // degrees CCW
 }
 
 // ── Type-specific size mutations ──────────────────────────────────────────────
@@ -114,12 +210,26 @@ message StimulusParams {
     RectParams    rect    = 1;
     DiscParams    disc    = 2;
     EllipseParams ellipse = 3;
+    GratingParams grating = 4;
   }
 }
 
 message RectParams    { float width = 1; float height = 2; }
 message DiscParams    { float radius = 1; }
 message EllipseParams { float width = 1; float height = 2; }
+
+message GratingParams {
+  float        width        = 1;
+  float        height       = 2;
+  float        sf           = 3;
+  float        phase        = 4;  // static phase offset
+  float        contrast     = 5;
+  WaveformType waveform     = 6;
+  MaskType     mask         = 7;
+  float        drift_speed    = 8;
+  bool         drift_decoupled = 9;
+  float        drift_angle    = 10;
+}
 
 // Response payload for QueryStimulusRequest.
 message QueryStimulusResponse {

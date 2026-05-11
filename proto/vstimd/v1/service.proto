@@ -46,9 +46,10 @@ message Request {
 
   oneof body {
     // ── Stimulus creation (system target only) ──────────────────────────────
-    CreateRectRequest    create_rect    = 10;
-    CreateCircleRequest  create_circle  = 11;
-    CreateEllipseRequest create_ellipse = 12;
+    CreateRectRequest     create_rect     = 10;
+    CreateCircleRequest   create_circle   = 11;
+    CreateEllipseRequest  create_ellipse  = 12;
+    CreateGratingRequest  create_grating  = 13;
 
     // ── Stimulus mutations (stimulus target only) ───────────────────────────
     SetEnabledRequest     set_enabled      = 30;
@@ -63,6 +64,16 @@ message Request {
     SetDrawModeRequest    set_draw_mode    = 39;
     SetOutlineColorRequest set_outline_color = 40;
     SetOutlineWidthRequest set_outline_width = 41;
+
+    // ── Grating-specific mutations (stimulus target only) ───────────────────
+    SetGratingPhaseRequest       set_grating_phase        = 50;
+    SetGratingSfRequest          set_grating_sf           = 51;
+    SetGratingContrastRequest    set_grating_contrast     = 52;
+    SetGratingWaveformRequest    set_grating_waveform     = 53;
+    SetGratingMaskRequest        set_grating_mask         = 54;
+    SetGratingDriftSpeedRequest  set_grating_drift_speed  = 55;
+    SetGratingDriftDecoupledRequest set_grating_drift_decoupled = 56;
+    SetGratingDriftAngleRequest  set_grating_drift_angle  = 57;
 
     // ── System mutations (system target only) ───────────────────────────────
     SetBackgroundRequest   set_background   = 60;

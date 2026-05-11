@@ -6,7 +6,8 @@ use std::sync::{Arc, RwLock};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::vk::{
-    EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkPipeline, render_frame,
+    EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkGratingPipeline, VkPipeline,
+    render_frame,
 };
 use crate::scene::SceneState;
 use crate::timing::FrameStats;
@@ -25,6 +26,7 @@ use crate::timing::FramePhases;
 pub struct DrmRenderState {
     ctx: VkContext,
     pipeline: VkPipeline,
+    grating_pipeline: VkGratingPipeline,
     gpu_buffers: GpuBuffers,
     egui_renderer: VkEguiRenderer,
     egui_ctx: egui::Context,
@@ -47,6 +49,7 @@ impl Drop for DrmRenderState {
     fn drop(&mut self) {
         self.egui_renderer.destroy(&self.ctx.device);
         self.gpu_buffers.destroy_all(&self.ctx.device);
+        self.grating_pipeline.destroy(&self.ctx.device);
         self.pipeline.destroy(&self.ctx.device);
     }
 }
@@ -105,6 +108,7 @@ impl DrmRenderState {
         // Initialise Vulkan — VK_KHR_display acquires DRM master internally.
         let (ctx, display_info) = init::init();
         let pipeline = VkPipeline::new(&ctx.device, ctx.render_pass);
+        let grating_pipeline = VkGratingPipeline::new(&ctx.device, ctx.render_pass);
         let gpu_buffers = GpuBuffers::new(&ctx.instance, ctx.physical_device);
         let egui_renderer = VkEguiRenderer::new(
             &ctx.device,
@@ -118,6 +122,7 @@ impl DrmRenderState {
         Self {
             ctx,
             pipeline,
+            grating_pipeline,
             gpu_buffers,
             egui_renderer,
             egui_ctx,
@@ -206,6 +211,7 @@ impl DrmRenderState {
             if let Some(t) = render_frame(
                 &self.ctx,
                 &self.pipeline,
+                &self.grating_pipeline,
                 &mut self.gpu_buffers,
                 &self.scene,
                 &mut frame_index,

@@ -12,7 +12,8 @@ use crate::log_buffer::LogBuffer;
 use crate::render::overlay::build_overlay_ui;
 use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, WindowMode, query_local_ip};
 use crate::render::vk::{
-    EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkPipeline, render_frame,
+    EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkGratingPipeline, VkPipeline,
+    render_frame,
 };
 use crate::timing::FramePhases;
 use crate::scene::SceneState;
@@ -40,6 +41,7 @@ struct State {
     // window is destroyed.
     ctx: VkContext,
     pipeline: VkPipeline,
+    grating_pipeline: VkGratingPipeline,
     gpu_buffers: GpuBuffers,
     egui_renderer: VkEguiRenderer,
     egui_winit: egui_winit::State, // holds display-handle references
@@ -61,6 +63,7 @@ impl Drop for State {
     fn drop(&mut self) {
         self.egui_renderer.destroy(&self.ctx.device);
         self.gpu_buffers.destroy_all(&self.ctx.device);
+        self.grating_pipeline.destroy(&self.ctx.device);
         self.pipeline.destroy(&self.ctx.device);
     }
 }
@@ -79,6 +82,7 @@ impl State {
         log::info!("vstimd: present mode: FIFO");
 
         let pipeline = VkPipeline::new(&ctx.device, ctx.render_pass);
+        let grating_pipeline = VkGratingPipeline::new(&ctx.device, ctx.render_pass);
         let gpu_buffers = GpuBuffers::new(&ctx.instance, ctx.physical_device);
         let egui_renderer = VkEguiRenderer::new(
             &ctx.device,
@@ -104,6 +108,7 @@ impl State {
             window,
             ctx,
             pipeline,
+            grating_pipeline,
             gpu_buffers,
             egui_renderer,
             scene,
@@ -157,6 +162,7 @@ impl State {
             let tick = render_frame(
                 &self.ctx,
                 &self.pipeline,
+                &self.grating_pipeline,
                 &mut self.gpu_buffers,
                 &self.scene,
                 &mut self.frame_index,
@@ -169,6 +175,7 @@ impl State {
             let tick = render_frame(
                 &self.ctx,
                 &self.pipeline,
+                &self.grating_pipeline,
                 &mut self.gpu_buffers,
                 &self.scene,
                 &mut self.frame_index,
