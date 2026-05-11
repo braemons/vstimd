@@ -114,12 +114,12 @@ fn command_summary(req: &proto::Request) -> String {
 
 // ── DrawMode conversion ───────────────────────────────────────────────────────
 
-fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, proto::Response> {
+fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
     match proto::DrawMode::try_from(mode).unwrap_or(proto::DrawMode::Unspecified) {
-        proto::DrawMode::Unspecified => Err(err(
+        proto::DrawMode::Unspecified => Err(Box::new(err(
             proto::ErrorCode::InvalidArgument,
             "draw_mode must be set explicitly (UNSPECIFIED is not a valid value)",
-        )),
+        ))),
         proto::DrawMode::Filled => Ok(SceneDrawMode::Fill),
         proto::DrawMode::Outlined => Ok(SceneDrawMode::Stroke),
         proto::DrawMode::FilledAndOutlined => Ok(SceneDrawMode::FillAndStroke),
@@ -505,7 +505,7 @@ impl SceneState {
     fn cmd_set_draw_mode(&mut self, handle: u32, cmd: proto::SetDrawModeRequest) -> proto::Response {
         let mode = match proto_draw_mode_to_scene(cmd.mode) {
             Ok(m) => m,
-            Err(e) => return e,
+            Err(e) => return *e,
         };
         match self.stimuli.get_mut(&handle) {
             None => err(
