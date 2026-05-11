@@ -89,6 +89,48 @@ class StimuliClient:
         )
         return self._send(req).handle
 
+    def create_grating(
+        self,
+        *,
+        x: float = 0.0,
+        y: float = 0.0,
+        width: float = 200.0,
+        height: float = 200.0,
+        sf: float = 0.05,
+        phase: float = 0.0,
+        angle: float = 0.0,
+        contrast: float = 1.0,
+        r: float = 1.0,
+        g: float = 1.0,
+        b: float = 1.0,
+        a: float = 1.0,
+        waveform: int = stimuli_pb2.WAVEFORM_TYPE_SIN,
+        mask: int = stimuli_pb2.MASK_TYPE_NONE,
+        drift_speed: float = 0.0,
+        drift_decoupled: bool = False,
+        drift_angle: float = 0.0,
+    ) -> int:
+        """Create a grating stimulus and return its handle."""
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            create_grating=stimuli_pb2.CreateGratingRequest(
+                center=common_pb2.Vec2(x=x, y=y),
+                width=width,
+                height=height,
+                sf=sf,
+                phase=phase,
+                angle=angle,
+                contrast=contrast,
+                color=common_pb2.Color(r=r, g=g, b=b, a=a),
+                waveform=waveform,
+                mask=mask,
+                drift_speed=drift_speed,
+                drift_decoupled=drift_decoupled,
+                drift_angle=drift_angle,
+            ),
+        )
+        return self._send(req).handle
+
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
     def set_enabled(self, handle: int, enabled: bool) -> None:
@@ -170,6 +212,64 @@ class StimuliClient:
         req = service_pb2.Request(
             stimulus=handle,
             set_ellipse_size=stimuli_pb2.SetEllipseSizeRequest(width=width, height=height),
+        )
+        self._send(req)
+
+    def set_grating_phase(self, handle: int, phase: float) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_phase=stimuli_pb2.SetGratingPhaseRequest(phase=phase),
+        )
+        self._send(req)
+
+    def set_grating_sf(self, handle: int, sf: float) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_sf=stimuli_pb2.SetGratingSfRequest(sf=sf),
+        )
+        self._send(req)
+
+    def set_grating_contrast(self, handle: int, contrast: float) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_contrast=stimuli_pb2.SetGratingContrastRequest(contrast=contrast),
+        )
+        self._send(req)
+
+    def set_grating_waveform(self, handle: int, waveform: int) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_waveform=stimuli_pb2.SetGratingWaveformRequest(waveform=waveform),
+        )
+        self._send(req)
+
+    def set_grating_mask(self, handle: int, mask: int) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_mask=stimuli_pb2.SetGratingMaskRequest(mask=mask),
+        )
+        self._send(req)
+
+    def set_grating_drift_speed(self, handle: int, drift_speed: float) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_drift_speed=stimuli_pb2.SetGratingDriftSpeedRequest(drift_speed=drift_speed),
+        )
+        self._send(req)
+
+    def set_grating_drift_decoupled(self, handle: int, drift_decoupled: bool) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_drift_decoupled=stimuli_pb2.SetGratingDriftDecoupledRequest(
+                drift_decoupled=drift_decoupled
+            ),
+        )
+        self._send(req)
+
+    def set_grating_drift_angle(self, handle: int, drift_angle: float) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_drift_angle=stimuli_pb2.SetGratingDriftAngleRequest(drift_angle=drift_angle),
         )
         self._send(req)
 

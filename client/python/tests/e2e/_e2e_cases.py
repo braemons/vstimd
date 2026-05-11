@@ -9,7 +9,8 @@ import time
 import pytest
 
 from vstimd import Connection
-from vstimd.stimuli import RectParams, StimulusType
+from vstimd.stimuli import GratingParams, RectParams, StimulusType
+from vstimd._proto.vstimd.v1 import stimuli_2d_pb2 as _pb2
 
 
 def test_create_rect(conn: Connection) -> None:
@@ -26,4 +27,100 @@ def test_create_rect(conn: Connection) -> None:
     assert info.fill_color.b == pytest.approx(0.0, abs=0.01)
 
     time.sleep(1.0)
+    conn.stimuli.delete(handle)
+
+
+def test_create_grating(conn: Connection) -> None:
+    handle = conn.stimuli.create_grating(
+        x=0, y=0, width=200, height=200, sf=0.05, phase=0.25, angle=45.0,
+        contrast=0.8, r=0.0, g=1.0, b=0.0,
+        waveform=_pb2.WAVEFORM_TYPE_SQR, mask=_pb2.MASK_TYPE_CIRCLE,
+    )
+    assert handle > 0
+
+    info = conn.stimuli.query(handle)
+    assert info.stimulus_type == StimulusType.GRATING
+    assert isinstance(info.params, GratingParams)
+    assert info.params.width == pytest.approx(200.0, abs=0.5)
+    assert info.params.height == pytest.approx(200.0, abs=0.5)
+    assert info.params.sf == pytest.approx(0.05, rel=1e-3)
+    assert info.params.phase == pytest.approx(0.25, abs=0.01)
+    assert info.params.contrast == pytest.approx(0.8, abs=0.01)
+    assert info.params.waveform == _pb2.WAVEFORM_TYPE_SQR
+    assert info.params.mask == _pb2.MASK_TYPE_CIRCLE
+
+    conn.stimuli.delete(handle)
+
+
+def test_grating_mutate_phase(conn: Connection) -> None:
+    handle = conn.stimuli.create_grating(sf=0.05)
+    conn.stimuli.set_grating_phase(handle, 0.5)
+
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.phase == pytest.approx(0.5, abs=0.01)
+
+    conn.stimuli.delete(handle)
+
+
+def test_grating_mutate_sf(conn: Connection) -> None:
+    handle = conn.stimuli.create_grating(sf=0.05)
+    conn.stimuli.set_grating_sf(handle, 0.1)
+
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.sf == pytest.approx(0.1, rel=1e-3)
+
+    conn.stimuli.delete(handle)
+
+
+def test_grating_mutate_contrast(conn: Connection) -> None:
+    handle = conn.stimuli.create_grating(sf=0.05)
+    conn.stimuli.set_grating_contrast(handle, 0.5)
+
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.contrast == pytest.approx(0.5, abs=0.01)
+
+    conn.stimuli.delete(handle)
+
+
+def test_grating_mutate_waveform(conn: Connection) -> None:
+    handle = conn.stimuli.create_grating(waveform=_pb2.WAVEFORM_TYPE_SIN)
+    conn.stimuli.set_grating_waveform(handle, _pb2.WAVEFORM_TYPE_SAW)
+
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.waveform == _pb2.WAVEFORM_TYPE_SAW
+
+    conn.stimuli.delete(handle)
+
+
+def test_grating_drift_speed(conn: Connection) -> None:
+    handle = conn.stimuli.create_grating(sf=0.05, drift_speed=2.0)
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.drift_speed == pytest.approx(2.0, abs=0.01)
+    assert info.params.drift_coupled is True
+
+    conn.stimuli.set_grating_drift_speed(handle, 0.0)
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.drift_speed == pytest.approx(0.0, abs=0.01)
+
+    conn.stimuli.delete(handle)
+
+
+def test_grating_drift_decoupled(conn: Connection) -> None:
+    handle = conn.stimuli.create_grating(sf=0.05, drift_decoupled=True, drift_angle=90.0)
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.drift_coupled is False
+    assert info.params.drift_angle == pytest.approx(90.0, abs=0.1)
+
+    conn.stimuli.set_grating_drift_decoupled(handle, False)
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.drift_coupled is True
+
     conn.stimuli.delete(handle)

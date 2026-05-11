@@ -15,6 +15,7 @@ class StimulusType(Enum):
     BITMAP   = "bitmap"
     SHADER   = "shader"
     PARTICLE = "particle"
+    GRATING  = "grating"
 
 
 class DrawMode(Enum):
@@ -62,7 +63,21 @@ class EllipseParams:
     height: float
 
 
-StimulusParams = Union[RectParams, DiscParams, EllipseParams]
+@dataclass
+class GratingParams:
+    width: float
+    height: float
+    sf: float
+    phase: float
+    contrast: float
+    waveform: int
+    mask: int
+    drift_speed: float
+    drift_coupled: bool
+    drift_angle: float
+
+
+StimulusParams = Union[RectParams, DiscParams, EllipseParams, GratingParams]
 
 _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     common_pb2.STIMULUS_TYPE_RECT:     StimulusType.RECT,
@@ -71,6 +86,7 @@ _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     common_pb2.STIMULUS_TYPE_BITMAP:   StimulusType.BITMAP,
     common_pb2.STIMULUS_TYPE_SHADER:   StimulusType.SHADER,
     common_pb2.STIMULUS_TYPE_PARTICLE: StimulusType.PARTICLE,
+    common_pb2.STIMULUS_TYPE_GRATING:  StimulusType.GRATING,
 }
 
 _DRAW_MODE_MAP: dict[int, DrawMode] = {
@@ -107,6 +123,20 @@ class StimulusInfo:
             params = EllipseParams(
                 width=proto.params.ellipse.width,
                 height=proto.params.ellipse.height,
+            )
+        elif shape_which == "grating":
+            g = proto.params.grating
+            params = GratingParams(
+                width=g.width,
+                height=g.height,
+                sf=g.sf,
+                phase=g.phase,
+                contrast=g.contrast,
+                waveform=g.waveform,
+                mask=g.mask,
+                drift_speed=g.drift_speed,
+                drift_coupled=not g.drift_decoupled,
+                drift_angle=g.drift_angle,
             )
         else:
             params = None

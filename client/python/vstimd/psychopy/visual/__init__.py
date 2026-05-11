@@ -12,5 +12,6 @@
 from .window import Window
 from .rect import Rect
 from .circle import Circle
+from .grating import GratingStim
 
-__all__ = ["Window", "Rect", "Circle"]
+__all__ = ["Window", "Rect", "Circle", "GratingStim"]
