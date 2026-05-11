@@ -91,11 +91,12 @@ pub fn render_frame(
         let handles: Vec<u32> = sc.stimuli.keys().copied().collect();
         for handle in handles {
             // Advance drift accumulator for visible gratings before tessellation.
-            if let Some(Stimulus::Grating(s)) = sc.stimuli.get_mut(&handle) {
-                if s.flags.is_visible() && s.params.live.drift_speed != 0.0 {
-                    let inc = grating_phase_inc(s, fps);
-                    s.phase_accum += inc;
-                }
+            if let Some(Stimulus::Grating(s)) = sc.stimuli.get_mut(&handle)
+                && s.flags.is_visible()
+                && s.params.live.drift_speed != 0.0
+            {
+                let inc = grating_phase_inc(s, fps);
+                s.phase_accum += inc;
             }
 
             let stim = &sc.stimuli[&handle];
