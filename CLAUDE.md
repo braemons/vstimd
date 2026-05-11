@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Wonderlamp** is a Rust rewrite of the C++ StimServer visual stimulus server, combined with ideas from the VStim project. The Rust server binary is named `wonderlamp_server`; the overall project (server + Python client + tools) is Wonderlamp.
+**vstimd** is a Rust rewrite of the C++ StimServer visual stimulus server, combined with ideas from the VStim project. The Rust server binary is named `vstimd`; the overall project (server + Python client + tools) is vstimd.
 
 **Goal:** A remote PsychoPy-compatible visual stimulus server with enhanced features for neuroscience research.
 
@@ -29,11 +29,11 @@ cargo run --release
 # Window mode options (desktop mode only, default is fullscreen)
 cargo run --release -- --windowed 1280x720
 
-# Null renderer — ZMQ server only, no display (also: WONDERLAMP_NULL=1)
+# Null renderer — ZMQ server only, no display (also: VSTIMD_NULL=1)
 cargo run --release -- --null
 
 # Python client
-cd client-python
+cd client/python
 uv sync
 uv run examples/flash_rects.py
 ```
@@ -109,12 +109,12 @@ wayland-sys     = "=0.31.8"
 
 **System commands (system target):** `SetBackground`, `SetDeferredMode`, `DeleteAll`, `SetAllEnabled`, `QueryServerInfo`
 
-### Python Client (`client-python/`)
+### Python Client (`client/python/`)
 
-`wonderlamp.Connection` wraps a `zmq.REQ` socket and exposes two sub-clients. Protobuf stubs live in `wonderlamp/_proto/`, generated from the four `proto/v1/` files.
+`vstimd.Connection` wraps a `zmq.REQ` socket and exposes two sub-clients. Protobuf stubs live in `vstimd/_proto/`, generated from the four `proto/v1/` files.
 
 ```python
-from wonderlamp import Connection
+from vstimd import Connection
 
 with Connection() as conn:
     h = conn.stimuli.create_rect(x=-200, y=0, width=300, height=200, r=1.0, g=0.0, b=0.0)
@@ -124,8 +124,8 @@ with Connection() as conn:
 ```
 
 ```
-client-python/
-  wonderlamp/
+client/python/
+  vstimd/
     __init__.py          # exports Connection, ServerInfo, exceptions, psychopy
     _connection.py       # ZMQ REQ socket + protobuf wrapper
     _proto/              # generated stubs (common, service, stimuli, system)

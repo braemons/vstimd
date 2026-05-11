@@ -3,9 +3,9 @@
 /// These tests call `handle_request` directly on a `SceneState` — no ZMQ, no
 /// GPU required — so they can run in any environment.
 use prost::Message;
-use wonderlamp_server::proto;
-use wonderlamp_server::proto::request;
-use wonderlamp_server::scene::{SceneState, Stimulus};
+use vstimd::proto;
+use vstimd::proto::request;
+use vstimd::scene::{SceneState, Stimulus};
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -319,7 +319,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
 
     let app = stim.appearance().unwrap();
     assert_eq!(app.live.fill_color, [0.1, 0.2, 0.3, 0.9]);
-    assert!(app.live.draw_mode == wonderlamp_server::scene::DrawMode::Stroke);
+    assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert_eq!(app.live.outline_color, [0.8, 0.7, 0.6, 0.5]);
     assert_eq!(app.live.stroke_width, 7.0);
     assert!(stim.flags().dirty);
@@ -334,13 +334,13 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
 
     let stim_obj = scene.stimuli.get_mut(&h).unwrap();
     if let Some(t) = stim_obj.transform_mut() {
-        t.live = wonderlamp_server::scene::Transform2D { pos: [1.0, 2.0], angle: 3.0 };
+        t.live = vstimd::scene::Transform2D { pos: [1.0, 2.0], angle: 3.0 };
     }
     if let Some(app) = stim_obj.appearance_mut() {
         app.live.fill_color = [0.11, 0.12, 0.13, 0.14];
         app.live.outline_color = [0.21, 0.22, 0.23, 0.24];
         app.live.stroke_width = 2.5;
-        app.live.draw_mode = wonderlamp_server::scene::DrawMode::FillAndStroke;
+        app.live.draw_mode = vstimd::scene::DrawMode::FillAndStroke;
     }
     stim_obj.flags_mut().dirty = false;
 
@@ -401,11 +401,11 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(app.live.fill_color, [0.11, 0.12, 0.13, 0.14]);
     assert_eq!(app.live.outline_color, [0.21, 0.22, 0.23, 0.24]);
     assert_eq!(app.live.stroke_width, 2.5);
-    assert!(app.live.draw_mode == wonderlamp_server::scene::DrawMode::FillAndStroke);
+    assert!(app.live.draw_mode == vstimd::scene::DrawMode::FillAndStroke);
     assert_eq!(app.copy.fill_color, [0.1, 0.2, 0.3, 0.9]);
     assert_eq!(app.copy.outline_color, [0.8, 0.7, 0.6, 0.5]);
     assert_eq!(app.copy.stroke_width, 7.0);
-    assert!(app.copy.draw_mode == wonderlamp_server::scene::DrawMode::Stroke);
+    assert!(app.copy.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert!(!stim.flags().dirty);
 
     let resp = scene.handle_request(set_deferred_mode_req(false, false));
@@ -424,7 +424,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(app.live.fill_color, [0.1, 0.2, 0.3, 0.9]);
     assert_eq!(app.live.outline_color, [0.8, 0.7, 0.6, 0.5]);
     assert_eq!(app.live.stroke_width, 7.0);
-    assert!(app.live.draw_mode == wonderlamp_server::scene::DrawMode::Stroke);
+    assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert!(stim.flags().dirty);
 }
 

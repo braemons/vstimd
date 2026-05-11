@@ -2,7 +2,7 @@
 
 ## Current Status (Single Display)
 
-As of the egui overlay implementation, Wonderlamp renders to a single display:
+As of the egui overlay implementation, vstimd renders to a single display:
 - **One `VkContext`** with one surface, one swapchain, one set of framebuffers
 - **One render pass** per frame (stimuli + optional egui overlay)
 - **DRM backend:** Acquires all displays to prevent CRTC blanking, but renders to `display[0]` only
@@ -12,7 +12,7 @@ The egui overlay composites directly into the same framebuffer as the stimuli.
 
 ## Design Goal: Multi-Display Support
 
-**Requirement:** Wonderlamp should take control of all connected displays and allow:
+**Requirement:** vstimd should take control of all connected displays and allow:
 1. **Stimuli on all displays** (mirrored or independent scenes)
 2. **egui overlay on any display** (selectable via CLI or API)
 3. **Independent refresh rates** per display (if hardware supports it)
@@ -146,7 +146,7 @@ cargo run --release -- \
 Allow stimuli to specify target display(s):
 
 ```python
-conn = wonderlamp_client.Connection()
+conn = vstimd_client.Connection()
 rect = conn.create_rect(x=0, y=0, width=100, height=100, displays=[0, 1])  # Render to both
 conn.set_display_mask(rect, [0])  # Move to display 0 only
 ```

@@ -30,7 +30,7 @@ impl TtyKbdGuard {
     fn acquire() -> Option<Self> {
         let fd = unsafe { libc::open(c"/dev/tty".as_ptr(), libc::O_RDWR | libc::O_CLOEXEC) };
         if fd < 0 {
-            log::warn!("wonderlamp: could not open /dev/tty — keys may echo to terminal");
+            log::warn!("vstimd: could not open /dev/tty — keys may echo to terminal");
             return None;
         }
         let mut saved: libc::termios = unsafe { std::mem::zeroed() };
@@ -43,7 +43,7 @@ impl TtyKbdGuard {
         raw.c_lflag &= !(libc::ECHO | libc::ECHOE | libc::ECHOK | libc::ECHONL
             | libc::ICANON | libc::ISIG);
         if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &raw) } < 0 {
-            log::warn!("wonderlamp: tcsetattr failed — keys may echo to terminal");
+            log::warn!("vstimd: tcsetattr failed — keys may echo to terminal");
             unsafe { libc::close(fd) };
             return None;
         }
@@ -100,7 +100,7 @@ impl InputState {
             Ok(()) => Self { ctx, tty_kbd_guard },
             Err(()) => {
                 log::error!(
-                    "wonderlamp: libinput could not open seat0 — \
+                    "vstimd: libinput could not open seat0 — \
                      add the current user to the 'input' group and log out/in:\n  \
                      sudo usermod -aG input $USER"
                 );

@@ -8,8 +8,8 @@
 ///   cargo bench --bench tess -- --output-format bencher | tee bench.txt
 use criterion::{BenchmarkId, Criterion, black_box, criterion_group, criterion_main};
 
-use wonderlamp_server::render::tess::tessellate_stimulus;
-use wonderlamp_server::scene::{
+use vstimd::render::tess::tessellate_stimulus;
+use vstimd::scene::{
     Deferred, DiscStimulus, EllipseStimulus, RectStimulus, SceneState, ShapeAppearance, Stimulus,
     StimulusFlags, Transform2D,
 };

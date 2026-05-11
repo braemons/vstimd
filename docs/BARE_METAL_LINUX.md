@@ -3,7 +3,7 @@
 > **Status:** Implemented (Jetson Orin Nano / Jetson Nano) / Planned (Raspberry Pi 5)
 > **Last updated:** 2025-05-05
 
-Run Wonderlamp without a compositor on Linux using KMS/DRM for display ownership and raw Vulkan for rendering. No X11, no Wayland, no display server required.
+Run vstimd without a compositor on Linux using KMS/DRM for display ownership and raw Vulkan for rendering. No X11, no Wayland, no display server required.
 
 ---
 
@@ -65,7 +65,7 @@ sudo loginctl terminate-seat seat0
 Then run the server:
 
 ```bash
-cd ~/src/wonderlamp
+cd ~/src/vstimd
 cargo run --release
 ```
 
@@ -77,7 +77,7 @@ sudo systemctl start gdm
 
 #### Persistent headless setup (no desktop)
 
-If the machine is dedicated to Wonderlamp and you never need a desktop:
+If the machine is dedicated to vstimd and you never need a desktop:
 
 ```bash
 sudo systemctl disable gdm
@@ -94,7 +94,7 @@ The running user needs:
 
 #### Known driver issue: VRR causes GPU device loss (JetPack 6.x)
 
-**Symptom:** Wonderlamp renders 3–4 frames then crashes with `ERROR_DEVICE_LOST`. The kernel log shows:
+**Symptom:** vstimd renders 3–4 frames then crashes with `ERROR_DEVICE_LOST`. The kernel log shows:
 
 ```
 nvidia-modeset: ERROR: GPU:0: nvRmApiAlloc(memory) failed for vrr 0x22
@@ -218,7 +218,7 @@ cargo run --release
 # On Windows: always uses desktop mode
 
 # Test ZMQ client/server protocol
-cd client-python && uv run examples/flash_rects.py
+cd client/python && uv run examples/flash_rects.py
 
 # Verify input:
 # - D: spawn demo stimuli

@@ -6,24 +6,24 @@
 
 **TL;DR:** Version incompatibility + architectural mismatch.
 
-The `egui-ash` crate exists but has problems for wonderlamp:
+The `egui-ash` crate exists but has problems for vstimd:
 
 1. **Version mismatch:**
    - `egui-ash 0.4.0` uses `ash 0.37`, `egui 0.25`, `ash-window 0.12`
-   - wonderlamp uses `ash 0.38`, `egui 0.33`, `ash-window 0.13`
+   - vstimd uses `ash 0.38`, `egui 0.33`, `ash-window 0.13`
    - Downgrading would lose bug fixes and features
 
 2. **Architectural incompatibility:**
    - `egui-ash` is a **full application framework** with `egui_ash::run()` that owns the event loop
-   - wonderlamp has **custom event loops** in both `drm/mod.rs` and `winit_vk/mod.rs` for precise frame timing
-   - `egui-ash` manages swapchains; wonderlamp's `VkContext` already does this
-   - `egui-ash` uses `AppCreator`/`App` traits; wonderlamp has its own structure with `SceneState`, ZMQ server thread, etc.
+   - vstimd has **custom event loops** in both `drm/mod.rs` and `winit_vk/mod.rs` for precise frame timing
+   - `egui-ash` manages swapchains; vstimd's `VkContext` already does this
+   - `egui-ash` uses `AppCreator`/`App` traits; vstimd has its own structure with `SceneState`, ZMQ server thread, etc.
 
 3. **Tight vsync requirements:**
-   - wonderlamp needs `VK_KHR_present_wait` and frame-perfect timing
+   - vstimd needs `VK_KHR_present_wait` and frame-perfect timing
    - `egui-ash` abstracts away low-level presentation control
 
-**Conclusion:** A custom lightweight egui renderer (300-500 lines) is better than forcing wonderlamp's architecture into `egui-ash`'s framework.
+**Conclusion:** A custom lightweight egui renderer (300-500 lines) is better than forcing vstimd's architecture into `egui-ash`'s framework.
 
 ---
 
@@ -219,7 +219,7 @@ impl VkEguiRenderer {
   - `Set`: allocate new texture or update existing (atlas changes when text changes)
   - `Free`: deallocate texture
 - Font atlas: `egui::TextureId::Managed(0)` is the primary font texture (RGBA, sRGB)
-- User images: `TextureId::User(u64)` for custom images (not used yet in wonderlamp)
+- User images: `TextureId::User(u64)` for custom images (not used yet in vstimd)
 
 **Mesh upload:**
 - `upload_meshes()` concatenates all `ClippedPrimitive::Mesh` into one vertex/index buffer pair
@@ -229,7 +229,7 @@ impl VkEguiRenderer {
 **Rendering:**
 - `paint()` iterates `ClippedPrimitive`s:
   - `Mesh`: set scissor rect, bind descriptor set for texture, draw indexed
-  - `Callback`: not supported (3D callbacks not needed for wonderlamp overlay)
+  - `Callback`: not supported (3D callbacks not needed for vstimd overlay)
 
 ---
 
@@ -332,7 +332,7 @@ pub fn render_frame(
   - Stimulus pass: `VK_ATTACHMENT_LOAD_OP_CLEAR` (clear background)
   - egui pass: `VK_ATTACHMENT_LOAD_OP_LOAD` (preserve stimulus content)
   - Simpler, no subpass dependencies needed
-  - Slight overhead (two render pass begin/end), but negligible for wonderlamp's use case
+  - Slight overhead (two render pass begin/end), but negligible for vstimd's use case
 
 - **Option B:** One render pass, two subpasses
   - Subpass 0: stimulus rendering
@@ -762,7 +762,7 @@ fn main() {
 - Escape → close overlay
 
 ### Q3: Handle egui `PaintCallback`?
-**Answer:** Not needed for wonderlamp's overlay use case (frame timing + stimulus list). Skip for now.
+**Answer:** Not needed for vstimd's overlay use case (frame timing + stimulus list). Skip for now.
 
 ### Q4: sRGB color space?
 **Answer:** egui expects sRGB vertex colors. Our swapchain is likely linear (need to verify). Options:

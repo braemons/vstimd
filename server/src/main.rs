@@ -1,9 +1,9 @@
 use std::sync::{Arc, RwLock};
 
 #[cfg(target_os = "linux")]
-use wonderlamp_server::render::DrmRenderState;
-use wonderlamp_server::render::{RenderTarget, WindowMode, WinitApp};
-use wonderlamp_server::scene::SceneState;
+use vstimd::render::DrmRenderState;
+use vstimd::render::{RenderTarget, WindowMode, WinitApp};
+use vstimd::scene::SceneState;
 
 fn main() {
     let args = parse_args();
@@ -14,10 +14,10 @@ fn main() {
         env_logger::Env::default().default_filter_or(default_level),
     )
     .build();
-    let log_buffer = wonderlamp_server::log_buffer::install(env_logger, server_start);
+    let log_buffer = vstimd::log_buffer::install(env_logger, server_start);
 
     let scene = Arc::new(RwLock::new(SceneState::new()));
-    let _zmq = wonderlamp_server::ipc::spawn_zmq_thread(scene.clone(), "tcp://0.0.0.0:5555");
+    let _zmq = vstimd::ipc::spawn_zmq_thread(scene.clone(), "tcp://0.0.0.0:5555");
 
     match args.render_target {
         #[cfg(target_os = "linux")]
@@ -29,7 +29,7 @@ fn main() {
         }
         RenderTarget::Desktop(window_mode) => {
             let event_loop = winit::event_loop::EventLoop::new().unwrap_or_else(|e| {
-                log::error!("wonderlamp: failed to create event loop: {e}");
+                log::error!("vstimd: failed to create event loop: {e}");
                 std::process::exit(1);
             });
             event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
@@ -37,7 +37,7 @@ fn main() {
             event_loop.run_app(&mut app).unwrap();
         }
         RenderTarget::Null => {
-            log::info!("wonderlamp: null renderer — ZMQ server running, no display");
+            log::info!("vstimd: null renderer — ZMQ server running, no display");
             std::thread::park();
         }
     }
@@ -68,10 +68,10 @@ fn detect_render_target(window_mode: WindowMode) -> RenderTarget {
             std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
 
         if has_display {
-            log::info!("wonderlamp: detected desktop session (DISPLAY or WAYLAND_DISPLAY set)");
+            log::info!("vstimd: detected desktop session (DISPLAY or WAYLAND_DISPLAY set)");
             RenderTarget::Desktop(window_mode)
         } else {
-            log::info!("wonderlamp: detected console environment (no display server)");
+            log::info!("vstimd: detected console environment (no display server)");
             RenderTarget::Drm
         }
     }
@@ -103,19 +103,19 @@ fn parse_args() -> Args {
                 std::process::exit(0);
             }
             other => {
-                eprintln!("wonderlamp: unknown argument: {other}");
+                eprintln!("vstimd: unknown argument: {other}");
                 print_usage();
                 std::process::exit(1);
             }
         }
     }
 
-    let render_target = if null || std::env::var("WONDERLAMP_NULL").is_ok() {
+    let render_target = if null || std::env::var("VSTIMD_NULL").is_ok() {
         RenderTarget::Null
     } else {
         detect_render_target(window_mode)
     };
-    log::info!("wonderlamp: render target: {:?}", render_target);
+    log::info!("vstimd: render target: {:?}", render_target);
 
     Args {
         render_target,
@@ -124,11 +124,11 @@ fn parse_args() -> Args {
 }
 
 fn print_usage() {
-    eprintln!("Usage: wonderlamp_server [OPTIONS]");
+    eprintln!("Usage: vstimd [OPTIONS]");
     eprintln!();
     eprintln!("Options:");
     eprintln!("  -w, --windowed <WxH>      Start in windowed mode with size WxH (desktop only)");
-    eprintln!("      --null                No rendering; ZMQ server only (also: WONDERLAMP_NULL=1)");
+    eprintln!("      --null                No rendering; ZMQ server only (also: VSTIMD_NULL=1)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
     eprintln!("  -h, --help                Show this help message");
     eprintln!();

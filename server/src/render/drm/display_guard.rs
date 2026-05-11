@@ -107,7 +107,7 @@ impl DisplayGuard {
                 };
 
                 log::debug!(
-                    "wonderlamp: [{path}] saved CRTC {crtc_h:?} {:?} fb={:?}",
+                    "vstimd: [{path}] saved CRTC {crtc_h:?} {:?} fb={:?}",
                     mode,
                     crtc_info.framebuffer()
                 );
@@ -125,7 +125,7 @@ impl DisplayGuard {
             }
 
             log::info!(
-                "wonderlamp: display controller at {path} \
+                "vstimd: display controller at {path} \
                  ({} active CRTC(s) saved)",
                 saved.len()
             );
@@ -148,14 +148,14 @@ impl DisplayGuard {
 
             // Release master so Vulkan (VK_KHR_display) can take it.
             if let Err(e) = card.release_master_lock() {
-                log::warn!("wonderlamp: release_master_lock on {path}: {e} (continuing)");
+                log::warn!("vstimd: release_master_lock on {path}: {e} (continuing)");
             }
 
             return Some(Self { card, saved });
         }
 
         log::warn!(
-            "wonderlamp: no display controller found — \
+            "vstimd: no display controller found — \
              CRTC restore on exit will be skipped"
         );
         None
@@ -178,8 +178,8 @@ fn disable_vrr_on_crtc(card: &Card, crtc: drm::control::crtc::Handle) {
         let name = info.name().to_string_lossy();
         if name.eq_ignore_ascii_case("VRR_ENABLED") || name.eq_ignore_ascii_case("vrr_enabled") {
             match card.set_property(crtc, prop_handle, 0) {
-                Ok(()) => log::debug!("wonderlamp: disabled VRR_ENABLED on CRTC {crtc:?}"),
-                Err(e) => log::debug!("wonderlamp: set VRR_ENABLED=0 on {crtc:?}: {e}"),
+                Ok(()) => log::debug!("vstimd: disabled VRR_ENABLED on CRTC {crtc:?}"),
+                Err(e) => log::debug!("vstimd: set VRR_ENABLED=0 on {crtc:?}: {e}"),
             }
             return;
         }
@@ -205,10 +205,10 @@ fn disable_vrr_on_connector(card: &Card, conn: drm::control::connector::Handle) 
         {
             match card.set_property(conn, prop_handle, 0) {
                 Ok(()) => log::debug!(
-                    "wonderlamp: set {name}=0 on connector {conn:?}"
+                    "vstimd: set {name}=0 on connector {conn:?}"
                 ),
                 Err(e) => log::debug!(
-                    "wonderlamp: set {name}=0 on {conn:?}: {e}"
+                    "vstimd: set {name}=0 on {conn:?}: {e}"
                 ),
             }
         }
@@ -219,7 +219,7 @@ impl Drop for DisplayGuard {
     fn drop(&mut self) {
         // Re-acquire master so we can reprogram the CRTCs.
         if let Err(e) = self.card.acquire_master_lock() {
-            log::warn!("wonderlamp: acquire_master_lock: {e} (attempting set_crtc anyway)");
+            log::warn!("vstimd: acquire_master_lock: {e} (attempting set_crtc anyway)");
         }
 
         for out in &self.saved {
@@ -231,15 +231,15 @@ impl Drop for DisplayGuard {
                 Some(out.mode),
             ) {
                 Ok(()) => log::info!(
-                    "wonderlamp: CRTC {:?} restored → fb {:?}",
+                    "vstimd: CRTC {:?} restored → fb {:?}",
                     out.crtc_handle, out.framebuffer
                 ),
-                Err(e) => log::error!("wonderlamp: set_crtc({:?}) failed: {e}", out.crtc_handle),
+                Err(e) => log::error!("vstimd: set_crtc({:?}) failed: {e}", out.crtc_handle),
             }
         }
 
         if let Err(e) = self.card.release_master_lock() {
-            log::warn!("wonderlamp: release_master_lock: {e}");
+            log::warn!("vstimd: release_master_lock: {e}");
         }
     }
 }

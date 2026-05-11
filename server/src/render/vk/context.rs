@@ -55,16 +55,16 @@ pub struct VkContext {
 impl Drop for VkContext {
     fn drop(&mut self) {
         unsafe {
-            log::debug!("wonderlamp: [drop] device_wait_idle");
+            log::debug!("vstimd: [drop] device_wait_idle");
             self.device.device_wait_idle().ok();
 
-            log::debug!("wonderlamp: [drop] destroy sync objects");
+            log::debug!("vstimd: [drop] destroy sync objects");
             for frame in &self.frames {
                 self.device.destroy_semaphore(frame.image_available, None);
                 self.device.destroy_semaphore(frame.render_done, None);
                 self.device.destroy_fence(frame.in_flight, None);
             }
-            log::debug!("wonderlamp: [drop] destroy framebuffers + render pass + image views");
+            log::debug!("vstimd: [drop] destroy framebuffers + render pass + image views");
             for &fb in &self.framebuffers {
                 self.device.destroy_framebuffer(fb, None);
             }
@@ -73,18 +73,18 @@ impl Drop for VkContext {
             for &view in &self.swapchain_image_views {
                 self.device.destroy_image_view(view, None);
             }
-            log::debug!("wonderlamp: [drop] destroy command pool");
+            log::debug!("vstimd: [drop] destroy command pool");
             self.device.destroy_command_pool(self.command_pool, None);
-            log::debug!("wonderlamp: [drop] destroy swapchain");
+            log::debug!("vstimd: [drop] destroy swapchain");
             self.swapchain_loader
                 .destroy_swapchain(self.swapchain, None);
-            log::debug!("wonderlamp: [drop] destroy device");
+            log::debug!("vstimd: [drop] destroy device");
             self.device.destroy_device(None);
-            log::debug!("wonderlamp: [drop] destroy surface");
+            log::debug!("vstimd: [drop] destroy surface");
             self.surface_loader.destroy_surface(self.surface, None);
-            log::debug!("wonderlamp: [drop] destroy instance");
+            log::debug!("vstimd: [drop] destroy instance");
             self.instance.destroy_instance(None);
-            log::debug!("wonderlamp: [drop] done");
+            log::debug!("vstimd: [drop] done");
         }
     }
 }
@@ -194,7 +194,7 @@ pub fn build_context(
         let props = unsafe { instance.get_physical_device_properties(physical_device) };
         let name = unsafe { std::ffi::CStr::from_ptr(props.device_name.as_ptr()) };
         log::info!(
-            "wonderlamp: Vulkan physical device: {:?}  type={:?}  driver=0x{:x}  vendor=0x{:x}",
+            "vstimd: Vulkan physical device: {:?}  type={:?}  driver=0x{:x}  vendor=0x{:x}",
             name, props.device_type, props.driver_version, props.vendor_id
         );
     }
@@ -222,7 +222,7 @@ pub fn build_context(
         "VK_GOOGLE_display_timing",
         "VK_EXT_swapchain_maintenance1",
     ];
-    log::debug!("wonderlamp: present-timing extension availability:");
+    log::debug!("vstimd: present-timing extension availability:");
     for ext in TIMING_EXTS {
         log::debug!("  {:<40}  {}", ext, if has_ext(ext) { "YES" } else { "no" });
     }
@@ -272,7 +272,7 @@ pub fn build_context(
     let display_timing_loader =
         use_display_timing.then(|| ash::google::display_timing::Device::new(&instance, &device));
     if use_present_wait {
-        log::info!("wonderlamp: VK_KHR_present_wait enabled — waitable screen clock active");
+        log::info!("vstimd: VK_KHR_present_wait enabled — waitable screen clock active");
     }
 
     // -- Surface format -------------------------------------------------------
@@ -281,7 +281,7 @@ pub fn build_context(
             .get_physical_device_surface_formats(physical_device, surface)
             .expect("failed to query surface formats")
     };
-    log::debug!("wonderlamp: surface formats ({}):", formats.len());
+    log::debug!("vstimd: surface formats ({}):", formats.len());
     for f in &formats {
         log::debug!("  {:?}  {:?}", f.format, f.color_space);
     }
@@ -295,13 +295,13 @@ pub fn build_context(
         .unwrap_or(formats[0]);
     let format = chosen_sf.format;
     log::debug!(
-        "wonderlamp: chosen surface format: {:?}  {:?}",
+        "vstimd: chosen surface format: {:?}  {:?}",
         chosen_sf.format, chosen_sf.color_space
     );
 
     // -- Swapchain + image views ----------------------------------------------
     let initial_present_mode = vk::PresentModeKHR::FIFO;
-    log::debug!("wonderlamp: chosen present mode: {:?}", initial_present_mode);
+    log::debug!("vstimd: chosen present mode: {:?}", initial_present_mode);
     let (swapchain, swapchain_images, swapchain_image_views, extent) = create_swapchain(
         &swapchain_loader,
         &surface_loader,
@@ -496,7 +496,7 @@ fn create_swapchain(
             .expect("failed to query surface capabilities")
     };
     log::debug!(
-        "wonderlamp: surface caps: min_images={} max_images={} current_transform={:?} \
+        "vstimd: surface caps: min_images={} max_images={} current_transform={:?} \
          supported_composite_alpha={:?} current_extent={:?}",
         caps.min_image_count, caps.max_image_count,
         caps.current_transform,
@@ -526,21 +526,21 @@ fn create_swapchain(
     // Warn if we're requesting a transform/alpha the surface doesn't support.
     if !caps.current_transform.contains(vk::SurfaceTransformFlagsKHR::IDENTITY) {
         log::warn!(
-            "wonderlamp: surface does not list IDENTITY in current_transform ({:?}); \
+            "vstimd: surface does not list IDENTITY in current_transform ({:?}); \
              using IDENTITY anyway",
             caps.current_transform
         );
     }
     if !caps.supported_composite_alpha.contains(vk::CompositeAlphaFlagsKHR::OPAQUE) {
         log::warn!(
-            "wonderlamp: surface does not support OPAQUE composite alpha ({:?}); \
+            "vstimd: surface does not support OPAQUE composite alpha ({:?}); \
              using OPAQUE anyway — this may cause a GPU fault",
             caps.supported_composite_alpha
         );
     }
 
     log::debug!(
-        "wonderlamp: creating swapchain: {}×{} images={} format={:?} present_mode={:?}",
+        "vstimd: creating swapchain: {}×{} images={} format={:?} present_mode={:?}",
         extent.width, extent.height, image_count, format, present_mode
     );
 

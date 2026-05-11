@@ -50,9 +50,9 @@ If running as a dedicated system user (rather than a login user), set
 ### 3. Install the service unit
 
 ```bash
-sudo cp dist/systemd/wonderlamp.service /usr/lib/systemd/system/
+sudo cp dist/systemd/vstimd.service /usr/lib/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now wonderlamp
+sudo systemctl enable --now vstimd
 ```
 
 ---
@@ -133,15 +133,15 @@ The intended package layout when a `.deb` is produced:
 
 | Source path | Installed path |
 |---|---|
-| `target/release/wonderlamp_server` | `/usr/bin/wonderlamp_server` |
-| `dist/systemd/wonderlamp.service` | `/usr/lib/systemd/system/wonderlamp.service` |
+| `target/release/vstimd` | `/usr/bin/vstimd` |
+| `dist/systemd/vstimd.service` | `/usr/lib/systemd/system/vstimd.service` |
 
 With `debhelper` >= 13, placing the unit file under `debian/` and using the
 `dh_installsystemd` helper (called automatically by `dh`) handles installation,
 `daemon-reload`, `enable`, and `start` on package install/upgrade/remove.
 
-The `debian/wonderlamp.service` symlink (or copy) pointing at
-`dist/systemd/wonderlamp.service` keeps a single source of truth.
+The `debian/vstimd.service` symlink (or copy) pointing at
+`dist/systemd/vstimd.service` keeps a single source of truth.
 
 A `debian/postinst` snippet to disable GDM on install is probably appropriate
 for the Jetson target but should prompt the user rather than doing it silently.

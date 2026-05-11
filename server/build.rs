@@ -1,9 +1,9 @@
 fn main() {
     for proto in &[
-        "../proto/wonderlamp/v1/common.proto",
-        "../proto/wonderlamp/v1/stimuli_2d.proto",
-        "../proto/wonderlamp/v1/system.proto",
-        "../proto/wonderlamp/v1/service.proto",
+        "../proto/vstimd/v1/common.proto",
+        "../proto/vstimd/v1/stimuli_2d.proto",
+        "../proto/vstimd/v1/system.proto",
+        "../proto/vstimd/v1/service.proto",
     ] {
         println!("cargo:rerun-if-changed={}", proto);
     }
@@ -11,10 +11,10 @@ fn main() {
     prost_build::Config::new()
         .compile_protos(
             &[
-                "../proto/wonderlamp/v1/common.proto",
-                "../proto/wonderlamp/v1/stimuli_2d.proto",
-                "../proto/wonderlamp/v1/system.proto",
-                "../proto/wonderlamp/v1/service.proto",
+                "../proto/vstimd/v1/common.proto",
+                "../proto/vstimd/v1/stimuli_2d.proto",
+                "../proto/vstimd/v1/system.proto",
+                "../proto/vstimd/v1/service.proto",
             ],
             &["../proto/"],
         )

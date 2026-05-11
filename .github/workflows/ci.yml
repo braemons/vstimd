@@ -42,14 +42,14 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: wonderlamp_server
-          path: target/release/wonderlamp_server
+          name: vstimd
+          path: target/release/vstimd
 
   python-unit:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: client-python
+        working-directory: client/python
 
     steps:
       - uses: actions/checkout@v4
@@ -68,7 +68,7 @@ jobs:
     needs: [rust, python-unit]
     defaults:
       run:
-        working-directory: client-python
+        working-directory: client/python
 
     steps:
       - uses: actions/checkout@v4
@@ -83,10 +83,10 @@ jobs:
 
       - uses: actions/download-artifact@v4
         with:
-          name: wonderlamp_server
+          name: vstimd
           path: target/release/
 
-      - run: chmod +x target/release/wonderlamp_server
+      - run: chmod +x target/release/vstimd
         working-directory: ${{ github.workspace }}
 
       - uses: astral-sh/setup-uv@v5

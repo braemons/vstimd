@@ -76,7 +76,7 @@ impl State {
         let ctx = init::init(&window);
         // FIFO is set by build_context and never changed — the swapchain is
         // the screen clock.
-        log::info!("wonderlamp: present mode: FIFO");
+        log::info!("vstimd: present mode: FIFO");
 
         let pipeline = VkPipeline::new(&ctx.device, ctx.render_pass);
         let gpu_buffers = GpuBuffers::new(&ctx.instance, ctx.physical_device);
@@ -239,7 +239,7 @@ impl WinitApp {
             }
             // `state` borrow ends here; safe to write the flag.
             self.is_fullscreen = false;
-            log::info!("wonderlamp: windowed — present mode: FIFO");
+            log::info!("vstimd: windowed — present mode: FIFO");
         } else {
             // ── Entering fullscreen ───────────────────────────────────────
             // Present mode stays FIFO throughout — the swapchain is the
@@ -258,7 +258,7 @@ impl WinitApp {
                 .window
                 .set_fullscreen(Some(Fullscreen::Borderless(monitor)));
             self.is_fullscreen = true;
-            log::info!("wonderlamp: fullscreen — present mode: FIFO");
+            log::info!("vstimd: fullscreen — present mode: FIFO");
         }
     }
 }
@@ -272,11 +272,11 @@ impl ApplicationHandler for WinitApp {
                         .primary_monitor()
                         .or_else(|| event_loop.available_monitors().next());
                     Window::default_attributes()
-                        .with_title("Wonderlamp")
+                        .with_title("vstimd")
                         .with_fullscreen(Some(Fullscreen::Borderless(monitor)))
                 }
                 WindowMode::Windowed { width, height } => Window::default_attributes()
-                    .with_title("Wonderlamp")
+                    .with_title("vstimd")
                     .with_inner_size(winit::dpi::LogicalSize::new(width, height))
                     .with_resizable(true),
             };
@@ -368,7 +368,7 @@ fn detect_refresh_hz(window: &Window) -> f64 {
     // 1. DRM kernel interface (Linux only).
     #[cfg(target_os = "linux")]
     if let Some(hz) = query_refresh_hz_from_drm() {
-        log::info!("wonderlamp: display clock (DRM): {hz:.3} Hz");
+        log::info!("vstimd: display clock (DRM): {hz:.3} Hz");
         return hz;
     }
 
@@ -381,7 +381,7 @@ fn detect_refresh_hz(window: &Window) -> f64 {
             .max()
             .map(|mhz| mhz as f64 / 1000.0)
     }) {
-        log::info!("wonderlamp: display clock (video_modes): {hz:.3} Hz");
+        log::info!("vstimd: display clock (video_modes): {hz:.3} Hz");
         return hz;
     }
 
@@ -391,12 +391,12 @@ fn detect_refresh_hz(window: &Window) -> f64 {
         .and_then(|m| m.refresh_rate_millihertz())
     {
         let hz = mhz as f64 / 1000.0;
-        log::info!("wonderlamp: display clock (monitor API): {hz:.3} Hz");
+        log::info!("vstimd: display clock (monitor API): {hz:.3} Hz");
         return hz;
     }
 
     panic!(
-        "wonderlamp: cannot determine display refresh rate — \
+        "vstimd: cannot determine display refresh rate — \
          DRM query failed and compositor did not report refresh rate. \
          Check driver, permissions (/dev/dri/card*), and compositor."
     );

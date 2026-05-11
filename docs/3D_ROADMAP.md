@@ -515,7 +515,7 @@ The camera is the animal's viewpoint. It is driven by `AnimExternalPos` (mapped 
 position) or by dedicated 3-D animation types (see §11). A typical setup:
 
 1. Create a `CorridorStimulus` (static, no animation).
-2. Create `AnimExternalPos` reading from `/wonderlamp_treadmill` shared memory (linear position
+2. Create `AnimExternalPos` reading from `/vstimd_treadmill` shared memory (linear position
    along corridor).
 3. Assign the animation to the **camera**, not to a stimulus.
 

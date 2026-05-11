@@ -1,5 +1,5 @@
 [package]
-name = "wonderlamp_server"
+name = "vstimd"
 version = "0.1.0"
 edition = "2024"
 

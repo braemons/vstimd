@@ -6,14 +6,14 @@ All tests use SimulatedBackend to generate synthetic photodiode data.
 import numpy as np
 import pytest
 
-from wonderlamp_timing_test.analysis import (
+from vstimd_timing_test.analysis import (
     AnalysisResult,
     Thresholds,
     analyze,
     detect_drops,
     detect_edges,
 )
-from wonderlamp_timing_test.backends.simulation import SimulatedBackend
+from vstimd_timing_test.backends.simulation import SimulatedBackend
 
 
 # ---------------------------------------------------------------------------

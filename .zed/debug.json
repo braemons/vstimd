@@ -1,15 +1,15 @@
-// Project-local debug tasks for the wonderlamp server.
+// Project-local debug tasks for the vstimd server.
 //
 // For more documentation on how to configure debug tasks,
 // see: https://zed.dev/docs/debugger
 [
   {
     "adapter": "CodeLLDB",
-    "label": "cargo run -p wonderlamp_server -- -w 1280x720",
+    "label": "cargo run -p vstimd -- -w 1280x720",
     "build": {
-      "label": "cargo run -p wonderlamp_server",
+      "label": "cargo run -p vstimd",
       "command": "cargo",
-      "args": ["build", "--package", "wonderlamp_server"],
+      "args": ["build", "--package", "vstimd"],
       "env": {
         "RUSTC_TOOLCHAIN": "/usr",
       },

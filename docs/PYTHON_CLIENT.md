@@ -1,7 +1,7 @@
-# Python Client (`wonderlamp_client`)
+# Python Client (`vstimd_client`)
 
 > **Status:** Low-level `Connection` class implemented (protobuf/ZMQ, 3 commands). PsychoPy-compatible `visual` layer is planned — not yet started.
-> **Location:** `client-python/` directory
+> **Location:** `client/python/` directory
 > **See also:** `PLAN.md` §9 (Migration Path), `STIMULUS_DATA_MODEL.md`
 
 ---
@@ -28,18 +28,18 @@
 ## 1. Goal
 
 Existing neuroscience experiments are written against `psychopy.visual`. The goal of
-`wonderlamp_client` is to let experimenters swap one import line:
+`vstimd_client` is to let experimenters swap one import line:
 
 ```python
 # Before
 from psychopy import visual
 
 # After
-from wonderlamp_client import visual
+from vstimd_client import visual
 ```
 
 and have their scripts work without changes, while the rendering is now handled by
-`wonderlamp_server` (GPU-accelerated, sub-millisecond latency, Linux-capable) instead of
+`vstimd` (GPU-accelerated, sub-millisecond latency, Linux-capable) instead of
 PsychoPy's local renderer.
 
 ---
@@ -48,7 +48,7 @@ PsychoPy's local renderer.
 
 | Decision | Choice | Rationale |
 |---|---|---|
-| Class hierarchy | Flat — no mixins, no shared base class behavior | PsychoPy has a deep inheritance hierarchy (MRO surprises, hidden state); wonderlamp_client is deliberately flat — each class is self-contained |
+| Class hierarchy | Flat — no mixins, no shared base class behavior | PsychoPy has a deep inheritance hierarchy (MRO surprises, hidden state); vstimd_client is deliberately flat — each class is self-contained |
 | Repeated fields | Duplicated explicitly in every class | Intentional — each class is self-contained; matches the plan in `STIMULUS_DATA_MODEL.md` |
 | Wire format | **Protobuf over ZMQ REQ/REP** (implemented) | Compact, schema-versioned, multi-language; same `.proto` file shared by server and all clients |
 | Position input | ZMQ commands only | High-rate gaze/joystick position stays in shared memory (see `INPUT_LATENCY.md`) |
@@ -64,26 +64,26 @@ PsychoPy's local renderer.
 ### Current (implemented)
 
 ```
-client-python/                       ← installable Python package
+client/python/                       ← installable Python package
 ├── pyproject.toml                   ← build + dependencies (pyzmq, protobuf)
 ├── examples/
 │   └── flash_rects.py               ← create two rects, flash them, delete them
-└── wonderlamp_client/
+└── vstimd_client/
     ├── __init__.py                  ← exports Connection
     ├── _connection.py               ← ZMQ REQ socket + protobuf send/recv; 3 commands
     └── _proto/
         ├── __init__.py
-        └── wonderlamp_pb2.py        ← generated from server/proto/wonderlamp.proto
+        └── vstimd_pb2.py        ← generated from server/proto/vstimd.proto
 ```
 
 ### Planned (visual layer)
 
 ```
-wonderlamp_client/
+vstimd_client/
     ├── __init__.py                  ← re-exports Connection + visual module
     ├── _connection.py               ← extended: batch send, deferred mode, reconnect
     ├── _proto/
-    │   └── wonderlamp_pb2.py        ← regenerated as server schema expands
+    │   └── vstimd_pb2.py        ← regenerated as server schema expands
     ├── visual.py                    ← Window + all stimulus classes (PsychoPy-compatible)
     ├── _commands.py                 ← command dataclasses → protobuf serialisation
     ├── _units.py                    ← unit system conversion (pix/norm/height/deg/cm)
@@ -100,9 +100,9 @@ compat/
 Install:
 
 ```bash
-pip install -e client-python/
+pip install -e client/python/
 # or with uv:
-uv pip install -e client-python/
+uv pip install -e client/python/
 ```
 
 ---
@@ -112,12 +112,12 @@ uv pip install -e client-python/
 ### Transport
 
 ZeroMQ REQ/REP socket pair. The client sends one **protobuf-encoded** frame and waits
-for one reply. The schema is defined in `server/proto/wonderlamp.proto` and shared
-between the server (Rust/prost) and the Python client (`wonderlamp_pb2.py`).
+for one reply. The schema is defined in `server/proto/vstimd.proto` and shared
+between the server (Rust/prost) and the Python client (`vstimd_pb2.py`).
 
 ```python
 # Low-level usage (current API)
-from wonderlamp_client import Connection
+from vstimd_client import Connection
 
 with Connection("tcp://localhost:5555") as conn:
     handle = conn.create_rect(x=0, y=0, width=200, height=100, r=1.0, g=0.0, b=0.0)
@@ -151,12 +151,12 @@ Client                              Server
 
 ### Protobuf stub regeneration
 
-`wonderlamp_pb2.py` is generated from `server/proto/wonderlamp.proto`. Regenerate
+`vstimd_pb2.py` is generated from `server/proto/vstimd.proto`. Regenerate
 after schema changes:
 
 ```bash
 cd server
-protoc --python_out=../client-python/wonderlamp_client/_proto proto/wonderlamp.proto
+protoc --python_out=../client/python/vstimd_client/_proto proto/vstimd.proto
 ```
 
 The stub must be kept in sync with the server binary. A mismatch causes silent decode
@@ -172,7 +172,7 @@ errors (unknown fields are silently ignored by protobuf; missing required fields
 ### Marker base
 
 ```python
-class _WonderlampBase:
+class _vstimdBase:
     """Marker base. No methods or fields — only used for isinstance() checks."""
 ```
 
@@ -333,7 +333,7 @@ WGSL source is always sent as a plain string in the JSON command — no upload n
 
 ## 10. Testing Strategy
 
-Tests are in `client-python/tests/`. They are structured in three layers:
+Tests are in `client/python/tests/`. They are structured in three layers:
 
 ### Layer 1 — Unit tests (`test_commands.py`) — no server required
 
@@ -354,33 +354,33 @@ ZMQ frames without any network activity.
 
 **Run:**
 ```bash
-cd client-python
+cd client/python
 uv run pytest tests/test_commands.py -v
 ```
 
 ### Layer 2 — API compatibility tests (`test_api_compat.py`) — no server required
 
-Parametrized tests that compare `wonderlamp_client.visual` signatures against
+Parametrized tests that compare `vstimd_client.visual` signatures against
 `psychopy.visual` using `inspect.signature`. These tests require:
 1. `psychopy` installed (optional dev dependency)
 2. A generated fixture file `tests/_compat_fixtures.py` (see §11)
 
 **What is tested:**
-- Every class in `CHECKED_CLASSES` exists in `wonderlamp_client.visual`
-- Every public method from `psychopy.visual.<Class>` exists in the wonderlamp counterpart
-- Every `__init__` parameter from psychopy is present in the wonderlamp counterpart
+- Every class in `CHECKED_CLASSES` exists in `vstimd_client.visual`
+- Every public method from `psychopy.visual.<Class>` exists in the vstimd counterpart
+- Every `__init__` parameter from psychopy is present in the vstimd counterpart
 
 **Run:**
 ```bash
 # First generate fixtures (requires psychopy installed):
-cd client-python
+cd client/python
 uv run python compat/check_compat.py --output-pytest-fixtures tests/_compat_fixtures.py
 uv run pytest tests/test_api_compat.py -v
 ```
 
 ### Layer 3 — Integration tests (`test_integration.py`) — requires live server
 
-Skipped by default. Uses a real `Connection` and a real `wonderlamp_server` process.
+Skipped by default. Uses a real `Connection` and a real `vstimd` process.
 Server address is set via `VSTIM_SERVER_ADDR` env var.
 
 **What is tested:**
@@ -391,7 +391,7 @@ Server address is set via `VSTIM_SERVER_ADDR` env var.
 
 **Run:**
 ```bash
-cd client-python
+cd client/python
 VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 \
   uv run pytest tests/test_integration.py --run-integration -v
 ```
@@ -420,14 +420,14 @@ and its `open_window` ZMQ call.
 ### Standalone report
 
 ```bash
-cd client-python
+cd client/python
 uv run python compat/check_compat.py
 ```
 
 Output example:
 
 ```
-wonderlamp_client.visual  ←→  psychopy.visual  compatibility check
+vstimd_client.visual  ←→  psychopy.visual  compatibility check
 ==============================================================
   Window             OK  (2 extensions: address, deferred)
   Circle             OK
@@ -442,7 +442,7 @@ Exit code 0 = fully compatible; 1 = at least one missing parameter or method.
 ### Generating pytest fixtures
 
 ```bash
-cd client-python
+cd client/python
 uv run python compat/check_compat.py --output-pytest-fixtures tests/_compat_fixtures.py
 ```
 
@@ -465,7 +465,7 @@ from psychopy import visual
 win = visual.Window(size=(1920, 1080), color=(-1, -1, -1), units='pix')
 
 # New — add address, everything else unchanged
-from wonderlamp_client import visual
+from vstimd_client import visual
 win = visual.Window(size=(1920, 1080), color=(-1, -1, -1), units='pix',
                     address='tcp://192.168.1.10:5555')
 ```

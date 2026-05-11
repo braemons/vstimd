@@ -1,0 +1,136 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/common.proto";
+
+// ── Stimulus creation ─────────────────────────────────────────────────────────
+
+// System command: create a rectangle stimulus.
+// Returns the new handle in Response.handle.
+message CreateRectRequest {
+  Vec2  center = 1;   // pixel-space position (origin = screen centre, Y-up)
+  float width  = 2;   // full width in pixels  (0 → default 100)
+  float height = 3;   // full height in pixels (0 → default 100)
+  Color fill   = 4;   // fill colour (absent → scene default_fill)
+}
+
+// System command: create a disc (circle) stimulus.
+// Returns the new handle in Response.handle.
+message CreateCircleRequest {
+  Vec2  center = 1;   // pixel-space position
+  float radius = 2;   // radius in pixels (0 → default 50)
+  Color fill   = 3;   // fill colour (absent → scene default_fill)
+}
+
+// System command: create an ellipse stimulus.
+// Returns the new handle in Response.handle.
+message CreateEllipseRequest {
+  Vec2  center = 1;   // pixel-space position
+  float width  = 2;   // full width in pixels  (0 → default 100)
+  float height = 3;   // full height in pixels (0 → default 100)
+  Color fill   = 4;   // fill colour (absent → scene default_fill)
+  float angle  = 5;   // orientation in degrees (CCW)
+}
+
+// ── Generic stimulus mutations (all types) ────────────────────────────────────
+
+// Stimulus command: show or hide a stimulus.
+message SetEnabledRequest {
+  bool enabled = 1;
+}
+
+// Stimulus command: remove a stimulus from the scene.
+message DeleteRequest {}
+
+// Stimulus command: move the centre of a stimulus.
+message SetPositionRequest {
+  float x = 1;
+  float y = 2;
+}
+
+// Stimulus command: set rotation angle (counter-clockwise degrees).
+message SetOrientationRequest {
+  float angle_deg = 1;
+}
+
+// Stimulus command: set fill/body colour.
+message SetFillColorRequest {
+  Color color = 1;
+}
+
+// Stimulus command: set global opacity (0.0 = transparent, 1.0 = opaque).
+message SetAlphaRequest {
+  float opacity = 1;
+}
+
+// ── Type-specific size mutations ──────────────────────────────────────────────
+
+// Stimulus command: resize a Rect stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Rect.
+message SetRectSizeRequest {
+  float width  = 1;
+  float height = 2;
+}
+
+// Stimulus command: set the radius of a Disc stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not a Disc.
+message SetDiscRadiusRequest {
+  float radius = 1;
+}
+
+// Stimulus command: resize an Ellipse stimulus.
+// Returns WRONG_STIMULUS_TYPE if the handle is not an Ellipse.
+message SetEllipseSizeRequest {
+  float width  = 1;
+  float height = 2;
+}
+
+// ── Outline / stroke mutations (Rect, Ellipse) ────────────────────────────────
+
+// Stimulus command: set draw mode (fill only, outline only, or both).
+message SetDrawModeRequest {
+  DrawMode mode = 1;
+}
+
+// Stimulus command: set outline colour.
+message SetOutlineColorRequest {
+  Color color = 1;
+}
+
+// Stimulus command: set outline stroke width in pixels.
+message SetOutlineWidthRequest {
+  float line_width = 1;
+}
+
+// ── Query ─────────────────────────────────────────────────────────────────────
+
+// Stimulus command: query current properties.
+// Returns QueryStimulusResponse in Response.body.
+message QueryStimulusRequest {}
+
+// Shape-specific size parameters included in QueryStimulusResponse.
+message StimulusParams {
+  oneof shape {
+    RectParams    rect    = 1;
+    DiscParams    disc    = 2;
+    EllipseParams ellipse = 3;
+  }
+}
+
+message RectParams    { float width = 1; float height = 2; }
+message DiscParams    { float radius = 1; }
+message EllipseParams { float width = 1; float height = 2; }
+
+// Response payload for QueryStimulusRequest.
+message QueryStimulusResponse {
+  StimulusType   stimulus_type = 1;
+  bool           enabled       = 2;
+  Vec2           pos           = 3;
+  float          orientation   = 4;  // degrees CCW
+  float          opacity       = 5;
+  Color          fill_color    = 6;
+  Color          outline_color = 7;
+  float          outline_width = 8;
+  DrawMode       draw_mode     = 9;
+  StimulusParams params        = 10;
+}

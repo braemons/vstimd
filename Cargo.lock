@@ -3176,6 +3176,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
+name = "vstimd"
+version = "0.1.0"
+dependencies = [
+ "ash",
+ "ash-window",
+ "bytemuck",
+ "criterion",
+ "drm",
+ "egui",
+ "egui-winit",
+ "env_logger",
+ "indexmap",
+ "input",
+ "kurbo",
+ "libc",
+ "log",
+ "naga",
+ "prost",
+ "prost-build",
+ "tokio",
+ "wayland-backend",
+ "wayland-client",
+ "wayland-sys",
+ "winit",
+ "zeromq",
+]
+
+[[package]]
 name = "walkdir"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3874,34 +3902,6 @@ dependencies = [
  "serde_json",
  "unicode-xid",
  "wasmparser",
-]
-
-[[package]]
-name = "wonderlamp_server"
-version = "0.1.0"
-dependencies = [
- "ash",
- "ash-window",
- "bytemuck",
- "criterion",
- "drm",
- "egui",
- "egui-winit",
- "env_logger",
- "indexmap",
- "input",
- "kurbo",
- "libc",
- "log",
- "naga",
- "prost",
- "prost-build",
- "tokio",
- "wayland-backend",
- "wayland-client",
- "wayland-sys",
- "winit",
- "zeromq",
 ]
 
 [[package]]

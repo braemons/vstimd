@@ -9,10 +9,10 @@ use std::sync::{Arc, RwLock};
 use prost::Message;
 use zeromq::{Socket, SocketRecv, SocketSend};
 
-use wonderlamp_server::ipc;
-use wonderlamp_server::proto;
-use wonderlamp_server::proto::request;
-use wonderlamp_server::scene::SceneState;
+use vstimd::ipc;
+use vstimd::proto;
+use vstimd::proto::request;
+use vstimd::scene::SceneState;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 

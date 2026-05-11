@@ -88,7 +88,7 @@ fn check_device_permissions() {
 
     if !missing.is_empty() {
         log::error!(
-            "wonderlamp: missing device permissions — log out and back in after fixing:\n{}",
+            "vstimd: missing device permissions — log out and back in after fixing:\n{}",
             missing.join("\n")
         );
         std::process::exit(1);

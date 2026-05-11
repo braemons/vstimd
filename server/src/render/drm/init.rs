@@ -98,7 +98,7 @@ pub fn init() -> (VkContext, StimulusDisplayInfo) {
     let ctx = build_context(entry, instance, surface, surface_loader, extent);
 
     let refresh_hz = chosen.parameters.refresh_rate as f64 / 1000.0;
-    log::info!("wonderlamp: display {}×{}  {:.3} Hz", width, height, refresh_hz);
+    log::info!("vstimd: display {}×{}  {:.3} Hz", width, height, refresh_hz);
 
     (
         ctx,

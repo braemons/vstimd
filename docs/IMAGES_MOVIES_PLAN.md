@@ -38,7 +38,7 @@ sends each as a separate request-response exchange.
 
 ```proto
 syntax = "proto3";
-package wonderlamp.v1;
+package vstimd.v1;
 
 // System command: upload one chunk of a named asset.
 // First chunk (offset == 0): server pre-allocates storage for total_size bytes.
@@ -110,7 +110,7 @@ impl AssetStore {
 reach it under the existing write lock. Assets are in-memory and lost on server
 restart; this is intentional — clients reload them at session start.
 
-### Python client: `wonderlamp/assets/_client.py`
+### Python client: `vstimd/assets/_client.py`
 
 ```python
 class AssetsClient:
@@ -347,7 +347,7 @@ Add `STIMULUS_TYPE_VIDEO = 11` to `StimulusType`.
 For video, keeping the entire file in the in-memory `AssetStore` while also decoding
 it is wasteful. Phase D should extend `AssetStore` with an optional **disk-backed
 mode**: assets above a configurable threshold (e.g. 64 MB) are written to a temp file
-in `/tmp/wonderlamp_assets/` and the store keeps only the path. The `get()` API
+in `/tmp/vstimd_assets/` and the store keeps only the path. The `get()` API
 returns a `AssetData` enum (`InMemory(&[u8])` or `File(PathBuf)`) so callers handle
 both cases.
 
@@ -369,8 +369,8 @@ server/src/
     tess.rs              ← tessellate_bitmap, tessellate_bitmap_seq, tessellate_video
     gpu_buffers.rs       ← GpuTexture, alloc_texture, free_texture
 
-client-python/
-  wonderlamp/
+client/python/
+  vstimd/
     __init__.py          ← export AssetsClient, Connection.assets
     assets/
       __init__.py
@@ -413,5 +413,5 @@ ffmpeg-next = "7"        # links to system libavcodec/libavformat
    needed, fall back to `ffmpeg-next` for sequence decode too.
 
 4. **PsychoPy compatibility**: PsychoPy's `ImageStim` / `MovieStim3` expect file paths.
-   The `wonderlamp/psychopy/` compatibility shim should intercept the `image` constructor
+   The `vstimd/psychopy/` compatibility shim should intercept the `image` constructor
    argument and auto-upload the file to the asset store, returning a handle.

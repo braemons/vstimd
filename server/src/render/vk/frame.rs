@@ -52,7 +52,7 @@ pub fn render_frame(
                 Ok(()) => {}
                 Err(vk::Result::TIMEOUT) => {
                     log::warn!(
-                        "wonderlamp: vkWaitForPresentKHR timed out (id {})",
+                        "vstimd: vkWaitForPresentKHR timed out (id {})",
                         this_present_id - 1
                     );
                 }
@@ -292,7 +292,7 @@ pub fn render_frame(
             frame.in_flight,
         ) {
             log::error!(
-                "wonderlamp: queue_submit failed: {e} \
+                "vstimd: queue_submit failed: {e} \
                  [frame={} tess={}µs fence={}µs acquire={}µs record={}µs]",
                 this_present_id, tessellate_us, fence_us, acquire_us, record_us
             );
@@ -332,7 +332,7 @@ pub fn render_frame(
     let dropped_frames = frame_stats.on_present(vblank_time);
     if dropped_frames > 0 {
         log::warn!(
-            "wonderlamp: {} dropped frame(s) before frame {} \
+            "vstimd: {} dropped frame(s) before frame {} \
              [tess={}µs fence={}µs acquire={}µs record={}µs submit={}µs]",
             dropped_frames, this_present_id,
             tessellate_us, fence_us, acquire_us, record_us, submit_us

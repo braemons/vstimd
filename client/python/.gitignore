@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+
+# Generated protobuf stubs — regenerate with: make proto
+vstimd/_proto/**/*_pb2.py
+vstimd/_proto/**/*_pb2.pyi

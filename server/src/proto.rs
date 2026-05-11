@@ -1,7 +1,7 @@
-pub mod wonderlamp {
+pub mod vstimd {
     pub mod v1 {
-        include!(concat!(env!("OUT_DIR"), "/wonderlamp.v1.rs"));
+        include!(concat!(env!("OUT_DIR"), "/vstimd.v1.rs"));
     }
 }
 
-pub use wonderlamp::v1::*;
+pub use vstimd::v1::*;

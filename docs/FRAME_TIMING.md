@@ -4,7 +4,7 @@ Precise frame timing is essential for neuroscience experiments — every skipped
 frame is a measurement error.  Unit tests cannot catch timing failures caused
 by OS jitter, GPU scheduling, or display misconfiguration.  This document
 describes three complementary layers of timing verification built into the
-`wonderlamp_server` project.
+`vstimd` project.
 
 ---
 
@@ -141,10 +141,10 @@ uv pip install -e "tools/timing_test[u3]"
 
 ```bash
 # Simulated (no hardware, no server):
-uv run python -m wonderlamp_timing_test --backend simulated --no-server --duration 5
+uv run python -m vstimd_timing_test --backend simulated --no-server --duration 5
 
 # With running server + auto-detected DAQ:
-uv run python -m wonderlamp_timing_test --backend auto --hz 60 --duration 5 --out result.csv
+uv run python -m vstimd_timing_test --backend auto --hz 60 --duration 5 --out result.csv
 
 # Unit tests (no hardware needed):
 uv run pytest tools/timing_test/tests/
@@ -154,7 +154,7 @@ uv run pytest tools/timing_test/tests/
 
 ```
 ┌────────────────────┐          ┌─────────────┐
-│   wonderlamp_server PC  │          │  DAQ device │
+│   vstimd PC  │          │  DAQ device │
 │                    │          │             │
 │  Monitor ──────────┼── light ─┼─► Photodiode│
 │  (ZMQ port 5555)   │          │  (analog in)│
@@ -308,7 +308,7 @@ cd server
 cargo run --features overlay
 
 # 2. Run the timing test (hardware lab)
-uv run python -m wonderlamp_timing_test \
+uv run python -m vstimd_timing_test \
     --backend auto \
     --server tcp://localhost:5555 \
     --hz 60 \

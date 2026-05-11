@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vstimd"
+version = "0.1.0"
+description = "Python client for vstimd (protobuf + ZMQ)"
+requires-python = ">=3.10"
+dependencies = [
+    "pyzmq>=25",
+    "protobuf>=5",
+]
+
+[dependency-groups]
+# grpcio-tools bundles protoc and is required for `make proto`
+dev = ["pytest>=8", "grpcio-tools>=1.62"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["vstimd*"]
