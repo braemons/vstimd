@@ -27,7 +27,7 @@ def reachable(address: str, timeout_ms: int = 500) -> bool:
     try:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
-            query_server_info=system_pb2.QueryServerInfo(),
+            query_server_info=system_pb2.QueryServerInfoRequest(),
         )
         sock.send(req.SerializeToString())
         sock.recv()

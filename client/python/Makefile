@@ -5,7 +5,7 @@ PROTO_OUT  := vstimd/_proto
 .PHONY: build publish proto test test-integration test-e2e test-e2e-null clean
 
 proto:
-	uv run python -m grpc_tools.protoc \
+	uv run --group dev python -m grpc_tools.protoc \
 		--proto_path=../../proto \
 		--python_out=$(PROTO_OUT) \
 		--pyi_out=$(PROTO_OUT) \
@@ -20,16 +20,16 @@ publish:
 test: proto
 	uv pip install -r tests/unit/requirements-psychopy.txt
 	uv pip install psychopy --no-deps
-	uv run pytest tests/unit/
+	uv run --group dev pytest tests/unit/
 
 test-integration:
 	@echo "Not implemented yet: integration tests with MockServer"
 
 test-e2e: proto
-	uv run pytest tests/e2e/test_e2e.py -v
+	uv run --group dev pytest tests/e2e/test_e2e.py -v
 
 test-e2e-null: proto
-	uv run pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v
+	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v
 
 clean:
 	rm -rf dist/ .venv/
