@@ -442,6 +442,7 @@ fn build_grating_push_constants(
         color: s.color.live,
         waveform: p.waveform as u32,
         mask_type: p.mask as u32,
-        _pad: [0; 2],
+        mask_param: p.mask_param,
+        _pad: 0,
     }
 }

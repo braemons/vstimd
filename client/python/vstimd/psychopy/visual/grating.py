@@ -1,26 +1,61 @@
 from __future__ import annotations
 
+from enum import StrEnum
+
 from vstimd._proto.vstimd.v1 import stimuli_2d_pb2 as _pb2
 from ._colors import normalize_color
 from ._types import ColorInput, Vec2
 from ._units import to_pixels
 from .window import Window
 
-# tex string → WaveformType proto int
-_WAVEFORM_MAP: dict[str, int] = {
-    "sin": _pb2.WAVEFORM_TYPE_SIN,
-    "sqr": _pb2.WAVEFORM_TYPE_SQR,
-    "saw": _pb2.WAVEFORM_TYPE_SAW,
-    "tri": _pb2.WAVEFORM_TYPE_TRI,
+
+class GratingTex(StrEnum):
+    SIN = "sin"
+    SQR = "sqr"
+    SAW = "saw"
+    TRI = "tri"
+
+
+class GratingMask(StrEnum):
+    NONE       = "none"
+    CIRCLE     = "circle"
+    GAUSS      = "gauss"
+    RAISED_COS = "raisedCos"
+    HANN       = "hann"
+
+
+# tex → WaveformType proto int
+_WAVEFORM_MAP: dict[GratingTex, int] = {
+    GratingTex.SIN: _pb2.WAVEFORM_TYPE_SIN,
+    GratingTex.SQR: _pb2.WAVEFORM_TYPE_SQR,
+    GratingTex.SAW: _pb2.WAVEFORM_TYPE_SAW,
+    GratingTex.TRI: _pb2.WAVEFORM_TYPE_TRI,
 }
 
-# mask string → MaskType proto int
-_MASK_MAP: dict[str, int] = {
-    "none": _pb2.MASK_TYPE_NONE,
-    "circle": _pb2.MASK_TYPE_CIRCLE,
-    "gauss": _pb2.MASK_TYPE_GAUSS,
-    "raisedCos": _pb2.MASK_TYPE_GAUSS,  # closest approximation
+# mask → MaskType proto int
+_MASK_MAP: dict[GratingMask, int] = {
+    GratingMask.NONE:       _pb2.MASK_TYPE_NONE,
+    GratingMask.CIRCLE:     _pb2.MASK_TYPE_CIRCLE,
+    GratingMask.GAUSS:      _pb2.MASK_TYPE_GAUSS,
+    GratingMask.RAISED_COS: _pb2.MASK_TYPE_RAISED_COS,
+    GratingMask.HANN:       _pb2.MASK_TYPE_HANN,
 }
+
+
+def _parse_mask_param(mask: GratingMask | str | None, mask_params: dict | None) -> float:
+    """Extract the mask-specific scalar parameter from a PsychoPy maskParams dict.
+
+    - gauss:     {'sd': float}         — SD in normalized units (patch radius = 1)
+    - raisedCos: {'fringeWidth': float} — fringe proportion [0, 1]
+    Returns 0.0 (use server default) when maskParams is absent or the key is missing.
+    """
+    if not mask_params:
+        return 0.0
+    if mask == GratingMask.GAUSS:
+        return float(mask_params.get("sd", 0.0))
+    if mask == GratingMask.RAISED_COS:
+        return float(mask_params.get("fringeWidth", 0.0))
+    return 0.0
 
 
 class GratingStim:
@@ -42,8 +77,8 @@ class GratingStim:
     def __init__(
         self,
         win: Window,
-        tex: str = "sin",
-        mask: str | None = None,
+        tex: GratingTex | str = GratingTex.SIN,
+        mask: GratingMask | str | None = None,
         units: str = "",
         pos: Vec2 = (0.0, 0.0),
         size: Vec2 | float | None = None,
@@ -71,6 +106,46 @@ class GratingStim:
         rgbPedestal: tuple[float, float, float] = (0.0, 0.0, 0.0),
         maskParams: dict | None = None,
     ) -> None:
+        # ── Coerce and validate tex / mask ────────────────────────────────────
+        try:
+            tex = GratingTex(tex) if tex is not None else None
+        except ValueError:
+            raise NotImplementedError(
+                f"GratingStim: tex={tex!r} is not supported. "
+                f"Supported values: {[e.value for e in GratingTex]} or None."
+            )
+        try:
+            mask = GratingMask(mask) if mask is not None else None
+        except ValueError:
+            raise NotImplementedError(
+                f"GratingStim: mask={mask!r} is not supported. "
+                f"Supported values: {[e.value for e in GratingMask]} or None."
+            )
+        if hasattr(phase, "__len__") and len(phase) > 1 and float(phase[1]) != 0.0:  # type: ignore[index]
+            raise NotImplementedError(
+                "GratingStim: two-element phase (x, y) is not supported — only the x component is used. "
+                "Pass a scalar or ensure phase[1] == 0."
+            )
+        if blendmode != "avg":
+            raise NotImplementedError(
+                f"GratingStim: blendmode={blendmode!r} is not supported. Only 'avg' is implemented."
+            )
+        if anchor is not None and anchor != "center":
+            raise NotImplementedError(
+                f"GratingStim: anchor={anchor!r} is not supported. Only None/'center' is implemented."
+            )
+        if colorSpace not in ("rgb", "rgb255", "rgb1", ""):
+            raise NotImplementedError(
+                f"GratingStim: colorSpace={colorSpace!r} is not supported. "
+                "Supported values: 'rgb', 'rgb255', 'rgb1'."
+            )
+        if draggable:
+            raise NotImplementedError("GratingStim: draggable=True is not supported.")
+        if tuple(rgbPedestal) != (0.0, 0.0, 0.0):
+            raise NotImplementedError(
+                f"GratingStim: rgbPedestal={rgbPedestal!r} is not supported. Only (0, 0, 0) is accepted."
+            )
+
         self._win = win
         self._units = units
         self._color_space = colorSpace
@@ -99,8 +174,9 @@ class GratingStim:
         self._drift_angle = float(drift_angle)
         self._auto_draw = False
 
-        waveform = _WAVEFORM_MAP.get(tex, _pb2.WAVEFORM_TYPE_SIN) if tex else _pb2.WAVEFORM_TYPE_SIN
-        mask_type = _MASK_MAP.get(mask, _pb2.MASK_TYPE_NONE) if mask else _pb2.MASK_TYPE_NONE
+        waveform  = _WAVEFORM_MAP[tex]  if tex  is not None else _pb2.WAVEFORM_TYPE_SIN
+        mask_type = _MASK_MAP[mask]     if mask is not None else _pb2.MASK_TYPE_NONE
+        mask_param = _parse_mask_param(mask, maskParams)
 
         px, py = self._to_px(self._pos)
         pw = self._scalar_px(self._width)
@@ -119,6 +195,7 @@ class GratingStim:
             r=rgba[0], g=rgba[1], b=rgba[2], a=rgba[3],
             waveform=waveform,
             mask=mask_type,
+            mask_param=mask_param,
             drift_speed=self._drift_speed,
             drift_decoupled=self._drift_decoupled,
             drift_angle=self._drift_angle,
@@ -269,6 +346,11 @@ class GratingStim:
 
     def setColor(self, value: ColorInput, colorSpace: str | None = None, log: bool | None = None) -> None:
         if colorSpace is not None:
+            if colorSpace not in ("rgb", "rgb255", "rgb1", ""):
+                raise NotImplementedError(
+                    f"GratingStim: colorSpace={colorSpace!r} is not supported. "
+                    "Supported values: 'rgb', 'rgb255', 'rgb1'."
+                )
             self._color_space = colorSpace
         self.color = value
 

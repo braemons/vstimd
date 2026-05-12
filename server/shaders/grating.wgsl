@@ -13,10 +13,12 @@
 //   phase        f32         total phase (static + accumulated drift) in [0,1]
 //   ori_rad      f32         stripe orientation in radians (CCW from X axis)
 //   contrast     f32         [0, 1]
+//   (8 bytes padding — vec4 requires 16-byte alignment)
 //   color        vec4<f32>   peak colour (rgb) and opacity (a)
 //   waveform     u32         0=sin  1=sqr  2=saw  3=tri
-//   mask_type    u32         0=none  1=circle  2=gauss
-//   _pad         vec2<u32>   alignment padding
+//   mask_type    u32         0=none  1=circle  2=gauss  3=hann  4=raisedCos
+//   mask_param   f32         mask-specific param (0=default): SD for gauss; fringe for raisedCos
+//   _pad         u32         alignment padding
 
 struct PushConstants {
     screen_half : vec2<f32>,
@@ -29,7 +31,8 @@ struct PushConstants {
     color       : vec4<f32>,
     waveform    : u32,
     mask_type   : u32,
-    _pad        : vec2<u32>,
+    mask_param  : f32,
+    _pad        : u32,
 }
 
 var<push_constant> p: PushConstants;
@@ -79,9 +82,33 @@ fn mask_circle(d: vec2<f32>, half_size: vec2<f32>) -> f32 {
     return select(0.0, 1.0, length(d) <= r);
 }
 
-fn mask_gauss(d: vec2<f32>, half_size: vec2<f32>) -> f32 {
-    let sigma = min(half_size.x, half_size.y) * 0.5;
+// Gaussian envelope. mask_param = SD in normalized units (patch radius = 1); default 1/3.
+// At the default SD the value at the patch edge is exp(-4.5) ≈ 0.011.
+fn mask_gauss(d: vec2<f32>, half_size: vec2<f32>, sd: f32) -> f32 {
+    let s     = select(0.33333, sd, sd > 0.0);
+    let sigma = min(half_size.x, half_size.y) * s;
     return exp(-dot(d, d) / (2.0 * sigma * sigma));
+}
+
+// Cosine bell (Hanning window): exactly 0 at the circular border, 1 at centre.
+fn mask_hann(d: vec2<f32>, half_size: vec2<f32>) -> f32 {
+    let r = min(half_size.x, half_size.y);
+    let dist = length(d);
+    if dist >= r { return 0.0; }
+    return 0.5 * (1.0 + cos(3.14159265358979 * dist / r));
+}
+
+// Tukey window (PsychoPy raisedCos): flat at 1 in the interior, raised-cosine taper
+// in the outer fringe.  mask_param = fringe proportion [0, 1]; default 0.2.
+fn mask_raised_cos(d: vec2<f32>, half_size: vec2<f32>, fringe_prop: f32) -> f32 {
+    let fp    = select(0.2, fringe_prop, fringe_prop > 0.0);
+    let r     = min(half_size.x, half_size.y);
+    let dist  = length(d);
+    if dist >= r { return 0.0; }
+    let fringe = fp * r;
+    let inner  = r - fringe;
+    if dist <= inner { return 1.0; }
+    return 0.5 * (1.0 + cos(3.14159265358979 * (dist - inner) / fringe));
 }
 
 @fragment
@@ -117,7 +144,9 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
     var alpha: f32;
     switch p.mask_type {
         case 1u:  { alpha = mask_circle(d, p.half_size); }
-        case 2u:  { alpha = mask_gauss(d, p.half_size); }
+        case 2u:  { alpha = mask_gauss(d, p.half_size, p.mask_param); }
+        case 3u:  { alpha = mask_hann(d, p.half_size); }
+        case 4u:  { alpha = mask_raised_cos(d, p.half_size, p.mask_param); }
         default:  { alpha = 1.0; }
     }
     alpha *= p.color.a;

@@ -28,6 +28,8 @@ pub fn proto_to_mask(v: i32) -> GratingMask {
         proto::MaskType::Unspecified | proto::MaskType::None => GratingMask::None,
         proto::MaskType::Circle => GratingMask::Circle,
         proto::MaskType::Gauss => GratingMask::Gauss,
+        proto::MaskType::Hann => GratingMask::Hann,
+        proto::MaskType::RaisedCos => GratingMask::RaisedCos,
     }
 }
 
@@ -36,6 +38,8 @@ pub fn mask_to_proto(m: GratingMask) -> proto::MaskType {
         GratingMask::None => proto::MaskType::None,
         GratingMask::Circle => proto::MaskType::Circle,
         GratingMask::Gauss => proto::MaskType::Gauss,
+        GratingMask::Hann => proto::MaskType::Hann,
+        GratingMask::RaisedCos => proto::MaskType::RaisedCos,
     }
 }
 
@@ -77,6 +81,7 @@ impl SceneState {
                     contrast,
                     waveform: proto_to_waveform(cmd.waveform),
                     mask: proto_to_mask(cmd.mask),
+                    mask_param: cmd.mask_param,
                     drift_speed: cmd.drift_speed,
                     drift_coupled,
                     drift_angle: cmd.drift_angle,
@@ -286,6 +291,7 @@ impl SceneState {
                 contrast: p.contrast,
                 waveform: waveform_to_proto(p.waveform) as i32,
                 mask: mask_to_proto(p.mask) as i32,
+                mask_param: p.mask_param,
                 drift_speed: p.drift_speed,
                 drift_decoupled: !p.drift_coupled,
                 drift_angle: p.drift_angle,

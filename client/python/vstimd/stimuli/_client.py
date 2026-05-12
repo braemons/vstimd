@@ -106,11 +106,17 @@ class StimuliClient:
         a: float = 1.0,
         waveform: int = stimuli_pb2.WAVEFORM_TYPE_SIN,
         mask: int = stimuli_pb2.MASK_TYPE_NONE,
+        mask_param: float = 0.0,
         drift_speed: float = 0.0,
         drift_decoupled: bool = False,
         drift_angle: float = 0.0,
     ) -> int:
-        """Create a grating stimulus and return its handle."""
+        """Create a grating stimulus and return its handle.
+
+        mask_param interpretation (0 = use default):
+          - MASK_TYPE_GAUSS:      SD in normalized units where patch radius = 1 (default 1/3)
+          - MASK_TYPE_RAISED_COS: fringe proportion [0, 1] (default 0.2)
+        """
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_grating=stimuli_pb2.CreateGratingRequest(
@@ -124,6 +130,7 @@ class StimuliClient:
                 color=common_pb2.Color(r=r, g=g, b=b, a=a),
                 waveform=waveform,
                 mask=mask,
+                mask_param=mask_param,
                 drift_speed=drift_speed,
                 drift_decoupled=drift_decoupled,
                 drift_angle=drift_angle,

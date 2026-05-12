@@ -18,7 +18,8 @@ use crate::render::Vertex;
 ///   offset 48: color        [f32; 4]
 ///   offset 64: waveform     u32
 ///   offset 68: mask_type    u32
-///   offset 72: _pad         [u32; 2]
+///   offset 72: mask_param   f32   (SD for gauss; fringe width for raisedCos; 0 = use default)
+///   offset 76: _pad         u32
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GratingPushConstants {
@@ -33,7 +34,8 @@ pub struct GratingPushConstants {
     pub color       : [f32; 4],
     pub waveform    : u32,
     pub mask_type   : u32,
-    pub _pad        : [u32; 2],
+    pub mask_param  : f32,
+    pub _pad        : u32,
 }
 
 pub struct VkPipeline {

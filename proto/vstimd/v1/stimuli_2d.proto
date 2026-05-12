@@ -18,6 +18,8 @@ enum MaskType {
   MASK_TYPE_NONE = 1;
   MASK_TYPE_CIRCLE = 2;
   MASK_TYPE_GAUSS = 3;
+  MASK_TYPE_HANN = 4;       // cosine bell: 0.5*(1+cos(π·r/R)), tapers from centre to edge
+  MASK_TYPE_RAISED_COS = 5; // Tukey window: flat in inner 80%, raised-cosine taper in outer 20%
 }
 
 // ── Stimulus creation ─────────────────────────────────────────────────────────
@@ -67,6 +69,10 @@ message CreateGratingRequest {
   WaveformType waveform    = 9;  // carrier waveform (default SIN)
   MaskType     mask        = 10; // aperture mask (default NONE)
   float        opacity     = 11; // global opacity [0, 1] (0 → default 1)
+  // Mask-specific parameter (interpreted per mask type; 0 → use default):
+  //   gauss:     SD in normalized units where patch radius = 1 (default 0.333)
+  //   raisedCos: fringe proportion [0, 1] (default 0.2, matching PsychoPy)
+  float        mask_param  = 15;
   float        drift_speed    = 12; // drift rate in cycles/second (default 0 = static)
   // When drift_decoupled is false (default / absent) the drift direction follows
   // the grating orientation (perpendicular to the stripes).  Set to true and
@@ -229,6 +235,7 @@ message GratingParams {
   float        drift_speed    = 8;
   bool         drift_decoupled = 9;
   float        drift_angle    = 10;
+  float        mask_param     = 11; // mask-specific parameter (see CreateGratingRequest.mask_param)
 }
 
 // Response payload for QueryStimulusRequest.

@@ -205,6 +205,9 @@ def test_grating_visual(conn: Connection, step_delay: float) -> None:
     conn.stimuli.set_grating_mask(handle, _pb2.MASK_TYPE_GAUSS)
     step()
 
+    conn.stimuli.set_grating_mask(handle, _pb2.MASK_TYPE_HANN)
+    step()
+
     conn.stimuli.set_grating_mask(handle, _pb2.MASK_TYPE_NONE)
     step()
 
