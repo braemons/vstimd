@@ -668,11 +668,14 @@ impl SceneState {
     // ── QueryServerInfo ───────────────────────────────────────────────────────
 
     fn cmd_query_server_info(&self) -> proto::Response {
+        let Some((w, h)) = self.screen_size else {
+            return err(proto::ErrorCode::NotReady, "display not yet initialised");
+        };
         let bg = self.background.live;
         let version = parse_cargo_version();
         ok_body(proto::response::Body::ServerInfo(proto::QueryServerInfoResponse {
-            width: self.screen_size.0,
-            height: self.screen_size.1,
+            width: w,
+            height: h,
             frame_rate: self.frame_rate,
             background_color: Some(proto::Color { r: bg[0], g: bg[1], b: bg[2], a: bg[3] }),
             backend: proto::Backend::Unspecified as i32,

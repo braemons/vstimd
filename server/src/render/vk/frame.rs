@@ -78,7 +78,7 @@ pub fn render_frame(
         if sc.pending_flip {
             sc.apply_flip();
         }
-        sc.screen_size = screen_size;
+        sc.screen_size = Some(screen_size);
         sc.frame_rate = fps;
         // When the screen size changes all NDC coordinates are stale.
         if sc.last_uploaded_size != screen_size {
@@ -104,6 +104,13 @@ pub fn render_frame(
                 continue;
             }
             let (verts, idxs) = tess::tessellate_stimulus(stim, screen_size);
+            log::debug!(
+                "tess #{handle} {} screen={screen_size:?} verts={} idxs={}{}",
+                stim.type_name(), verts.len(), idxs.len(),
+                if let Stimulus::Grating(s) = stim {
+                    format!(" pos={:?} size={:?} enabled={}", s.transform.live.pos, s.size.live, s.flags.enabled)
+                } else { String::new() }
+            );
             gpu_buffers.upload(handle, &ctx.device, &verts, &idxs);
             sc.stimuli[&handle].flags_mut().dirty = false;
         }
@@ -207,6 +214,9 @@ pub fn render_frame(
             Vec::new();
 
         for (h, stim) in &sc.stimuli {
+            if !stim.is_visible() {
+                continue;
+            }
             if let Some(mesh) = gpu_buffers.meshes.get(h).filter(|m| m.index_count > 0) {
                 if let Stimulus::Grating(s) = stim {
                     let pc = build_grating_push_constants(s, screen_w, screen_h);
@@ -255,6 +265,12 @@ pub fn render_frame(
         // ── Pass 2: grating stimuli ───────────────────────────────────────────
         ctx.cmd_begin_label(cb, "grating stimuli", [0.8, 0.5, 0.1, 1.0]);
         if !grating_draws.is_empty() {
+            if let Some((_, _, _, pc)) = grating_draws.first() {
+                log::debug!(
+                    "draw {} gratings: first center={:?} half_size={:?} screen_half={:?} contrast={} sf={}",
+                    grating_draws.len(), pc.center_px, pc.half_size, pc.screen_half, pc.contrast, pc.sf
+                );
+            }
             ctx.device.cmd_bind_pipeline(
                 cb,
                 vk::PipelineBindPoint::GRAPHICS,

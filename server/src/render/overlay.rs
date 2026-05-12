@@ -1,18 +1,20 @@
 use std::sync::{Arc, RwLock};
 
 use crate::log_buffer::LogBuffer;
-use crate::scene::SceneState;
+use crate::scene::{SceneState, Stimulus};
 use crate::timing::{FramePhases, FrameStats};
 
 pub use super::system_info::SystemInfo;
+use super::benchmark::BenchmarkState;
 
 pub fn build_overlay_ui(
     ctx: &egui::Context,
     scene: &Arc<RwLock<SceneState>>,
-    frame_stats: &FrameStats,
+    frame_stats: &mut FrameStats,
     last_phases: FramePhases,
     sys: &SystemInfo,
     log_buffer: &LogBuffer,
+    bench: &mut BenchmarkState,
 ) {
     egui::Window::new("System").show(ctx, |ui| {
         ui.label(format!(
@@ -89,16 +91,50 @@ pub fn build_overlay_ui(
         }
     });
 
-    egui::Window::new("Stimuli").show(ctx, |ui| {
+    egui::Window::new("Stimuli").default_size([420.0, 200.0]).show(ctx, |ui| {
         if let Ok(mut sc) = scene.try_write() {
             let handles: Vec<u32> = sc.stimuli.keys().copied().collect();
-            for h in handles {
-                if let Some(stim) = sc.stimuli.get_mut(&h) {
-                    let type_name = stim.type_name();
-                    let flags = stim.flags_mut();
-                    ui.checkbox(&mut flags.enabled, format!("#{h} {type_name}"));
-                }
-            }
+            egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
+                egui::Grid::new("stimuli_grid")
+                    .striped(true)
+                    .num_columns(4)
+                    .spacing([8.0, 2.0])
+                    .show(ui, |ui| {
+                        ui.label(egui::RichText::new("En").strong());
+                        ui.label(egui::RichText::new("Handle / type").strong());
+                        ui.label(egui::RichText::new("Position (px)").strong());
+                        ui.label(egui::RichText::new("Size (px)").strong());
+                        ui.end_row();
+                        for h in handles {
+                            if let Some(stim) = sc.stimuli.get_mut(&h) {
+                                let type_name = stim.type_name();
+                                let pos = stim.transform().map(|t| t.live.pos).unwrap_or([0.0; 2]);
+                                let size_label = match &*stim {
+                                    Stimulus::Grating(s) => {
+                                        let [hw, hh] = s.size.live;
+                                        format!("{}×{}", (hw * 2.0) as i32, (hh * 2.0) as i32)
+                                    }
+                                    Stimulus::Rect(s) => {
+                                        let [hw, hh] = s.size.live;
+                                        format!("{}×{}", (hw * 2.0) as i32, (hh * 2.0) as i32)
+                                    }
+                                    Stimulus::Disc(s) => format!("r={}", s.radius.live as i32),
+                                    Stimulus::Ellipse(s) => {
+                                        let [rx, ry] = s.radii.live;
+                                        format!("{}×{}", (rx * 2.0) as i32, (ry * 2.0) as i32)
+                                    }
+                                    _ => "—".to_string(),
+                                };
+                                let flags = stim.flags_mut();
+                                ui.checkbox(&mut flags.enabled, "");
+                                ui.label(format!("#{h} {type_name}"));
+                                ui.label(format!("{:.0},{:.0}", pos[0], pos[1]));
+                                ui.label(size_label);
+                                ui.end_row();
+                            }
+                        }
+                    });
+            });
         }
     });
 
@@ -135,6 +171,29 @@ pub fn build_overlay_ui(
                         );
                     }
                 });
+        }
+    });
+
+    // Tick the benchmark every frame so it can detect completion.
+    bench.tick(scene, frame_stats);
+
+    egui::Window::new("Benchmarks").show(ctx, |ui| {
+        ui.heading("Grating stress test");
+        if bench.is_running() {
+            let remaining = bench.remaining_frames(frame_stats).unwrap_or(0);
+            ui.label(format!("Running… {remaining} frames remaining"));
+        } else {
+            // 20 × 10 = 200 gratings, 300 frames (~5 s at 60 Hz)
+            if ui.button("Run (200 gratings, 300 frames)").clicked() {
+                bench.start_grating_stress(scene, frame_stats, (sys.display.width_px, sys.display.height_px), 20, 10, 300);
+            }
+            if let Some(r) = bench.last_result() {
+                ui.separator();
+                ui.label(format!(
+                    "{} gratings × {} frames → {} dropped",
+                    r.grating_count, r.duration_frames, r.drop_count,
+                ));
+            }
         }
     });
 
