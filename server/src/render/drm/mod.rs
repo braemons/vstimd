@@ -18,7 +18,7 @@ use self::input::{AppKey, InputState};
 use self::vblank::DrmVblank;
 use crate::render::overlay::build_overlay_ui;
 use crate::render::system_info::ClockSource;
-use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, query_local_ip};
+use crate::render::{BenchmarkState, RenderTarget, StimulusDisplayInfo, SystemInfo, query_local_ip};
 use crate::timing::FramePhases;
 
 /// Bare-metal Linux render state — drives the display directly via
@@ -42,6 +42,7 @@ pub struct DrmRenderState {
     frame_stats: FrameStats,
     last_phases: FramePhases,
     show_overlay: bool,
+    benchmark: BenchmarkState,
     display_info: StimulusDisplayInfo,
     local_ip: String,
     log_buffer: LogBuffer,
@@ -172,6 +173,7 @@ impl DrmRenderState {
             frame_stats: FrameStats::new(display_info.refresh_hz),
             last_phases: FramePhases::default(),
             show_overlay: false,
+            benchmark: BenchmarkState::new(),
             display_info,
             local_ip: query_local_ip(),
             log_buffer,
@@ -244,7 +246,7 @@ impl DrmRenderState {
                     },
                 };
                 let output = self.egui_ctx.run_ui(raw_input, |ctx| {
-                    build_overlay_ui(ctx, &self.scene, &self.frame_stats, phases, &sys, &self.log_buffer);
+                    build_overlay_ui(ctx, &self.scene, &mut self.frame_stats, phases, &sys, &self.log_buffer, &mut self.benchmark);
                 });
                 let ppp = output.pixels_per_point;
                 let textures_delta = output.textures_delta;

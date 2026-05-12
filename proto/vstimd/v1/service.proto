@@ -25,6 +25,8 @@ enum ErrorCode {
   ERROR_CODE_INVALID_ARGUMENT    = 7;
   // Command exists but is not supported in the current configuration.
   ERROR_CODE_NOT_SUPPORTED       = 8;
+  // Server is still initialising; retry after the first rendered frame.
+  ERROR_CODE_NOT_READY           = 9;
 }
 
 // ── Request routing ───────────────────────────────────────────────────────────

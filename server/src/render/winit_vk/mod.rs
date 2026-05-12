@@ -19,6 +19,7 @@ use crate::render::vk::{
 use crate::timing::FramePhases;
 use crate::scene::SceneState;
 use crate::timing::{FrameStats, FrameTick};
+use crate::render::BenchmarkState;
 
 // FIFO is the only present mode used throughout the application.
 //
@@ -57,6 +58,7 @@ struct State {
     frame_index: usize,
     egui_ctx: egui::Context,
     show_overlay: bool,
+    benchmark: BenchmarkState,
     refresh_hz: f64,
     window_mode: WindowMode,
     local_ip: String,
@@ -155,6 +157,7 @@ impl State {
             egui_ctx,
             egui_winit,
             show_overlay: false,
+            benchmark: BenchmarkState::new(),
             refresh_hz: hz,
             window_mode,
             local_ip: query_local_ip(),
@@ -195,7 +198,7 @@ impl State {
                 clock_source,
             };
             let output = self.egui_ctx.run_ui(raw_input, |ctx| {
-                build_overlay_ui(ctx, &self.scene, &self.frame_stats, phases, &sys, &self.log_buffer);
+                build_overlay_ui(ctx, &self.scene, &mut self.frame_stats, phases, &sys, &self.log_buffer, &mut self.benchmark);
             });
             self.egui_winit
                 .handle_platform_output(&self.window, output.platform_output);
