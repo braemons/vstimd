@@ -5,6 +5,20 @@ use crate::render::Vertex;
 // ── Push-constant layout for the grating pipeline ────────────────────────────
 
 /// Must match the `PushConstants` struct in `shaders/grating.wgsl` (std430).
+///
+/// Layout (80 bytes):
+///   offset  0: screen_half  [f32; 2]
+///   offset  8: center_px    [f32; 2]
+///   offset 16: half_size    [f32; 2]
+///   offset 24: sf           f32
+///   offset 28: phase        f32
+///   offset 32: ori_rad      f32
+///   offset 36: contrast     f32
+///   offset 40: _pad_color   [u32; 2]  ← 8-byte gap: vec4 requires 16-byte alignment
+///   offset 48: color        [f32; 4]
+///   offset 64: waveform     u32
+///   offset 68: mask_type    u32
+///   offset 72: _pad         [u32; 2]
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GratingPushConstants {
@@ -15,6 +29,7 @@ pub struct GratingPushConstants {
     pub phase       : f32,
     pub ori_rad     : f32,
     pub contrast    : f32,
+    pub _pad_color  : [u32; 2],
     pub color       : [f32; 4],
     pub waveform    : u32,
     pub mask_type   : u32,

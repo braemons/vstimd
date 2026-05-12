@@ -438,6 +438,7 @@ fn build_grating_push_constants(
         phase: p.phase + s.phase_accum,
         ori_rad: s.transform.live.angle.to_radians(),
         contrast: p.contrast,
+        _pad_color: [0; 2],
         color: s.color.live,
         waveform: p.waveform as u32,
         mask_type: p.mask as u32,
