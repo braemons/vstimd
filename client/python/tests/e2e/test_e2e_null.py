@@ -55,6 +55,11 @@ def server_process(server_address: str):
     proc.wait(timeout=5)
 
 
+@pytest.fixture
+def step_delay() -> float:
+    return 0.0
+
+
 @pytest.fixture(scope="session")
 def conn(server_address: str) -> Connection:
     c = Connection(server_address)

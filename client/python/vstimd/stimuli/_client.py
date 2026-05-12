@@ -253,7 +253,7 @@ class StimuliClient:
     def set_grating_drift_speed(self, handle: int, drift_speed: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
-            set_grating_drift_speed=stimuli_pb2.SetGratingDriftSpeedRequest(drift_speed=drift_speed),
+            set_grating_drift_speed=stimuli_pb2.SetGratingDriftSpeedRequest(speed=drift_speed),
         )
         self._send(req)
 
@@ -261,7 +261,7 @@ class StimuliClient:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_drift_decoupled=stimuli_pb2.SetGratingDriftDecoupledRequest(
-                drift_decoupled=drift_decoupled
+                decoupled=drift_decoupled
             ),
         )
         self._send(req)
@@ -269,7 +269,7 @@ class StimuliClient:
     def set_grating_drift_angle(self, handle: int, drift_angle: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
-            set_grating_drift_angle=stimuli_pb2.SetGratingDriftAngleRequest(drift_angle=drift_angle),
+            set_grating_drift_angle=stimuli_pb2.SetGratingDriftAngleRequest(angle_deg=drift_angle),
         )
         self._send(req)
 
