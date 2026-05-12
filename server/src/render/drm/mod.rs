@@ -1,6 +1,7 @@
 mod display_guard;
 mod init;
 mod input;
+mod vblank;
 
 use std::sync::{Arc, RwLock};
 
@@ -14,7 +15,9 @@ use crate::timing::FrameStats;
 
 use self::display_guard::DisplayGuard;
 use self::input::{AppKey, InputState};
+use self::vblank::DrmVblank;
 use crate::render::overlay::build_overlay_ui;
+use crate::render::system_info::ClockSource;
 use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, query_local_ip};
 use crate::timing::FramePhases;
 
@@ -34,6 +37,7 @@ pub struct DrmRenderState {
     egui_renderer: VkEguiRenderer,
     egui_ctx: egui::Context,
     input: InputState,
+    drm_vblank: Option<DrmVblank>,
     scene: Arc<RwLock<SceneState>>,
     frame_stats: FrameStats,
     last_phases: FramePhases,
@@ -110,6 +114,13 @@ impl DrmRenderState {
         // Snapshot display state before Vulkan takes DRM master.
         let display_guard = DisplayGuard::acquire();
 
+        // Open DRM vblank BEFORE Vulkan init. After VK_KHR_display takes DRM
+        // master the KMS CRTC state changes and get_crtc().mode() returns None,
+        // so we must query it while the kernel still shows the CRTC as active.
+        // The fd stays valid for wait_vblank throughout the session (no master
+        // required for that ioctl).
+        let drm_vblank = DrmVblank::open();
+
         // Initialise Vulkan — VK_KHR_display acquires DRM master internally.
         let (ctx, display_info) = init::init();
         let wf_mode = if ctx.supports_wireframe {
@@ -156,6 +167,7 @@ impl DrmRenderState {
             egui_renderer,
             egui_ctx,
             input,
+            drm_vblank,
             scene,
             frame_stats: FrameStats::new(display_info.refresh_hz),
             last_phases: FramePhases::default(),
@@ -225,6 +237,11 @@ impl DrmRenderState {
                     hostname: String::new(),
                     gpu_name: String::new(),
                     wireframe: None,
+                    clock_source: if self.drm_vblank.is_some() {
+                        ClockSource::DrmVblank
+                    } else {
+                        ClockSource::GpuCompletion
+                    },
                 };
                 let output = self.egui_ctx.run_ui(raw_input, |ctx| {
                     build_overlay_ui(ctx, &self.scene, &self.frame_stats, phases, &sys, &self.log_buffer);
@@ -246,6 +263,11 @@ impl DrmRenderState {
                     (None, None)
                 };
 
+            // Block on the next kernel scanout event before rendering the frame.
+            // This gives an accurate vblank-anchored screen clock independent of
+            // which Vulkan timing extensions the driver supports.
+            let screen_clock = self.drm_vblank.as_ref().map(|v| v.wait());
+
             // `None` means the swapchain is out of date (rare in DRM mode).
             let (pipe, grate) = if self.wireframe {
                 (&self.wireframe_pipeline, &self.wireframe_grating)
@@ -262,6 +284,7 @@ impl DrmRenderState {
                 &mut self.frame_stats,
                 egui_renderer,
                 egui_data,
+                screen_clock,
             ) {
                 self.last_phases = t.phases;
             }

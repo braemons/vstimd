@@ -10,6 +10,7 @@ use winit::window::{Fullscreen, Window, WindowId};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::overlay::build_overlay_ui;
+use crate::render::system_info::ClockSource;
 use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, WindowMode, query_local_ip};
 use crate::render::vk::{
     EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkGratingPipeline, VkPipeline,
@@ -130,6 +131,13 @@ impl State {
 
         let hz = detect_refresh_hz(&window);
 
+        if ctx.present_wait.is_none() && ctx.display_timing.is_none() {
+            log::warn!("vstimd: *** No vblank clock available (VK_KHR_present_wait and \
+                        VK_GOOGLE_display_timing both absent). ***");
+            log::warn!("vstimd: Stimulus timestamps will reflect GPU-completion time, not \
+                        vblank. Use DRM mode or a GPU with present_wait for accurate timing.");
+        }
+
         Self {
             window,
             ctx,
@@ -166,6 +174,13 @@ impl State {
             let raw_input = self.egui_winit.take_egui_input(&self.window);
             let phases = self.last_phases;
             let size = self.window.inner_size();
+            let clock_source = if self.ctx.present_wait.is_some() {
+                ClockSource::PresentWait
+            } else if self.ctx.display_timing.is_some() {
+                ClockSource::DisplayTiming
+            } else {
+                ClockSource::GpuCompletion
+            };
             let sys = SystemInfo {
                 display: StimulusDisplayInfo {
                     width_px: size.width,
@@ -177,6 +192,7 @@ impl State {
                 hostname: String::new(),
                 gpu_name: String::new(),
                 wireframe: self.ctx.supports_wireframe.then_some(self.wireframe),
+                clock_source,
             };
             let output = self.egui_ctx.run_ui(raw_input, |ctx| {
                 build_overlay_ui(ctx, &self.scene, &self.frame_stats, phases, &sys, &self.log_buffer);
@@ -205,6 +221,7 @@ impl State {
                 &mut self.frame_stats,
                 Some(&mut self.egui_renderer),
                 Some(data),
+                None,
             );
             self.handle_tick(tick);
         } else {
@@ -216,6 +233,7 @@ impl State {
                 &self.scene,
                 &mut self.frame_index,
                 &mut self.frame_stats,
+                None,
                 None,
                 None,
             );
