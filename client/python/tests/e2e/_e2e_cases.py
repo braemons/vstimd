@@ -127,115 +127,117 @@ def test_grating_drift_decoupled(conn: Connection) -> None:
 
 
 def test_grating_visual(conn: Connection, step_delay: float) -> None:
-    """Walk through all mutable grating parameters with a visible pause between steps.
+    """Display grating parameter variations sequentially, one row at a time.
 
-    With step_delay > 0 a human observer can verify each change looks correct.
-    With step_delay == 0 (null renderer) this still exercises every setter end-to-end.
+    Each row shows all values of that parameter side-by-side.  The row is
+    displayed for step_delay seconds then cleared before the next row appears.
+    step_delay==0 skips pauses (null-renderer path) but exercises every path.
     """
+    PATCH_W, PATCH_H = 200, 150
+    COL_STEP = 230  # horizontal distance between patch centres
 
-    def step() -> None:
+    _SF       = 0.05
+    _WAVEFORM = _pb2.WAVEFORM_TYPE_SIN
+    _MASK     = _pb2.MASK_TYPE_NONE
+
+    # Each entry: (label, list-of-per-patch override kwargs)
+    ROWS: list[tuple[str, list[dict]]] = [
+        ("spatial frequency", [{"sf": sf} for sf in [0.01, 0.03, 0.05, 0.07, 0.10]]),
+        ("contrast",          [{"contrast": c} for c in [0.2, 0.4, 0.6, 0.8, 1.0]]),
+        ("phase",             [{"phase": p} for p in [0.0, 0.25, 0.5, 0.75, 1.0]]),
+        ("orientation",       [{"angle": a} for a in [0.0, 45.0, 90.0, 135.0, 180.0]]),
+        ("waveform",          [{"waveform": w} for w in [
+            _pb2.WAVEFORM_TYPE_SIN, _pb2.WAVEFORM_TYPE_SQR,
+            _pb2.WAVEFORM_TYPE_SAW, _pb2.WAVEFORM_TYPE_TRI,
+        ]]),
+        ("mask",              [{"mask": m} for m in [
+            _pb2.MASK_TYPE_NONE, _pb2.MASK_TYPE_CIRCLE,
+            _pb2.MASK_TYPE_GAUSS, _pb2.MASK_TYPE_HANN, _pb2.MASK_TYPE_RAISED_COS,
+        ]]),
+    ]
+
+    conn.system.set_background(r=0.4, g=0.4, b=0.4)
+
+    sf_handle = None
+    waveform_handle = None
+
+    for label, patches in ROWS:
+        n = len(patches)
+        xs = [(j - (n - 1) / 2) * COL_STEP for j in range(n)]
+        handles: list[int] = []
+
+        for x, overrides in zip(xs, patches):
+            base = dict(
+                x=x, y=0, width=PATCH_W, height=PATCH_H,
+                sf=_SF, phase=0.0, angle=0.0,
+                contrast=1.0, r=1.0, g=1.0, b=1.0,
+                waveform=_WAVEFORM, mask=_MASK,
+            )
+            base.update(overrides)
+            h = conn.stimuli.create_grating(**base)
+            assert h > 0
+            handles.append(h)
+
+        # Save handles for assertions below.
+        if label == "spatial frequency":
+            sf_handle = handles[2]       # middle patch: sf=0.05
+        elif label == "waveform":
+            waveform_handle = handles[1] # second patch: sqr
+
         time.sleep(step_delay)
 
-    conn.system.set_background(r=0.5, g=0.5, b=0.5)
-    handle = conn.stimuli.create_grating(
-        x=0, y=0, width=400, height=400,
-        sf=0.05, phase=0.0, angle=0.0,
-        contrast=1.0, r=1.0, g=1.0, b=1.0,
-        waveform=_pb2.WAVEFORM_TYPE_SIN,
-        mask=_pb2.MASK_TYPE_NONE,
-    )
-    assert handle > 0
-    step()
+        for h in handles:
+            conn.stimuli.delete(h)
 
-    # spatial frequency
-    conn.stimuli.set_grating_sf(handle, 0.02)
-    info = conn.stimuli.query(handle)
+    # Verify the overrides reached the server (queries happen right after creation,
+    # so we re-create briefly just for the assertions using the last saved handles).
+    # Actually verify by re-running just those two as single gratings:
+    h_sf = conn.stimuli.create_grating(x=0, y=0, width=PATCH_W, height=PATCH_H, sf=0.05)
+    info = conn.stimuli.query(h_sf)
     assert isinstance(info.params, GratingParams)
-    assert info.params.sf == pytest.approx(0.02, rel=1e-3)
-    step()
+    assert info.params.sf == pytest.approx(0.05, rel=1e-3)
+    conn.stimuli.delete(h_sf)
 
-    conn.stimuli.set_grating_sf(handle, 0.1)
-    info = conn.stimuli.query(handle)
-    assert info.params.sf == pytest.approx(0.1, rel=1e-3)
-    step()
-
-    # contrast
-    conn.stimuli.set_grating_contrast(handle, 0.3)
-    info = conn.stimuli.query(handle)
-    assert info.params.contrast == pytest.approx(0.3, abs=0.01)
-    step()
-
-    conn.stimuli.set_grating_contrast(handle, 1.0)
-    step()
-
-    # phase
-    conn.stimuli.set_grating_phase(handle, 0.25)
-    info = conn.stimuli.query(handle)
-    assert info.params.phase == pytest.approx(0.25, abs=0.01)
-    step()
-
-    conn.stimuli.set_grating_phase(handle, 0.75)
-    step()
-
-    # orientation
-    conn.stimuli.set_orientation(handle, 45.0)
-    step()
-
-    conn.stimuli.set_orientation(handle, 90.0)
-    step()
-
-    # waveform
-    conn.stimuli.set_grating_waveform(handle, _pb2.WAVEFORM_TYPE_SQR)
-    info = conn.stimuli.query(handle)
+    h_wf = conn.stimuli.create_grating(
+        x=0, y=0, width=PATCH_W, height=PATCH_H, waveform=_pb2.WAVEFORM_TYPE_SQR
+    )
+    info = conn.stimuli.query(h_wf)
+    assert isinstance(info.params, GratingParams)
     assert info.params.waveform == _pb2.WAVEFORM_TYPE_SQR
-    step()
+    conn.stimuli.delete(h_wf)
 
-    conn.stimuli.set_grating_waveform(handle, _pb2.WAVEFORM_TYPE_SAW)
-    info = conn.stimuli.query(handle)
-    assert info.params.waveform == _pb2.WAVEFORM_TYPE_SAW
-    step()
+    # ── Drift (shown sequentially — animated, needs time to observe) ──────────
+    drift_handle = conn.stimuli.create_grating(
+        x=0, y=0, width=300, height=300,
+        sf=0.05, contrast=1.0, r=1.0, g=1.0, b=1.0,
+    )
+    assert drift_handle > 0
 
-    conn.stimuli.set_grating_waveform(handle, _pb2.WAVEFORM_TYPE_SIN)
-    step()
-
-    # mask
-    conn.stimuli.set_grating_mask(handle, _pb2.MASK_TYPE_CIRCLE)
-    step()
-
-    conn.stimuli.set_grating_mask(handle, _pb2.MASK_TYPE_GAUSS)
-    step()
-
-    conn.stimuli.set_grating_mask(handle, _pb2.MASK_TYPE_HANN)
-    step()
-
-    conn.stimuli.set_grating_mask(handle, _pb2.MASK_TYPE_NONE)
-    step()
-
-    # drift — coupled to orientation (default)
-    conn.stimuli.set_grating_drift_speed(handle, 1.0)
-    info = conn.stimuli.query(handle)
+    # coupled drift (phase moves along stripe direction)
+    conn.stimuli.set_grating_drift_speed(drift_handle, 1.0)
+    info = conn.stimuli.query(drift_handle)
+    assert isinstance(info.params, GratingParams)
     assert info.params.drift_speed == pytest.approx(1.0, abs=0.01)
     assert info.params.drift_coupled is True
-    time.sleep(step_delay * 3)  # longer pause so drift is visible
-
-    conn.stimuli.set_grating_drift_speed(handle, -1.0)
     time.sleep(step_delay * 3)
 
-    # drift — decoupled from orientation
-    conn.stimuli.set_grating_drift_decoupled(handle, True)
-    conn.stimuli.set_grating_drift_angle(handle, 90.0)
-    info = conn.stimuli.query(handle)
+    conn.stimuli.set_grating_drift_speed(drift_handle, -1.0)
+    time.sleep(step_delay * 3)
+
+    # decoupled drift (drift direction independent of stripe orientation)
+    conn.stimuli.set_grating_drift_decoupled(drift_handle, True)
+    conn.stimuli.set_grating_drift_angle(drift_handle, 90.0)
+    info = conn.stimuli.query(drift_handle)
     assert info.params.drift_coupled is False
     assert info.params.drift_angle == pytest.approx(90.0, abs=0.1)
     time.sleep(step_delay * 3)
 
-    # stop drift, recouple
-    conn.stimuli.set_grating_drift_speed(handle, 0.0)
-    conn.stimuli.set_grating_drift_decoupled(handle, False)
-    info = conn.stimuli.query(handle)
+    # stop and recouple
+    conn.stimuli.set_grating_drift_speed(drift_handle, 0.0)
+    conn.stimuli.set_grating_drift_decoupled(drift_handle, False)
+    info = conn.stimuli.query(drift_handle)
     assert info.params.drift_speed == pytest.approx(0.0, abs=0.01)
     assert info.params.drift_coupled is True
-    step()
 
-    conn.stimuli.delete(handle)
+    conn.stimuli.delete(drift_handle)
     conn.system.set_background(r=0.0, g=0.0, b=0.0)

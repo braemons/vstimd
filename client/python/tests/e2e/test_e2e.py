@@ -44,7 +44,11 @@ def server_process(server_address: str):
         pytest.skip(f"cargo build --release failed (exit {result.returncode})")
 
     server_bin = _REPO_ROOT / "target" / "release" / "vstimd"
-    proc = subprocess.Popen([str(server_bin)])
+    log_path = pathlib.Path("/tmp/vstimd_e2e.log")
+    log_file = log_path.open("w")
+    env = os.environ.copy()
+    env.setdefault("RUST_LOG", "debug")
+    proc = subprocess.Popen([str(server_bin)], stdout=log_file, stderr=log_file, env=env)
 
     for _ in range(20):
         if reachable(server_address):
@@ -52,11 +56,14 @@ def server_process(server_address: str):
         time.sleep(0.5)
     else:
         proc.terminate()
+        log_file.close()
         pytest.skip("server did not become ready in time")
 
     yield
     proc.terminate()
     proc.wait(timeout=5)
+    log_file.close()
+    print(f"\nServer log: {log_path}")
 
 
 @pytest.fixture(scope="session")

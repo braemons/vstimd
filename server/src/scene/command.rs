@@ -87,7 +87,13 @@ fn command_summary(req: &proto::Request) -> String {
             format!("SetAllEnabled({})", if c.enabled { "on" } else { "off" })
         }
         Some(request::Body::CreateGrating(c)) => {
-            format!("CreateGrating {:.0}×{:.0} sf={:.4}", c.width, c.height, c.sf)
+            let center = c.center.as_ref();
+            format!(
+                "CreateGrating {:.0}×{:.0} sf={:.4} pos=({:.1},{:.1})",
+                c.width, c.height, c.sf,
+                center.map_or(0.0, |v| v.x),
+                center.map_or(0.0, |v| v.y),
+            )
         }
         Some(request::Body::SetGratingPhase(c)) => format!("SetGratingPhase({:.3})", c.phase),
         Some(request::Body::SetGratingSf(c)) => format!("SetGratingSf({:.4})", c.sf),
@@ -154,7 +160,18 @@ impl SceneState {
             },
         };
 
-        self.push_command_log(log_handle, log_summary, &response);
+        self.push_command_log(log_handle, log_summary.clone(), &response);
+
+        if response.code == proto::ErrorCode::Ok as i32 {
+            if log_handle == 0 {
+                log::debug!("ipc: {} → handle {}", log_summary, response.handle);
+            } else {
+                log::debug!("ipc: [{}] {}", log_handle, log_summary);
+            }
+        } else {
+            log::warn!("ipc: [{}] {} → error {}: {}", log_handle, log_summary, response.code, response.error);
+        }
+
         response
     }
 
