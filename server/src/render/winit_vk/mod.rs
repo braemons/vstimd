@@ -179,9 +179,11 @@ impl State {
             let size = self.window.inner_size();
             let clock_source = if self.ctx.present_wait.is_some() {
                 ClockSource::PresentWait
-            } else if self.ctx.display_timing.is_some() {
-                ClockSource::DisplayTiming
             } else {
+                // `VK_GOOGLE_display_timing` availability alone does not mean the
+                // frame tick timestamping path is using display-timing data yet.
+                // Until render_frame/handle_tick consume those timestamps, report
+                // the fallback source to keep overlay/debug output accurate.
                 ClockSource::GpuCompletion
             };
             let sys = SystemInfo {
