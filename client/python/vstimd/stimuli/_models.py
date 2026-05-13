@@ -72,9 +72,26 @@ class GratingParams:
     contrast: float
     waveform: int
     mask: int
+    mask_param: float
     drift_speed: float
     drift_coupled: bool
     drift_angle: float
+
+    @classmethod
+    def from_proto(cls, proto: stimuli_pb2.GratingParams) -> GratingParams:
+        return cls(
+            width=proto.width,
+            height=proto.height,
+            sf=proto.sf,
+            phase=proto.phase,
+            contrast=proto.contrast,
+            waveform=proto.waveform,
+            mask=proto.mask,
+            mask_param=proto.mask_param,
+            drift_speed=proto.drift_speed,
+            drift_coupled=proto.drift_coupled,
+            drift_angle=proto.drift_angle,
+        )
 
 
 StimulusParams = Union[RectParams, DiscParams, EllipseParams, GratingParams]
