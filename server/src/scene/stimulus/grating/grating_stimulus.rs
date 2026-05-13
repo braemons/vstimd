@@ -82,6 +82,9 @@ impl GratingStimulus {
         let prev = if deferred { self.params.copy } else { self.params.live };
         self.params.set(deferred, GratingParams { drift_speed: speed, ..prev });
         if !deferred {
+            if speed == 0.0 {
+                self.phase_accum = 0.0;
+            }
             self.flags.mark_dirty();
         }
     }
@@ -164,6 +167,34 @@ mod tests {
         assert!(!s.params.live.drift_coupled);
         s.set_drift_decoupled(false, false);
         assert!(s.params.live.drift_coupled);
+    }
+
+    #[test]
+    fn set_drift_speed_zero_resets_phase_accum() {
+        let mut s = default_stim();
+        s.phase_accum = 2.5;
+        s.set_drift_speed(false, 0.0);
+        assert_eq!(s.phase_accum, 0.0);
+        assert_eq!(s.params.live.drift_speed, 0.0);
+    }
+
+    #[test]
+    fn set_drift_speed_nonzero_preserves_phase_accum() {
+        let mut s = default_stim();
+        s.phase_accum = 2.5;
+        s.set_drift_speed(false, 1.0);
+        assert_eq!(s.phase_accum, 2.5);
+        assert_eq!(s.params.live.drift_speed, 1.0);
+    }
+
+    #[test]
+    fn set_drift_speed_deferred_zero_preserves_phase_accum() {
+        let mut s = default_stim();
+        s.phase_accum = 2.5;
+        s.set_drift_speed(true, 0.0);
+        // deferred: live not updated, accum not reset
+        assert_eq!(s.phase_accum, 2.5);
+        assert_eq!(s.params.copy.drift_speed, 0.0);
     }
 
     // ── grating_phase_inc ──────────────────────────────────────────────────────
