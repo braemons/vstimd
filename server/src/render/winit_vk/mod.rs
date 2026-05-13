@@ -133,9 +133,14 @@ impl State {
 
         let hz = detect_refresh_hz(&window);
 
-        if ctx.present_wait.is_none() && ctx.display_timing.is_none() {
-            log::warn!("vstimd: *** No vblank clock available (VK_KHR_present_wait and \
-                        VK_GOOGLE_display_timing both absent). ***");
+        if ctx.present_wait.is_none() {
+            if ctx.display_timing.is_some() {
+                log::warn!("vstimd: *** VK_GOOGLE_display_timing is available, but this path \
+                            does not use it for vblank timestamping without \
+                            VK_KHR_present_wait. ***");
+            } else {
+                log::warn!("vstimd: *** No vblank clock available (VK_KHR_present_wait absent). ***");
+            }
             log::warn!("vstimd: Stimulus timestamps will reflect GPU-completion time, not \
                         vblank. Use DRM mode or a GPU with present_wait for accurate timing.");
         }
