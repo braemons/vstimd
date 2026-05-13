@@ -241,3 +241,27 @@ def test_grating_visual(conn: Connection, step_delay: float) -> None:
 
     conn.stimuli.delete(drift_handle)
     conn.system.set_background(r=0.0, g=0.0, b=0.0)
+
+
+def test_grating_opacity(conn: Connection) -> None:
+    """Test that grating opacity parameter works correctly."""
+    # Create grating with 50% opacity
+    handle = conn.stimuli.create_grating(
+        x=0, y=0, width=200, height=200,
+        r=1.0, g=0.0, b=0.0, a=0.5
+    )
+    assert handle > 0
+
+    info = conn.stimuli.query(handle)
+    assert info.stimulus_type == StimulusType.GRATING
+    assert isinstance(info.params, GratingParams)
+    
+    # Verify opacity is set correctly
+    assert info.opacity == pytest.approx(0.5, abs=0.01)
+    
+    # Verify color is RGB only (no alpha in color field)
+    assert info.fill_color.r == pytest.approx(1.0, abs=0.01)
+    assert info.fill_color.g == pytest.approx(0.0, abs=0.01)
+    assert info.fill_color.b == pytest.approx(0.0, abs=0.01)
+
+    conn.stimuli.delete(handle)
