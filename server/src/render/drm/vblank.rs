@@ -39,7 +39,11 @@ impl DrmVblank {
             // here: DisplayGuard already released master). If we keep master,
             // VK_KHR_display cannot acquire it during swapchain creation.
             // wait_vblank is an unprivileged ioctl — no master required.
-            let _ = DrmDevice::release_master_lock(&card);
+            if let Err(err) = DrmDevice::release_master_lock(&card) {
+                log::warn!(
+                    "vstimd: failed to release DRM master for {path}: {err}"
+                );
+            }
 
             let Ok(res) = card.resource_handles() else {
                 continue;
