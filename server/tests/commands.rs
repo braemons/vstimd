@@ -528,9 +528,8 @@ fn test_list_stimuli() {
 
 #[test]
 fn test_query_server_info() {
-    let scene = SceneState::new();
-    // SceneState::cmd_query_server_info takes &self so we need a mutable reference for handle_request.
-    let mut scene = scene;
+    let mut scene = SceneState::new();
+    scene.screen_size = Some((1920, 1080));
     let resp = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::QueryServerInfo(proto::QueryServerInfoRequest {})),
