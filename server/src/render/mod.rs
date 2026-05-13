@@ -10,6 +10,8 @@ pub use system_info::{SystemInfo, query_local_ip};
 pub(crate) mod benchmark;
 pub use benchmark::BenchmarkState;
 pub(crate) mod overlay;
+pub mod render_state;
+pub use render_state::RenderState;
 pub mod tess;
 pub(crate) mod vk;
 
