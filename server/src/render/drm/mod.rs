@@ -241,6 +241,8 @@ impl DrmRenderState {
                     wireframe: None,
                     clock_source: if self.drm_vblank.is_some() {
                         ClockSource::DrmVblank
+                    } else if self.ctx.present_wait.is_some() {
+                        ClockSource::PresentWait
                     } else {
                         ClockSource::GpuCompletion
                     },
