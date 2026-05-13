@@ -268,7 +268,20 @@ impl DrmRenderState {
             // Block on the next kernel scanout event before rendering the frame.
             // This gives an accurate vblank-anchored screen clock independent of
             // which Vulkan timing extensions the driver supports.
-            let screen_clock = self.drm_vblank.as_ref().map(|v| v.wait());
+            let screen_clock = if let Some(vblank) = self.drm_vblank.as_ref() {
+                match vblank.wait() {
+                    Some(t) => Some(t),
+                    None => {
+                        log::warn!(
+                            "vstimd: disabling DRM vblank clock for this session after wait_vblank error"
+                        );
+                        self.drm_vblank = None;
+                        None
+                    }
+                }
+            } else {
+                None
+            };
 
             // `None` means the swapchain is out of date (rare in DRM mode).
             let (pipe, grate) = if self.wireframe {

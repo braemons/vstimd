@@ -67,13 +67,22 @@ impl DrmVblank {
 
     /// Block until the next vblank on the selected CRTC.
     /// Returns an `Instant` captured immediately after the kernel unblocks.
-    pub fn wait(&self) -> Instant {
-        let _ = DrmDevice::wait_vblank(&self.card,
+    pub fn wait(&self) -> Option<Instant> {
+        match DrmDevice::wait_vblank(
+            &self.card,
             drm::VblankWaitTarget::Relative(1),
             drm::VblankWaitFlags::empty(),
             self.crtc_pipe,
             0,
-        );
-        Instant::now()
+        ) {
+            Ok(_) => Some(Instant::now()),
+            Err(err) => {
+                log::warn!(
+                    "vstimd: DRM wait_vblank failed on CRTC {}: {err}",
+                    self.crtc_pipe
+                );
+                None
+            }
+        }
     }
 }
