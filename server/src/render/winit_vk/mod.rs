@@ -64,9 +64,9 @@ impl State {
         };
         let pipeline = VkPipeline::new(&ctx.device, ctx.render_pass, ash::vk::PolygonMode::FILL);
         let grating_pipeline =
-            VkGratingPipeline::new(&ctx.device, ctx.render_pass, ash::vk::PolygonMode::FILL);
+            VkGratingPipeline::new(&ctx.device, &ctx.instance, ctx.physical_device, ctx.render_pass, ash::vk::PolygonMode::FILL);
         let wireframe_pipeline = VkPipeline::new(&ctx.device, ctx.render_pass, wf_mode);
-        let wireframe_grating = VkGratingPipeline::new(&ctx.device, ctx.render_pass, wf_mode);
+        let wireframe_grating = VkGratingPipeline::new(&ctx.device, &ctx.instance, ctx.physical_device, ctx.render_pass, wf_mode);
 
         ctx.set_debug_name(pipeline.pipeline, "solid_pipeline");
         ctx.set_debug_name(grating_pipeline.pipeline, "grating_pipeline");

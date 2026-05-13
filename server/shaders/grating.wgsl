@@ -52,8 +52,12 @@ struct VertexOutput {
 
 @vertex
 fn vs_main(in: VertexInput) -> VertexOutput {
+    // in.position.xy is a unit-quad corner in [-1, 1] local space.
+    // Transform to pixel-space then to NDC using push constants.
+    let pixel_pos = p.center_px + in.position.xy * p.half_size;
+    let ndc = pixel_pos / p.screen_half;
     var out: VertexOutput;
-    out.clip_pos = vec4<f32>(in.position, 1.0);
+    out.clip_pos = vec4<f32>(ndc.x, -ndc.y, 0.0, 1.0);
     return out;
 }
 

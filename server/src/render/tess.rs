@@ -4,7 +4,6 @@ use kurbo::Shape as _;
 use crate::geom::Vertex;
 use crate::scene::photodiode::PhotoDiodeState;
 use crate::scene::stimulus::{DiscStimulus, EllipseStimulus, RectStimulus, Stimulus, Transform2D};
-use crate::scene::stimulus::grating::tessellate_grating;
 
 // ── Coordinate conversion ─────────────────────────────────────────────────────
 
@@ -35,7 +34,6 @@ pub fn tessellate_stimulus(
         Stimulus::Rect(s)    => tessellate_rect(s, half_w, half_h),
         Stimulus::Ellipse(s) => tessellate_ellipse(s, half_w, half_h),
         Stimulus::Disc(s)    => tessellate_disc(s, half_w, half_h),
-        Stimulus::Grating(s) => tessellate_grating(s, half_w, half_h),
         _ => (vec![], vec![]),
     }
 }

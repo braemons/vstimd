@@ -1,5 +1,6 @@
 use ash::vk;
 use crate::render::Vertex;
+use crate::render::vk::buffers::VkMesh;
 
 // ── Push-constant layout for the grating pipeline ────────────────────────────
 
@@ -36,16 +37,22 @@ pub struct GratingPushConstants {
     pub mask_param: f32,
     pub _pad: u32,
 }
+
 // ── Grating pipeline ──────────────────────────────────────────────────────────
 
 pub struct VkGratingPipeline {
     pub pipeline: vk::Pipeline,
     pub layout: vk::PipelineLayout,
+    /// Unit quad [-1,1]×[-1,1] shared by all grating draw calls.
+    /// The vertex shader positions it per-grating via push constants.
+    pub quad: VkMesh,
 }
 
 impl VkGratingPipeline {
     pub fn new(
         device: &ash::Device,
+        instance: &ash::Instance,
+        physical_device: vk::PhysicalDevice,
         render_pass: vk::RenderPass,
         polygon_mode: vk::PolygonMode,
     ) -> Self {
@@ -167,13 +174,83 @@ impl VkGratingPipeline {
         };
 
         unsafe { device.destroy_shader_module(shader_module, None) };
-        Self { pipeline, layout }
+
+        let mem_props =
+            unsafe { instance.get_physical_device_memory_properties(physical_device) };
+        let quad = Self::create_quad(device, mem_props);
+
+        Self { pipeline, layout, quad }
+    }
+
+    fn create_quad(device: &ash::Device, mem_props: vk::PhysicalDeviceMemoryProperties) -> VkMesh {
+        let z = [0.0f32; 4];
+        let n = [0.0f32, 0.0, 1.0];
+        let uv = [0.0f32; 2];
+        let verts: [Vertex; 4] = [
+            Vertex { position: [-1.0, -1.0, 0.0], normal: n, uv, color: z },
+            Vertex { position: [ 1.0, -1.0, 0.0], normal: n, uv, color: z },
+            Vertex { position: [ 1.0,  1.0, 0.0], normal: n, uv, color: z },
+            Vertex { position: [-1.0,  1.0, 0.0], normal: n, uv, color: z },
+        ];
+        let idxs: [u32; 6] = [0, 1, 2, 0, 2, 3];
+        let (vb, vm) = Self::alloc_buf(device, mem_props, vk::BufferUsageFlags::VERTEX_BUFFER, bytemuck::cast_slice(&verts));
+        let (ib, im) = Self::alloc_buf(device, mem_props, vk::BufferUsageFlags::INDEX_BUFFER, bytemuck::cast_slice(&idxs));
+        VkMesh::from_raw(vb, vm, ib, im, 6)
+    }
+
+    fn alloc_buf(
+        device: &ash::Device,
+        mem_props: vk::PhysicalDeviceMemoryProperties,
+        usage: vk::BufferUsageFlags,
+        data: &[u8],
+    ) -> (vk::Buffer, vk::DeviceMemory) {
+        let size = data.len() as vk::DeviceSize;
+        let buf = unsafe {
+            device
+                .create_buffer(
+                    &vk::BufferCreateInfo::default()
+                        .size(size)
+                        .usage(usage)
+                        .sharing_mode(vk::SharingMode::EXCLUSIVE),
+                    None,
+                )
+                .expect("grating quad: create buffer")
+        };
+        let reqs = unsafe { device.get_buffer_memory_requirements(buf) };
+        let mem_type = (0..mem_props.memory_type_count)
+            .find(|&i| {
+                (reqs.memory_type_bits & (1 << i)) != 0
+                    && mem_props.memory_types[i as usize]
+                        .property_flags
+                        .contains(vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT)
+            })
+            .expect("grating quad: no HOST_VISIBLE|HOST_COHERENT memory");
+        let mem = unsafe {
+            device
+                .allocate_memory(
+                    &vk::MemoryAllocateInfo::default()
+                        .allocation_size(reqs.size)
+                        .memory_type_index(mem_type),
+                    None,
+                )
+                .expect("grating quad: allocate memory")
+        };
+        unsafe {
+            device.bind_buffer_memory(buf, mem, 0).unwrap();
+            let ptr = device
+                .map_memory(mem, 0, size, vk::MemoryMapFlags::empty())
+                .expect("grating quad: map memory") as *mut u8;
+            std::ptr::copy_nonoverlapping(data.as_ptr(), ptr, data.len());
+            device.unmap_memory(mem);
+        }
+        (buf, mem)
     }
 
     pub fn destroy(&self, device: &ash::Device) {
         unsafe {
             device.destroy_pipeline(self.pipeline, None);
             device.destroy_pipeline_layout(self.layout, None);
+            self.quad.destroy(device);
         }
     }
 }

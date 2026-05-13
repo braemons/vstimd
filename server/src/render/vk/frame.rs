@@ -14,7 +14,7 @@ use super::context::VkContext;
 use super::egui::VkEguiRenderer;
 use super::pipeline::VkPipeline;
 use crate::scene::stimulus::grating::{
-    GratingPushConstants, VkGratingPipeline, build_grating_push_constants, grating_phase_inc,
+    VkGratingPipeline, build_grating_push_constants, grating_phase_inc,
 };
 
 /// Optional egui overlay data for a frame
@@ -115,13 +115,14 @@ pub fn render_frame(
             .retain(|h, _| *h == PHOTODIODE_HANDLE || sc.stimuli.contains_key(h));
         let handles: Vec<u32> = sc.stimuli.keys().copied().collect();
         for handle in handles {
-            // Advance drift accumulator for visible gratings before tessellation.
-            if let Some(Stimulus::Grating(s)) = sc.stimuli.get_mut(&handle)
-                && s.flags.is_visible()
-                && s.params.live.drift_speed != 0.0
-            {
-                let inc = grating_phase_inc(s, fps);
-                s.phase_accum += inc;
+            // Gratings use the shared quad; the vertex shader positions it via push
+            // constants each frame. Advance the drift accumulator then skip tessellation.
+            if let Some(Stimulus::Grating(s)) = sc.stimuli.get_mut(&handle) {
+                if s.flags.is_visible() && s.params.live.drift_speed != 0.0 {
+                    let inc = grating_phase_inc(s, fps);
+                    s.phase_accum += inc;
+                }
+                continue;
             }
 
             let stim = &sc.stimuli[&handle];
@@ -219,110 +220,72 @@ pub fn render_frame(
         ctx.device
             .cmd_begin_render_pass(cb, &rp_info, vk::SubpassContents::INLINE);
 
-        // Collect draws, separating solid stimuli from gratings.
-        // Gratings carry push constants computed from the current scene state.
+        // Draw stimuli in scene order so z-ordering is respected.
+        // Pipeline is switched lazily — only when the stimulus type changes.
         let sc = scene.read().expect("scene lock poisoned");
         let screen_w = ctx.extent.width as f32;
         let screen_h = ctx.extent.height as f32;
 
-        let mut solid_draws: Vec<(vk::Buffer, vk::Buffer, u32)> = Vec::new();
-        let mut grating_draws: Vec<(vk::Buffer, vk::Buffer, u32, GratingPushConstants)> =
-            Vec::new();
-
-        for (h, stim) in &sc.stimuli {
-            if !stim.is_visible() {
-                continue;
-            }
-            if let Some(mesh) = gpu_buffers.meshes.get(h).filter(|m| m.index_count > 0) {
-                if let Stimulus::Grating(s) = stim {
-                    let pc = build_grating_push_constants(s, screen_w, screen_h);
-                    grating_draws.push((
-                        mesh.vertex_buffer,
-                        mesh.index_buffer,
-                        mesh.index_count,
-                        pc,
-                    ));
-                } else {
-                    solid_draws.push((mesh.vertex_buffer, mesh.index_buffer, mesh.index_count));
-                }
-            }
-        }
-        // Photodiode is always solid.
-        if let Some(m) = gpu_buffers
-            .meshes
-            .get(&PHOTODIODE_HANDLE)
-            .filter(|m| m.index_count > 0)
-        {
-            solid_draws.push((m.vertex_buffer, m.index_buffer, m.index_count));
-        }
-        drop(sc);
-
         let viewport = vk::Viewport {
             x: 0.0,
             y: 0.0,
-            width: ctx.extent.width as f32,
-            height: ctx.extent.height as f32,
+            width: screen_w,
+            height: screen_h,
             min_depth: 0.0,
             max_depth: 1.0,
         };
 
-        // ── Pass 1: solid stimuli ─────────────────────────────────────────────
-        ctx.cmd_begin_label(cb, "solid stimuli", [0.3, 0.7, 1.0, 1.0]);
-        if !solid_draws.is_empty() {
-            ctx.device
-                .cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
-            ctx.device
-                .cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
-            ctx.device
-                .cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+        #[derive(PartialEq)]
+        enum Bound { None, Solid, Grating }
+        let mut bound = Bound::None;
+        let quad = &grating_pipeline.quad;
 
-            for (vbuf, ibuf, index_count) in solid_draws {
-                ctx.device.cmd_bind_vertex_buffers(cb, 0, &[vbuf], &[0]);
-                ctx.device
-                    .cmd_bind_index_buffer(cb, ibuf, 0, vk::IndexType::UINT32);
-                ctx.device.cmd_draw_indexed(cb, index_count, 1, 0, 0, 0);
+        ctx.cmd_begin_label(cb, "stimuli", [0.3, 0.7, 1.0, 1.0]);
+        for (h, stim) in &sc.stimuli {
+            if !stim.is_visible() {
+                continue;
             }
-        }
-        ctx.cmd_end_label(cb);
-
-        // ── Pass 2: grating stimuli ───────────────────────────────────────────
-        ctx.cmd_begin_label(cb, "grating stimuli", [0.8, 0.5, 0.1, 1.0]);
-        if !grating_draws.is_empty() {
-            if let Some((_, _, _, pc)) = grating_draws.first() {
-                log::debug!(
-                    "draw {} gratings: first center={:?} half_size={:?} screen_half={:?} contrast={} sf={}",
-                    grating_draws.len(),
-                    pc.center_px,
-                    pc.half_size,
-                    pc.screen_half,
-                    pc.contrast,
-                    pc.sf
-                );
-            }
-            ctx.device.cmd_bind_pipeline(
-                cb,
-                vk::PipelineBindPoint::GRAPHICS,
-                grating_pipeline.pipeline,
-            );
-            ctx.device
-                .cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
-            ctx.device
-                .cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
-
-            for (vbuf, ibuf, index_count, pc) in grating_draws {
-                let pc_bytes: &[u8] = bytemuck::bytes_of(&pc);
+            if let Stimulus::Grating(s) = stim {
+                if bound != Bound::Grating {
+                    ctx.device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, grating_pipeline.pipeline);
+                    ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+                    ctx.device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+                    ctx.device.cmd_bind_vertex_buffers(cb, 0, &[quad.vertex_buffer], &[0]);
+                    ctx.device.cmd_bind_index_buffer(cb, quad.index_buffer, 0, vk::IndexType::UINT32);
+                    bound = Bound::Grating;
+                }
+                let pc = build_grating_push_constants(s, screen_w, screen_h);
                 ctx.device.cmd_push_constants(
                     cb,
                     grating_pipeline.layout,
                     vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
                     0,
-                    pc_bytes,
+                    bytemuck::bytes_of(&pc),
                 );
-                ctx.device.cmd_bind_vertex_buffers(cb, 0, &[vbuf], &[0]);
-                ctx.device
-                    .cmd_bind_index_buffer(cb, ibuf, 0, vk::IndexType::UINT32);
-                ctx.device.cmd_draw_indexed(cb, index_count, 1, 0, 0, 0);
+                ctx.device.cmd_draw_indexed(cb, quad.index_count, 1, 0, 0, 0);
+            } else if let Some(mesh) = gpu_buffers.meshes.get(h).filter(|m| m.index_count > 0) {
+                if bound != Bound::Solid {
+                    ctx.device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
+                    ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+                    ctx.device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+                    bound = Bound::Solid;
+                }
+                ctx.device.cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
+                ctx.device.cmd_bind_index_buffer(cb, mesh.index_buffer, 0, vk::IndexType::UINT32);
+                ctx.device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
             }
+        }
+
+        // Photodiode is always drawn on top, always solid.
+        if let Some(m) = gpu_buffers.meshes.get(&PHOTODIODE_HANDLE).filter(|m| m.index_count > 0) {
+            if bound != Bound::Solid {
+                ctx.device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
+                ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+                ctx.device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+            }
+            ctx.device.cmd_bind_vertex_buffers(cb, 0, &[m.vertex_buffer], &[0]);
+            ctx.device.cmd_bind_index_buffer(cb, m.index_buffer, 0, vk::IndexType::UINT32);
+            ctx.device.cmd_draw_indexed(cb, m.index_count, 1, 0, 0, 0);
         }
         ctx.cmd_end_label(cb);
 
