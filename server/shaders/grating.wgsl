@@ -123,11 +123,6 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
     // Offset relative to grating centre.
     let d = px - p.center_px;
 
-    // Clip to bounding rectangle (discard outside the patch).
-    if abs(d.x) > p.half_size.x || abs(d.y) > p.half_size.y {
-        discard;
-    }
-
     // Project onto the grating axis (perpendicular to stripes).
     let cos_a = cos(p.ori_rad);
     let sin_a = sin(p.ori_rad);
