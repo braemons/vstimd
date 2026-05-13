@@ -184,7 +184,8 @@ impl DrmRenderState {
     pub fn run_loop(mut self) {
         let mut frame_index: usize = 0;
         loop {
-            for key in self.input.poll() {
+            let (app_keys, egui_nav_events) = self.input.poll();
+            for key in app_keys {
                 match key {
                     AppKey::Escape => return,
                     AppKey::D => crate::render::spawn_demo_stimuli(&self.scene),
@@ -229,6 +230,7 @@ impl DrmRenderState {
                         },
                     ))
                     .collect(),
+                    events: egui_nav_events,
                     ..Default::default()
                 };
                 let phases = self.last_phases;
