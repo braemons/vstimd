@@ -54,9 +54,20 @@ class GratingParams:
     drift_speed: float
     drift_coupled: bool
     drift_angle: float
+    fore_color: tuple[float, float, float] = (1.0, 1.0, 1.0)
+    back_color: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    opacity: float = 1.0
 
     @classmethod
     def from_proto(cls, proto: stimuli_pb2.GratingParams) -> GratingParams:
+        fore = (1.0, 1.0, 1.0)
+        back = (0.0, 0.0, 0.0)
+        if proto.HasField("fore_color"):
+            c = proto.fore_color
+            fore = (c.r, c.g, c.b)
+        if proto.HasField("back_color"):
+            c = proto.back_color
+            back = (c.r, c.g, c.b)
         return cls(
             width=proto.width,
             height=proto.height,
@@ -69,4 +80,7 @@ class GratingParams:
             drift_speed=proto.drift_speed,
             drift_coupled=not proto.drift_decoupled,
             drift_angle=proto.drift_angle,
+            fore_color=fore,
+            back_color=back,
+            opacity=proto.opacity if proto.opacity != 0.0 else 1.0,
         )

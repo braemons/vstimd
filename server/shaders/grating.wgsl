@@ -5,7 +5,7 @@
 // which reconstructs pixel-space coordinates from gl_FragCoord and the push
 // constants, so no UV attributes are needed on the vertices.
 //
-// Push constant layout (80 bytes, std430):
+// Push constant layout (96 bytes, std430):
 //   screen_half  vec2<f32>   half screen dimensions in pixels (for coord conversion)
 //   center_px    vec2<f32>   grating centre in pixel-space (Y-up)
 //   half_size    vec2<f32>   patch half-extents [hw, hh] in pixels
@@ -14,7 +14,8 @@
 //   ori_rad      f32         stripe orientation in radians (CCW from X axis)
 //   contrast     f32         [0, 1]
 //   (8 bytes padding — vec4 requires 16-byte alignment)
-//   color        vec4<f32>   peak colour (rgb) and opacity (a)
+//   fore_color   vec4<f32>   peak colour (rgb) and opacity (a)
+//   back_color   vec4<f32>   trough colour (rgb); a is unused
 //   waveform     u32         0=sin  1=sqr  2=saw  3=tri
 //   mask_type    u32         0=none  1=circle  2=gauss  3=hann  4=raisedCos
 //   mask_param   f32         mask-specific param (0=default): SD for gauss; fringe for raisedCos
@@ -28,7 +29,9 @@ struct PushConstants {
     phase       : f32,
     ori_rad     : f32,
     contrast    : f32,
-    color       : vec4<f32>,
+    // 8 bytes implicit padding here (vec4 alignment)
+    fore_color  : vec4<f32>,
+    back_color  : vec4<f32>,
     waveform    : u32,
     mask_type   : u32,
     mask_param  : f32,
@@ -136,8 +139,11 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
     let t = u * p.sf + p.phase;
     let carrier = eval_waveform(t, p.waveform);  // [-1, 1]
 
-    // Apply contrast: map [-1, 1] → [0, 1] then centre around 0.5.
-    let luminance = 0.5 + 0.5 * carrier * p.contrast;
+    // Map carrier through contrast: blend parameter in [0, 1] (clamped for sqr/saw edges).
+    let blend = clamp(0.5 + 0.5 * carrier * p.contrast, 0.0, 1.0);
+
+    // Interpolate between trough and peak colour.
+    let rgb = mix(p.back_color.rgb, p.fore_color.rgb, blend);
 
     // Aperture mask.
     var alpha: f32;
@@ -148,7 +154,7 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
         case 4u:  { alpha = mask_raised_cos(d, p.half_size, p.mask_param); }
         default:  { alpha = 1.0; }
     }
-    alpha *= p.color.a;
+    alpha *= p.fore_color.a;
 
-    return vec4<f32>(p.color.rgb * luminance, alpha);
+    return vec4<f32>(rgb, alpha);
 }

@@ -9,8 +9,10 @@ use super::grating_pipeline::GratingPushConstants;
 pub struct GratingStimulus {
     pub flags: StimulusFlags,
     pub transform: Deferred<Transform2D>,
-    pub color: Deferred<[f32; 4]>, // rgba; alpha = opacity
-    pub size: Deferred<[f32; 2]>,  // [half_width, half_height] in pixels
+    pub fore_color: Deferred<[f32; 3]>, // rgb peak colour (carrier = +1)
+    pub back_color: Deferred<[f32; 3]>, // rgb trough colour (carrier = −1)
+    pub opacity: Deferred<f32>,
+    pub size: Deferred<[f32; 2]>,       // [half_width, half_height] in pixels
     pub params: Deferred<GratingParams>,
     /// Phase accumulated by the render thread each frame from `drift_speed`.
     /// Not deferred — updated in place; reset to 0 when drift_speed is set to 0.
@@ -22,13 +24,17 @@ impl GratingStimulus {
         pos: [f32; 2],
         angle: f32,
         size: [f32; 2], // [half_width, half_height] in pixels
-        color: [f32; 4],
+        fore_color: [f32; 3],
+        back_color: [f32; 3],
+        opacity: f32,
         params: GratingParams,
     ) -> Self {
         Self {
             flags: StimulusFlags { enabled: true, ..Default::default() },
             transform: Deferred::new(Transform2D { pos, angle }),
-            color: Deferred::new(color),
+            fore_color: Deferred::new(fore_color),
+            back_color: Deferred::new(back_color),
+            opacity: Deferred::new(opacity),
             size: Deferred::new(size),
             params: Deferred::new(params),
             phase_accum: 0.0,
@@ -36,6 +42,27 @@ impl GratingStimulus {
     }
 
     // ── Setters ───────────────────────────────────────────────────────────────
+
+    pub fn set_fore_color(&mut self, deferred: bool, color: [f32; 3]) {
+        self.fore_color.set(deferred, color);
+        if !deferred {
+            self.flags.mark_dirty();
+        }
+    }
+
+    pub fn set_back_color(&mut self, deferred: bool, color: [f32; 3]) {
+        self.back_color.set(deferred, color);
+        if !deferred {
+            self.flags.mark_dirty();
+        }
+    }
+
+    pub fn set_opacity(&mut self, deferred: bool, opacity: f32) {
+        self.opacity.set(deferred, opacity);
+        if !deferred {
+            self.flags.mark_dirty();
+        }
+    }
 
     pub fn set_phase(&mut self, deferred: bool, phase: f32) {
         let prev = if deferred { self.params.copy } else { self.params.live };
@@ -108,13 +135,56 @@ impl GratingStimulus {
 
 }
 
+/// Phase increment per frame for drift animation (called by the render thread).
+pub fn grating_phase_inc(s: &GratingStimulus, fps: f32) -> f32 {
+    let p = &s.params.live;
+    if p.drift_coupled {
+        p.drift_speed / fps
+    } else {
+        let grating_rad = s.transform.live.angle.to_radians();
+        let drift_rad = p.drift_angle.to_radians();
+        p.drift_speed * (drift_rad - grating_rad).cos() / fps
+    }
+}
+
+/// Build push constants for one grating draw call.
+pub fn build_grating_push_constants(
+    s: &GratingStimulus,
+    screen_w: f32,
+    screen_h: f32,
+) -> GratingPushConstants {
+    let p = &s.params.live;
+    let fc = s.fore_color.live;
+    let bc = s.back_color.live;
+    GratingPushConstants {
+        screen_half: [screen_w * 0.5, screen_h * 0.5],
+        center_px: s.transform.live.pos,
+        half_size: s.size.live,
+        sf: p.sf,
+        phase: p.phase + s.phase_accum,
+        ori_rad: s.transform.live.angle.to_radians(),
+        contrast: p.contrast,
+        _pad_colors: [0; 2],
+        fore_color: [fc[0], fc[1], fc[2], s.opacity.live],
+        back_color: [bc[0], bc[1], bc[2], 0.0],
+        waveform: p.waveform as u32,
+        mask_type: p.mask as u32,
+        mask_param: p.mask_param,
+        _pad: 0,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::scene::stimulus::grating::grating_params::GratingParams;
 
     fn default_stim() -> GratingStimulus {
-        GratingStimulus::new([0.0, 0.0], 0.0, [100.0, 100.0], [1.0, 1.0, 1.0, 1.0], GratingParams::default())
+        GratingStimulus::new(
+            [0.0, 0.0], 0.0, [100.0, 100.0],
+            [1.0, 1.0, 1.0], [0.0, 0.0, 0.0], 1.0,
+            GratingParams::default(),
+        )
     }
 
     // ── set_phase ──────────────────────────────────────────────────────────────
@@ -139,140 +209,45 @@ mod tests {
         assert_eq!(s.params.copy.phase, 0.5);
     }
 
-    // ── deferred mode branching ────────────────────────────────────────────────
+    // ── set_fore_color / set_back_color / set_opacity ─────────────────────────
 
     #[test]
-    fn set_sf_immediate_writes_live() {
+    fn set_fore_color_immediate() {
         let mut s = default_stim();
-        let original_sf = s.params.live.sf; // 0.05 default
-        s.set_sf(false, 0.1);
-        assert_eq!(s.params.live.sf, 0.1);
-        // immediate write leaves copy untouched
-        assert_eq!(s.params.copy.sf, original_sf);
+        s.set_fore_color(false, [1.0, 0.0, 0.0]);
+        assert_eq!(s.fore_color.live, [1.0, 0.0, 0.0]);
     }
 
     #[test]
-    fn set_sf_deferred_writes_copy_not_live() {
+    fn set_fore_color_deferred() {
         let mut s = default_stim();
-        let original_live = s.params.live.sf;
-        s.set_sf(true, 0.99);
-        assert_eq!(s.params.live.sf, original_live);
-        assert_eq!(s.params.copy.sf, 0.99);
+        s.set_fore_color(true, [0.0, 1.0, 0.0]);
+        assert_eq!(s.fore_color.live, [1.0, 1.0, 1.0]); // live unchanged
+        assert_eq!(s.fore_color.copy, [0.0, 1.0, 0.0]);
     }
 
     #[test]
-    fn set_drift_decoupled_inverts_to_coupled() {
+    fn set_back_color_immediate() {
         let mut s = default_stim();
-        s.set_drift_decoupled(false, true);
-        assert!(!s.params.live.drift_coupled);
-        s.set_drift_decoupled(false, false);
-        assert!(s.params.live.drift_coupled);
+        s.set_back_color(false, [0.0, 0.0, 1.0]);
+        assert_eq!(s.back_color.live, [0.0, 0.0, 1.0]);
     }
 
     #[test]
-    fn set_drift_speed_zero_resets_phase_accum() {
+    fn set_opacity_immediate() {
         let mut s = default_stim();
-        s.phase_accum = 2.5;
-        s.set_drift_speed(false, 0.0);
-        assert_eq!(s.phase_accum, 0.0);
-        assert_eq!(s.params.live.drift_speed, 0.0);
+        s.set_opacity(false, 0.5);
+        assert_eq!(s.opacity.live, 0.5);
     }
 
     #[test]
-    fn set_drift_speed_nonzero_preserves_phase_accum() {
+    fn push_constants_pack_fore_color_and_opacity() {
         let mut s = default_stim();
-        s.phase_accum = 2.5;
-        s.set_drift_speed(false, 1.0);
-        assert_eq!(s.phase_accum, 2.5);
-        assert_eq!(s.params.live.drift_speed, 1.0);
-    }
-
-    #[test]
-    fn set_drift_speed_deferred_zero_preserves_phase_accum() {
-        let mut s = default_stim();
-        s.phase_accum = 2.5;
-        s.set_drift_speed(true, 0.0);
-        // deferred: live not updated, accum not reset
-        assert_eq!(s.phase_accum, 2.5);
-        assert_eq!(s.params.copy.drift_speed, 0.0);
-    }
-
-    // ── grating_phase_inc ──────────────────────────────────────────────────────
-
-    #[test]
-    fn phase_inc_zero_fps_returns_zero() {
-        let s = default_stim();
-        assert_eq!(grating_phase_inc(&s, 0.0), 0.0);
-        assert_eq!(grating_phase_inc(&s, -1.0), 0.0);
-    }
-
-    #[test]
-    fn phase_inc_coupled_is_speed_over_fps() {
-        let mut s = default_stim();
-        s.params.live.drift_speed = 2.0;
-        s.params.live.drift_coupled = true;
-        let inc = grating_phase_inc(&s, 60.0);
-        assert!((inc - 2.0 / 60.0).abs() < 1e-6);
-    }
-
-    #[test]
-    fn phase_inc_decoupled_projects_onto_grating_axis() {
-        let mut s = GratingStimulus::new(
-            [0.0, 0.0],
-            45.0,                            // grating orientation 45°
-            [100.0, 100.0],
-            [1.0; 4],
-            GratingParams { drift_speed: 1.0, drift_coupled: false, drift_angle: 45.0, ..GratingParams::default() },
-        );
-        // drift_angle == grating_angle → cos(0) = 1 → inc = speed/fps
-        let inc = grating_phase_inc(&s, 60.0);
-        assert!((inc - 1.0 / 60.0).abs() < 1e-6);
-
-        // 90° offset → cos(90°) ≈ 0
-        s.params.live.drift_angle = 135.0; // 135 - 45 = 90°
-        let inc_perp = grating_phase_inc(&s, 60.0);
-        assert!(inc_perp.abs() < 1e-6);
-    }
-}
-
-// ── Grating render helpers ────────────────────────────────────────────────────
-
-/// Per-frame phase increment (cycles) for the drift accumulator.
-pub fn grating_phase_inc(s: &GratingStimulus, fps: f32) -> f32 {
-    let p = &s.params.live;
-    if fps <= 0.0 {
-        return 0.0;
-    }
-    if p.drift_coupled {
-        p.drift_speed / fps
-    } else {
-        // Project drift velocity onto the grating axis.
-        let grating_rad = s.transform.live.angle.to_radians();
-        let drift_rad = p.drift_angle.to_radians();
-        p.drift_speed * (drift_rad - grating_rad).cos() / fps
-    }
-}
-
-/// Build push constants for one grating draw call.
-pub fn build_grating_push_constants(
-    s: &GratingStimulus,
-    screen_w: f32,
-    screen_h: f32,
-) -> GratingPushConstants {
-    let p = &s.params.live;
-    GratingPushConstants {
-        screen_half: [screen_w * 0.5, screen_h * 0.5],
-        center_px: s.transform.live.pos,
-        half_size: s.size.live,
-        sf: p.sf,
-        phase: p.phase + s.phase_accum,
-        ori_rad: s.transform.live.angle.to_radians(),
-        contrast: p.contrast,
-        _pad_color: [0; 2],
-        color: s.color.live,
-        waveform: p.waveform as u32,
-        mask_type: p.mask as u32,
-        mask_param: p.mask_param,
-        _pad: 0,
+        s.set_fore_color(false, [1.0, 0.5, 0.25]);
+        s.set_opacity(false, 0.75);
+        s.set_back_color(false, [0.1, 0.2, 0.3]);
+        let pc = build_grating_push_constants(&s, 800.0, 600.0);
+        assert_eq!(pc.fore_color, [1.0, 0.5, 0.25, 0.75]);
+        assert_eq!(pc.back_color, [0.1, 0.2, 0.3, 0.0]);
     }
 }

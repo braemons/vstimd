@@ -74,7 +74,9 @@ impl BenchmarkState {
                             [cx, cy],
                             angle,
                             [stim_w / 2.0, stim_h / 2.0],
-                            [1.0, 1.0, 1.0, 1.0],
+                            [1.0, 1.0, 1.0],
+                            [0.0, 0.0, 0.0],
+                            1.0,
                             GratingParams {
                                 sf: 0.05,
                                 contrast: 1.0,

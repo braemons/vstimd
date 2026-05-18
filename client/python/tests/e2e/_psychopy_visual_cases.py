@@ -269,6 +269,67 @@ def test_grating_autodraw(win: visual.Window, step_delay: float) -> None:
     assert info.enabled is False
 
 
+def test_grating_two_color_create(win: visual.Window, step_delay: float) -> None:
+    """GratingStim created with foreColor=red, backColor=blue is round-tripped correctly."""
+    grat = visual.GratingStim(
+        win, tex="sin", size=200,
+        color=(1.0, 0.0, 0.0),       # foreColor = red (in rgb1 space)
+        colorSpace="rgb1",
+        backColor=(0.0, 0.0, 1.0),   # backColor = blue (in rgb1 space)
+        autoDraw=True,
+    )
+    win.flip()
+    time.sleep(step_delay)
+
+    info = win._conn.stimuli.query(grat._handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color[2] == pytest.approx(0.0, abs=0.01)
+    assert info.params.back_color[0] == pytest.approx(0.0, abs=0.01)
+    assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
+
+    grat.autoDraw = False
+
+
+def test_grating_color_setters(win: visual.Window, step_delay: float) -> None:
+    """Setting color, foreColor, backColor and opacity post-creation updates the server."""
+    grat = visual.GratingStim(win, tex="sin", size=200, autoDraw=True)
+    win.flip()
+    time.sleep(step_delay)
+
+    # color setter (= foreColor)
+    grat.color = (0.5, 0.25, 0.0)
+    grat.colorSpace = "rgb1"  # type: ignore[attr-defined]  # noqa: SIM117
+    win.flip()
+    time.sleep(step_delay)
+
+    # foreColor alias
+    grat.foreColor = (1.0, 0.0, 0.0)
+    win.flip()
+    time.sleep(step_delay)
+    info = win._conn.stimuli.query(grat._handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color[1] == pytest.approx(0.0, abs=0.01)
+
+    # backColor setter
+    grat.backColor = (0.0, 0.0, 1.0)
+    win.flip()
+    time.sleep(step_delay)
+    info = win._conn.stimuli.query(grat._handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
+
+    # opacity setter
+    grat.opacity = 0.5
+    win.flip()
+    time.sleep(step_delay)
+    info = win._conn.stimuli.query(grat._handle)
+    assert info.params.opacity == pytest.approx(0.5, abs=0.01)
+
+    grat.autoDraw = False
+
+
 def test_grating_ori(win: visual.Window, step_delay: float) -> None:
     grat = visual.GratingStim(win, tex="sin", size=200, ori=45.0, autoDraw=True)
     win.flip()

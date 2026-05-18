@@ -48,18 +48,18 @@ pub fn mask_to_proto(m: GratingMask) -> proto::MaskType {
 // ── GratingParams ↔ proto ─────────────────────────────────────────────────────
 
 pub fn grating_params_from_proto(cmd: &proto::CreateGratingRequest) -> GratingParams {
-    let sf = if cmd.sf == 0.0 { 0.05 } else { cmd.sf };
-    let contrast = if cmd.contrast == 0.0 { 1.0 } else { cmd.contrast };
+    let sf       = if cmd.sf       == 0.0 { 0.05 } else { cmd.sf };
+    let contrast = if cmd.contrast == 0.0 { 1.0  } else { cmd.contrast };
     GratingParams {
         sf,
-        phase: cmd.phase,
+        phase:        cmd.phase,
         contrast,
-        waveform: proto_to_waveform(cmd.waveform),
-        mask: proto_to_mask(cmd.mask),
-        mask_param: cmd.mask_param,
-        drift_speed: cmd.drift_speed,
+        waveform:     proto_to_waveform(cmd.waveform),
+        mask:         proto_to_mask(cmd.mask),
+        mask_param:   cmd.mask_param,
+        drift_speed:  cmd.drift_speed,
         drift_coupled: !cmd.drift_decoupled,
-        drift_angle: cmd.drift_angle,
+        drift_angle:  cmd.drift_angle,
     }
 }
 
@@ -67,6 +67,8 @@ pub fn grating_params_from_proto(cmd: &proto::CreateGratingRequest) -> GratingPa
 
 pub fn grating_query_params(s: &GratingStimulus) -> proto::StimulusParams {
     let p = s.params.live;
+    let fc = s.fore_color.live;
+    let bc = s.back_color.live;
     proto::StimulusParams {
         shape: Some(proto::stimulus_params::Shape::Grating(proto::GratingParams {
             width: s.size.live[0] * 2.0,
@@ -80,6 +82,9 @@ pub fn grating_query_params(s: &GratingStimulus) -> proto::StimulusParams {
             drift_speed: p.drift_speed,
             drift_decoupled: !p.drift_coupled,
             drift_angle: p.drift_angle,
+            fore_color: Some(proto::Color { r: fc[0], g: fc[1], b: fc[2], a: 1.0 }),
+            back_color: Some(proto::Color { r: bc[0], g: bc[1], b: bc[2], a: 1.0 }),
+            opacity: s.opacity.live,
         })),
     }
 }

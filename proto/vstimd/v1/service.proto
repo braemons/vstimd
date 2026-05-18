@@ -76,12 +76,15 @@ message Request {
     SetGratingDriftSpeedRequest  set_grating_drift_speed  = 55;
     SetGratingDriftDecoupledRequest set_grating_drift_decoupled = 56;
     SetGratingDriftAngleRequest  set_grating_drift_angle  = 57;
+    SetGratingForeColorRequest   set_grating_fore_color   = 58;
+    SetGratingBackColorRequest   set_grating_back_color   = 59;
+    SetGratingOpacityRequest     set_grating_opacity      = 60;
 
     // ── System mutations (system target only) ───────────────────────────────
-    SetBackgroundRequest   set_background   = 60;
-    SetDeferredModeRequest set_deferred_mode = 61;
-    DeleteAllRequest       delete_all       = 62;
-    SetAllEnabledRequest   set_all_enabled  = 63;
+    SetBackgroundRequest   set_background   = 70;
+    SetDeferredModeRequest set_deferred_mode = 71;
+    DeleteAllRequest       delete_all       = 72;
+    SetAllEnabledRequest   set_all_enabled  = 73;
 
     // ── Queries ─────────────────────────────────────────────────────────────
     QueryServerInfoRequest query_server_info = 80;  // system target

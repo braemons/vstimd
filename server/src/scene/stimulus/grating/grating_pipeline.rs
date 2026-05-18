@@ -6,7 +6,7 @@ use crate::render::vk::buffers::VkMesh;
 
 /// Must match the `PushConstants` struct in `shaders/grating.wgsl` (std430).
 ///
-/// Layout (80 bytes):
+/// Layout (96 bytes):
 ///   offset  0: screen_half  [f32; 2]
 ///   offset  8: center_px    [f32; 2]
 ///   offset 16: half_size    [f32; 2]
@@ -14,12 +14,13 @@ use crate::render::vk::buffers::VkMesh;
 ///   offset 28: phase        f32
 ///   offset 32: ori_rad      f32
 ///   offset 36: contrast     f32
-///   offset 40: _pad_color   [u32; 2]  ← 8-byte gap: vec4 requires 16-byte alignment
-///   offset 48: color        [f32; 4]
-///   offset 64: waveform     u32
-///   offset 68: mask_type    u32
-///   offset 72: mask_param   f32   (SD for gauss; fringe width for raisedCos; 0 = use default)
-///   offset 76: _pad         u32
+///   offset 40: _pad_colors  [u32; 2]  ← 8-byte gap: vec4 requires 16-byte alignment
+///   offset 48: fore_color   [f32; 4]  ← rgb + opacity (a)
+///   offset 64: back_color   [f32; 4]  ← rgb + 0 (unused)
+///   offset 80: waveform     u32
+///   offset 84: mask_type    u32
+///   offset 88: mask_param   f32   (SD for gauss; fringe width for raisedCos; 0 = use default)
+///   offset 92: _pad         u32
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GratingPushConstants {
@@ -30,8 +31,9 @@ pub struct GratingPushConstants {
     pub phase: f32,
     pub ori_rad: f32,
     pub contrast: f32,
-    pub _pad_color: [u32; 2],
-    pub color: [f32; 4],
+    pub _pad_colors: [u32; 2],
+    pub fore_color: [f32; 4],  // rgb + opacity
+    pub back_color: [f32; 4],  // rgb + 0
     pub waveform: u32,
     pub mask_type: u32,
     pub mask_param: f32,

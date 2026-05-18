@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Callable
 
 from vstimd._proto import common_pb2, service_pb2, stimuli_2d_pb2 as stimuli_pb2
-from .stimuli_models import StimulusInfo
+from .stimuli_models import Color, StimulusInfo, Vec2
 from .grating_models import GratingMask, GratingTexture, _MASK_TO_PROTO, _WAVEFORM_TO_PROTO
 
 
@@ -93,18 +93,16 @@ class StimuliClient:
     def create_grating(
         self,
         *,
-        x: float = 0.0,
-        y: float = 0.0,
+        pos: Vec2 = Vec2(0.0, 0.0),
         width: float = 200.0,
         height: float = 200.0,
         sf: float = 0.05,
         phase: float = 0.0,
         angle: float = 0.0,
         contrast: float = 1.0,
-        r: float = 1.0,
-        g: float = 1.0,
-        b: float = 1.0,
-        a: float = 1.0,
+        fore_color: Color = Color(1.0, 1.0, 1.0),
+        back_color: Color = Color(0.0, 0.0, 0.0),
+        opacity: float = 1.0,
         waveform: GratingTexture = GratingTexture.SIN,
         mask: GratingMask = GratingMask.NONE,
         mask_param: float = 0.0,
@@ -114,6 +112,9 @@ class StimuliClient:
     ) -> int:
         """Create a grating stimulus and return its handle.
 
+        The grating interpolates between back_color (carrier = -1) and fore_color
+        (carrier = +1), modulated by contrast.  opacity sets global transparency.
+
         mask_param interpretation (0 = use default):
           - MASK_TYPE_GAUSS:      SD in normalized units where patch radius = 1 (default 1/3)
           - MASK_TYPE_RAISED_COS: fringe proportion [0, 1] (default 0.2)
@@ -121,15 +122,16 @@ class StimuliClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_grating=stimuli_pb2.CreateGratingRequest(
-                center=common_pb2.Vec2(x=x, y=y),
+                center=common_pb2.Vec2(x=pos.x, y=pos.y),
                 width=width,
                 height=height,
                 sf=sf,
                 phase=phase,
                 angle=angle,
                 contrast=contrast,
-                color=common_pb2.Color(r=r, g=g, b=b),
-                opacity=a,
+                fore_color=common_pb2.Color(r=fore_color.r, g=fore_color.g, b=fore_color.b),
+                back_color=common_pb2.Color(r=back_color.r, g=back_color.g, b=back_color.b),
+                opacity=opacity,
                 waveform=_WAVEFORM_TO_PROTO[waveform],
                 mask=_MASK_TO_PROTO[mask],
                 mask_param=mask_param,
@@ -279,6 +281,31 @@ class StimuliClient:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_drift_angle=stimuli_pb2.SetGratingDriftAngleRequest(angle_deg=drift_angle),
+        )
+        self._send(req)
+
+    def set_grating_fore_color(self, handle: int, r: float, g: float, b: float) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_fore_color=stimuli_pb2.SetGratingForeColorRequest(
+                fore_color=common_pb2.Color(r=r, g=g, b=b),
+            ),
+        )
+        self._send(req)
+
+    def set_grating_back_color(self, handle: int, r: float, g: float, b: float) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_back_color=stimuli_pb2.SetGratingBackColorRequest(
+                back_color=common_pb2.Color(r=r, g=g, b=b),
+            ),
+        )
+        self._send(req)
+
+    def set_grating_opacity(self, handle: int, opacity: float) -> None:
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_grating_opacity=stimuli_pb2.SetGratingOpacityRequest(opacity=opacity),
         )
         self._send(req)
 

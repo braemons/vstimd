@@ -78,6 +78,9 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::SetGratingDriftAngle(c)) => {
             format!("SetGratingDriftAngle({:.1}°)", c.angle_deg)
         }
+        Some(request::Body::SetGratingForeColor(_)) => "SetGratingForeColor".into(),
+        Some(request::Body::SetGratingBackColor(_)) => "SetGratingBackColor".into(),
+        Some(request::Body::SetGratingOpacity(c)) => format!("SetGratingOpacity({:.2})", c.opacity),
         Some(request::Body::QueryServerInfo(_)) => "QueryServerInfo".into(),
         Some(request::Body::QueryStimulus(_)) => "QueryStimulus".into(),
         Some(request::Body::ListStimuli(_)) => "ListStimuli".into(),
@@ -205,6 +208,15 @@ impl SceneState {
             }
             request::Body::SetGratingDriftAngle(cmd) => {
                 self.cmd_set_grating_drift_angle(handle, cmd)
+            }
+            request::Body::SetGratingForeColor(cmd) => {
+                self.cmd_set_grating_fore_color(handle, cmd)
+            }
+            request::Body::SetGratingBackColor(cmd) => {
+                self.cmd_set_grating_back_color(handle, cmd)
+            }
+            request::Body::SetGratingOpacity(cmd) => {
+                self.cmd_set_grating_opacity(handle, cmd)
             }
             request::Body::QueryStimulus(_) => self.cmd_query_stimulus(handle),
         }
@@ -551,7 +563,8 @@ impl SceneState {
         let width = if cmd.width == 0.0 { 200.0 } else { cmd.width };
         let height = if cmd.height == 0.0 { 200.0 } else { cmd.height };
         let opacity = if cmd.opacity == 0.0 { 1.0 } else { cmd.opacity };
-        let color = cmd.color.map_or([1.0, 1.0, 1.0, opacity], |c| [c.r, c.g, c.b, opacity]);
+        let fore = cmd.fore_color.map_or([1.0, 1.0, 1.0], |c| [c.r, c.g, c.b]);
+        let back = cmd.back_color.map_or([0.0, 0.0, 0.0], |c| [c.r, c.g, c.b]);
 
         let handle = self.alloc_stim_handle();
         self.stimuli.insert(
@@ -560,7 +573,9 @@ impl SceneState {
                 [center.x, center.y],
                 cmd.angle,
                 [width / 2.0, height / 2.0],
-                color,
+                fore,
+                back,
+                opacity,
                 grating_params_from_proto(&cmd),
             )),
         );
@@ -630,6 +645,38 @@ impl SceneState {
             None => err_not_found(handle),
             Some(Stimulus::Grating(s)) => { s.set_drift_angle(self.deferred_mode, cmd.angle_deg); ok_ack() }
             Some(stim) => err_wrong_type(stim, "SetGratingDriftAngle", "Grating"),
+        }
+    }
+
+    fn cmd_set_grating_fore_color(&mut self, handle: u32, cmd: proto::SetGratingForeColorRequest) -> proto::Response {
+        let c = match cmd.fore_color {
+            Some(c) => [c.r, c.g, c.b],
+            None => return err(proto::ErrorCode::InvalidArgument, "fore_color must be set"),
+        };
+        match self.stimuli.get_mut(&handle) {
+            None => err_not_found(handle),
+            Some(Stimulus::Grating(s)) => { s.set_fore_color(self.deferred_mode, c); ok_ack() }
+            Some(stim) => err_wrong_type(stim, "SetGratingForeColor", "Grating"),
+        }
+    }
+
+    fn cmd_set_grating_back_color(&mut self, handle: u32, cmd: proto::SetGratingBackColorRequest) -> proto::Response {
+        let c = match cmd.back_color {
+            Some(c) => [c.r, c.g, c.b],
+            None => return err(proto::ErrorCode::InvalidArgument, "back_color must be set"),
+        };
+        match self.stimuli.get_mut(&handle) {
+            None => err_not_found(handle),
+            Some(Stimulus::Grating(s)) => { s.set_back_color(self.deferred_mode, c); ok_ack() }
+            Some(stim) => err_wrong_type(stim, "SetGratingBackColor", "Grating"),
+        }
+    }
+
+    fn cmd_set_grating_opacity(&mut self, handle: u32, cmd: proto::SetGratingOpacityRequest) -> proto::Response {
+        match self.stimuli.get_mut(&handle) {
+            None => err_not_found(handle),
+            Some(Stimulus::Grating(s)) => { s.set_opacity(self.deferred_mode, cmd.opacity); ok_ack() }
+            Some(stim) => err_wrong_type(stim, "SetGratingOpacity", "Grating"),
         }
     }
 
@@ -726,8 +773,9 @@ impl SceneState {
                 }
                 None => {
                     let (fill, opacity) = if let Stimulus::Grating(s) = stim {
-                        let c = s.color.live;
-                        (Some(proto::Color { r: c[0], g: c[1], b: c[2], a: c[3] }), c[3])
+                        let fc = s.fore_color.live;
+                        let op = s.opacity.live;
+                        (Some(proto::Color { r: fc[0], g: fc[1], b: fc[2], a: op }), op)
                     } else {
                         (None, 1.0)
                     };
