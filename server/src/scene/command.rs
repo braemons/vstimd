@@ -563,8 +563,8 @@ impl SceneState {
         let width = if cmd.width == 0.0 { 200.0 } else { cmd.width };
         let height = if cmd.height == 0.0 { 200.0 } else { cmd.height };
         let opacity = if cmd.opacity == 0.0 { 1.0 } else { cmd.opacity };
-        let fore = cmd.fore_color.map_or([1.0, 1.0, 1.0], |c| [c.r, c.g, c.b]);
-        let back = cmd.back_color.map_or([0.0, 0.0, 0.0], |c| [c.r, c.g, c.b]);
+        let fore = cmd.fore_color.map_or([1.0, 1.0, 1.0, 1.0], |c| [c.r, c.g, c.b, c.a]);
+        let back = cmd.back_color.map_or([0.0, 0.0, 0.0, 1.0], |c| [c.r, c.g, c.b, c.a]);
 
         let handle = self.alloc_stim_handle();
         self.stimuli.insert(
@@ -650,7 +650,7 @@ impl SceneState {
 
     fn cmd_set_grating_fore_color(&mut self, handle: u32, cmd: proto::SetGratingForeColorRequest) -> proto::Response {
         let c = match cmd.fore_color {
-            Some(c) => [c.r, c.g, c.b],
+            Some(c) => [c.r, c.g, c.b, c.a],
             None => return err(proto::ErrorCode::InvalidArgument, "fore_color must be set"),
         };
         match self.stimuli.get_mut(&handle) {
@@ -662,7 +662,7 @@ impl SceneState {
 
     fn cmd_set_grating_back_color(&mut self, handle: u32, cmd: proto::SetGratingBackColorRequest) -> proto::Response {
         let c = match cmd.back_color {
-            Some(c) => [c.r, c.g, c.b],
+            Some(c) => [c.r, c.g, c.b, c.a],
             None => return err(proto::ErrorCode::InvalidArgument, "back_color must be set"),
         };
         match self.stimuli.get_mut(&handle) {

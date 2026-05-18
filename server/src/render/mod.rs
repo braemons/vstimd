@@ -110,8 +110,8 @@ pub(crate) fn spawn_demo_stimuli(
                 pos: [100.0, -200.0],
                 angle: 0.0,
             }),
-            fore_color: Deferred::new([1.0, 1.0, 1.0]),
-            back_color: Deferred::new([0.0, 0.0, 0.0]),
+            fore_color: Deferred::new([1.0, 1.0, 1.0, 1.0]),
+            back_color: Deferred::new([0.0, 0.0, 0.0, 1.0]),
             opacity: Deferred::new(1.0),
             size: Deferred::new([100.0, 100.0]),
             params: Deferred::new(GratingParams {

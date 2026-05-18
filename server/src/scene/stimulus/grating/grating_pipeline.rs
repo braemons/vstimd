@@ -7,20 +7,21 @@ use crate::render::vk::buffers::VkMesh;
 /// Must match the `PushConstants` struct in `shaders/grating.wgsl` (std430).
 ///
 /// Layout (96 bytes):
-///   offset  0: screen_half  [f32; 2]
-///   offset  8: center_px    [f32; 2]
-///   offset 16: half_size    [f32; 2]
-///   offset 24: sf           f32
-///   offset 28: phase        f32
-///   offset 32: ori_rad      f32
-///   offset 36: contrast     f32
-///   offset 40: _pad_colors  [u32; 2]  ← 8-byte gap: vec4 requires 16-byte alignment
-///   offset 48: fore_color   [f32; 4]  ← rgb + opacity (a)
-///   offset 64: back_color   [f32; 4]  ← rgb + 0 (unused)
-///   offset 80: waveform     u32
-///   offset 84: mask_type    u32
-///   offset 88: mask_param   f32   (SD for gauss; fringe width for raisedCos; 0 = use default)
-///   offset 92: _pad         u32
+///   offset  0: screen_half     [f32; 2]
+///   offset  8: center_px       [f32; 2]
+///   offset 16: half_size       [f32; 2]
+///   offset 24: sf              f32
+///   offset 28: phase           f32
+///   offset 32: ori_rad         f32
+///   offset 36: contrast        f32
+///   offset 40: global_opacity  f32      ← global alpha multiplier
+///   offset 44: _pad_color      u32      ← padding (vec4 requires 16-byte alignment)
+///   offset 48: fore_color      [f32; 4] ← rgba peak colour
+///   offset 64: back_color      [f32; 4] ← rgba trough colour
+///   offset 80: waveform        u32
+///   offset 84: mask_type       u32
+///   offset 88: mask_param      f32   (SD for gauss; fringe width for raisedCos; 0 = use default)
+///   offset 92: _pad            u32
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct GratingPushConstants {
@@ -31,9 +32,10 @@ pub struct GratingPushConstants {
     pub phase: f32,
     pub ori_rad: f32,
     pub contrast: f32,
-    pub _pad_colors: [u32; 2],
-    pub fore_color: [f32; 4],  // rgb + opacity
-    pub back_color: [f32; 4],  // rgb + 0
+    pub global_opacity: f32,
+    pub _pad_color: u32,
+    pub fore_color: [f32; 4],  // rgba peak colour
+    pub back_color: [f32; 4],  // rgba trough colour
     pub waveform: u32,
     pub mask_type: u32,
     pub mask_param: f32,

@@ -258,35 +258,39 @@ def test_grating_two_color_create(conn: Connection) -> None:
     assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)  # r
     assert info.params.fore_color[1] == pytest.approx(0.0, abs=0.01)  # g
     assert info.params.fore_color[2] == pytest.approx(0.0, abs=0.01)  # b
+    assert info.params.fore_color[3] == pytest.approx(1.0, abs=0.01)  # a
     assert info.params.back_color[0] == pytest.approx(0.0, abs=0.01)  # r
     assert info.params.back_color[1] == pytest.approx(0.0, abs=0.01)  # g
     assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)  # b
+    assert info.params.back_color[3] == pytest.approx(1.0, abs=0.01)  # a
 
     conn.stimuli.delete(handle)
 
 
 def test_grating_mutate_fore_color(conn: Connection) -> None:
     handle = conn.stimuli.create_grating()
-    conn.stimuli.set_grating_fore_color(handle, 0.5, 0.25, 0.0)
+    conn.stimuli.set_grating_fore_color(handle, 0.5, 0.25, 0.0, 0.7)
 
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
     assert info.params.fore_color[0] == pytest.approx(0.5, abs=0.01)
     assert info.params.fore_color[1] == pytest.approx(0.25, abs=0.01)
     assert info.params.fore_color[2] == pytest.approx(0.0, abs=0.01)
+    assert info.params.fore_color[3] == pytest.approx(0.7, abs=0.01)
 
     conn.stimuli.delete(handle)
 
 
 def test_grating_mutate_back_color(conn: Connection) -> None:
     handle = conn.stimuli.create_grating()
-    conn.stimuli.set_grating_back_color(handle, 0.1, 0.2, 0.3)
+    conn.stimuli.set_grating_back_color(handle, 0.1, 0.2, 0.3, 0.4)
 
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
     assert info.params.back_color[0] == pytest.approx(0.1, abs=0.01)
     assert info.params.back_color[1] == pytest.approx(0.2, abs=0.01)
     assert info.params.back_color[2] == pytest.approx(0.3, abs=0.01)
+    assert info.params.back_color[3] == pytest.approx(0.4, abs=0.01)
 
     conn.stimuli.delete(handle)
 
@@ -325,9 +329,28 @@ def test_grating_fore_back_color_independent(conn: Connection) -> None:
     conn.stimuli.delete(handle)
 
 
+def test_grating_per_color_alpha(conn: Connection) -> None:
+    """Per-color alpha values (fore and back) round-trip independently of global opacity."""
+    handle = conn.stimuli.create_grating(
+        fore_color=Color(1.0, 0.0, 0.0, 0.5),
+        back_color=Color(0.0, 0.0, 1.0, 0.0),
+        opacity=0.8,
+    )
+    assert handle > 0
+
+    info = conn.stimuli.query(handle)
+    assert isinstance(info.params, GratingParams)
+    assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color[3] == pytest.approx(0.5, abs=0.01)
+    assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color[3] == pytest.approx(0.0, abs=0.01)
+    assert info.opacity == pytest.approx(0.8, abs=0.01)
+
+    conn.stimuli.delete(handle)
+
+
 def test_grating_opacity(conn: Connection) -> None:
     """Test that grating opacity parameter works correctly."""
-    # Create grating with 50% opacity
     handle = conn.stimuli.create_grating(
         pos=Vec2(0, 0), width=200, height=200,
         fore_color=Color(1.0, 0.0, 0.0), opacity=0.5,
@@ -337,13 +360,6 @@ def test_grating_opacity(conn: Connection) -> None:
     info = conn.stimuli.query(handle)
     assert info.stimulus_type == StimulusType.GRATING
     assert isinstance(info.params, GratingParams)
-    
-    # Verify opacity is set correctly
     assert info.opacity == pytest.approx(0.5, abs=0.01)
-    
-    # Verify color is RGB only (no alpha in color field)
-    assert info.fill_color.r == pytest.approx(1.0, abs=0.01)
-    assert info.fill_color.g == pytest.approx(0.0, abs=0.01)
-    assert info.fill_color.b == pytest.approx(0.0, abs=0.01)
 
     conn.stimuli.delete(handle)

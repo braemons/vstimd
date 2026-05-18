@@ -158,8 +158,8 @@ class GratingStim:
         ph = self._scalar_px(self._height)
         # sf is in cycles/unit — convert to cycles/pixel
         psf = self._sf_to_px(self._sf)
-        fore_rgba = normalize_color(color, colorSpace, opacity) or (1.0, 1.0, 1.0, 1.0)
-        back_rgb  = normalize_color(backColor, colorSpace, 1.0) or (0.0, 0.0, 0.0, 1.0)
+        fore_rgba = normalize_color(color, colorSpace, 1.0) or (1.0, 1.0, 1.0, 1.0)
+        back_rgba = normalize_color(backColor, colorSpace, 1.0) or (0.0, 0.0, 0.0, 1.0)
 
         self._handle: int = win._conn.stimuli.create_grating(
             pos=StimulusVec2(px, py),
@@ -168,9 +168,9 @@ class GratingStim:
             phase=self._phase,
             angle=self._ori,
             contrast=self._contrast,
-            fore_color=StimulusColor(fore_rgba[0], fore_rgba[1], fore_rgba[2]),
-            back_color=StimulusColor(back_rgb[0], back_rgb[1], back_rgb[2]),
-            opacity=fore_rgba[3],
+            fore_color=StimulusColor(fore_rgba[0], fore_rgba[1], fore_rgba[2], fore_rgba[3]),
+            back_color=StimulusColor(back_rgba[0], back_rgba[1], back_rgba[2], back_rgba[3]),
+            opacity=self._opacity,
             waveform=waveform_enum,
             mask=mask_enum,
             mask_param=mask_param,
@@ -333,6 +333,19 @@ class GratingStim:
     def foreColor(self, value: ColorInput) -> None:
         self.color = value
 
+    @property
+    def colorSpace(self) -> str:
+        return self._color_space
+
+    @colorSpace.setter
+    def colorSpace(self, value: str) -> None:
+        if value not in ("rgb", "rgb255", "rgb1", ""):
+            raise NotImplementedError(
+                f"GratingStim: colorSpace={value!r} is not supported. "
+                "Supported values: 'rgb', 'rgb255', 'rgb1'."
+            )
+        self._color_space = value
+
     def setColor(self, value: ColorInput, colorSpace: str | None = None, log: bool | None = None) -> None:
         if colorSpace is not None:
             if colorSpace not in ("rgb", "rgb255", "rgb1", ""):
@@ -347,10 +360,10 @@ class GratingStim:
         self.setColor(value, colorSpace=colorSpace, log=log)
 
     def _resend_fore_color(self) -> None:
-        rgba = normalize_color(self._color, self._color_space, self._opacity) or (1.0, 1.0, 1.0, 1.0)
+        rgba = normalize_color(self._color, self._color_space, 1.0) or (1.0, 1.0, 1.0, 1.0)
         self._win._dispatch(
             self._win._conn.stimuli.set_grating_fore_color,
-            self._handle, rgba[0], rgba[1], rgba[2],
+            self._handle, rgba[0], rgba[1], rgba[2], rgba[3],
         )
 
     # ── Colour (background / trough) ─────────────────────────────────────────
@@ -375,10 +388,10 @@ class GratingStim:
         self.backColor = value
 
     def _resend_back_color(self) -> None:
-        rgb = normalize_color(self._back_color, self._color_space, 1.0) or (0.0, 0.0, 0.0, 1.0)
+        rgba = normalize_color(self._back_color, self._color_space, 1.0) or (0.0, 0.0, 0.0, 1.0)
         self._win._dispatch(
             self._win._conn.stimuli.set_grating_back_color,
-            self._handle, rgb[0], rgb[1], rgb[2],
+            self._handle, rgba[0], rgba[1], rgba[2], rgba[3],
         )
 
     # ── Drift (vstimd extension) ──────────────────────────────────────────────

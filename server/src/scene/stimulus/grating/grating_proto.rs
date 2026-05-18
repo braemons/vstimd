@@ -82,8 +82,8 @@ pub fn grating_query_params(s: &GratingStimulus) -> proto::StimulusParams {
             drift_speed: p.drift_speed,
             drift_decoupled: !p.drift_coupled,
             drift_angle: p.drift_angle,
-            fore_color: Some(proto::Color { r: fc[0], g: fc[1], b: fc[2], a: 1.0 }),
-            back_color: Some(proto::Color { r: bc[0], g: bc[1], b: bc[2], a: 1.0 }),
+            fore_color: Some(proto::Color { r: fc[0], g: fc[1], b: fc[2], a: fc[3] }),
+            back_color: Some(proto::Color { r: bc[0], g: bc[1], b: bc[2], a: bc[3] }),
             opacity: s.opacity.live,
         })),
     }

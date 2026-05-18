@@ -285,8 +285,10 @@ def test_grating_two_color_create(win: visual.Window, step_delay: float) -> None
     assert isinstance(info.params, GratingParams)
     assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
     assert info.params.fore_color[2] == pytest.approx(0.0, abs=0.01)
+    assert info.params.fore_color[3] == pytest.approx(1.0, abs=0.01)
     assert info.params.back_color[0] == pytest.approx(0.0, abs=0.01)
     assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color[3] == pytest.approx(1.0, abs=0.01)
 
     grat.autoDraw = False
 
@@ -320,12 +322,15 @@ def test_grating_color_setters(win: visual.Window, step_delay: float) -> None:
     assert isinstance(info.params, GratingParams)
     assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
 
-    # opacity setter
+    # opacity setter (global)
     grat.opacity = 0.5
     win.flip()
     time.sleep(step_delay)
     info = win._conn.stimuli.query(grat._handle)
     assert info.params.opacity == pytest.approx(0.5, abs=0.01)
+    # fore/back alpha unaffected by global opacity change
+    assert info.params.fore_color[3] == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color[3] == pytest.approx(1.0, abs=0.01)
 
     grat.autoDraw = False
 

@@ -6,36 +6,38 @@
 // constants, so no UV attributes are needed on the vertices.
 //
 // Push constant layout (96 bytes, std430):
-//   screen_half  vec2<f32>   half screen dimensions in pixels (for coord conversion)
-//   center_px    vec2<f32>   grating centre in pixel-space (Y-up)
-//   half_size    vec2<f32>   patch half-extents [hw, hh] in pixels
-//   sf           f32         spatial frequency in cycles/pixel
-//   phase        f32         total phase (static + accumulated drift) in [0,1]
-//   ori_rad      f32         stripe orientation in radians (CCW from X axis)
-//   contrast     f32         [0, 1]
-//   (8 bytes padding — vec4 requires 16-byte alignment)
-//   fore_color   vec4<f32>   peak colour (rgb) and opacity (a)
-//   back_color   vec4<f32>   trough colour (rgb); a is unused
-//   waveform     u32         0=sin  1=sqr  2=saw  3=tri
-//   mask_type    u32         0=none  1=circle  2=gauss  3=hann  4=raisedCos
-//   mask_param   f32         mask-specific param (0=default): SD for gauss; fringe for raisedCos
-//   _pad         u32         alignment padding
+//   screen_half     vec2<f32>   half screen dimensions in pixels (for coord conversion)
+//   center_px       vec2<f32>   grating centre in pixel-space (Y-up)
+//   half_size       vec2<f32>   patch half-extents [hw, hh] in pixels
+//   sf              f32         spatial frequency in cycles/pixel
+//   phase           f32         total phase (static + accumulated drift) in [0,1]
+//   ori_rad         f32         stripe orientation in radians (CCW from X axis)
+//   contrast        f32         [0, 1]
+//   global_opacity  f32         global alpha multiplier [0, 1]
+//   (4 bytes padding — vec4 requires 16-byte alignment)
+//   fore_color      vec4<f32>   peak colour rgba
+//   back_color      vec4<f32>   trough colour rgba
+//   waveform        u32         0=sin  1=sqr  2=saw  3=tri
+//   mask_type       u32         0=none  1=circle  2=gauss  3=hann  4=raisedCos
+//   mask_param      f32         mask-specific param (0=default): SD for gauss; fringe for raisedCos
+//   _pad            u32         alignment padding
 
 struct PushConstants {
-    screen_half : vec2<f32>,
-    center_px   : vec2<f32>,
-    half_size   : vec2<f32>,
-    sf          : f32,
-    phase       : f32,
-    ori_rad     : f32,
-    contrast    : f32,
-    // 8 bytes implicit padding here (vec4 alignment)
-    fore_color  : vec4<f32>,
-    back_color  : vec4<f32>,
-    waveform    : u32,
-    mask_type   : u32,
-    mask_param  : f32,
-    _pad        : u32,
+    screen_half    : vec2<f32>,
+    center_px      : vec2<f32>,
+    half_size      : vec2<f32>,
+    sf             : f32,
+    phase          : f32,
+    ori_rad        : f32,
+    contrast       : f32,
+    global_opacity : f32,
+    // 4 bytes implicit padding here (vec4 alignment)
+    fore_color     : vec4<f32>,
+    back_color     : vec4<f32>,
+    waveform       : u32,
+    mask_type      : u32,
+    mask_param     : f32,
+    _pad           : u32,
 }
 
 var<push_constant> p: PushConstants;
@@ -154,7 +156,8 @@ fn fs_main(@builtin(position) frag_pos: vec4<f32>) -> @location(0) vec4<f32> {
         case 4u:  { alpha = mask_raised_cos(d, p.half_size, p.mask_param); }
         default:  { alpha = 1.0; }
     }
-    alpha *= p.fore_color.a;
+    let alpha_mix = mix(p.back_color.a, p.fore_color.a, blend);
+    alpha *= alpha_mix * p.global_opacity;
 
     return vec4<f32>(rgb, alpha);
 }

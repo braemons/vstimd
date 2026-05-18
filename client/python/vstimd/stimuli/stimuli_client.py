@@ -129,8 +129,8 @@ class StimuliClient:
                 phase=phase,
                 angle=angle,
                 contrast=contrast,
-                fore_color=common_pb2.Color(r=fore_color.r, g=fore_color.g, b=fore_color.b),
-                back_color=common_pb2.Color(r=back_color.r, g=back_color.g, b=back_color.b),
+                fore_color=common_pb2.Color(r=fore_color.r, g=fore_color.g, b=fore_color.b, a=fore_color.a),
+                back_color=common_pb2.Color(r=back_color.r, g=back_color.g, b=back_color.b, a=back_color.a),
                 opacity=opacity,
                 waveform=_WAVEFORM_TO_PROTO[waveform],
                 mask=_MASK_TO_PROTO[mask],
@@ -284,20 +284,20 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_grating_fore_color(self, handle: int, r: float, g: float, b: float) -> None:
+    def set_grating_fore_color(self, handle: int, r: float, g: float, b: float, a: float = 1.0) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_fore_color=stimuli_pb2.SetGratingForeColorRequest(
-                fore_color=common_pb2.Color(r=r, g=g, b=b),
+                fore_color=common_pb2.Color(r=r, g=g, b=b, a=a),
             ),
         )
         self._send(req)
 
-    def set_grating_back_color(self, handle: int, r: float, g: float, b: float) -> None:
+    def set_grating_back_color(self, handle: int, r: float, g: float, b: float, a: float = 1.0) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_back_color=stimuli_pb2.SetGratingBackColorRequest(
-                back_color=common_pb2.Color(r=r, g=g, b=b),
+                back_color=common_pb2.Color(r=r, g=g, b=b, a=a),
             ),
         )
         self._send(req)
