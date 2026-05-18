@@ -10,8 +10,7 @@ import time
 import pytest
 
 import vstimd.psychopy.visual as visual
-from vstimd._proto.vstimd.v1 import stimuli_2d_pb2 as _pb2
-from vstimd.stimuli import DiscParams, GratingParams, RectParams, StimulusType
+from vstimd.stimuli import DiscParams, GratingMask, GratingParams, GratingTexture, RectParams, StimulusType
 
 
 def test_create_rect(win: visual.Window, step_delay: float) -> None:
@@ -173,8 +172,8 @@ def test_create_grating_default(win: visual.Window, step_delay: float) -> None:
     info = win._conn.stimuli.query(grat._handle)
     assert info.stimulus_type == StimulusType.GRATING
     assert isinstance(info.params, GratingParams)
-    assert info.params.waveform == _pb2.WAVEFORM_TYPE_SIN
-    assert info.params.mask == _pb2.MASK_TYPE_NONE
+    assert info.params.waveform == GratingTexture.SIN
+    assert info.params.mask == GratingMask.NONE
     assert info.params.contrast == pytest.approx(1.0, abs=0.01)
     assert info.params.drift_coupled is True
 
@@ -200,8 +199,8 @@ def test_create_grating_sqr_circle_mask(win: visual.Window, step_delay: float) -
     info = win._conn.stimuli.query(grat._handle)
     assert info.stimulus_type == StimulusType.GRATING
     assert isinstance(info.params, GratingParams)
-    assert info.params.waveform == _pb2.WAVEFORM_TYPE_SQR
-    assert info.params.mask == _pb2.MASK_TYPE_CIRCLE
+    assert info.params.waveform == GratingTexture.SQR
+    assert info.params.mask == GratingMask.CIRCLE
     assert info.params.sf == pytest.approx(0.03, rel=1e-2)
     assert info.params.phase == pytest.approx(0.1, abs=0.01)
     assert info.params.contrast == pytest.approx(0.75, abs=0.01)

@@ -1,45 +1,15 @@
 from __future__ import annotations
 
-from enum import StrEnum
-
-from vstimd._proto.vstimd.v1 import stimuli_2d_pb2 as _pb2
 from ._colors import normalize_color
 from ._types import ColorInput, Vec2
 from ._units import to_pixels
 from .window import Window
-
-
-class GratingTex(StrEnum):
-    SIN = "sin"
-    SQR = "sqr"
-    SAW = "saw"
-    TRI = "tri"
-
-
-class GratingMask(StrEnum):
-    NONE       = "none"
-    CIRCLE     = "circle"
-    GAUSS      = "gauss"
-    RAISED_COS = "raisedCos"
-    HANN       = "hann"
-
-
-# tex → WaveformType proto int
-_WAVEFORM_MAP: dict[GratingTex, int] = {
-    GratingTex.SIN: _pb2.WAVEFORM_TYPE_SIN,
-    GratingTex.SQR: _pb2.WAVEFORM_TYPE_SQR,
-    GratingTex.SAW: _pb2.WAVEFORM_TYPE_SAW,
-    GratingTex.TRI: _pb2.WAVEFORM_TYPE_TRI,
-}
-
-# mask → MaskType proto int
-_MASK_MAP: dict[GratingMask, int] = {
-    GratingMask.NONE:       _pb2.MASK_TYPE_NONE,
-    GratingMask.CIRCLE:     _pb2.MASK_TYPE_CIRCLE,
-    GratingMask.GAUSS:      _pb2.MASK_TYPE_GAUSS,
-    GratingMask.RAISED_COS: _pb2.MASK_TYPE_RAISED_COS,
-    GratingMask.HANN:       _pb2.MASK_TYPE_HANN,
-}
+from vstimd.stimuli.grating_models import (
+    GratingMask,
+    GratingTexture,
+    _MASK_TO_PROTO,
+    _WAVEFORM_TO_PROTO,
+)
 
 
 def _parse_mask_param(mask: GratingMask | str | None, mask_params: dict | None) -> float:
@@ -77,7 +47,7 @@ class GratingStim:
     def __init__(
         self,
         win: Window,
-        tex: GratingTex | str = GratingTex.SIN,
+        tex: GratingTexture | str = GratingTexture.SIN,
         mask: GratingMask | str | None = None,
         units: str = "",
         pos: Vec2 = (0.0, 0.0),
@@ -108,11 +78,11 @@ class GratingStim:
     ) -> None:
         # ── Coerce and validate tex / mask ────────────────────────────────────
         try:
-            tex = GratingTex(tex) if tex is not None else None
+            tex = GratingTexture(tex) if tex is not None else None
         except ValueError:
             raise NotImplementedError(
                 f"GratingStim: tex={tex!r} is not supported. "
-                f"Supported values: {[e.value for e in GratingTex]} or None."
+                f"Supported values: {[e.value for e in GratingTexture]} or None."
             )
         try:
             mask = GratingMask(mask) if mask is not None else None
@@ -174,8 +144,8 @@ class GratingStim:
         self._drift_angle = float(drift_angle)
         self._auto_draw = False
 
-        waveform  = _WAVEFORM_MAP[tex]  if tex  is not None else _pb2.WAVEFORM_TYPE_SIN
-        mask_type = _MASK_MAP[mask]     if mask is not None else _pb2.MASK_TYPE_NONE
+        waveform  = _WAVEFORM_TO_PROTO[tex]  if tex  is not None else _WAVEFORM_TO_PROTO[GratingTexture.SIN]
+        mask_type = _MASK_TO_PROTO[mask]     if mask is not None else _MASK_TO_PROTO[GratingMask.NONE]
         mask_param = _parse_mask_param(mask, maskParams)
 
         px, py = self._to_px(self._pos)

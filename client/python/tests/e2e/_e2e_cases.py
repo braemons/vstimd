@@ -9,8 +9,7 @@ import time
 import pytest
 
 from vstimd import Connection
-from vstimd.stimuli import GratingParams, RectParams, StimulusType
-from vstimd._proto.vstimd.v1 import stimuli_2d_pb2 as _pb2
+from vstimd.stimuli import GratingMask, GratingParams, GratingTexture, RectParams, StimulusType
 
 
 def test_create_rect(conn: Connection) -> None:
@@ -34,7 +33,7 @@ def test_create_grating(conn: Connection) -> None:
     handle = conn.stimuli.create_grating(
         x=0, y=0, width=200, height=200, sf=0.05, phase=0.25, angle=45.0,
         contrast=0.8, r=0.0, g=1.0, b=0.0,
-        waveform=_pb2.WAVEFORM_TYPE_SQR, mask=_pb2.MASK_TYPE_CIRCLE,
+        waveform=GratingTexture.SQR, mask=GratingMask.CIRCLE,
     )
     assert handle > 0
 
@@ -46,8 +45,8 @@ def test_create_grating(conn: Connection) -> None:
     assert info.params.sf == pytest.approx(0.05, rel=1e-3)
     assert info.params.phase == pytest.approx(0.25, abs=0.01)
     assert info.params.contrast == pytest.approx(0.8, abs=0.01)
-    assert info.params.waveform == _pb2.WAVEFORM_TYPE_SQR
-    assert info.params.mask == _pb2.MASK_TYPE_CIRCLE
+    assert info.params.waveform == GratingTexture.SQR
+    assert info.params.mask == GratingMask.CIRCLE
 
     conn.stimuli.delete(handle)
 
@@ -86,12 +85,12 @@ def test_grating_mutate_contrast(conn: Connection) -> None:
 
 
 def test_grating_mutate_waveform(conn: Connection) -> None:
-    handle = conn.stimuli.create_grating(waveform=_pb2.WAVEFORM_TYPE_SIN)
-    conn.stimuli.set_grating_waveform(handle, _pb2.WAVEFORM_TYPE_SAW)
+    handle = conn.stimuli.create_grating(waveform=GratingTexture.SIN)
+    conn.stimuli.set_grating_waveform(handle, GratingTexture.SAW)
 
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.waveform == _pb2.WAVEFORM_TYPE_SAW
+    assert info.params.waveform == GratingTexture.SAW
 
     conn.stimuli.delete(handle)
 
@@ -137,8 +136,8 @@ def test_grating_visual(conn: Connection, step_delay: float) -> None:
     COL_STEP = 230  # horizontal distance between patch centres
 
     _SF       = 0.05
-    _WAVEFORM = _pb2.WAVEFORM_TYPE_SIN
-    _MASK     = _pb2.MASK_TYPE_NONE
+    _WAVEFORM = GratingTexture.SIN
+    _MASK     = GratingMask.NONE
 
     # Each entry: (label, list-of-per-patch override kwargs)
     ROWS: list[tuple[str, list[dict]]] = [
@@ -147,12 +146,12 @@ def test_grating_visual(conn: Connection, step_delay: float) -> None:
         ("phase",             [{"phase": p} for p in [0.0, 0.25, 0.5, 0.75, 1.0]]),
         ("orientation",       [{"angle": a} for a in [0.0, 45.0, 90.0, 135.0, 180.0]]),
         ("waveform",          [{"waveform": w} for w in [
-            _pb2.WAVEFORM_TYPE_SIN, _pb2.WAVEFORM_TYPE_SQR,
-            _pb2.WAVEFORM_TYPE_SAW, _pb2.WAVEFORM_TYPE_TRI,
+            GratingTexture.SIN, GratingTexture.SQR,
+            GratingTexture.SAW, GratingTexture.TRI,
         ]]),
         ("mask",              [{"mask": m} for m in [
-            _pb2.MASK_TYPE_NONE, _pb2.MASK_TYPE_CIRCLE,
-            _pb2.MASK_TYPE_GAUSS, _pb2.MASK_TYPE_HANN, _pb2.MASK_TYPE_RAISED_COS,
+            GratingMask.NONE, GratingMask.CIRCLE,
+            GratingMask.GAUSS, GratingMask.HANN, GratingMask.RAISED_COS,
         ]]),
     ]
 
@@ -199,11 +198,11 @@ def test_grating_visual(conn: Connection, step_delay: float) -> None:
     conn.stimuli.delete(h_sf)
 
     h_wf = conn.stimuli.create_grating(
-        x=0, y=0, width=PATCH_W, height=PATCH_H, waveform=_pb2.WAVEFORM_TYPE_SQR
+        x=0, y=0, width=PATCH_W, height=PATCH_H, waveform=GratingTexture.SQR
     )
     info = conn.stimuli.query(h_wf)
     assert isinstance(info.params, GratingParams)
-    assert info.params.waveform == _pb2.WAVEFORM_TYPE_SQR
+    assert info.params.waveform == GratingTexture.SQR
     conn.stimuli.delete(h_wf)
 
     # ── Drift (shown sequentially — animated, needs time to observe) ──────────

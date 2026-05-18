@@ -1,16 +1,16 @@
-from ._client import StimuliClient
-from ._models import (
+from .stimuli_client import StimuliClient
+from .stimuli_models import (
     Color,
     DiscParams,
     DrawMode,
     EllipseParams,
-    GratingParams,
     RectParams,
     StimulusInfo,
     StimulusParams,
     StimulusType,
     Vec2,
 )
+from .grating_models import GratingMask, GratingParams, GratingTexture
 
 __all__ = [
     "StimuliClient",
@@ -18,7 +18,9 @@ __all__ = [
     "DiscParams",
     "DrawMode",
     "EllipseParams",
+    "GratingMask",
     "GratingParams",
+    "GratingTexture",
     "RectParams",
     "StimulusInfo",
     "StimulusParams",

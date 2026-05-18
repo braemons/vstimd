@@ -3,7 +3,8 @@ from __future__ import annotations
 from typing import Callable
 
 from vstimd._proto import common_pb2, service_pb2, stimuli_2d_pb2 as stimuli_pb2
-from ._models import StimulusInfo
+from .stimuli_models import StimulusInfo
+from .grating_models import GratingMask, GratingTexture, _MASK_TO_PROTO, _WAVEFORM_TO_PROTO
 
 
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
@@ -104,8 +105,8 @@ class StimuliClient:
         g: float = 1.0,
         b: float = 1.0,
         a: float = 1.0,
-        waveform: int = stimuli_pb2.WAVEFORM_TYPE_SIN,
-        mask: int = stimuli_pb2.MASK_TYPE_NONE,
+        waveform: GratingTexture = GratingTexture.SIN,
+        mask: GratingMask = GratingMask.NONE,
         mask_param: float = 0.0,
         drift_speed: float = 0.0,
         drift_decoupled: bool = False,
@@ -129,8 +130,8 @@ class StimuliClient:
                 contrast=contrast,
                 color=common_pb2.Color(r=r, g=g, b=b),
                 opacity=a,
-                waveform=waveform,
-                mask=mask,
+                waveform=_WAVEFORM_TO_PROTO[waveform],
+                mask=_MASK_TO_PROTO[mask],
                 mask_param=mask_param,
                 drift_speed=drift_speed,
                 drift_decoupled=drift_decoupled,
@@ -244,17 +245,17 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_grating_waveform(self, handle: int, waveform: int) -> None:
+    def set_grating_waveform(self, handle: int, waveform: GratingTexture) -> None:
         req = service_pb2.Request(
             stimulus=handle,
-            set_grating_waveform=stimuli_pb2.SetGratingWaveformRequest(waveform=waveform),
+            set_grating_waveform=stimuli_pb2.SetGratingWaveformRequest(waveform=_WAVEFORM_TO_PROTO[waveform]),
         )
         self._send(req)
 
-    def set_grating_mask(self, handle: int, mask: int) -> None:
+    def set_grating_mask(self, handle: int, mask: GratingMask) -> None:
         req = service_pb2.Request(
             stimulus=handle,
-            set_grating_mask=stimuli_pb2.SetGratingMaskRequest(mask=mask),
+            set_grating_mask=stimuli_pb2.SetGratingMaskRequest(mask=_MASK_TO_PROTO[mask]),
         )
         self._send(req)
 

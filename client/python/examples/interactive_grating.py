@@ -27,9 +27,8 @@ import sys
 import os
 from dataclasses import dataclass
 
-from vstimd._proto.vstimd.v1 import stimuli_2d_pb2 as _pb2
 from vstimd.psychopy import visual
-from vstimd.psychopy.visual.grating import GratingTex, GratingMask
+from vstimd.stimuli import GratingMask, GratingTexture
 
 
 # ── Cross-platform raw key reader ─────────────────────────────────────────────
@@ -113,22 +112,8 @@ class Param:
 
 # ── Cycling enum helper ───────────────────────────────────────────────────────
 
-WAVEFORMS: list[GratingTex]  = list(GratingTex)
+WAVEFORMS: list[GratingTexture]  = list(GratingTexture)
 MASKS:     list[GratingMask] = list(GratingMask)
-
-_WAVEFORM_PROTO: dict[GratingTex, int] = {
-    GratingTex.SIN: _pb2.WAVEFORM_TYPE_SIN,
-    GratingTex.SQR: _pb2.WAVEFORM_TYPE_SQR,
-    GratingTex.SAW: _pb2.WAVEFORM_TYPE_SAW,
-    GratingTex.TRI: _pb2.WAVEFORM_TYPE_TRI,
-}
-_MASK_PROTO: dict[GratingMask, int] = {
-    GratingMask.NONE:       _pb2.MASK_TYPE_NONE,
-    GratingMask.CIRCLE:     _pb2.MASK_TYPE_CIRCLE,
-    GratingMask.GAUSS:      _pb2.MASK_TYPE_GAUSS,
-    GratingMask.RAISED_COS: _pb2.MASK_TYPE_RAISED_COS,
-    GratingMask.HANN:       _pb2.MASK_TYPE_HANN,
-}
 
 
 @dataclass
@@ -198,7 +183,7 @@ def run(address: str) -> None:
 
     grating = visual.GratingStim(
         win,
-        tex=GratingTex.SIN,
+        tex=GratingTexture.SIN,
         mask=GratingMask.NONE,
         pos=(0, 0),
         size=400,
@@ -270,14 +255,10 @@ def run(address: str) -> None:
                 apply(sel)
             elif key in ("w", "W"):
                 tex_param.next()
-                win._conn.stimuli.set_grating_waveform(
-                    grating._handle, _WAVEFORM_PROTO[tex_param.value]
-                )
+                win._conn.stimuli.set_grating_waveform(grating._handle, tex_param.value)
             elif key in ("m", "M"):
                 mask_param.next()
-                win._conn.stimuli.set_grating_mask(
-                    grating._handle, _MASK_PROTO[mask_param.value]
-                )
+                win._conn.stimuli.set_grating_mask(grating._handle, mask_param.value)
             elif key == " ":
                 visible = not visible
                 grating.autoDraw = visible

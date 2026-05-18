@@ -5,6 +5,7 @@ from enum import Enum
 from typing import Union
 
 from vstimd._proto import common_pb2, stimuli_2d_pb2 as stimuli_pb2
+from .grating_models import GratingMask, GratingParams, GratingTexture
 
 
 class StimulusType(Enum):
@@ -63,37 +64,6 @@ class EllipseParams:
     height: float
 
 
-@dataclass
-class GratingParams:
-    width: float
-    height: float
-    sf: float
-    phase: float
-    contrast: float
-    waveform: int
-    mask: int
-    mask_param: float
-    drift_speed: float
-    drift_coupled: bool
-    drift_angle: float
-
-    @classmethod
-    def from_proto(cls, proto: stimuli_pb2.GratingParams) -> GratingParams:
-        return cls(
-            width=proto.width,
-            height=proto.height,
-            sf=proto.sf,
-            phase=proto.phase,
-            contrast=proto.contrast,
-            waveform=proto.waveform,
-            mask=proto.mask,
-            mask_param=proto.mask_param,
-            drift_speed=proto.drift_speed,
-            drift_coupled=proto.drift_coupled,
-            drift_angle=proto.drift_angle,
-        )
-
-
 StimulusParams = Union[RectParams, DiscParams, EllipseParams, GratingParams]
 
 _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
@@ -142,19 +112,7 @@ class StimulusInfo:
                 height=proto.params.ellipse.height,
             )
         elif shape_which == "grating":
-            g = proto.params.grating
-            params = GratingParams(
-                width=g.width,
-                height=g.height,
-                sf=g.sf,
-                phase=g.phase,
-                contrast=g.contrast,
-                waveform=g.waveform,
-                mask=g.mask,
-                drift_speed=g.drift_speed,
-                drift_coupled=not g.drift_decoupled,
-                drift_angle=g.drift_angle,
-            )
+            params = GratingParams.from_proto(proto.params.grating)
         else:
             params = None
 
