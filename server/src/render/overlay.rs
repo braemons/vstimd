@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::log_buffer::LogBuffer;
+use crate::render::SystemMetrics;
 use crate::scene::{SceneState, Stimulus};
 use crate::timing::{FramePhases, FrameStats};
 
@@ -13,6 +14,7 @@ pub fn build_overlay_ui(
     frame_stats: &mut FrameStats,
     last_phases: FramePhases,
     sys: &SystemInfo,
+    metrics: &SystemMetrics,
     log_buffer: &LogBuffer,
     bench: &mut BenchmarkState,
 ) {
@@ -32,6 +34,37 @@ pub fn build_overlay_ui(
         ui.colored_label(clock_color, clock_label);
         if let Some(wf) = sys.wireframe {
             ui.label(format!("Wireframe [F3]: {}", if wf { "ON" } else { "off" }));
+        }
+        ui.separator();
+        ui.horizontal(|ui| {
+            ui.label("CPU:");
+            ui.add(egui::ProgressBar::new(metrics.cpu_pct / 100.0).desired_width(80.0));
+            ui.label(format!(
+                "{:.0}%  (proc {:.0}%)",
+                metrics.cpu_pct, metrics.process_cpu_pct,
+            ));
+        });
+        ui.horizontal(|ui| {
+            let used = metrics.ram_used_mb;
+            let total = metrics.ram_total_mb;
+            let frac = if total > 0 { used as f32 / total as f32 } else { 0.0 };
+            ui.label("RAM:");
+            ui.add(egui::ProgressBar::new(frac).desired_width(80.0));
+            ui.label(format!(
+                "{} / {} MB  (proc {} MB)",
+                used, total, metrics.process_rss_mb,
+            ));
+        });
+        if let Some(gpu_pct) = metrics.gpu_util_pct {
+            ui.horizontal(|ui| {
+                ui.label("GPU:");
+                ui.add(egui::ProgressBar::new(gpu_pct / 100.0).desired_width(80.0));
+                let vram_label = match (metrics.gpu_mem_used_mb, metrics.gpu_mem_total_mb) {
+                    (Some(used), Some(total)) => format!("{:.0}%  VRAM {}/{} MB", gpu_pct, used, total),
+                    _ => format!("{:.0}%", gpu_pct),
+                };
+                ui.label(vram_label);
+            });
         }
     });
 

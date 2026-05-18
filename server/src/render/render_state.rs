@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::BenchmarkState;
+use crate::render::MetricsSampler;
 use crate::render::overlay::build_overlay_ui;
 use crate::render::system_info::SystemInfo;
 use crate::render::vk::{
@@ -37,6 +38,7 @@ pub struct RenderState {
     pub benchmark: BenchmarkState,
     pub local_ip: String,
     pub log_buffer: LogBuffer,
+    pub metrics: MetricsSampler,
 }
 
 impl Drop for RenderState {
@@ -100,6 +102,7 @@ impl RenderState {
             && let Some(raw_input) = egui_raw_input
         {
             let phases = self.last_phases;
+            let metrics = self.metrics.sample();
             let output = self.egui_ctx.run_ui(raw_input, |ctx| {
                 build_overlay_ui(
                     ctx,
@@ -107,6 +110,7 @@ impl RenderState {
                     &mut self.frame_stats,
                     phases,
                     sys_info,
+                    metrics,
                     &self.log_buffer,
                     &mut self.benchmark,
                 );

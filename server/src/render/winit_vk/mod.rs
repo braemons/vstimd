@@ -10,6 +10,7 @@ use winit::window::{Fullscreen, Window, WindowId};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::BenchmarkState;
+use crate::render::MetricsSampler;
 use crate::render::RenderState;
 use crate::render::system_info::ClockSource;
 use crate::render::vk::{GpuBuffers, VkEguiRenderer, VkGratingPipeline, VkPipeline};
@@ -149,6 +150,7 @@ impl State {
             benchmark: BenchmarkState::new(),
             local_ip: query_local_ip(),
             log_buffer,
+            metrics: MetricsSampler::new(),
         };
 
         Self {

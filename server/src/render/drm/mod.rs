@@ -7,6 +7,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::BenchmarkState;
+use crate::render::MetricsSampler;
 use crate::render::RenderState;
 use crate::render::system_info::ClockSource;
 use crate::render::vk::{GpuBuffers, VkEguiRenderer, VkGratingPipeline, VkPipeline};
@@ -144,6 +145,7 @@ impl DrmRenderState {
             benchmark: BenchmarkState::new(),
             local_ip: query_local_ip(),
             log_buffer,
+            metrics: MetricsSampler::new(),
         };
 
         Self {
