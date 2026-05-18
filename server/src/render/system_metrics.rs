@@ -1,5 +1,6 @@
 use std::time::{Duration, Instant};
 
+use nvml_wrapper::Nvml;
 use sysinfo::{CpuRefreshKind, MemoryRefreshKind, Pid, ProcessRefreshKind, RefreshKind, System};
 
 pub struct SystemMetrics {
@@ -18,6 +19,7 @@ pub struct MetricsSampler {
     pid: Pid,
     last_sample: Instant,
     cached: SystemMetrics,
+    nvml: Option<Nvml>,
 }
 
 impl SystemMetrics {
@@ -49,17 +51,23 @@ impl MetricsSampler {
                 .with_cpu(CpuRefreshKind::everything())
                 .with_memory(MemoryRefreshKind::everything()),
         );
+
+        let nvml = Nvml::init()
+            .map_err(|e| log::debug!("NVML unavailable, GPU metrics disabled: {e}"))
+            .ok();
+
         Self {
             sys,
             pid,
             last_sample: Instant::now(),
             cached: SystemMetrics::zero(),
+            nvml,
         }
     }
 
     /// Returns cached metrics, refreshing at most twice per second.
     pub fn sample(&mut self) -> &SystemMetrics {
-        let now = Instant::now();
+        let now = std::time::Instant::now();
         if now.duration_since(self.last_sample) < Duration::from_millis(500) {
             return &self.cached;
         }
@@ -88,15 +96,23 @@ impl MetricsSampler {
             .map(|p| (p.cpu_usage(), p.memory()))
             .unwrap_or((0.0, 0));
 
+        let (gpu_util_pct, gpu_mem_used_mb, gpu_mem_total_mb) =
+            self.nvml.as_ref().and_then(|nvml| {
+                let dev = nvml.device_by_index(0).ok()?;
+                let util = dev.utilization_rates().ok()?.gpu as f32;
+                let mem = dev.memory_info().ok()?;
+                Some((Some(util), Some(mem.used / 1_048_576), Some(mem.total / 1_048_576)))
+            }).unwrap_or((None, None, None));
+
         self.cached = SystemMetrics {
             cpu_pct,
             process_cpu_pct: proc_cpu,
             ram_used_mb: self.sys.used_memory() / 1_048_576,
             ram_total_mb: self.sys.total_memory() / 1_048_576,
             process_rss_mb: proc_rss / 1_048_576,
-            gpu_util_pct: None,
-            gpu_mem_used_mb: None,
-            gpu_mem_total_mb: None,
+            gpu_util_pct,
+            gpu_mem_used_mb,
+            gpu_mem_total_mb,
         };
         &self.cached
     }
