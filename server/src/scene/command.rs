@@ -345,7 +345,7 @@ impl SceneState {
         };
         match self.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(stim) => match stim.appearance_mut() {
+            Some(stim) => match stim.shape_appearance_mut() {
                 Some(app) => {
                     let deferred = self.deferred_mode;
                     let prev = if deferred { app.copy } else { app.live };
@@ -371,7 +371,7 @@ impl SceneState {
     fn cmd_set_alpha(&mut self, handle: u32, cmd: proto::SetAlphaRequest) -> proto::Response {
         match self.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(stim) => match stim.appearance_mut() {
+            Some(stim) => match stim.shape_appearance_mut() {
                 Some(app) => {
                     let deferred = self.deferred_mode;
                     let mut prev = if deferred { app.copy } else { app.live };
@@ -454,7 +454,7 @@ impl SceneState {
         };
         match self.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(stim) => match stim.appearance_mut() {
+            Some(stim) => match stim.shape_appearance_mut() {
                 Some(app) => {
                     let deferred = self.deferred_mode;
                     let prev = if deferred { app.copy } else { app.live };
@@ -490,7 +490,7 @@ impl SceneState {
         };
         match self.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(stim) => match stim.appearance_mut() {
+            Some(stim) => match stim.shape_appearance_mut() {
                 Some(app) => {
                     let deferred = self.deferred_mode;
                     let prev = if deferred { app.copy } else { app.live };
@@ -520,7 +520,7 @@ impl SceneState {
     ) -> proto::Response {
         match self.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(stim) => match stim.appearance_mut() {
+            Some(stim) => match stim.shape_appearance_mut() {
                 Some(app) => {
                     let deferred = self.deferred_mode;
                     let prev = if deferred { app.copy } else { app.live };
@@ -703,7 +703,7 @@ impl SceneState {
         let angle = stim.transform().map(|t| t.live.angle).unwrap_or(0.0);
 
         let (fill_color, outline_color, outline_width, draw_mode, opacity) =
-            match stim.appearance() {
+            match stim.shape_appearance() {
                 Some(app) => {
                     let a = app.live;
                     (
@@ -724,7 +724,15 @@ impl SceneState {
                         a.fill_color[3],
                     )
                 }
-                None => (None, None, 0.0, proto::DrawMode::Filled as i32, 1.0),
+                None => {
+                    let (fill, opacity) = if let Stimulus::Grating(s) = stim {
+                        let c = s.color.live;
+                        (Some(proto::Color { r: c[0], g: c[1], b: c[2], a: c[3] }), c[3])
+                    } else {
+                        (None, 1.0)
+                    };
+                    (fill, None, 0.0, proto::DrawMode::Filled as i32, opacity)
+                }
             };
 
         let (stimulus_type, params) = match stim {

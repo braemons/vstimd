@@ -85,7 +85,7 @@ fn test_create_rect_with_fill() {
     assert!(is_ok(&resp));
     let h = resp.handle as u32;
     let stim = scene.stimuli.get_mut(&h).unwrap();
-    let appearance = stim.appearance_mut().expect("rect should have appearance");
+    let appearance = stim.shape_appearance_mut().expect("rect should have appearance");
     assert_eq!(appearance.live.fill_color[0], fill.r);
     assert_eq!(appearance.live.fill_color[1], fill.g);
     assert_eq!(appearance.live.fill_color[2], fill.b);
@@ -111,7 +111,7 @@ fn test_create_rect_defaults() {
     }
 
     let stim = scene.stimuli.get_mut(&h).unwrap();
-    let appearance = stim.appearance_mut().expect("rect should have appearance");
+    let appearance = stim.shape_appearance_mut().expect("rect should have appearance");
     assert_eq!(appearance.live.fill_color, default_fill);
 }
 
@@ -258,7 +258,7 @@ fn test_set_fill_color() {
         })),
     });
     assert!(is_ok(&resp));
-    let app = scene.stimuli.get(&h).unwrap().appearance().unwrap();
+    let app = scene.stimuli.get(&h).unwrap().shape_appearance().unwrap();
     assert_eq!(app.live.fill_color, [1.0, 0.0, 0.5, 0.8]);
 }
 
@@ -317,7 +317,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     assert_eq!(t.live.pos, [15.0, 25.0]);
     assert_eq!(t.live.angle, 30.0);
 
-    let app = stim.appearance().unwrap();
+    let app = stim.shape_appearance().unwrap();
     assert_eq!(app.live.fill_color, [0.1, 0.2, 0.3, 0.9]);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert_eq!(app.live.outline_color, [0.8, 0.7, 0.6, 0.5]);
@@ -336,7 +336,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     if let Some(t) = stim_obj.transform_mut() {
         t.live = vstimd::scene::Transform2D { pos: [1.0, 2.0], angle: 3.0 };
     }
-    if let Some(app) = stim_obj.appearance_mut() {
+    if let Some(app) = stim_obj.shape_appearance_mut() {
         app.live.fill_color = [0.11, 0.12, 0.13, 0.14];
         app.live.outline_color = [0.21, 0.22, 0.23, 0.24];
         app.live.stroke_width = 2.5;
@@ -397,7 +397,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(t.copy.pos, [15.0, 25.0]);
     assert_eq!(t.copy.angle, 30.0);
 
-    let app = stim.appearance().unwrap();
+    let app = stim.shape_appearance().unwrap();
     assert_eq!(app.live.fill_color, [0.11, 0.12, 0.13, 0.14]);
     assert_eq!(app.live.outline_color, [0.21, 0.22, 0.23, 0.24]);
     assert_eq!(app.live.stroke_width, 2.5);
@@ -420,7 +420,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     let t = stim.transform().unwrap();
     assert_eq!(t.live.pos, [15.0, 25.0]);
     assert_eq!(t.live.angle, 30.0);
-    let app = stim.appearance().unwrap();
+    let app = stim.shape_appearance().unwrap();
     assert_eq!(app.live.fill_color, [0.1, 0.2, 0.3, 0.9]);
     assert_eq!(app.live.outline_color, [0.8, 0.7, 0.6, 0.5]);
     assert_eq!(app.live.stroke_width, 7.0);

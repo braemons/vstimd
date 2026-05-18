@@ -77,7 +77,7 @@ impl Stimulus {
 
     /// Returns `None` for stimulus types that have no fill/stroke appearance
     /// (bitmaps, shaders, particles, pixels, gratings).
-    pub fn appearance(&self) -> Option<&Deferred<ShapeAppearance>> {
+    pub fn shape_appearance(&self) -> Option<&Deferred<ShapeAppearance>> {
         match self {
             Stimulus::Rect(s) => Some(&s.appearance),
             Stimulus::Ellipse(s) => Some(&s.appearance),
@@ -93,7 +93,7 @@ impl Stimulus {
         }
     }
 
-    pub fn appearance_mut(&mut self) -> Option<&mut Deferred<ShapeAppearance>> {
+    pub fn shape_appearance_mut(&mut self) -> Option<&mut Deferred<ShapeAppearance>> {
         match self {
             Stimulus::Rect(s) => Some(&mut s.appearance),
             Stimulus::Ellipse(s) => Some(&mut s.appearance),
@@ -118,7 +118,7 @@ impl Stimulus {
         if let Some(t) = self.transform_mut() {
             t.make_copy();
         }
-        if let Some(a) = self.appearance_mut() {
+        if let Some(a) = self.shape_appearance_mut() {
             a.make_copy();
         }
         match self {
@@ -170,7 +170,7 @@ impl Stimulus {
         if let Some(t) = self.transform_mut() {
             t.flip();
         }
-        if let Some(a) = self.appearance_mut() {
+        if let Some(a) = self.shape_appearance_mut() {
             a.flip();
         }
         match self {

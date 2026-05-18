@@ -144,8 +144,8 @@ class GratingStim:
         self._drift_angle = float(drift_angle)
         self._auto_draw = False
 
-        waveform  = _WAVEFORM_TO_PROTO[tex]  if tex  is not None else _WAVEFORM_TO_PROTO[GratingTexture.SIN]
-        mask_type = _MASK_TO_PROTO[mask]     if mask is not None else _MASK_TO_PROTO[GratingMask.NONE]
+        waveform_enum  = tex  if tex  is not None else GratingTexture.SIN
+        mask_enum      = mask if mask is not None else GratingMask.NONE
         mask_param = _parse_mask_param(mask, maskParams)
 
         px, py = self._to_px(self._pos)
@@ -163,8 +163,8 @@ class GratingStim:
             angle=self._ori,
             contrast=self._contrast,
             r=rgba[0], g=rgba[1], b=rgba[2], a=rgba[3],
-            waveform=waveform,
-            mask=mask_type,
+            waveform=waveform_enum,
+            mask=mask_enum,
             mask_param=mask_param,
             drift_speed=self._drift_speed,
             drift_decoupled=self._drift_decoupled,
