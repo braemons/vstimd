@@ -107,18 +107,23 @@ impl BenchmarkState {
         let current_frame = frame_stats.summary().frame_index;
         let current_drops = frame_stats.summary().drop_count;
 
-        if let Phase::Running {
-            start_frame,
-            start_drops,
-            duration_frames,
-            ref handles,
-        } = self.phase
-        {
-            let elapsed = current_frame.saturating_sub(start_frame);
-            if elapsed >= duration_frames {
+        let should_finish = matches!(
+            &self.phase,
+            Phase::Running { start_frame, duration_frames, .. }
+                if current_frame.saturating_sub(*start_frame) >= *duration_frames
+        );
+
+        if should_finish {
+            if let Phase::Running {
+                start_drops,
+                duration_frames,
+                handles,
+                ..
+            } = std::mem::replace(&mut self.phase, Phase::Idle)
+            {
                 let grating_count = handles.len();
                 if let Ok(mut sc) = scene.try_write() {
-                    for &h in handles {
+                    for h in handles {
                         sc.stimuli.shift_remove(&h);
                     }
                 }
