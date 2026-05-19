@@ -3343,6 +3343,7 @@ dependencies = [
  "rand 0.10.1",
  "sysinfo",
  "tokio",
+ "uuid",
  "wayland-backend",
  "wayland-client",
  "wayland-sys",

@@ -13,6 +13,27 @@ pub use stimulus_flags::StimulusFlags;
 pub use transform2d::Transform2D;
 
 use super::deferred::Deferred;
+use uuid::Uuid;
+
+// ── StimulusEntry ─────────────────────────────────────────────────────────────
+
+/// Metadata + stimulus stored as one unit in `SceneState::stimuli`.
+///
+/// `id` is stable across sessions (survives serialization round-trips and lets
+/// reconnecting clients match server-side stimuli to their in-memory objects).
+/// `name` is optional human-readable label for debugging/tooling.
+pub struct StimulusEntry {
+    pub id: Uuid,
+    pub name: Option<String>,
+    pub stimulus: Stimulus,
+}
+
+impl StimulusEntry {
+    pub fn new(id: Uuid, name: Option<String>, stimulus: Stimulus) -> Self {
+        Self { id, name, stimulus }
+    }
+}
+
 
 // ── Stimulus enum ─────────────────────────────────────────────────────────────
 

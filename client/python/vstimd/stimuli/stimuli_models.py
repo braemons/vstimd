@@ -95,6 +95,8 @@ class StimulusInfo:
     outline_width: float
     draw_mode: DrawMode
     params: StimulusParams | None
+    id: str = ""
+    name: str = ""
 
     @classmethod
     def from_proto(cls, proto: stimuli_pb2.QueryStimulusResponse) -> StimulusInfo:
@@ -127,4 +129,6 @@ class StimulusInfo:
             outline_width=proto.outline_width,
             draw_mode=_DRAW_MODE_MAP.get(proto.draw_mode, DrawMode.FILLED),
             params=params,
+            id=proto.id,
+            name=proto.name,
         )

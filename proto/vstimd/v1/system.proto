@@ -61,6 +61,8 @@ message StimulusEntry {
   uint32       handle        = 1;
   StimulusType stimulus_type = 2;
   bool         enabled       = 3;
+  string       id            = 4; // stable UUID assigned at creation
+  string       name          = 5; // human-readable label (empty if not set)
 }
 
 // Response payload for ListStimuliRequest.

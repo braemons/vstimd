@@ -47,9 +47,10 @@ pub(crate) fn spawn_demo_stimuli(
 ) {
     use crate::scene::{
         Deferred, DiscStimulus, GratingParams, GratingStimulus, RectStimulus, ShapeAppearance,
-        ShapeStimulus, Stimulus, StimulusFlags, Transform2D, Waveform,
+        ShapeStimulus, Stimulus, StimulusEntry, StimulusFlags, Transform2D, Waveform,
     };
     use rand::RngExt;
+    use uuid::Uuid;
 
     let mut rng = rand::rng();
 
@@ -57,7 +58,7 @@ pub(crate) fn spawn_demo_stimuli(
     let h1 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h1,
-        Stimulus::Shape(ShapeStimulus::Disc(DiscStimulus {
+        StimulusEntry::new(Uuid::new_v4(), None, Stimulus::Shape(ShapeStimulus::Disc(DiscStimulus {
             flags: StimulusFlags {
                 enabled: true,
                 ..Default::default()
@@ -74,12 +75,12 @@ pub(crate) fn spawn_demo_stimuli(
                 ..Default::default()
             }),
             radius: Deferred::new(80.0),
-        })),
+        }))),
     );
     let h2 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h2,
-        Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
+        StimulusEntry::new(Uuid::new_v4(), None, Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
             flags: StimulusFlags {
                 enabled: true,
                 ..Default::default()
@@ -96,12 +97,12 @@ pub(crate) fn spawn_demo_stimuli(
                 ..Default::default()
             }),
             size: Deferred::new([120.0, 50.0]),
-        })),
+        }))),
     );
     let h3 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h3,
-        Stimulus::Grating(GratingStimulus {
+        StimulusEntry::new(Uuid::new_v4(), None, Stimulus::Grating(GratingStimulus {
             flags: StimulusFlags {
                 enabled: true,
                 ..Default::default()
@@ -119,7 +120,7 @@ pub(crate) fn spawn_demo_stimuli(
                 ..Default::default()
             }),
             phase_accum: 0.0,
-        }),
+        })),
     );
     log::info!("Demo: spawned disc #{h1}, rect #{h2}, grating #{h3}");
 }

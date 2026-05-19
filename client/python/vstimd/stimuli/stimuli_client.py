@@ -29,6 +29,8 @@ class StimuliClient:
         g: float = 1.0,
         b: float = 1.0,
         a: float = 1.0,
+        name: str = "",
+        id: str = "",
     ) -> int:
         """Create a rectangle stimulus and return its handle."""
         req = service_pb2.Request(
@@ -38,6 +40,8 @@ class StimuliClient:
                 width=width,
                 height=height,
                 fill=common_pb2.Color(r=r, g=g, b=b, a=a),
+                name=name,
+                id=id,
             ),
         )
         return self._send(req).handle
@@ -52,6 +56,8 @@ class StimuliClient:
         g: float = 1.0,
         b: float = 1.0,
         a: float = 1.0,
+        name: str = "",
+        id: str = "",
     ) -> int:
         """Create a disc stimulus and return its handle."""
         req = service_pb2.Request(
@@ -60,6 +66,8 @@ class StimuliClient:
                 center=common_pb2.Vec2(x=x, y=y),
                 radius=radius,
                 fill=common_pb2.Color(r=r, g=g, b=b, a=a),
+                name=name,
+                id=id,
             ),
         )
         return self._send(req).handle
@@ -76,6 +84,8 @@ class StimuliClient:
         g: float = 1.0,
         b: float = 1.0,
         a: float = 1.0,
+        name: str = "",
+        id: str = "",
     ) -> int:
         """Create an ellipse stimulus and return its handle."""
         req = service_pb2.Request(
@@ -86,6 +96,8 @@ class StimuliClient:
                 height=height,
                 angle=angle,
                 fill=common_pb2.Color(r=r, g=g, b=b, a=a),
+                name=name,
+                id=id,
             ),
         )
         return self._send(req).handle
@@ -109,6 +121,8 @@ class StimuliClient:
         drift_speed: float = 0.0,
         drift_decoupled: bool = False,
         drift_angle: float = 0.0,
+        name: str = "",
+        id: str = "",
     ) -> int:
         """Create a grating stimulus and return its handle.
 
@@ -138,11 +152,21 @@ class StimuliClient:
                 drift_speed=drift_speed,
                 drift_decoupled=drift_decoupled,
                 drift_angle=drift_angle,
+                name=name,
+                id=id,
             ),
         )
         return self._send(req).handle
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    def set_name(self, handle: int, name: str) -> None:
+        """Rename a stimulus (does not affect handle or UUID)."""
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_name=stimuli_pb2.SetNameRequest(name=name),
+        )
+        self._send(req)
 
     def set_enabled(self, handle: int, enabled: bool) -> None:
         req = service_pb2.Request(

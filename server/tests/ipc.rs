@@ -86,6 +86,7 @@ fn test_zmq_create_rect() {
                         width: 200.0,
                         height: 100.0,
                         fill: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }),
+                        ..Default::default()
                     })),
                 },
             )
@@ -119,7 +120,7 @@ fn test_zmq_lifecycle() {
 
             assert!(is_ok(&resp), "create error: {}", resp.error);
             let handle = resp.handle as u32;
-            assert!(scene.read().unwrap().stimuli[&handle].flags().enabled);
+            assert!(scene.read().unwrap().stimuli[&handle].stimulus.flags().enabled);
 
             // ── Disable ─────────────────────────────────────────────────────
             let resp = round_trip(
@@ -133,7 +134,7 @@ fn test_zmq_lifecycle() {
 
             assert!(is_ok(&resp), "disable error: {}", resp.error);
             assert_eq!(resp.handle, -1);
-            assert!(!scene.read().unwrap().stimuli[&handle].flags().enabled);
+            assert!(!scene.read().unwrap().stimuli[&handle].stimulus.flags().enabled);
 
             // ── Re-enable ────────────────────────────────────────────────────
             let resp = round_trip(
@@ -146,7 +147,7 @@ fn test_zmq_lifecycle() {
             .await;
 
             assert!(is_ok(&resp), "re-enable error: {}", resp.error);
-            assert!(scene.read().unwrap().stimuli[&handle].flags().enabled);
+            assert!(scene.read().unwrap().stimuli[&handle].stimulus.flags().enabled);
 
             // ── Delete ───────────────────────────────────────────────────────
             let resp = round_trip(

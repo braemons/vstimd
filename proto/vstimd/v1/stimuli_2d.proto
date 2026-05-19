@@ -25,30 +25,36 @@ enum MaskType {
 // ── Stimulus creation ─────────────────────────────────────────────────────────
 
 // System command: create a rectangle stimulus.
-// Returns the new handle in Response.handle.
+// Returns the new handle in Response.handle and the UUID in Response.id.
 message CreateRectRequest {
-  Vec2  center = 1;   // pixel-space position (origin = screen centre, Y-up)
-  float width  = 2;   // full width in pixels  (0 → default 100)
-  float height = 3;   // full height in pixels (0 → default 100)
-  Color fill   = 4;   // fill colour (absent → scene default_fill)
+  Vec2   center = 1;   // pixel-space position (origin = screen centre, Y-up)
+  float  width  = 2;   // full width in pixels  (0 → default 100)
+  float  height = 3;   // full height in pixels (0 → default 100)
+  Color  fill   = 4;   // fill colour (absent → scene default_fill)
+  string id     = 5;   // client-supplied UUID (absent → server generates one)
+  string name   = 6;   // optional human-readable label (for debugging/serialization)
 }
 
 // System command: create a disc (circle) stimulus.
-// Returns the new handle in Response.handle.
+// Returns the new handle in Response.handle and the UUID in Response.id.
 message CreateCircleRequest {
-  Vec2  center = 1;   // pixel-space position
-  float radius = 2;   // radius in pixels (0 → default 50)
-  Color fill   = 3;   // fill colour (absent → scene default_fill)
+  Vec2   center = 1;   // pixel-space position
+  float  radius = 2;   // radius in pixels (0 → default 50)
+  Color  fill   = 3;   // fill colour (absent → scene default_fill)
+  string id     = 4;   // client-supplied UUID (absent → server generates one)
+  string name   = 5;   // optional human-readable label
 }
 
 // System command: create an ellipse stimulus.
-// Returns the new handle in Response.handle.
+// Returns the new handle in Response.handle and the UUID in Response.id.
 message CreateEllipseRequest {
-  Vec2  center = 1;   // pixel-space position
-  float width  = 2;   // full width in pixels  (0 → default 100)
-  float height = 3;   // full height in pixels (0 → default 100)
-  Color fill   = 4;   // fill colour (absent → scene default_fill)
-  float angle  = 5;   // orientation in degrees (CCW)
+  Vec2   center = 1;   // pixel-space position
+  float  width  = 2;   // full width in pixels  (0 → default 100)
+  float  height = 3;   // full height in pixels (0 → default 100)
+  Color  fill   = 4;   // fill colour (absent → scene default_fill)
+  float  angle  = 5;   // orientation in degrees (CCW)
+  string id     = 6;   // client-supplied UUID (absent → server generates one)
+  string name   = 7;   // optional human-readable label
 }
 
 // System command: create a grating stimulus.
@@ -85,6 +91,8 @@ message CreateGratingRequest {
   bool         drift_decoupled = 15;
   float        drift_angle     = 16; // drift direction in degrees CCW; used only when
                                      // drift_decoupled is true (default 0)
+  string       id              = 17; // client-supplied UUID (absent → server generates one)
+  string       name            = 18; // optional human-readable label
 }
 
 // ── Generic stimulus mutations (all types) ────────────────────────────────────
@@ -96,6 +104,11 @@ message SetEnabledRequest {
 
 // Stimulus command: remove a stimulus from the scene.
 message DeleteRequest {}
+
+// Stimulus command: set or clear the human-readable name of a stimulus.
+message SetNameRequest {
+  string name = 1;   // empty string clears the name
+}
 
 // Stimulus command: move the centre of a stimulus.
 message SetPositionRequest {
@@ -277,4 +290,6 @@ message QueryStimulusResponse {
   float          outline_width = 8;
   DrawMode       draw_mode     = 9;
   StimulusParams params        = 10;
+  string         id            = 11; // stable UUID assigned at creation
+  string         name          = 12; // human-readable label (empty if not set)
 }

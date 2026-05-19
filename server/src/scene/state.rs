@@ -2,7 +2,7 @@ use indexmap::IndexMap;
 
 use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
-use super::stimulus::Stimulus;
+use super::stimulus::StimulusEntry;
 
 // ── Command log (overlay feature only) ────────────────────────────────────────
 
@@ -39,7 +39,7 @@ pub struct CommandEntry {
 /// `apply_flip()` and scene bookkeeping, then drops it before drawing.
 pub struct SceneState {
     /// Stimulus objects in insertion order (insertion order = draw order).
-    pub stimuli: IndexMap<u32, Stimulus>,
+    pub stimuli: IndexMap<u32, StimulusEntry>,
     /// Next handle to allocate for a new stimulus (starts at 1).
     pub next_stim_handle: u32,
     /// Background clear colour with deferred-copy support.
@@ -104,8 +104,8 @@ impl SceneState {
 
     /// Start deferred mode: snapshot all live state into copy fields.
     pub fn begin_deferred(&mut self) {
-        for stim in self.stimuli.values_mut() {
-            stim.make_copy();
+        for entry in self.stimuli.values_mut() {
+            entry.stimulus.make_copy();
         }
         self.background.make_copy();
         self.photodiode.make_copy();
@@ -121,8 +121,8 @@ impl SceneState {
     /// Promote all copy fields to live. Called by the render thread when
     /// `pending_flip` is set, before animation advance and tessellation.
     pub fn apply_flip(&mut self) {
-        for stim in self.stimuli.values_mut() {
-            stim.flip();
+        for entry in self.stimuli.values_mut() {
+            entry.stimulus.flip();
         }
         self.background.flip();
         self.photodiode.flip();
@@ -135,14 +135,14 @@ impl SceneState {
         if protected_too {
             self.stimuli.clear();
         } else {
-            self.stimuli.retain(|_, s| s.flags().protected);
+            self.stimuli.retain(|_, e| e.stimulus.flags().protected);
         }
     }
 
     pub fn set_all_enabled(&mut self, enabled: bool, protected_too: bool) {
-        for stim in self.stimuli.values_mut() {
-            if protected_too || !stim.flags().protected {
-                stim.flags_mut().enabled = enabled;
+        for entry in self.stimuli.values_mut() {
+            if protected_too || !entry.stimulus.flags().protected {
+                entry.stimulus.flags_mut().enabled = enabled;
             }
         }
     }

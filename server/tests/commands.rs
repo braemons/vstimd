@@ -61,6 +61,7 @@ fn test_create_rect() {
             width: 200.0,
             height: 100.0,
             fill: None,
+            ..Default::default()
         },
     ));
     assert!(is_ok(&resp), "unexpected error: {}", resp.error);
@@ -80,12 +81,13 @@ fn test_create_rect_with_fill() {
             width: 0.0,
             height: 0.0,
             fill: Some(fill.clone()),
+            ..Default::default()
         },
     ));
     assert!(is_ok(&resp));
     let h = resp.handle as u32;
-    let stim = scene.stimuli.get_mut(&h).unwrap();
-    let Stimulus::Shape(s) = stim else { panic!("expected shape stimulus") };
+    let entry = scene.stimuli.get_mut(&h).unwrap();
+    let Stimulus::Shape(s) = &mut entry.stimulus else { panic!("expected shape stimulus") };
     let appearance = s.appearance();
     assert_eq!(appearance.live.fill_color[0], fill.r);
     assert_eq!(appearance.live.fill_color[1], fill.g);
@@ -99,13 +101,13 @@ fn test_create_rect_defaults() {
     let default_fill = scene.default_fill;
     let resp = scene.handle_request(create_rect_req(
         sys(),
-        proto::CreateRectRequest { center: None, width: 0.0, height: 0.0, fill: None },
+        proto::CreateRectRequest { center: None, width: 0.0, height: 0.0, fill: None, ..Default::default() },
     ));
     assert!(is_ok(&resp));
     let h = resp.handle as u32;
-    let stim = scene.stimuli.get_mut(&h).unwrap();
+    let entry = scene.stimuli.get_mut(&h).unwrap();
 
-    let Stimulus::Shape(ShapeStimulus::Rect(r)) = stim else { panic!("expected Rect stimulus") };
+    let Stimulus::Shape(ShapeStimulus::Rect(r)) = &mut entry.stimulus else { panic!("expected Rect stimulus") };
     assert_eq!(r.size.live, [50.0, 50.0]);
     assert_eq!(r.appearance.live.fill_color, default_fill);
 }
@@ -117,16 +119,16 @@ fn test_enable_disable() {
         .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()))
         .handle as u32;
 
-    assert!(scene.stimuli[&h].is_visible());
+    assert!(scene.stimuli[&h].stimulus.is_visible());
 
     let resp = scene.handle_request(set_enabled_req(h, false));
     assert!(is_ok(&resp));
     assert_eq!(resp.handle, -1);
-    assert!(!scene.stimuli[&h].flags().enabled);
+    assert!(!scene.stimuli[&h].stimulus.flags().enabled);
 
     let resp = scene.handle_request(set_enabled_req(h, true));
     assert!(is_ok(&resp));
-    assert!(scene.stimuli[&h].flags().enabled);
+    assert!(scene.stimuli[&h].stimulus.flags().enabled);
 }
 
 #[test]
@@ -188,6 +190,7 @@ fn test_proto_roundtrip() {
             width: 50.0,
             height: 30.0,
             fill: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }),
+            ..Default::default()
         })),
     };
     let bytes = req.encode_to_vec();
@@ -197,6 +200,7 @@ fn test_proto_roundtrip() {
     if let Some(request::Body::CreateRect(c)) = decoded.body {
         assert_eq!(c.width, 50.0);
         assert_eq!(c.fill.unwrap().r, 1.0);
+        // id/name are proto string fields; default is empty string
     } else {
         panic!("unexpected body variant");
     }
@@ -213,12 +217,13 @@ fn test_create_ellipse() {
             height: 60.0,
             fill: Some(proto::Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0 }),
             angle: 45.0,
+            ..Default::default()
         })),
     });
     assert!(is_ok(&resp), "unexpected error: {}", resp.error);
     let h = resp.handle as u32;
     assert!(h > 0);
-    let Stimulus::Shape(ShapeStimulus::Ellipse(e)) = &scene.stimuli[&h] else {
+    let Stimulus::Shape(ShapeStimulus::Ellipse(e)) = &scene.stimuli[&h].stimulus else {
         panic!("expected Ellipse stimulus");
     };
     assert_eq!(e.radii.live, [60.0, 30.0]);
@@ -236,7 +241,7 @@ fn test_set_position() {
         body: Some(request::Body::SetPosition(proto::SetPositionRequest { x: 42.0, y: -7.0 })),
     });
     assert!(is_ok(&resp));
-    assert_eq!(scene.stimuli[&h].get_pos(), [42.0, -7.0]);
+    assert_eq!(scene.stimuli[&h].stimulus.get_pos(), [42.0, -7.0]);
 }
 
 #[test]
@@ -252,7 +257,7 @@ fn test_set_fill_color() {
         })),
     });
     assert!(is_ok(&resp));
-    let Stimulus::Shape(s) = scene.stimuli.get(&h).unwrap() else { panic!("expected shape") };
+    let Stimulus::Shape(s) = &scene.stimuli.get(&h).unwrap().stimulus else { panic!("expected shape") };
     let app = s.appearance();
     assert_eq!(app.live.fill_color, [1.0, 0.0, 0.5, 0.8]);
 }
@@ -263,7 +268,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     let h = scene
         .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()))
         .handle as u32;
-    scene.stimuli.get_mut(&h).unwrap().flags_mut().dirty = false;
+    scene.stimuli.get_mut(&h).unwrap().stimulus.flags_mut().dirty = false;
 
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
@@ -307,7 +312,8 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     });
     assert!(is_ok(&resp));
 
-    let stim = scene.stimuli.get(&h).unwrap();
+    let entry = scene.stimuli.get(&h).unwrap();
+    let stim = &entry.stimulus;
     let t = stim.transform();
     assert_eq!(t.live.pos, [15.0, 25.0]);
     assert_eq!(t.live.angle, 30.0);
@@ -328,7 +334,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
         .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()))
         .handle as u32;
 
-    let stim_obj = scene.stimuli.get_mut(&h).unwrap();
+    let stim_obj = &mut scene.stimuli.get_mut(&h).unwrap().stimulus;
     stim_obj.transform_mut().live = vstimd::scene::Transform2D { pos: [1.0, 2.0], angle: 3.0 };
     let Stimulus::Shape(s) = stim_obj else { panic!("expected shape") };
     {
@@ -386,7 +392,8 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     });
     assert!(is_ok(&resp));
 
-    let stim = scene.stimuli.get(&h).unwrap();
+    let entry = scene.stimuli.get(&h).unwrap();
+    let stim = &entry.stimulus;
     let t = stim.transform();
     assert_eq!(t.live.pos, [1.0, 2.0]);
     assert_eq!(t.live.angle, 3.0);
@@ -413,7 +420,8 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     scene.apply_flip();
     assert!(!scene.pending_flip);
 
-    let stim = scene.stimuli.get(&h).unwrap();
+    let entry = scene.stimuli.get(&h).unwrap();
+    let stim = &entry.stimulus;
     let t = stim.transform();
     assert_eq!(t.live.pos, [15.0, 25.0]);
     assert_eq!(t.live.angle, 30.0);
@@ -440,7 +448,7 @@ fn test_set_rect_size() {
         })),
     });
     assert!(is_ok(&resp));
-    let Stimulus::Shape(ShapeStimulus::Rect(r)) = &scene.stimuli[&h] else { panic!("expected Rect") };
+    let Stimulus::Shape(ShapeStimulus::Rect(r)) = &scene.stimuli[&h].stimulus else { panic!("expected Rect") };
     assert_eq!(r.size.live, [40.0, 20.0]);
 }
 
@@ -469,6 +477,7 @@ fn test_query_stimulus() {
             width: 200.0,
             height: 100.0,
             fill: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }),
+            ..Default::default()
         })),
     }).handle as u32;
 
@@ -548,4 +557,106 @@ fn test_delete_all() {
     });
     assert!(is_ok(&resp));
     assert_eq!(scene.stimuli.len(), 0);
+}
+
+#[test]
+fn test_create_with_name_and_query_returns_name_and_uuid() {
+    let mut scene = SceneState::new();
+    let resp = scene.handle_request(proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::CreateRect(proto::CreateRectRequest {
+            name: "fix_cross".into(),
+            ..Default::default()
+        })),
+    });
+    assert!(is_ok(&resp));
+    let h = resp.handle as u32;
+    assert!(!resp.id.is_empty(), "create response should contain UUID");
+
+    let qresp = scene.handle_request(proto::Request {
+        target: Some(stim(h)),
+        body: Some(request::Body::QueryStimulus(proto::QueryStimulusRequest {})),
+    });
+    assert!(is_ok(&qresp));
+    if let Some(proto::response::Body::StimulusInfo(info)) = qresp.body {
+        assert_eq!(info.name, "fix_cross");
+        assert_eq!(info.id, resp.id);
+    } else {
+        panic!("expected StimulusInfo");
+    }
+}
+
+#[test]
+fn test_create_with_client_uuid_echoed_back() {
+    let mut scene = SceneState::new();
+    let client_id = "550e8400-e29b-41d4-a716-446655440000";
+    let resp = scene.handle_request(proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::CreateRect(proto::CreateRectRequest {
+            id: client_id.into(),
+            ..Default::default()
+        })),
+    });
+    assert!(is_ok(&resp));
+    assert_eq!(resp.id, client_id);
+}
+
+#[test]
+fn test_set_name() {
+    let mut scene = SceneState::new();
+    let h = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()))
+        .handle as u32;
+
+    let resp = scene.handle_request(proto::Request {
+        target: Some(stim(h)),
+        body: Some(request::Body::SetName(proto::SetNameRequest { name: "new_name".into() })),
+    });
+    assert!(is_ok(&resp));
+
+    let qresp = scene.handle_request(proto::Request {
+        target: Some(stim(h)),
+        body: Some(request::Body::QueryStimulus(proto::QueryStimulusRequest {})),
+    });
+    assert!(is_ok(&qresp));
+    if let Some(proto::response::Body::StimulusInfo(info)) = qresp.body {
+        assert_eq!(info.name, "new_name");
+    } else {
+        panic!("expected StimulusInfo");
+    }
+}
+
+#[test]
+fn test_list_stimuli_includes_id_and_name() {
+    let mut scene = SceneState::new();
+    let h1 = scene.handle_request(proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::CreateRect(proto::CreateRectRequest {
+            name: "rect_a".into(),
+            ..Default::default()
+        })),
+    }).handle as u32;
+    let h2 = scene.handle_request(proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::CreateCircle(proto::CreateCircleRequest {
+            name: "disc_b".into(),
+            ..Default::default()
+        })),
+    }).handle as u32;
+
+    let resp = scene.handle_request(proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::ListStimuli(proto::ListStimuliRequest {})),
+    });
+    assert!(is_ok(&resp));
+    if let Some(proto::response::Body::StimulusList(list)) = resp.body {
+        let by_handle: std::collections::HashMap<u32, &proto::StimulusEntry> =
+            list.entries.iter().map(|e| (e.handle, e)).collect();
+        assert_eq!(by_handle[&h1].name, "rect_a");
+        assert_eq!(by_handle[&h2].name, "disc_b");
+        assert!(!by_handle[&h1].id.is_empty());
+        assert!(!by_handle[&h2].id.is_empty());
+    } else {
+        panic!("expected StimulusList");
+    }
 }

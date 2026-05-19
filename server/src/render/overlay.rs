@@ -150,10 +150,11 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                         ui.label(egui::RichText::new("Size (px)").strong());
                         ui.end_row();
                         for h in handles {
-                            if let Some(stim) = sc.stimuli.get_mut(&h) {
+                            if let Some(entry) = sc.stimuli.get_mut(&h) {
+                                let stim = &entry.stimulus;
                                 let type_name = stim.type_name();
                                 let pos = stim.transform().live.pos;
-                                let size_label = match &*stim {
+                                let size_label = match stim {
                                     Stimulus::Grating(s) => {
                                         let [hw, hh] = s.size.live;
                                         format!("{}×{}", (hw * 2.0) as i32, (hh * 2.0) as i32)
@@ -170,10 +171,15 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                                         format!("{}×{}", (rx * 2.0) as i32, (ry * 2.0) as i32)
                                     }
                                 };
-                                let flags = stim.flags_mut();
+                                let name_label = entry.name.as_deref().unwrap_or("");
+                                let flags = entry.stimulus.flags_mut();
                                 ui.checkbox(&mut flags.enabled, "");
                                 ui.label(format!("#{h} {type_name}"));
-                                ui.label(format!("{:.0},{:.0}", pos[0], pos[1]));
+                                ui.label(if name_label.is_empty() {
+                                    format!("{:.0},{:.0}", pos[0], pos[1])
+                                } else {
+                                    format!("{:.0},{:.0} \"{name_label}\"", pos[0], pos[1])
+                                });
                                 ui.label(size_label);
                                 ui.end_row();
                             }
