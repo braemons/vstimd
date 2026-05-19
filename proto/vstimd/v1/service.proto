@@ -55,6 +55,7 @@ message Request {
 
     // ── Stimulus mutations (stimulus target only) ───────────────────────────
     SetEnabledRequest     set_enabled      = 30;
+    SetNameRequest        set_name         = 42;
     DeleteRequest         delete           = 31;
     SetPositionRequest    set_position     = 32;
     SetOrientationRequest set_orientation  = 33;
@@ -107,6 +108,10 @@ message Response {
 
   // Human-readable error detail. Non-empty only when code != OK.
   string    error  = 3;
+
+  // For create commands: the stable UUID of the newly created stimulus.
+  // Empty string on non-create responses.
+  string    id     = 4;
 
   // Query payload — present only on successful query responses.
   oneof body {

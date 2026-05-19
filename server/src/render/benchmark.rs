@@ -1,6 +1,7 @@
 use std::sync::{Arc, RwLock};
 
-use crate::scene::{GratingParams, GratingStimulus, SceneState, Stimulus, Waveform};
+use crate::scene::{GratingParams, GratingStimulus, SceneState, Stimulus, StimulusEntry, Waveform};
+use uuid::Uuid;
 use crate::timing::FrameStats;
 
 pub struct BenchmarkResult {
@@ -70,19 +71,23 @@ impl BenchmarkState {
                     let h = sc.alloc_stim_handle();
                     sc.stimuli.insert(
                         h,
-                        Stimulus::Grating(GratingStimulus::new(
-                            [cx, cy],
-                            angle,
-                            [stim_w / 2.0, stim_h / 2.0],
-                            GratingParams {
-                                sf: 0.05,
-                                contrast: 1.0,
-                                drift_speed: 1.0,
-                                waveform: Waveform::Sin,
-                                drift_coupled: true,
-                                ..Default::default()
-                            },
-                        )),
+                        StimulusEntry::new(
+                            Uuid::new_v4(),
+                            None,
+                            Stimulus::Grating(GratingStimulus::new(
+                                [cx, cy],
+                                angle,
+                                [stim_w / 2.0, stim_h / 2.0],
+                                GratingParams {
+                                    sf: 0.05,
+                                    contrast: 1.0,
+                                    drift_speed: 1.0,
+                                    waveform: Waveform::Sin,
+                                    drift_coupled: true,
+                                    ..Default::default()
+                                },
+                            )),
+                        ),
                     );
                     handles.push(h);
                 }

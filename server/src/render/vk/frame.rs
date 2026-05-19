@@ -106,8 +106,8 @@ pub fn render_frame(
         // When the screen size changes all NDC coordinates are stale.
         if sc.last_uploaded_size != screen_size {
             sc.last_uploaded_size = screen_size;
-            for stim in sc.stimuli.values_mut() {
-                stim.flags_mut().mark_dirty();
+            for entry in sc.stimuli.values_mut() {
+                entry.stimulus.flags_mut().mark_dirty();
             }
         }
         gpu_buffers
@@ -117,7 +117,9 @@ pub fn render_frame(
         for handle in handles {
             // Gratings use the shared quad; the vertex shader positions it via push
             // constants each frame. Advance the drift accumulator then skip tessellation.
-            if let Some(Stimulus::Grating(s)) = sc.stimuli.get_mut(&handle) {
+            if let Some(entry) = sc.stimuli.get_mut(&handle)
+                && let Stimulus::Grating(s) = &mut entry.stimulus
+            {
                 if s.flags.is_visible() && s.params.live.drift_speed != 0.0 {
                     let inc = grating_phase_inc(s, fps);
                     s.phase_accum += inc;
@@ -125,7 +127,8 @@ pub fn render_frame(
                 continue;
             }
 
-            let stim = &sc.stimuli[&handle];
+            let entry = &sc.stimuli[&handle];
+            let stim = &entry.stimulus;
             if !stim.flags().dirty && gpu_buffers.meshes.contains_key(&handle) {
                 continue;
             }
@@ -142,7 +145,7 @@ pub fn render_frame(
                 }
             );
             gpu_buffers.upload(handle, &ctx.device, &verts, &idxs);
-            sc.stimuli[&handle].flags_mut().dirty = false;
+            sc.stimuli[&handle].stimulus.flags_mut().dirty = false;
         }
         sc.photodiode.advance();
         let pd = &sc.photodiode;
@@ -238,7 +241,8 @@ pub fn render_frame(
         let quad = &grating_pipeline.quad;
 
         ctx.cmd_begin_label(cb, "stimuli", [0.3, 0.7, 1.0, 1.0]);
-        for (h, stim) in &sc.stimuli {
+        for (h, entry) in &sc.stimuli {
+            let stim = &entry.stimulus;
             if !stim.is_visible() {
                 continue;
             }

@@ -16,6 +16,7 @@ log        = "0.4"
 prost      = "0.13"
 nvml-wrapper = "0.10"
 rand         = "0.10.1"
+uuid         = { version = "1", features = ["v4"] }
 sysinfo      = "0.30"
 tokio      = { version = "1", features = ["rt", "time"] }
 winit      = "=0.30.13"

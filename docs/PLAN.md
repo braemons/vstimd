@@ -1,7 +1,7 @@
 # StimServer → Rust Port: Master Plan
 
-> **Status:** Phases 1–4 + 6 complete; Phases 2, 7 partial
-> **Last updated:** 2025-05-05
+> **Status:** Phases 1–4 + 6–7 + 11 complete; Phase 2 substantially complete
+> **Last updated:** 2026-05-19
 > **Original:** MFC / Direct2D / Direct3D 11 / Windows Named Pipe  
 > **Target:** Rust / Vulkan (ash) / kurbo / ZeroMQ / protobuf / Linux (also Windows-compatible)
 > **Goal:** Remote PsychoPy-compatible visual stimulus server with enhanced features for neuroscience research
@@ -14,7 +14,7 @@
 | `INPUT_LATENCY.md` | Latency analysis for high-rate position input (shared memory vs ZeroMQ) |
 | `3D_ROADMAP.md` | Full roadmap for 3-D stimulus support: infrastructure, primitives, corridors/mazes, mesh models, and Gaussian splatting |
 | `EVENT_LOGGING.md` | Event logging and replay system: binary log format, messenger thread, ZMQ publication, SQLite export, and deterministic replay |
-| `PYTHON_CLIENT.md` | Python client (`vstimd_client`): PsychoPy-compatible API, wire protocol, deferred mode, testing strategy, migration guide |
+| `../client/python/README.md` | Python client: usage, API reference, PsychoPy-compatible layer, testing |
 | `BARE_METAL_LINUX.md` | Compositor-free Linux rendering: raw Vulkan (`ash`) + KMS/DRM + libinput — no X11/Wayland required |
 
 ---
@@ -418,7 +418,13 @@ required-features = ["rusqlite"]
 
 ## 5. Protobuf Schema
 
-File: `proto/vstimd.proto`
+> **Note:** The schema below is the aspirational full design from the original plan.
+> The **implemented** schema lives in `proto/vstimd/v1/` (four files). Key differences
+> from the plan: grating stimulus is already implemented; animation commands are not yet
+> in the wire protocol; the envelope uses `oneof target {SystemTarget | uint32 stimulus}`
+> rather than a bare `uint32 handle`. See those files for the authoritative schema.
+
+File: `proto/vstimd.proto` (original plan; kept for reference)
 
 ```protobuf
 syntax = "proto3";
@@ -602,45 +608,50 @@ message CmdSetVertices    { repeated Vec2 vertices = 1; }
 
 ```
 vstimd/
-├── build.rs                       # (planned) prost-build: compile proto/vstimd.proto
-├── proto/
-│   └── vstimd.proto           # (planned) protobuf schema (see §5)
+├── build.rs                       # prost-build + naga WGSL→SPIR-V compilation
+├── proto/vstimd/v1/
+│   ├── common.proto               # Vec2, Color, Backend, DrawMode, StimulusType
+│   ├── service.proto              # Request/Response envelope, ErrorCode
+│   ├── stimuli_2d.proto           # 2-D stimulus create/mutate/query messages
+│   └── system.proto               # scene-wide commands and query responses
 └── src/
-    ├── main.rs                    # entry point, demo scene setup, winit event loop bootstrap
-    ├── app.rs                     # winit ApplicationHandler (App struct + event dispatch)
-    ├── timing.rs                  # FrameStats, FrameSummary (no wgpu dependency)
+    ├── main.rs                    # entry point, arg parsing, ZMQ thread, backend dispatch
+    ├── ipc.rs                     # ZMQ REP loop → handle_request → encode response
+    ├── proto.rs                   # include! of prost-generated types from OUT_DIR
+    ├── geom.rs                    # shared 2-D geometry helpers
+    ├── timing.rs                  # FrameStats, FramePhases, FrameTick
+    ├── log_buffer.rs              # in-process log ring buffer (env_logger → overlay)
     │
     ├── scene/
-    │   ├── mod.rs                 # re-exports only
+    │   ├── mod.rs                 # re-exports
     │   ├── state.rs               # SceneState, handle registry, deferred-mode logic
     │   ├── deferred.rs            # Deferred<T> generic wrapper
-    │   ├── animation.rs           # Animation enum + AnimCommon (no concrete variants yet)
     │   ├── photodiode.rs          # PhotoDiodeState
     │   └── stimulus/
-    │       ├── mod.rs             # Stimulus enum, stim_field! macro, dispatch methods
-    │       ├── common.rs          # StimulusFlags, Transform2D, DrawMode, ShapeAppearance
-    │       └── types.rs           # concrete stimulus structs (Rect, Disc, Ellipse, etc.)
+    │       ├── mod.rs             # Stimulus enum, StimulusEntry, dispatch methods
+    │       ├── stimulus_flags.rs  # StimulusFlags
+    │       ├── transform2d.rs     # Transform2D
+    │       ├── shape_appearance.rs # ShapeAppearance
+    │       ├── shape_stimulus.rs  # ShapeStimulus trait
+    │       ├── primitive_shapes.rs # RectStimulus, DiscStimulus, EllipseStimulus
+    │       └── grating/           # GratingStimulus, GratingParams, Vulkan pipeline, proto mapping, tess
     │
     ├── render/
-    │   ├── mod.rs                 # re-exports only (Vertex, RenderState)
-    │   ├── state.rs               # RenderState: wgpu device/queue/surface, update(), render()
-    │   ├── pipeline.rs            # WGSL shader + create_pipeline() (solid colour only)
-    │   ├── gpu_buffers.rs         # StimulusMesh, GpuBuffers
+    │   ├── mod.rs                 # re-exports, WindowMode, RenderTarget, WinitApp
+    │   ├── render_state.rs        # RenderState — shared Vulkan resources + per-frame logic
     │   ├── tess.rs                # kurbo tessellation (Rect, Disc, Ellipse)
-    │   └── overlay.rs             # OverlayRenderer (feature = "overlay", frame timing HUD)
+    │   ├── overlay.rs             # egui overlay: System, Frame Timing, Stimuli, IPC Log, Benchmarks, Server Log
+    │   ├── system_metrics.rs      # MetricsSampler (CPU/RAM via sysinfo, GPU via nvml-wrapper)
+    │   ├── system_info.rs         # SystemInfo, ClockSource
+    │   ├── benchmark.rs           # BenchmarkState
+    │   ├── display_info.rs        # display geometry helpers
+    │   ├── vertex.rs              # Vertex struct
+    │   ├── vk/                    # VkContext, VkPipeline, VkGratingPipeline, GpuBuffers, render_frame
+    │   │   └── egui/              # custom Vulkan egui renderer
+    │   ├── drm/                   # DRM/console backend (VK_KHR_display, libinput, vblank)
+    │   └── winit_vk/              # Desktop backend (winit, VK_KHR_surface)
     │
-    │   # ── planned ──
-    │   # args.rs                  # clap CLI definition
-    │   # ipc/zmq_server.rs        # ZeroMQ REP loop
-    │   # ipc/shm_reader.rs        # Shared-memory position reader
-    │   # input/mouse.rs           # winit CursorMoved → AnimMousePos
-    │   # input/gamepad.rs         # gilrs → AnimGamepadPos (feature-gated)
-    │   # logging/                 # Event logging, messenger thread, .wllog writer
-    │   # replay/                  # Log replay driver
-    │   # bin/convert.rs           # vstimd-convert: .wllog → SQLite
-    │
-    └── proto/                     # (planned) generated by build.rs (gitignored)
-        └── vstimd.rs
+    └── lib.rs                     # library crate for integration tests
 ```
 
 ---
@@ -649,17 +660,16 @@ vstimd/
 
 ### Phase 3 — Project Scaffolding ✅
 
-- [x] Updated `Cargo.toml` with ZeroMQ / protobuf / tokio dependencies
-- [x] `build.rs` — `prost_build::compile_protos` compiles `proto/vstimd.proto`
-- [x] `proto/vstimd.proto` — `CreateRect`, `SetEnabled`, `Delete`, `Request`/`Response` envelope
+- [x] `Cargo.toml` — ZeroMQ / protobuf / tokio / naga / uuid / nvml-wrapper / sysinfo / env_logger dependencies
+- [x] `build.rs` — `prost_build::compile_protos` for `proto/vstimd/v1/` + naga WGSL → SPIR-V compilation
+- [x] `proto/vstimd/v1/` — four files: `common.proto`, `service.proto`, `stimuli_2d.proto`, `system.proto`
 - [x] `src/proto.rs` — `include!` of generated types from `OUT_DIR`
-- [x] `src/lib.rs` — exposes all modules as a library crate for integration tests
-- [ ] `args.rs` with `clap` CLI (still to do)
+- [x] `src/lib.rs` — library crate for integration tests
+- [x] CLI arg parsing in `main.rs` (manual, no clap): `--windowed WxH`, `--null`, `--verbose`, `--help`
 
 ### Phase 1 — Scene State Core (`src/scene/`) ✅
 
-> **Status:** Complete for the implemented command set. Concrete animation implementations still
-> to do (Phase 7+).
+> **Status:** Complete for the implemented stimulus types. Animation system not yet implemented.
 
 > **See `STIMULUS_DATA_MODEL.md` for the full design rationale.** The summary is below.
 
@@ -670,10 +680,11 @@ of a single `Stimulus` enum, and shared state is held in explicit component stru
 variant composes. This avoids the pitfalls of mirroring the C++ inheritance hierarchy in Rust.
 
 **Implemented in:**
-- Component structs (`StimulusFlags`, `Transform2D`, `DrawMode`, `ShapeAppearance`): `src/scene/stimulus/common.rs`
+- Component structs (`StimulusFlags`, `Transform2D`, `ShapeAppearance`): `src/scene/stimulus/{stimulus_flags,transform2d,shape_appearance}.rs`
 - `Deferred<T>` wrapper: `src/scene/deferred.rs`
-- Concrete stimulus structs (Rect, Ellipse, Petal, Wedge, Disc, Bitmap, BitmapSeq, WgslShader, Particle, Pixel): `src/scene/stimulus/types.rs`
-- `Stimulus` enum, `stim_field!` macro, dispatch methods: `src/scene/stimulus/mod.rs`
+- Concrete stimulus structs (Rect, Disc, Ellipse): `src/scene/stimulus/primitive_shapes.rs`
+- Grating stimulus: `src/scene/stimulus/grating/`
+- `Stimulus` enum, `StimulusEntry`, dispatch methods: `src/scene/stimulus/mod.rs`
 
 The compiler enforces exhaustiveness — a missing variant in `make_copy` or `flip` is a
 **compile error**, not a silent bug (unlike the C++ "forgot to call `Super::makeCopy()`"
@@ -706,31 +717,36 @@ pattern in `src/scene/command.rs`.
 
 ### Phase 2 — Renderer (`src/render/`)
 
-> **Status:** Partially complete. Vulkan backends implemented (DRM and winit), solid-colour
-> pipeline working, Rect/Disc/Ellipse tessellation working. Missing: textured pipeline (bitmaps),
-> shader pipeline (custom shaders), Petal/Wedge tessellation, egui Vulkan renderer.
+> **Status:** Substantially complete. Both backends working. Solid-colour and grating pipelines
+> implemented. egui overlay fully working on both backends. Missing: textured pipeline (bitmaps),
+> Petal/Wedge tessellation.
 
 **Backends:**
-- `render/drm/` — DRM/console mode (Linux): `VK_KHR_display` surface, libinput keyboard
+- `render/drm/` — DRM/console mode (Linux): `VK_KHR_display` surface, libinput keyboard, vblank wait with multiple fallback strategies
 - `render/winit_vk/` — Desktop mode (Linux/Windows): winit window, `VK_KHR_surface` via ash-window
-- `render/vk/` — Shared Vulkan code: `VkContext`, `VkPipeline`, `GkBuffers`, `render_frame`
+- `render/render_state.rs` — `RenderState` shared between both backends: Vulkan resources, per-frame logic, overlay, metrics
 
 **Coordinate system:** Pixel-space with origin at screen centre, Y-up. The vertex shader
 converts to Vulkan NDC.
 
-**Tessellation** (`render/vk/tess.rs`): Rect → 4 vertices, Disc/Ellipse → kurbo centroid fan.
+**Tessellation** (`render/tess.rs`): Rect → 4 vertices, Disc/Ellipse → kurbo centroid fan.
+Grating → shared quad vertices (one per grating, parameters uploaded as push constants).
 Still needed: Petal (arc + QuadBez) and Wedge (3 line segments) tessellation.
 
-**Pipelines:** Solid-colour pipeline implemented. Still needed: `textured_pipeline` (bitmaps),
-`shader_pipeline` (custom fragment shader per stimulus).
+**Pipelines:** Solid-colour pipeline for Rect/Disc/Ellipse. Grating pipeline (WGSL compiled to
+SPIR-V at build time via naga). Wireframe variants of both pipelines (toggle with F3).
+Still needed: `textured_pipeline` (bitmaps).
 
-**Render loop:** acquire swapchain image → deferred flip if pending → advance animations →
-clear to background → draw stimuli in insertion order → photodiode → egui overlay (wired,
-Vulkan renderer TODO) → present → frame stats. FIFO present mode provides vsync.
+**Render loop:** acquire swapchain image → deferred flip if pending → tessellate scene →
+clear to background → draw stimuli in insertion order → egui overlay → present → frame stats.
+FIFO present mode provides vsync.
 
-**GPU buffers** (`render/vk/gpu_buffers.rs`): `GpuBuffers`, `StimulusMesh`. Owned exclusively by
-the render thread (no locking), mirrors `SceneState::stimuli` by handle. Meshes rebuilt lazily
-when `stimulus.needs_rebuild()`. Draw dispatch is a plain `match` — no vtable, fully inlinable.
+**GPU buffers** (`render/vk/buffers.rs`): `GpuBuffers`, `StimulusMesh`. Owned exclusively by
+the render thread (no locking), mirrors `SceneState::stimuli` by handle. Meshes rebuilt lazily.
+
+**Overlay:** egui overlay implemented on both backends. Panels: System (CPU/RAM/GPU metrics via
+sysinfo + nvml-wrapper, hostname, IP, clock source), Frame Timing (sparkline, phase breakdown),
+Stimuli (live enable toggles), IPC Log (last 200 commands), Benchmarks, Server Log.
 
 ### Phase 4 — ZeroMQ Server (`src/ipc.rs`) ✅
 
@@ -755,12 +771,16 @@ is satisfied without any special bounds.
 
 ### Python Client (`client/python/`) ✅
 
-`vstimd_client.Connection` — thin ZMQ REQ + protobuf wrapper with `create_rect`,
-`set_enabled`, and `delete`. Protobuf stubs generated from `server/proto/vstimd.proto` live
-in `client/python/vstimd_client/_proto/vstimd_pb2.py`.
+See `client/python/README.md` for the full API reference.
 
-`client/python/examples/flash_rects.py` — creates a red and a blue rectangle and flashes them
-alternately. Run with `uv run examples/flash_rects.py [--flashes N] [--hz HZ]`.
+`vstimd.Connection` exposes `conn.stimuli` (`StimuliClient`) and `conn.system` (`SystemClient`).
+Protobuf stubs generated from `proto/vstimd/v1/` live in `vstimd/_proto/`.
+
+**Implemented:**
+- `StimuliClient`: `create_rect`, `create_circle`, `create_ellipse`, `create_grating`; full set of mutation commands including all grating-specific ones; `query(handle)`
+- `SystemClient`: `query_server_info`, `set_background`, `set_deferred_mode`, `delete_all`, `set_all_enabled`
+- `vstimd.psychopy` compat layer: `Window`, `Rect`, `Circle`, `GratingStim` — drop-in replacement for `psychopy.visual`
+- E2E tests against the null renderer; unit/API-signature tests
 
 ### Phase 5 — Shared-Memory Position Reader (`src/ipc/shm_reader.rs`)
 
@@ -816,25 +836,12 @@ fn main() -> anyhow::Result<()> {
 }
 ```
 
-### Phase 7 — Deferred Mode (exact port)
+### Phase 7 — Deferred Mode ✅
 
-> **Status:** Partially complete. `Deferred<T>` wrapper, `make_copy()`/`flip()` on all
-> stimulus types + background + photodiode, and `pending_flip` check in render loop are
-> all implemented. Missing: wiring to `SceneState::handle_request` (depends on Phase 4).
-
-In `SceneState::handle_request`:
-- `DeferredMode { start: true }`:
-  1. `make_copy()` on all stimuli.
-  2. Snapshot `background`, `photodiode` state into copy fields.
-  3. Set `deferred_mode = true`.
-- `DeferredMode { start: false }`:
-  1. Set `pending_flip = true`.
-  2. Clear `deferred_mode` flag.
-- At render-loop start: if `pending_flip`:
-  1. `get_copy()` on all stimuli.
-  2. Apply background copy, photodiode copy.
-  3. Set all `dirty` flags.
-  4. Clear `pending_flip`.
+> **Status:** Complete. `Deferred<T>` wrapper, `make_copy()`/`flip()` on all stimulus types
+> + background + photodiode, `pending_flip` checked at render-loop start, and
+> `SetDeferredModeRequest` fully handled in `command.rs` (`begin_deferred` / `end_deferred` /
+> cancel path). The `apply_flip()` call in the render thread is the atomic promotion point.
 
 ### Phase 8 — Custom WGSL Pixel Shader Stimuli
 
@@ -862,18 +869,18 @@ in one corner. State machine per frame:
 - Draw white if `lit`, skip (don't draw) if `!lit`.
 - Position: 0 = bottom-left, 1 = bottom-right (matching the C++ `SetPosition`).
 
-### Phase 11 — Debug Overlay (feature = "overlay")
+### Phase 11 — Debug Overlay ✅
 
-> **Status:** Substantially complete. `OverlayRenderer` in `render/overlay.rs`.
-> The `overlay` feature is **on by default** (use `--no-default-features` to strip it for
-> production). Toggle with **F1**. When hidden, egui is not called — zero overhead.
+> **Status:** Complete. `build_overlay_ui` in `render/overlay.rs`. Toggle with **F1**; works
+> on both DRM and winit backends. When hidden, egui is not called — zero overhead.
 >
 > **Implemented panels:**
-> - **Frame Timing** — FPS, jitter (std ms), mean/min/max frame time, drop count, frame index; all colour-coded green/yellow/red.
-> - **Stimuli** — table of all active stimuli: handle, type name, enabled checkbox (clicking toggles the stimulus live), X and Y position.
-> - **Commands** — scrolling log of the last N ZMQ commands: elapsed time, handle, human-readable summary, response; errors shown in red.
->
-> **Still planned:** Animation assignments panel, IPC message-rate counter, config/screen-info panel.
+> - **System** — display geometry, hostname, local IP, backend, vblank clock source (color-coded), CPU/RAM progress bars (sysinfo), GPU utilisation + VRAM (nvml-wrapper, shown only when NVML is available), wireframe mode indicator.
+> - **Frame Timing** — FPS, drop count, mean/min/max/jitter frame time; per-frame sparkline (red bars = missed vblank); last-frame phase breakdown (tessellate/upload, fence, acquire, record, submit) in µs.
+> - **Stimuli** — table of all active stimuli: handle, UUID, name, type, enabled checkbox (live toggle), position.
+> - **IPC Log** — scrolling log of the last 200 ZMQ commands: elapsed time, handle, summary, response; errors in red; total/error counters.
+> - **Benchmarks** — frame-time stress testing.
+> - **Server Log** — scrolling `env_logger` output (ring buffer, last 500 entries), color-coded by level.
 
 Using `egui-wgpu` + `egui-winit`:
 - Integrate into the render pass after all stimuli but before present.
@@ -1102,25 +1109,27 @@ The structured protobuf messages are far easier to work with than the hand-packe
 
 ## 10. Suggested Implementation Order
 
-- [x] **Phase 1** — Scene state: `Stimulus` enum + component structs, `Deferred<T>`, `StimulusFlags`, `Transform2D`, `ShapeAppearance`, `SceneState` with deferred-mode logic, `PhotoDiodeState`, `Animation` trait (no concrete impls yet)
-- [x] **Phase 2** *(partial)* — Renderer: `render/` module split (state, pipeline, gpu_buffers, tess, overlay), solid-colour pipeline, Rect/Disc/Ellipse tessellation, frame timing (`FrameStats`/`FrameSummary`), fullscreen borderless + Fifo vsync. Remaining: textured pipeline, shader pipeline, Petal/Wedge tessellation, coordinate-system uniform
-- [x] **Phase 3** *(partial)* — Scaffolding: ZeroMQ / protobuf deps, `build.rs`, `proto/vstimd.proto`, `src/proto.rs`, `src/lib.rs`. Remaining: `args.rs` CLI
-- [x] **Phase 4** — ZeroMQ server: `src/ipc.rs`, wired to `SceneState::handle_request`; integration tests in `tests/ipc.rs`
-- [ ] **Phase 5** — Shared-memory reader: `ipc/shm_reader.rs`, `AnimExternalPos`
-- [x] **Phase 6** — Main + threading: `Arc<RwLock<SceneState>>` shared between render and ZMQ threads; `Animation: Send + Sync`; `src/lib.rs`
-- [x] **Phase 7** *(partial)* — Deferred mode: `Deferred<T>`, `make_copy`/`flip` on all stimuli + background + photodiode, `pending_flip` checked in render loop. Remaining: wire to ZMQ command dispatch
-- [x] **Python client** — `vstimd_client.Connection` with `create_rect`/`set_enabled`/`delete`; `examples/flash_rects.py`
+- [x] **Phase 1** — Scene state: `Stimulus` enum + component structs, `Deferred<T>`, `StimulusFlags`, `Transform2D`, `ShapeAppearance`, `SceneState` with deferred-mode logic, `PhotoDiodeState`
+- [x] **Phase 2** *(substantially complete)* — Renderer: both backends (DRM + winit), `RenderState` shared, solid-colour + grating pipelines, wireframe variants, Rect/Disc/Ellipse/Grating tessellation, frame timing with phase breakdown, vblank fallback chain. Remaining: textured pipeline (bitmaps), Petal/Wedge tessellation
+- [x] **Phase 3** — Scaffolding: ZeroMQ / protobuf deps, `build.rs` (prost + naga), `proto/vstimd/v1/` (4 files), `src/proto.rs`, `src/lib.rs`, CLI arg parsing in `main.rs`
+- [x] **Phase 4** — ZeroMQ server: `src/ipc.rs`, wired to `SceneState::handle_request`; integration tests
+- [ ] **Phase 5** — Shared-memory reader: `AnimExternalPos`
+- [x] **Phase 6** — Main + threading: `Arc<RwLock<SceneState>>` shared between render and ZMQ threads; `src/lib.rs`
+- [x] **Phase 7** *(substantially complete)* — Deferred mode: `Deferred<T>`, `make_copy`/`flip` on all stimuli + background + photodiode, `pending_flip` in render loop, wired to ZMQ dispatch. Remaining: cancel-deferred not yet validated
+- [x] **Python client** — `vstimd.Connection` with `StimuliClient` (create rect/circle/ellipse/grating, all mutations, query) and `SystemClient`; PsychoPy layer (`Window`, `Rect`, `Circle`, `GratingStim`); UUID + name support; full e2e tests against null renderer
+- [x] **Grating stimulus** — analytical fragment shader (WGSL via naga), sin/sqr/saw/tri waveforms, circle/Gauss/Hann/raised-cosine masks, drift animation, decoupled drift direction, per-grating colors/opacity
+- [x] **UUID + name support** — all stimuli have server-assigned UUIDs, optional client-supplied UUIDs, optional names; `ListStimuli` command returns `StimulusEntry` rows
 - [ ] **Phase 8** — WGSL pixel shader stimuli: runtime pipeline compilation, uniform buffer
 - [ ] **Phase 9** — Bitmap / bitmap-sequence stimuli: `image` crate, textured pipeline
 - [ ] **Phase 10** — Photodiode sync rectangle
-- [x] **Phase 11** *(substantially complete)* — egui debug overlay: `OverlayRenderer` with frame timing HUD, stimulus list (with live enable toggles), and command log. `overlay` feature on by default; F1 toggle; zero cost when hidden. Remaining: animations panel, IPC counter, config panel
+- [x] **Phase 11** — egui debug overlay: System (CPU/RAM/GPU metrics), Frame Timing (sparkline + phases), Stimuli (live toggles), IPC Log, Benchmarks, Server Log. Works on both DRM and winit backends. F1 toggle, zero cost when hidden.
 - [ ] **Phase 12** — Video stimuli via `ffmpeg-next` (deferred, last)
-- [ ] **Phase 17** — Serde de/serialization: `#[derive(Serialize, Deserialize)]` on all stimulus structs, `Deferred<T>` live-value serialization, `SceneState` save/load to JSON, test fixtures
-- [ ] **Phase 18** — Overlay console: Stage 1 line parser (`list`, `inspect`, `create_rect`, `set_enabled`, `move`, `delete`, `save`, `load`); Stage 2 Rhai scripting; commands queued via `VecDeque`, drained in `update()`
-- [ ] **Phase 13** — Event logging: `logging/` module, messenger thread, `.wllog` file writer, ZMQ PUB publisher, `emit!` / `emit_trace!` macros; integrate `EventSender` into `SceneState` and render thread
-- [ ] **Phase 14** — Replay mode: `replay/` module, `ReplayDriver`, `LogFileReader`, `--replay` CLI flag, `inject_shm_sample` on position animations, timing modes (real-time, step, as-fast-as-possible)
-- [ ] **Phase 15** — SQLite export: `sqlite_writer.rs`, deferred real-time batch writes, `vstimd-convert` binary
-- [ ] **Phase 16** — Log control protocol: `CmdStartLog`, `CmdStopLog`, `CmdFlushLog`; runtime verbosity change via ZMQ
+- [ ] **Phase 17** — Serde de/serialization: `#[derive(Serialize, Deserialize)]` on stimulus structs, `SceneState` save/load to JSON
+- [ ] **Phase 18** — Overlay console: Stage 1 line parser; Stage 2 Rhai scripting
+- [ ] **Phase 13** — Event logging: messenger thread, `.wllog` file writer, ZMQ PUB publisher
+- [ ] **Phase 14** — Replay mode: `--replay` CLI flag, log-file reader
+- [ ] **Phase 15** — SQLite export: `vstimd-convert` binary
+- [ ] **Phase 16** — Log control protocol: `CmdStartLog`, `CmdStopLog`, `CmdFlushLog`
 
 **3-D roadmap** (see `3D_ROADMAP.md` for full details — each phase is independently shippable):
 
