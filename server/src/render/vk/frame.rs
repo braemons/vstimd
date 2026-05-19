@@ -136,10 +136,7 @@ pub fn render_frame(
                 verts.len(),
                 idxs.len(),
                 if let Stimulus::Grating(s) = stim {
-                    format!(
-                        " pos={:?} size={:?} enabled={}",
-                        s.transform.live.pos, s.size.live, s.flags.enabled
-                    )
+                    format!(" pos={:?} size={:?} enabled={}", s.transform.live.pos, s.size.live, s.flags.enabled)
                 } else {
                     String::new()
                 }

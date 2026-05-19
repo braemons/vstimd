@@ -127,6 +127,20 @@ impl GratingStimulus {
         }
     }
 
+    pub fn make_copy(&mut self) {
+        self.flags.make_copy();
+        self.transform.make_copy();
+        self.size.make_copy();
+        self.params.make_copy();
+    }
+
+    pub fn flip(&mut self) {
+        self.flags.get_copy();
+        self.flags.mark_dirty();
+        self.transform.flip();
+        self.size.flip();
+        self.params.flip();
+    }
 }
 
 /// Phase increment per frame for drift animation (called by the render thread).

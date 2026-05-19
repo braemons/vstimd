@@ -2,6 +2,7 @@ use std::sync::{Arc, RwLock};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::SystemMetrics;
+use crate::scene::stimulus::ShapeStimulus;
 use crate::scene::{SceneState, Stimulus};
 use crate::timing::{FramePhases, FrameStats};
 
@@ -151,22 +152,23 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                         for h in handles {
                             if let Some(stim) = sc.stimuli.get_mut(&h) {
                                 let type_name = stim.type_name();
-                                let pos = stim.transform().map(|t| t.live.pos).unwrap_or([0.0; 2]);
+                                let pos = stim.transform().live.pos;
                                 let size_label = match &*stim {
                                     Stimulus::Grating(s) => {
                                         let [hw, hh] = s.size.live;
                                         format!("{}×{}", (hw * 2.0) as i32, (hh * 2.0) as i32)
                                     }
-                                    Stimulus::Rect(s) => {
+                                    Stimulus::Shape(ShapeStimulus::Rect(s)) => {
                                         let [hw, hh] = s.size.live;
                                         format!("{}×{}", (hw * 2.0) as i32, (hh * 2.0) as i32)
                                     }
-                                    Stimulus::Disc(s) => format!("r={}", s.radius.live as i32),
-                                    Stimulus::Ellipse(s) => {
+                                    Stimulus::Shape(ShapeStimulus::Disc(s)) => {
+                                        format!("r={}", s.radius.live as i32)
+                                    }
+                                    Stimulus::Shape(ShapeStimulus::Ellipse(s)) => {
                                         let [rx, ry] = s.radii.live;
                                         format!("{}×{}", (rx * 2.0) as i32, (ry * 2.0) as i32)
                                     }
-                                    _ => "—".to_string(),
                                 };
                                 let flags = stim.flags_mut();
                                 ui.checkbox(&mut flags.enabled, "");

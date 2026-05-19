@@ -47,7 +47,7 @@ pub(crate) fn spawn_demo_stimuli(
 ) {
     use crate::scene::{
         Deferred, DiscStimulus, GratingParams, GratingStimulus, RectStimulus, ShapeAppearance,
-        Stimulus, StimulusFlags, Transform2D, Waveform,
+        ShapeStimulus, Stimulus, StimulusFlags, Transform2D, Waveform,
     };
     use rand::RngExt;
 
@@ -57,7 +57,7 @@ pub(crate) fn spawn_demo_stimuli(
     let h1 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h1,
-        Stimulus::Disc(DiscStimulus {
+        Stimulus::Shape(ShapeStimulus::Disc(DiscStimulus {
             flags: StimulusFlags {
                 enabled: true,
                 ..Default::default()
@@ -74,12 +74,12 @@ pub(crate) fn spawn_demo_stimuli(
                 ..Default::default()
             }),
             radius: Deferred::new(80.0),
-        }),
+        })),
     );
     let h2 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h2,
-        Stimulus::Rect(RectStimulus {
+        Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
             flags: StimulusFlags {
                 enabled: true,
                 ..Default::default()
@@ -96,7 +96,7 @@ pub(crate) fn spawn_demo_stimuli(
                 ..Default::default()
             }),
             size: Deferred::new([120.0, 50.0]),
-        }),
+        })),
     );
     let h3 = sc.alloc_stim_handle();
     sc.stimuli.insert(
