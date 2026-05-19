@@ -3,7 +3,7 @@ use std::sync::{Arc, RwLock};
 use crate::log_buffer::LogBuffer;
 use crate::render::BenchmarkState;
 use crate::render::MetricsSampler;
-use crate::render::overlay::build_overlay_ui;
+use crate::render::overlay::{OverlayArgs, build_overlay_ui};
 use crate::render::system_info::SystemInfo;
 use crate::render::vk::{
     EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkGratingPipeline, VkPipeline,
@@ -104,16 +104,15 @@ impl RenderState {
             let phases = self.last_phases;
             let metrics = self.metrics.sample();
             let output = self.egui_ctx.run_ui(raw_input, |ctx| {
-                build_overlay_ui(
-                    ctx,
-                    &self.scene,
-                    &mut self.frame_stats,
-                    phases,
-                    sys_info,
+                build_overlay_ui(ctx, &mut OverlayArgs {
+                    scene: &self.scene,
+                    frame_stats: &mut self.frame_stats,
+                    last_phases: phases,
+                    sys: sys_info,
                     metrics,
-                    &self.log_buffer,
-                    &mut self.benchmark,
-                );
+                    log_buffer: &self.log_buffer,
+                    bench: &mut self.benchmark,
+                });
             });
             platform_output = Some(output.platform_output);
             let ppp = output.pixels_per_point;

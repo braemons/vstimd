@@ -115,8 +115,8 @@ impl BenchmarkState {
                 if current_frame.saturating_sub(*start_frame) >= *duration_frames
         );
 
-        if should_finish {
-            if let Phase::Running {
+        if should_finish
+            && let Phase::Running {
                 start_drops,
                 duration_frames,
                 handles,
@@ -136,7 +136,6 @@ impl BenchmarkState {
                     drop_count,
                 });
             }
-        }
     }
 
     /// Remaining frames, or None if not running.

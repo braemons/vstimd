@@ -8,16 +8,19 @@ use crate::timing::{FramePhases, FrameStats};
 pub use super::system_info::{ClockSource, SystemInfo};
 use super::benchmark::BenchmarkState;
 
-pub fn build_overlay_ui(
-    ctx: &egui::Context,
-    scene: &Arc<RwLock<SceneState>>,
-    frame_stats: &mut FrameStats,
-    last_phases: FramePhases,
-    sys: &SystemInfo,
-    metrics: &SystemMetrics,
-    log_buffer: &LogBuffer,
-    bench: &mut BenchmarkState,
-) {
+pub struct OverlayArgs<'a> {
+    pub scene: &'a Arc<RwLock<SceneState>>,
+    pub frame_stats: &'a mut FrameStats,
+    pub last_phases: FramePhases,
+    pub sys: &'a SystemInfo,
+    pub metrics: &'a SystemMetrics,
+    pub log_buffer: &'a LogBuffer,
+    pub bench: &'a mut BenchmarkState,
+}
+
+pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
+    let OverlayArgs { scene, frame_stats, last_phases, sys, metrics, log_buffer, bench } = args;
+    let last_phases = *last_phases;
     egui::Window::new("System").show(ctx, |ui| {
         ui.label(format!(
             "Screen: {}×{}@{:.3} Hz",

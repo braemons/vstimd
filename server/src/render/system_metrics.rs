@@ -37,6 +37,12 @@ impl SystemMetrics {
     }
 }
 
+impl Default for MetricsSampler {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MetricsSampler {
     pub fn new() -> Self {
         let pid = sysinfo::get_current_pid().unwrap_or(Pid::from(0));
