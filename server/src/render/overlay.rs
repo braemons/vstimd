@@ -141,11 +141,12 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
             egui::ScrollArea::vertical().max_height(160.0).show(ui, |ui| {
                 egui::Grid::new("stimuli_grid")
                     .striped(true)
-                    .num_columns(4)
+                    .num_columns(5)
                     .spacing([8.0, 2.0])
                     .show(ui, |ui| {
                         ui.label(egui::RichText::new("En").strong());
                         ui.label(egui::RichText::new("Handle / type").strong());
+                        ui.label(egui::RichText::new("Name").strong());
                         ui.label(egui::RichText::new("Position (px)").strong());
                         ui.label(egui::RichText::new("Size (px)").strong());
                         ui.end_row();
@@ -172,14 +173,24 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                                     }
                                 };
                                 let name_label = entry.name.as_deref().unwrap_or("");
+                                let uuid_str = entry.id.to_string();
                                 let flags = entry.stimulus.flags_mut();
                                 ui.checkbox(&mut flags.enabled, "");
                                 ui.label(format!("#{h} {type_name}"));
-                                ui.label(if name_label.is_empty() {
-                                    format!("{:.0},{:.0}", pos[0], pos[1])
+                                let display = if name_label.is_empty() {
+                                    &uuid_str[..8]
                                 } else {
-                                    format!("{:.0},{:.0} \"{name_label}\"", pos[0], pos[1])
-                                });
+                                    name_label
+                                };
+                                ui.label(
+                                    egui::RichText::new(display)
+                                        .color(if name_label.is_empty() {
+                                            egui::Color32::DARK_GRAY
+                                        } else {
+                                            egui::Color32::WHITE
+                                        })
+                                ).on_hover_text(&uuid_str);
+                                ui.label(format!("{:.0},{:.0}", pos[0], pos[1]));
                                 ui.label(size_label);
                                 ui.end_row();
                             }

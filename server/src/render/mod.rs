@@ -58,7 +58,7 @@ pub(crate) fn spawn_demo_stimuli(
     let h1 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h1,
-        StimulusEntry::new(Uuid::new_v4(), None, Stimulus::Shape(ShapeStimulus::Disc(DiscStimulus {
+        StimulusEntry::new(Uuid::new_v4(), Some("demo_disc".into()), Stimulus::Shape(ShapeStimulus::Disc(DiscStimulus {
             flags: StimulusFlags {
                 enabled: true,
                 ..Default::default()
@@ -80,7 +80,7 @@ pub(crate) fn spawn_demo_stimuli(
     let h2 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h2,
-        StimulusEntry::new(Uuid::new_v4(), None, Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
+        StimulusEntry::new(Uuid::new_v4(), Some("demo_rect".into()), Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
             flags: StimulusFlags {
                 enabled: true,
                 ..Default::default()
@@ -102,7 +102,7 @@ pub(crate) fn spawn_demo_stimuli(
     let h3 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h3,
-        StimulusEntry::new(Uuid::new_v4(), None, Stimulus::Grating(GratingStimulus {
+        StimulusEntry::new(Uuid::new_v4(), Some("demo_grating".into()), Stimulus::Grating(GratingStimulus {
             flags: StimulusFlags {
                 enabled: true,
                 ..Default::default()
