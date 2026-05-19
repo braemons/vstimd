@@ -9,7 +9,7 @@ import uuid as uuid_mod
 
 import pytest
 
-from vstimd import Connection
+from vstimd import Connection, InvalidArgumentError
 from vstimd.stimuli import GratingMask, GratingParams, GratingTexture, RectParams, StimulusType
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
@@ -386,6 +386,11 @@ def test_create_with_client_uuid(conn: Connection) -> None:
     assert info.id == client_id
 
     conn.stimuli.delete(handle)
+
+
+def test_create_with_invalid_client_uuid_fails(conn: Connection) -> None:
+    with pytest.raises(InvalidArgumentError, match="valid UUID"):
+        conn.stimuli.create_rect(width=100, height=100, id="not-a-uuid")
 
 
 def test_set_name(conn: Connection) -> None:

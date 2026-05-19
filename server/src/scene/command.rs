@@ -233,7 +233,10 @@ impl SceneState {
         let width = if cmd.width == 0.0 { 100.0 } else { cmd.width };
         let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
         let fill = color_or_default(cmd.fill, self.default_fill);
-        let id = parse_or_new_uuid(&cmd.id);
+        let id = match parse_or_new_uuid(&cmd.id) {
+            Ok(id) => id,
+            Err(resp) => return resp,
+        };
         let name = nonempty(cmd.name);
         let handle = self.alloc_stim_handle();
         self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
@@ -255,7 +258,10 @@ impl SceneState {
         let center = cmd.center.unwrap_or_default();
         let radius = if cmd.radius == 0.0 { 50.0 } else { cmd.radius };
         let fill = color_or_default(cmd.fill, self.default_fill);
-        let id = parse_or_new_uuid(&cmd.id);
+        let id = match parse_or_new_uuid(&cmd.id) {
+            Ok(id) => id,
+            Err(resp) => return resp,
+        };
         let name = nonempty(cmd.name);
         let handle = self.alloc_stim_handle();
         self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Disc(DiscStimulus {
@@ -278,7 +284,10 @@ impl SceneState {
         let width = if cmd.width == 0.0 { 100.0 } else { cmd.width };
         let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
         let fill = color_or_default(cmd.fill, self.default_fill);
-        let id = parse_or_new_uuid(&cmd.id);
+        let id = match parse_or_new_uuid(&cmd.id) {
+            Ok(id) => id,
+            Err(resp) => return resp,
+        };
         let name = nonempty(cmd.name);
         let handle = self.alloc_stim_handle();
         self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
@@ -524,7 +533,10 @@ impl SceneState {
 
     fn cmd_create_grating(&mut self, cmd: proto::CreateGratingRequest) -> proto::Response {
         // Borrow cmd fully before any partial moves.
-        let id     = parse_or_new_uuid(&cmd.id);
+        let id = match parse_or_new_uuid(&cmd.id) {
+            Ok(id) => id,
+            Err(resp) => return resp,
+        };
         let params = grating_params_from_proto(&cmd);
         let center = cmd.center.unwrap_or_default();
         let width  = if cmd.width  == 0.0 { 200.0 } else { cmd.width };
@@ -847,8 +859,12 @@ fn color_or_default(c: Option<proto::Color>, default: [f32; 4]) -> [f32; 4] {
     c.map(|c| [c.r, c.g, c.b, c.a]).unwrap_or(default)
 }
 
-fn parse_or_new_uuid(s: &str) -> Uuid {
-    Uuid::parse_str(s).unwrap_or_else(|_| Uuid::new_v4())
+fn parse_or_new_uuid(s: &str) -> Result<Uuid, proto::Response> {
+    if s.is_empty() {
+        return Ok(Uuid::new_v4());
+    }
+    Uuid::parse_str(s)
+        .map_err(|_| err(proto::ErrorCode::InvalidArgument, "id must be a valid UUID string"))
 }
 
 fn nonempty(s: String) -> Option<String> {
