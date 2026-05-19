@@ -51,21 +51,27 @@ fn check_device_permissions() {
         );
     }
 
-    let input_ok = std::fs::read_dir("/dev/input")
-        .ok()
-        .map(|dir| {
-            dir.filter_map(|e| e.ok())
-                .filter(|e| e.file_name().to_string_lossy().starts_with("event"))
-                .any(|e| {
-                    let path = e.path();
-                    let c_path = std::ffi::CString::new(path.as_os_str().as_encoded_bytes()).unwrap();
-                    unsafe { libc::access(c_path.as_ptr(), libc::R_OK) == 0 }
-                })
-        })
-        .unwrap_or(false);
+    let input_ok = unsafe {
+        // Look up the GID of the "input" group.
+        let grp = libc::getgrnam(c"input".as_ptr());
+        if grp.is_null() {
+            // No "input" group on this system — skip the check.
+            true
+        } else {
+            let input_gid = (*grp).gr_gid;
+            // Check effective GID and supplementary groups.
+            if libc::getegid() == input_gid {
+                true
+            } else {
+                let mut groups = vec![0u32; 64];
+                let n = libc::getgroups(groups.len() as libc::c_int, groups.as_mut_ptr());
+                n > 0 && groups[..n as usize].contains(&input_gid)
+            }
+        }
+    };
     if !input_ok {
         missing.push(
-            "  /dev/input/event* — add user to 'input' group:\n    sudo usermod -aG input $USER"
+            "  not in 'input' group — add user and log out/in:\n    sudo usermod -aG input $USER"
                 .to_string(),
         );
     }
@@ -214,7 +220,22 @@ impl DrmRenderState {
     }
 
     pub fn run_loop(mut self) {
+        // SIGTERM/SIGINT → set flag → clean exit so Drop restores the CRTC.
+        static SHUTDOWN: std::sync::atomic::AtomicBool =
+            std::sync::atomic::AtomicBool::new(false);
+        extern "C" fn on_signal(_: libc::c_int) {
+            SHUTDOWN.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        unsafe {
+            libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
+            libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
+        }
+
         loop {
+            if SHUTDOWN.load(std::sync::atomic::Ordering::Relaxed) {
+                return;
+            }
+
             // 1. Poll keyboard input (non-blocking libinput drain).
             let (app_keys, nav_events) = self.input.poll();
             for key in app_keys {
