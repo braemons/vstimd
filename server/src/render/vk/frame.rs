@@ -271,28 +271,25 @@ pub fn render_frame(
                 let draw_fill   = matches!(draw_mode, DrawMode::Fill | DrawMode::FillAndStroke);
                 let draw_stroke = matches!(draw_mode, DrawMode::Stroke | DrawMode::FillAndStroke);
 
-                if draw_fill || draw_stroke {
-                    if bound != Bound::Solid {
+                if (draw_fill || draw_stroke)
+                    && bound != Bound::Solid {
                         ctx.device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
                         ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
                         ctx.device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
                         bound = Bound::Solid;
                     }
-                }
-                if draw_fill {
-                    if let Some(mesh) = solid_meshes.fill_meshes.get(h).filter(|m| m.index_count > 0) {
+                if draw_fill
+                    && let Some(mesh) = solid_meshes.fill_meshes.get(h).filter(|m| m.index_count > 0) {
                         ctx.device.cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
                         ctx.device.cmd_bind_index_buffer(cb, mesh.index_buffer, 0, vk::IndexType::UINT32);
                         ctx.device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
                     }
-                }
-                if draw_stroke {
-                    if let Some(mesh) = solid_meshes.stroke_meshes.get(h).filter(|m| m.index_count > 0) {
+                if draw_stroke
+                    && let Some(mesh) = solid_meshes.stroke_meshes.get(h).filter(|m| m.index_count > 0) {
                         ctx.device.cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
                         ctx.device.cmd_bind_index_buffer(cb, mesh.index_buffer, 0, vk::IndexType::UINT32);
                         ctx.device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
                     }
-                }
             }
         }
 
