@@ -10,7 +10,7 @@ use crate::render::BenchmarkState;
 use crate::render::MetricsSampler;
 use crate::render::RenderState;
 use crate::render::system_info::ClockSource;
-use crate::render::vk::{GpuBuffers, VkEguiRenderer, VkGratingPipeline, VkPipeline};
+use crate::render::vk::{PhotodiodeCache, SolidMeshCache, VkEguiRenderer, VkGratingPipeline, VkPipeline};
 use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, query_local_ip};
 use crate::scene::SceneState;
 use crate::timing::{FramePhases, FrameStats};
@@ -125,7 +125,7 @@ impl DrmRenderState {
             ctx.set_debug_name(*img, &format!("swapchain[{i}]"));
         }
 
-        let gpu_buffers = GpuBuffers::new(&ctx.instance, ctx.physical_device);
+        let solid_meshes = SolidMeshCache::new(&ctx.instance, ctx.physical_device);
         let egui_renderer = VkEguiRenderer::new(
             &ctx.device,
             &ctx.instance,
@@ -141,7 +141,8 @@ impl DrmRenderState {
             wireframe_pipeline,
             wireframe_grating,
             wireframe: false,
-            gpu_buffers,
+            solid_meshes,
+            pd_cache: PhotodiodeCache::default(),
             egui_renderer,
             egui_ctx: egui::Context::default(),
             scene,

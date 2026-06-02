@@ -3,13 +3,13 @@ use std::sync::{Arc, RwLock};
 use ash::vk;
 
 use crate::render::tess::{self, tessellate_photodiode};
-use crate::scene::stimulus::Stimulus;
+use crate::scene::stimulus::{DrawMode, Stimulus};
 
 const PHOTODIODE_HANDLE: u32 = u32::MAX;
 use crate::scene::SceneState;
 use crate::timing::{FramePhases, FrameStats, FrameTick};
 
-use super::buffers::GpuBuffers;
+use super::buffers::{PhotodiodeCache, SolidMeshCache};
 use super::context::VkContext;
 use super::egui::VkEguiRenderer;
 use super::pipeline::VkPipeline;
@@ -37,7 +37,8 @@ pub fn render_frame(
     ctx: &VkContext,
     pipeline: &VkPipeline,
     grating_pipeline: &VkGratingPipeline,
-    gpu_buffers: &mut GpuBuffers,
+    solid_meshes: &mut SolidMeshCache,
+    pd_cache: &mut PhotodiodeCache,
     scene: &Arc<RwLock<SceneState>>,
     frame_index: &mut usize,
     frame_stats: &mut FrameStats,
@@ -110,9 +111,8 @@ pub fn render_frame(
                 entry.stimulus.flags_mut().mark_dirty();
             }
         }
-        gpu_buffers
-            .meshes
-            .retain(|h, _| *h == PHOTODIODE_HANDLE || sc.stimuli.contains_key(h));
+        solid_meshes.fill_meshes.retain(|h, _| *h == PHOTODIODE_HANDLE || sc.stimuli.contains_key(h));
+        solid_meshes.stroke_meshes.retain(|h, _| sc.stimuli.contains_key(h));
         let handles: Vec<u32> = sc.stimuli.keys().copied().collect();
         for handle in handles {
             // Gratings use the shared quad; the vertex shader positions it via push
@@ -128,42 +128,39 @@ pub fn render_frame(
             }
 
             let entry = &sc.stimuli[&handle];
-            let stim = &entry.stimulus;
-            if !stim.flags().dirty && gpu_buffers.meshes.contains_key(&handle) {
+            let Stimulus::Shape(shape) = &entry.stimulus else { continue };
+            if !shape.flags().dirty && solid_meshes.fill_meshes.contains_key(&handle) {
                 continue;
             }
-            let (verts, idxs) = tess::tessellate_stimulus(stim, screen_size);
+            let tess = tess::tessellate_shape_stimulus(shape, screen_size);
             log::debug!(
-                "tess #{handle} {} screen={screen_size:?} verts={} idxs={}{}",
-                stim.type_name(),
-                verts.len(),
-                idxs.len(),
-                if let Stimulus::Grating(s) = stim {
-                    format!(" pos={:?} size={:?} enabled={}", s.transform.live.pos, s.size.live, s.flags.enabled)
-                } else {
-                    String::new()
-                }
+                "tess #{handle} {} screen={screen_size:?} fill_verts={} stroke_verts={}",
+                shape.type_name(),
+                tess.fill.0.len(),
+                tess.stroke.0.len(),
             );
-            gpu_buffers.upload(handle, &ctx.device, &verts, &idxs);
+            solid_meshes.upload(handle, &ctx.device,
+                (&tess.fill.0,   &tess.fill.1),
+                (&tess.stroke.0, &tess.stroke.1));
             sc.stimuli[&handle].stimulus.flags_mut().dirty = false;
         }
         sc.photodiode.advance();
         let pd = &sc.photodiode;
-        let geometry_changed = (pd.enabled != gpu_buffers.pd_enabled)
+        let geometry_changed = (pd.enabled != pd_cache.enabled)
             || (pd.enabled
-                && (pd.position != gpu_buffers.pd_position
-                    || screen_size != gpu_buffers.pd_screen_size));
+                && (pd.position != pd_cache.position
+                    || screen_size != pd_cache.screen_size));
         if geometry_changed {
             let (pd_verts, pd_idxs) = tessellate_photodiode(pd, screen_size);
-            gpu_buffers.upload(PHOTODIODE_HANDLE, &ctx.device, &pd_verts, &pd_idxs);
-            gpu_buffers.pd_enabled = pd.enabled;
-            gpu_buffers.pd_lit = pd.enabled.then_some(pd.lit);
-            gpu_buffers.pd_position = pd.position;
-            gpu_buffers.pd_screen_size = screen_size;
-        } else if pd.enabled && gpu_buffers.pd_lit != Some(pd.lit) {
+            solid_meshes.upload(PHOTODIODE_HANDLE, &ctx.device, (&pd_verts, &pd_idxs), (&[], &[]));
+            pd_cache.enabled    = pd.enabled;
+            pd_cache.lit        = pd.enabled.then_some(pd.lit);
+            pd_cache.position   = pd.position;
+            pd_cache.screen_size = screen_size;
+        } else if pd.enabled && pd_cache.lit != Some(pd.lit) {
             let (pd_verts, _) = tessellate_photodiode(pd, screen_size);
-            gpu_buffers.overwrite_vertices(PHOTODIODE_HANDLE, &ctx.device, &pd_verts);
-            gpu_buffers.pd_lit = Some(pd.lit);
+            solid_meshes.overwrite_fill_vertices(PHOTODIODE_HANDLE, &ctx.device, &pd_verts);
+            pd_cache.lit = Some(pd.lit);
         }
     } // write lock dropped — ZMQ thread can run
     let tessellate_us = t_tess_start.elapsed().as_micros() as u32;
@@ -264,21 +261,41 @@ pub fn render_frame(
                     bytemuck::bytes_of(&pc),
                 );
                 ctx.device.cmd_draw_indexed(cb, quad.index_count, 1, 0, 0, 0);
-            } else if let Some(mesh) = gpu_buffers.meshes.get(h).filter(|m| m.index_count > 0) {
-                if bound != Bound::Solid {
-                    ctx.device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
-                    ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
-                    ctx.device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
-                    bound = Bound::Solid;
+            } else {
+                let draw_mode = match stim {
+                    Stimulus::Shape(s) => s.appearance().live.draw_mode,
+                    _                  => DrawMode::Fill,
+                };
+                let draw_fill   = matches!(draw_mode, DrawMode::Fill | DrawMode::FillAndStroke);
+                let draw_stroke = matches!(draw_mode, DrawMode::Stroke | DrawMode::FillAndStroke);
+
+                if draw_fill || draw_stroke {
+                    if bound != Bound::Solid {
+                        ctx.device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
+                        ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+                        ctx.device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+                        bound = Bound::Solid;
+                    }
                 }
-                ctx.device.cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
-                ctx.device.cmd_bind_index_buffer(cb, mesh.index_buffer, 0, vk::IndexType::UINT32);
-                ctx.device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
+                if draw_fill {
+                    if let Some(mesh) = solid_meshes.fill_meshes.get(h).filter(|m| m.index_count > 0) {
+                        ctx.device.cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
+                        ctx.device.cmd_bind_index_buffer(cb, mesh.index_buffer, 0, vk::IndexType::UINT32);
+                        ctx.device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
+                    }
+                }
+                if draw_stroke {
+                    if let Some(mesh) = solid_meshes.stroke_meshes.get(h).filter(|m| m.index_count > 0) {
+                        ctx.device.cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
+                        ctx.device.cmd_bind_index_buffer(cb, mesh.index_buffer, 0, vk::IndexType::UINT32);
+                        ctx.device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
+                    }
+                }
             }
         }
 
         // Photodiode is always drawn on top, always solid.
-        if let Some(m) = gpu_buffers.meshes.get(&PHOTODIODE_HANDLE).filter(|m| m.index_count > 0) {
+        if let Some(m) = solid_meshes.fill_meshes.get(&PHOTODIODE_HANDLE).filter(|m| m.index_count > 0) {
             if bound != Bound::Solid {
                 ctx.device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, pipeline.pipeline);
                 ctx.device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));

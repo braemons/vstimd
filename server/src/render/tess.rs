@@ -3,7 +3,12 @@ use kurbo::Shape as _;
 
 use crate::geom::Vertex;
 use crate::scene::photodiode::PhotoDiodeState;
-use crate::scene::stimulus::{CircleStimulus, EllipseStimulus, RectStimulus, ShapeStimulus, Stimulus, Transform2D};
+use crate::scene::stimulus::{CircleStimulus, EllipseStimulus, RectStimulus, ShapeAppearance, ShapeStimulus, Transform2D};
+
+pub struct ShapeTessellationResult {
+    pub fill:   (Vec<Vertex>, Vec<u32>),
+    pub stroke: (Vec<Vertex>, Vec<u32>),
+}
 
 // ── Coordinate conversion ─────────────────────────────────────────────────────
 
@@ -17,32 +22,30 @@ const NO_UV: [f32; 2] = [0.0, 0.0];
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-/// Tessellate a stimulus into `(vertices, indices)` ready for upload.
+/// Tessellate a shape stimulus into fill and stroke geometry ready for GPU upload.
 /// All positions are in NDC space, z = 0 (flat / billboard geometry).
-/// Returns empty vecs for invisible stimuli or types not yet tessellated.
-pub fn tessellate_stimulus(
-    stimulus: &Stimulus,
+/// Returns empty vecs for invisible stimuli.
+pub fn tessellate_shape_stimulus(
+    stimulus: &ShapeStimulus,
     screen_size: (u32, u32),
-) -> (Vec<Vertex>, Vec<u32>) {
-    if !stimulus.is_visible() {
-        return (vec![], vec![]);
+) -> ShapeTessellationResult {
+    let empty = ShapeTessellationResult { fill: (vec![], vec![]), stroke: (vec![], vec![]) };
+    if !stimulus.flags().is_visible() {
+        return empty;
     }
     let half_w = screen_size.0 as f32 * 0.5;
     let half_h = screen_size.1 as f32 * 0.5;
 
     match stimulus {
-        Stimulus::Shape(s) => match s {
-            ShapeStimulus::Rect(s)    => tessellate_rect(s, half_w, half_h),
-            ShapeStimulus::Ellipse(s) => tessellate_ellipse(s, half_w, half_h),
-            ShapeStimulus::Circle(s)    => tessellate_circle(s, half_w, half_h),
-        },
-        Stimulus::Grating(_) => (vec![], vec![]),
+        ShapeStimulus::Rect(s)    => tessellate_rect(s, half_w, half_h),
+        ShapeStimulus::Ellipse(s) => tessellate_ellipse(s, half_w, half_h),
+        ShapeStimulus::Circle(s)  => tessellate_circle(s, half_w, half_h),
     }
 }
 
 // ── Per-type tessellators ─────────────────────────────────────────────────────
 
-fn tessellate_rect(s: &RectStimulus, half_w: f32, half_h: f32) -> (Vec<Vertex>, Vec<u32>) {
+fn tessellate_rect(s: &RectStimulus, half_w: f32, half_h: f32) -> ShapeTessellationResult {
     let [hw, hh] = s.size.live;
     let color = s.appearance.live.fill_color;
     let affine = s.transform.live.to_affine();
@@ -66,18 +69,23 @@ fn tessellate_rect(s: &RectStimulus, half_w: f32, half_h: f32) -> (Vec<Vertex>, 
     let cn = px_to_ndc(c.x as f32, c.y as f32, half_w, half_h);
 
     let v = |position| Vertex { position, normal: FRONT_NORMAL, uv: NO_UV, color };
-    let vertices = vec![v(cn), v(ndc[0]), v(ndc[1]), v(ndc[2]), v(ndc[3])];
-    let indices = vec![0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1];
+    let fill_verts = vec![v(cn), v(ndc[0]), v(ndc[1]), v(ndc[2]), v(ndc[3])];
+    let fill_idxs  = vec![0, 1, 2, 0, 2, 3, 0, 3, 4, 0, 4, 1];
 
-    (vertices, indices)
+    let rect_path = kurbo::Rect::new(-(hw as f64), -(hh as f64), hw as f64, hh as f64).to_path(0.1);
+    let stroke = tessellate_stroke_path(rect_path, &s.appearance.live, s.transform.live, half_w, half_h);
+
+    ShapeTessellationResult { fill: (fill_verts, fill_idxs), stroke }
 }
 
-fn tessellate_circle(s: &CircleStimulus, half_w: f32, half_h: f32) -> (Vec<Vertex>, Vec<u32>) {
+fn tessellate_circle(s: &CircleStimulus, half_w: f32, half_h: f32) -> ShapeTessellationResult {
     let path = kurbo::Circle::new(kurbo::Point::ZERO, s.radius.live as f64).to_path(1.0);
-    tessellate_filled_path(&path, s.transform.live, s.appearance.live.fill_color, half_w, half_h)
+    let fill   = tessellate_filled_path(&path, s.transform.live, s.appearance.live.fill_color, half_w, half_h);
+    let stroke = tessellate_stroke_path(path, &s.appearance.live, s.transform.live, half_w, half_h);
+    ShapeTessellationResult { fill, stroke }
 }
 
-fn tessellate_ellipse(s: &EllipseStimulus, half_w: f32, half_h: f32) -> (Vec<Vertex>, Vec<u32>) {
+fn tessellate_ellipse(s: &EllipseStimulus, half_w: f32, half_h: f32) -> ShapeTessellationResult {
     let [rx, ry] = s.radii.live;
     let path = kurbo::Ellipse::new(
         kurbo::Point::ZERO,
@@ -85,7 +93,27 @@ fn tessellate_ellipse(s: &EllipseStimulus, half_w: f32, half_h: f32) -> (Vec<Ver
         0.0,
     )
     .to_path(1.0);
-    tessellate_filled_path(&path, s.transform.live, s.appearance.live.fill_color, half_w, half_h)
+    let fill   = tessellate_filled_path(&path, s.transform.live, s.appearance.live.fill_color, half_w, half_h);
+    let stroke = tessellate_stroke_path(path, &s.appearance.live, s.transform.live, half_w, half_h);
+    ShapeTessellationResult { fill, stroke }
+}
+
+// ── Stroke helper ─────────────────────────────────────────────────────────────
+
+fn tessellate_stroke_path(
+    path: kurbo::BezPath,
+    appearance: &ShapeAppearance,
+    transform: Transform2D,
+    half_w: f32,
+    half_h: f32,
+) -> (Vec<Vertex>, Vec<u32>) {
+    let sw = appearance.stroke_width;
+    if sw <= 0.0 {
+        return (vec![], vec![]);
+    }
+    let style = kurbo::Stroke { width: sw as f64, ..Default::default() };
+    let stroked = kurbo::stroke(path, &style, &kurbo::StrokeOpts::default(), 0.5);
+    tessellate_filled_path(&stroked, transform, appearance.outline_color, half_w, half_h)
 }
 
 // ── Photodiode corner square ──────────────────────────────────────────────────

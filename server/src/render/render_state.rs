@@ -6,8 +6,8 @@ use crate::render::MetricsSampler;
 use crate::render::overlay::{OverlayArgs, build_overlay_ui};
 use crate::render::system_info::SystemInfo;
 use crate::render::vk::{
-    EguiFrameData, GpuBuffers, VkContext, VkEguiRenderer, VkGratingPipeline, VkPipeline,
-    render_frame,
+    EguiFrameData, PhotodiodeCache, SolidMeshCache, VkContext, VkEguiRenderer, VkGratingPipeline,
+    VkPipeline, render_frame,
 };
 use crate::scene::SceneState;
 use crate::timing::{FramePhases, FrameStats, FrameTick};
@@ -27,7 +27,8 @@ pub struct RenderState {
     pub wireframe_pipeline: VkPipeline,
     pub wireframe_grating: VkGratingPipeline,
     pub wireframe: bool,
-    pub gpu_buffers: GpuBuffers,
+    pub solid_meshes: SolidMeshCache,
+    pub pd_cache: PhotodiodeCache,
     pub egui_renderer: VkEguiRenderer,
     pub egui_ctx: egui::Context,
     pub scene: Arc<RwLock<SceneState>>,
@@ -44,7 +45,7 @@ pub struct RenderState {
 impl Drop for RenderState {
     fn drop(&mut self) {
         self.egui_renderer.destroy(&self.ctx.device);
-        self.gpu_buffers.destroy_all(&self.ctx.device);
+        self.solid_meshes.destroy_all(&self.ctx.device);
         self.wireframe_grating.destroy(&self.ctx.device);
         self.wireframe_pipeline.destroy(&self.ctx.device);
         self.grating_pipeline.destroy(&self.ctx.device);
@@ -131,7 +132,8 @@ impl RenderState {
             &self.ctx,
             pipe,
             grate,
-            &mut self.gpu_buffers,
+            &mut self.solid_meshes,
+            &mut self.pd_cache,
             &self.scene,
             &mut self.frame_index,
             &mut self.frame_stats,
