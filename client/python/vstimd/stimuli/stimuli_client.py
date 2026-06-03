@@ -59,7 +59,7 @@ class StimuliClient:
         name: str = "",
         id: str = "",
     ) -> int:
-        """Create a disc stimulus and return its handle."""
+        """Create a circle stimulus and return its handle."""
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_circle=stimuli_pb2.CreateCircleRequest(
@@ -211,6 +211,19 @@ class StimuliClient:
         )
         self._send(req)
 
+    def set_draw_mode(self, handle: int, mode: "DrawMode") -> None:
+        from vstimd.stimuli.stimuli_models import DrawMode
+        _proto_map = {
+            DrawMode.FILLED:             common_pb2.DRAW_MODE_FILLED,
+            DrawMode.OUTLINED:           common_pb2.DRAW_MODE_OUTLINED,
+            DrawMode.FILLED_AND_OUTLINED: common_pb2.DRAW_MODE_FILLED_AND_OUTLINED,
+        }
+        req = service_pb2.Request(
+            stimulus=handle,
+            set_draw_mode=stimuli_pb2.SetDrawModeRequest(mode=_proto_map[mode]),
+        )
+        self._send(req)
+
     def set_outline_color(self, handle: int, r: float, g: float, b: float, a: float = 1.0) -> None:
         req = service_pb2.Request(
             stimulus=handle,
@@ -236,10 +249,10 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_disc_radius(self, handle: int, radius: float) -> None:
+    def set_circle_radius(self, handle: int, radius: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
-            set_disc_radius=stimuli_pb2.SetDiscRadiusRequest(radius=radius),
+            set_circle_radius=stimuli_pb2.SetCircleRadiusRequest(radius=radius),
         )
         self._send(req)
 

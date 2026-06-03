@@ -4,7 +4,7 @@ pub mod egui;
 pub mod frame;
 pub mod pipeline;
 
-pub use buffers::GpuBuffers;
+pub use buffers::{PhotodiodeCache, SolidMeshCache};
 pub use context::{VkContext, build_context};
 pub use egui::VkEguiRenderer;
 pub use frame::{EguiFrameData, render_frame};
