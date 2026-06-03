@@ -12,6 +12,7 @@ These commands use `system` as the target and are not addressed to a specific st
 | `CreateCircleRequest` | handle | Create a circle |
 | `CreateEllipseRequest` | handle | Create an ellipse |
 | `CreateGratingRequest` | handle | Create a grating stimulus |
+| `CreateTextRequest` | handle | Create a text stimulus |
 
 All create commands accept optional `name` (human-readable label) and `id` (client-supplied
 UUID string; server generates one if empty).
@@ -86,6 +87,13 @@ These commands use a `stimulus` handle as the target.
 | `SetGratingForeColorRequest` | `Color` — colour at carrier peak |
 | `SetGratingBackColorRequest` | `Color` — colour at carrier trough |
 | `SetGratingOpacityRequest` | `opacity` (0–1) |
+
+### Text-specific
+
+| Command | Fields | Description |
+|---|---|---|
+| `SetTextRequest` | `text` | Replace the displayed string |
+| `SetTextColorRequest` | `Color` | Text colour (RGBA 0–1) |
 
 ### Query
 

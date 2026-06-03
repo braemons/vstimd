@@ -19,6 +19,7 @@ pub struct TextStimulus {
 }
 
 impl TextStimulus {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         pos: [f32; 2],
         box_size: [f32; 2],

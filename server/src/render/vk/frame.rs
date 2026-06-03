@@ -130,9 +130,11 @@ pub fn render_frame(
                     if !text.flags.dirty && (text.flags.is_visible() == has_mesh) {
                         (true, vec![])
                     } else {
-                        let gs = text.flags.is_visible()
-                            .then(|| layout_and_rasterize(text, screen_w, screen_h, font_system, swash_cache))
-                            .unwrap_or_default();
+                        let gs = if text.flags.is_visible() {
+                            layout_and_rasterize(text, screen_w, screen_h, font_system, swash_cache)
+                        } else {
+                            Default::default()
+                        };
                         (false, gs)
                     }
                 }; // sc borrow released

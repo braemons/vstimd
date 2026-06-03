@@ -121,6 +121,11 @@ impl GlyphAtlas {
 
         // Try current shelf first, then open a new one.
         let (ax, ay) = if self.shelf_x + glyph_w <= ATLAS_SIZE {
+            // Also verify the glyph fits vertically on this shelf.
+            if self.shelf_y + glyph_h > ATLAS_SIZE {
+                log::warn!("GlyphAtlas full — glyph dropped");
+                return None;
+            }
             let x = self.shelf_x;
             let y = self.shelf_y;
             self.shelf_x += glyph_w + PAD;
@@ -546,11 +551,17 @@ fn end_and_submit_one_time_cb(
 ) {
     unsafe {
         device.end_command_buffer(cb).expect("GlyphAtlas: end_command_buffer failed");
+        let fence = device
+            .create_fence(&vk::FenceCreateInfo::default(), None)
+            .expect("GlyphAtlas: create_fence failed");
         let cbs = [cb];
         device
-            .queue_submit(queue, &[vk::SubmitInfo::default().command_buffers(&cbs)], vk::Fence::null())
+            .queue_submit(queue, &[vk::SubmitInfo::default().command_buffers(&cbs)], fence)
             .expect("GlyphAtlas: queue_submit failed");
-        device.queue_wait_idle(queue).expect("GlyphAtlas: queue_wait_idle failed");
+        device
+            .wait_for_fences(&[fence], true, u64::MAX)
+            .expect("GlyphAtlas: wait_for_fences failed");
+        device.destroy_fence(fence, None);
         device.free_command_buffers(pool, &cbs);
     }
 }

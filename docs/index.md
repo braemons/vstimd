@@ -29,6 +29,7 @@ Experiment PC                    Stimulus PC (Linux, DRM)
 | Circle | Filled circle |
 | Ellipse | Filled ellipse |
 | Grating | Analytical sinusoidal grating with aperture masks and drift |
+| Text | Rendered text with configurable font, size, colour, and anchor |
 
 ## Quick start
 
