@@ -133,7 +133,7 @@ pub(crate) fn spawn_demo_stimuli(
                 [0.0, 200.0],
                 [400.0, 80.0],
                 "vstimd".into(),
-                "Open Sans".into(),
+                "".into(), // falls back to DEFAULT_FONT_FAMILY ("Ubuntu Light")
                 48.0,
                 Anchor::Center,
                 LanguageStyle::default(),
