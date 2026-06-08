@@ -19,6 +19,7 @@ use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, WindowMode, q
 use crate::scene::SceneState;
 use crate::timing::{FramePhases, FrameStats};
 use crate::vtl_state::VtlState;
+extern crate vtl;
 
 // FIFO is the only present mode used throughout the application.
 //
@@ -41,6 +42,8 @@ struct State {
     // that become dangling once the window is destroyed.
     rs: RenderState,
     vtl: Option<Arc<Mutex<VtlState>>>,
+    /// Animation output bits accumulated this frame; committed at [A] next frame.
+    pending_outputs: [u64; vtl::MAX_BANKS],
     egui_winit: egui_winit::State,
     // ── Window comes after all borrowers ─────────────────────────────────────
     window: Arc<Window>,
@@ -170,6 +173,7 @@ impl State {
         Self {
             rs,
             vtl,
+            pending_outputs: [0; vtl::MAX_BANKS],
             egui_winit,
             window,
             refresh_hz: hz,
@@ -220,25 +224,23 @@ impl State {
             .show_overlay
             .then(|| self.egui_winit.take_egui_input(&self.window));
 
-        // TODO: VTL [A] — input poll.
-        // In the winit backend, the best equivalent to the DRM "after vblank"
-        // moment is after vkWaitForPresentKHR confirms the previous frame visible.
-        // That call is inside render_frame(), so the poll must also go inside
-        // render_one_frame (or render_frame) once the frame timeline is
-        // refactored to expose a "vblank confirmed" callback.
-        //
-        // Placeholder: poll would go here or be returned as part of FrameTick.
-        //
-        // if let Some(vtl) = &self.vtl {
-        //     let _edges = vtl.lock().unwrap().poll();
-        // }
-
-        // TODO: VTL [B] — preparation-gated output write (optional).
-        // See DRM backend and vtl_state.rs for pattern description.
-        //
-        // if let Some(vtl) = &self.vtl {
-        //     vtl.lock().unwrap().write_outputs(&frame_start_outputs);
-        // }
+        // [A] Commit previous frame's animation outputs; poll inputs.
+        // Note: in winit mode the vkWaitForPresentKHR confirmation lives inside
+        // render_frame(), so this poll fires at the top of the render loop rather
+        // than at the true vblank boundary.  DRM mode gets exact vblank alignment.
+        if let Some(vtl) = &self.vtl {
+            let (input_edges, output_snapshot) = {
+                let mut v = vtl.lock().unwrap();
+                v.write_outputs(&self.pending_outputs);
+                let edges = v.poll();
+                let snap  = v.output_snapshot();
+                (edges, snap)
+            };
+            self.pending_outputs = [0; vtl::MAX_BANKS];
+            self.rs.scene.write().unwrap().advance_animations(
+                &input_edges, &output_snapshot, &mut self.pending_outputs,
+            );
+        }
 
         // 2. Render: build overlay UI, tessellate scene, record Vulkan commands,
         //    submit to GPU, present to display.
@@ -246,13 +248,7 @@ impl State {
         let sys_info = self.sys_info();
         let (tick, platform_output) = self.rs.render_one_frame(None, egui_raw_input, &sys_info, self.vtl.as_deref());
 
-        // TODO: VTL [C] — output write (normal position).
-        // Write outputs here, after present, to commit the state for the frame
-        // just submitted.  Mirrors position [C] in the DRM backend.
-        //
-        // if let Some(vtl) = &self.vtl {
-        //     vtl.lock().unwrap().write_outputs(&frame_end_outputs);
-        // }
+        // pending_outputs is already saved for commit at next [A].
 
         // 3. Forward egui platform output (cursor changes, clipboard, etc.).
         if let Some(po) = platform_output {

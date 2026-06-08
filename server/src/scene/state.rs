@@ -1,9 +1,10 @@
 use indexmap::IndexMap;
 
-use super::animation::AnimationEntry;
+use super::animation::{AnimState, Animation, AnimationEntry, FinalAction};
 use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
 use super::stimulus::StimulusEntry;
+use crate::vtl_state::{Edge, VtlEdges};
 extern crate vtl;
 
 // ── Command log (overlay feature only) ────────────────────────────────────────
@@ -122,11 +123,14 @@ impl SceneState {
     /// `output_pending`  — accumulator for this frame's output changes (committed at [A] next frame)
     pub fn advance_animations(
         &mut self,
-        _input_edges: &crate::vtl_state::VtlEdges,
-        _output_snapshot: &[u64; vtl::MAX_BANKS],
-        _output_pending: &mut [u64; vtl::MAX_BANKS],
+        input_edges: &crate::vtl_state::VtlEdges,
+        output_snapshot: &[u64; vtl::MAX_BANKS],
+        output_pending: &mut [u64; vtl::MAX_BANKS],
     ) {
-        // Step 4+ will fill this in per animation variant.
+        let handles: Vec<u32> = self.animations.keys().copied().collect();
+        for handle in handles {
+            advance_one(handle, self, input_edges, output_snapshot, output_pending);
+        }
     }
 
     // ── Deferred mode ─────────────────────────────────────────────────────────
@@ -207,5 +211,243 @@ impl SceneState {
 impl Default for SceneState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+// ── Per-animation advance (free function to work around borrow-checker) ───────
+
+fn edge_fired(edges: &VtlEdges, bit: crate::vtl_state::VtlBit, edge: Edge) -> bool {
+    let bank = match edge {
+        Edge::Rising  => edges.rising[bit.bank],
+        Edge::Falling => edges.falling[bit.bank],
+    };
+    (bank >> bit.bit) & 1 != 0
+}
+
+/// Advance a single animation by one frame and apply stimulus effects.
+/// Takes `scene: &mut SceneState` explicitly so the compiler can see that
+/// `animations` and `stimuli` are disjoint fields being borrowed independently.
+fn advance_one(
+    handle: u32,
+    scene: &mut SceneState,
+    input_edges: &VtlEdges,
+    _output_snapshot: &[u64; vtl::MAX_BANKS],
+    output_pending: &mut [u64; vtl::MAX_BANKS],
+) {
+    // ── 1. Armed → Running ────────────────────────────────────────────────────
+    {
+        let entry = match scene.animations.get(&handle) {
+            Some(e) => e,
+            None => return,
+        };
+        if entry.state == AnimState::Armed {
+            let fires = match &entry.start_trigger {
+                None                       => true,
+                Some((bit, edge))          => edge_fired(input_edges, *bit, *edge),
+            };
+            if fires {
+                // Snapshot user_enabled for RESTORE_STATE before modifying anything.
+                let captures_state = entry.final_action.contains(FinalAction::RESTORE_STATE);
+                let stim_handles: Vec<u32> = entry.stimuli.clone();
+
+                if captures_state {
+                    let captured: Vec<bool> = stim_handles.iter()
+                        .map(|&sh| scene.stimuli.get(&sh).map_or(false, |e| e.stimulus.flags().enabled))
+                        .collect();
+                    scene.animations.get_mut(&handle).unwrap().captured_user_enabled = Some(captured);
+                }
+
+                // FlashForNFrames enables stimuli at start; FlickerForNFrames sets initial phase.
+                let entry = scene.animations.get(&handle).unwrap();
+                match &entry.animation {
+                    Animation::FlashForNFrames { .. } => {
+                        for &sh in &stim_handles {
+                            if let Some(e) = scene.stimuli.get_mut(&sh) {
+                                e.stimulus.flags_mut().enabled = true;
+                                e.stimulus.flags_mut().mark_dirty();
+                            }
+                        }
+                    }
+                    Animation::FlickerForNFrames { start_on_phase, .. } => {
+                        let on = *start_on_phase;
+                        for &sh in &stim_handles {
+                            if let Some(e) = scene.stimuli.get_mut(&sh) {
+                                e.stimulus.flags_mut().anim_enabled = on;
+                                e.stimulus.flags_mut().mark_dirty();
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                scene.animations.get_mut(&handle).unwrap().state =
+                    AnimState::Running { frame_counter: 0 };
+            }
+        }
+    }
+
+    // ── 2. Advance Running ────────────────────────────────────────────────────
+    let (frame_counter, stim_handles) = {
+        let entry = match scene.animations.get(&handle) {
+            Some(e) => e,
+            None => return,
+        };
+        match entry.state {
+            AnimState::Running { frame_counter } => (frame_counter, entry.stimuli.clone()),
+            _ => return,
+        }
+    };
+
+    let done: bool = {
+        let entry = scene.animations.get(&handle).unwrap();
+        match &entry.animation {
+            Animation::CoupleVisibilityToInputTriggerLine { trigger, polarity } => {
+                let level = (input_edges.current[trigger.bank] >> trigger.bit) & 1 != 0;
+                let anim_en = level == *polarity;
+                for &sh in &stim_handles {
+                    if let Some(e) = scene.stimuli.get_mut(&sh) {
+                        if e.stimulus.flags().anim_enabled != anim_en {
+                            e.stimulus.flags_mut().anim_enabled = anim_en;
+                            e.stimulus.flags_mut().mark_dirty();
+                        }
+                    }
+                }
+                false
+            }
+
+            Animation::EnableOnTriggerEdge { trigger, edge, enabled } => {
+                let fired = edge_fired(input_edges, *trigger, *edge);
+                if fired {
+                    let en = *enabled;
+                    for &sh in &stim_handles {
+                        if let Some(e) = scene.stimuli.get_mut(&sh) {
+                            e.stimulus.flags_mut().enabled = en;
+                            e.stimulus.flags_mut().mark_dirty();
+                        }
+                    }
+                }
+                fired
+            }
+
+            Animation::FlashForNFrames { duration_frames } => {
+                frame_counter + 1 >= *duration_frames
+            }
+
+            Animation::FlickerForNFrames { on_frames, off_frames, total_frames, start_on_phase } => {
+                let period = on_frames + off_frames;
+                let phase_frame = frame_counter % period;
+                let is_on = if *start_on_phase {
+                    phase_frame < *on_frames
+                } else {
+                    phase_frame >= *off_frames
+                };
+                for &sh in &stim_handles {
+                    if let Some(e) = scene.stimuli.get_mut(&sh) {
+                        if e.stimulus.flags().anim_enabled != is_on {
+                            e.stimulus.flags_mut().anim_enabled = is_on;
+                            e.stimulus.flags_mut().mark_dirty();
+                        }
+                    }
+                }
+                total_frames.map_or(false, |tf| frame_counter + 1 >= tf)
+            }
+
+            // Motion and external animations — execution deferred to later steps.
+            Animation::MoveAlongPath2D { .. }
+            | Animation::MoveAlongSegments2D { .. }
+            | Animation::ExternalPosition2D { .. } => false,
+        }
+    };
+
+    // Increment frame counter.
+    if let Some(AnimState::Running { frame_counter }) =
+        scene.animations.get_mut(&handle).map(|e| &mut e.state)
+    {
+        *frame_counter += 1;
+    }
+
+    // ── 3. Final actions ──────────────────────────────────────────────────────
+    if done {
+        finalize(handle, scene, &stim_handles, output_pending);
+    }
+}
+
+fn finalize(
+    handle: u32,
+    scene: &mut SceneState,
+    stim_handles: &[u32],
+    output_pending: &mut [u64; vtl::MAX_BANKS],
+) {
+    let (final_action, trigger_line, captured, restart) = {
+        let entry = match scene.animations.get(&handle) {
+            Some(e) => e,
+            None => return,
+        };
+        let fa = entry.final_action;
+        let tl = entry.final_action_trigger_line;
+        let cap = entry.captured_user_enabled.clone();
+        let restart = fa.contains(FinalAction::RESTART);
+        (fa, tl, cap, restart)
+    };
+
+    if final_action.contains(FinalAction::RESTORE_STATE) {
+        if let Some(caps) = &captured {
+            for (&sh, &was_enabled) in stim_handles.iter().zip(caps.iter()) {
+                if let Some(e) = scene.stimuli.get_mut(&sh) {
+                    e.stimulus.flags_mut().enabled = was_enabled;
+                    e.stimulus.flags_mut().mark_dirty();
+                }
+            }
+        }
+    } else if final_action.contains(FinalAction::DISABLE) {
+        for &sh in stim_handles {
+            if let Some(e) = scene.stimuli.get_mut(&sh) {
+                e.stimulus.flags_mut().enabled = false;
+                e.stimulus.flags_mut().mark_dirty();
+            }
+        }
+    }
+
+    // Reset anim_enabled for animations that held it during execution.
+    {
+        let anim_held = matches!(
+            scene.animations.get(&handle).map(|e| &e.animation),
+            Some(Animation::FlickerForNFrames { .. }) | Some(Animation::CoupleVisibilityToInputTriggerLine { .. })
+        );
+        if anim_held {
+            for &sh in stim_handles {
+                if let Some(e) = scene.stimuli.get_mut(&sh) {
+                    if !e.stimulus.flags().anim_enabled {
+                        e.stimulus.flags_mut().anim_enabled = true;
+                        e.stimulus.flags_mut().mark_dirty();
+                    }
+                }
+            }
+        }
+    }
+
+    if final_action.contains(FinalAction::TOGGLE_PHOTODIODE) {
+        scene.photodiode.lit = !scene.photodiode.lit;
+    }
+
+    if final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE) {
+        if let Some(bit) = trigger_line {
+            output_pending[bit.bank] |= 1u64 << bit.bit;
+        }
+    }
+
+    if final_action.contains(FinalAction::END_DEFERRED) {
+        scene.pending_flip = true;
+        scene.deferred_mode = false;
+    }
+
+    if restart {
+        if let Some(entry) = scene.animations.get_mut(&handle) {
+            entry.state = AnimState::Running { frame_counter: 0 };
+            entry.captured_user_enabled = None;
+        }
+    } else {
+        if let Some(entry) = scene.animations.get_mut(&handle) {
+            entry.state = AnimState::Done;
+        }
     }
 }
