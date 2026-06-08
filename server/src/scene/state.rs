@@ -115,6 +115,22 @@ impl SceneState {
         h
     }
 
+    /// Insert a `StimulusEntry` and return the allocated handle.
+    /// The internal insertion path used by both `cmd_create_*` and tests.
+    pub fn add_stimulus(&mut self, entry: super::stimulus::StimulusEntry) -> u32 {
+        let h = self.alloc_stim_handle();
+        self.stimuli.insert(h, entry);
+        h
+    }
+
+    /// Insert an `AnimationEntry` and return the allocated handle.
+    /// The internal insertion path used by both `cmd_create_animation` and tests.
+    pub fn add_animation(&mut self, entry: AnimationEntry) -> u32 {
+        let h = self.alloc_anim_handle();
+        self.animations.insert(h, entry);
+        h
+    }
+
     /// Advance all animations by one frame.  Called once per frame by the render
     /// thread at [S] (after output commit and input poll).
     ///

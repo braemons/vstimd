@@ -86,3 +86,24 @@ pub struct AnimationEntry {
     pub captured_user_enabled: Option<Vec<bool>>,
     pub animation: Animation,
 }
+
+impl AnimationEntry {
+    pub fn new(animation: Animation, stimuli: Vec<u32>) -> Self {
+        Self {
+            name: String::new(),
+            state: AnimState::Idle,
+            stimuli,
+            final_action: FinalAction::empty(),
+            final_action_trigger_line: None,
+            start_trigger: None,
+            captured_user_enabled: None,
+            animation,
+        }
+    }
+
+    pub fn armed(animation: Animation, stimuli: Vec<u32>) -> Self {
+        let mut e = Self::new(animation, stimuli);
+        e.state = AnimState::Armed;
+        e
+    }
+}

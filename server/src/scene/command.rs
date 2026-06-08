@@ -316,80 +316,74 @@ impl SceneState {
     // ── CreateRect ────────────────────────────────────────────────────────────
 
     fn cmd_create_rect(&mut self, cmd: proto::CreateRectRequest) -> proto::Response {
-        let center = cmd.center.unwrap_or_default();
-        let width = if cmd.width == 0.0 { 100.0 } else { cmd.width };
-        let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
-        let fill = color_or_default(cmd.fill_color, self.default_fill);
         let id = match parse_or_new_uuid(&cmd.id) {
             Ok(id) => id,
             Err(resp) => return *resp,
         };
-        let name = nonempty(cmd.name);
-        let handle = self.alloc_stim_handle();
-        self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
+        let center = cmd.center.unwrap_or_default();
+        let width  = if cmd.width  == 0.0 { 100.0 } else { cmd.width  };
+        let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
+        let fill   = color_or_default(cmd.fill_color, self.default_fill);
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
             flags: StimulusFlags { enabled: true, ..Default::default() },
-            transform: Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
+            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
             appearance: Deferred::new(ShapeAppearance {
-                fill_color: fill,
+                fill_color:    fill,
                 outline_color: self.default_outline,
                 ..Default::default()
             }),
             size: Deferred::new([width / 2.0, height / 2.0]),
-        }))));
+        })));
+        let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
 
     // ── CreateCircle ──────────────────────────────────────────────────────────
 
     fn cmd_create_circle(&mut self, cmd: proto::CreateCircleRequest) -> proto::Response {
-        let center = cmd.center.unwrap_or_default();
-        let radius = if cmd.radius == 0.0 { 50.0 } else { cmd.radius };
-        let fill = color_or_default(cmd.fill_color, self.default_fill);
         let id = match parse_or_new_uuid(&cmd.id) {
             Ok(id) => id,
             Err(resp) => return *resp,
         };
-        let name = nonempty(cmd.name);
-        let handle = self.alloc_stim_handle();
-        self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
+        let center = cmd.center.unwrap_or_default();
+        let radius = if cmd.radius == 0.0 { 50.0 } else { cmd.radius };
+        let fill   = color_or_default(cmd.fill_color, self.default_fill);
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
             flags: StimulusFlags { enabled: true, ..Default::default() },
-            transform: Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
+            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
             appearance: Deferred::new(ShapeAppearance {
-                fill_color: fill,
+                fill_color:    fill,
                 outline_color: self.default_outline,
                 ..Default::default()
             }),
             radius: Deferred::new(radius),
-        }))));
+        })));
+        let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
 
     // ── CreateEllipse ─────────────────────────────────────────────────────────
 
     fn cmd_create_ellipse(&mut self, cmd: proto::CreateEllipseRequest) -> proto::Response {
-        let center = cmd.center.unwrap_or_default();
-        let width = if cmd.width == 0.0 { 100.0 } else { cmd.width };
-        let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
-        let fill = color_or_default(cmd.fill_color, self.default_fill);
         let id = match parse_or_new_uuid(&cmd.id) {
             Ok(id) => id,
             Err(resp) => return *resp,
         };
-        let name = nonempty(cmd.name);
-        let handle = self.alloc_stim_handle();
-        self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
+        let center = cmd.center.unwrap_or_default();
+        let width  = if cmd.width  == 0.0 { 100.0 } else { cmd.width  };
+        let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
+        let fill   = color_or_default(cmd.fill_color, self.default_fill);
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
             flags: StimulusFlags { enabled: true, ..Default::default() },
-            transform: Deferred::new(Transform2D {
-                pos: [center.x, center.y],
-                angle: cmd.angle,
-            }),
+            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: cmd.angle }),
             appearance: Deferred::new(ShapeAppearance {
-                fill_color: fill,
+                fill_color:    fill,
                 outline_color: self.default_outline,
                 ..Default::default()
             }),
             radii: Deferred::new([width / 2.0, height / 2.0]),
-        }))));
+        })));
+        let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
 
