@@ -556,8 +556,11 @@ fn couple_visibility_inverted_polarity() {
 }
 
 #[test]
-fn couple_visibility_anim_enabled_not_restored_on_disarm() {
-    // Documents that anim_enabled is NOT auto-restored on disarm (Step 5 will add this).
+fn couple_visibility_anim_enabled_restored_on_disarm() {
+    // cmd_disarm_animation resets anim_enabled=true for CoupleVisibility when Running.
+    // This test goes through handle_request so the proto boundary exercises the fix.
+    use vstimd::proto;
+    use vstimd::proto::request;
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
     set_enabled(&mut scene, s, true);
@@ -567,13 +570,60 @@ fn couple_visibility_anim_enabled_not_restored_on_disarm() {
         vec![s],
     ));
 
-    advance_with(&mut scene, &no_edges()); // anim_enabled=false (input LOW)
+    advance_with(&mut scene, &no_edges()); // Running, input LOW → anim_enabled=false
     assert!(!is_anim_enabled(&scene, s));
 
-    // Disarm → Idle; anim_enabled stays false until Step 5.
-    scene.animations.get_mut(&a).unwrap().state = AnimState::Idle;
+    // Disarm via handle_request (exercises cmd_disarm_animation).
+    scene.handle_request(proto::Request {
+        target: Some(request::Target::System(proto::SystemTarget {})),
+        body: Some(request::Body::DisarmAnimation(proto::DisarmAnimationRequest { handle: a })),
+    }, None);
     assert_eq!(anim_state(&scene, a), &AnimState::Idle);
-    assert!(!is_anim_enabled(&scene, s), "anim_enabled not auto-restored on disarm (Step 5 TODO)");
+    assert!(is_anim_enabled(&scene, s), "anim_enabled restored to true on disarm");
+}
+
+#[test]
+fn flicker_anim_enabled_restored_on_disarm() {
+    let mut scene = SceneState::new();
+    let s = create_rect(&mut scene);
+    set_enabled(&mut scene, s, true);
+
+    let a = scene.add_animation(AnimationEntry::armed(flicker(2, 2, None, true), vec![s]));
+
+    advance(&mut scene); // frame 0: on
+    advance(&mut scene); // frame 1: on
+    advance(&mut scene); // frame 2: off (phase_frame=2 >= 2)
+    assert!(!is_anim_enabled(&scene, s), "in off-phase before disarm");
+
+    use vstimd::proto;
+    use vstimd::proto::request;
+    scene.handle_request(proto::Request {
+        target: Some(request::Target::System(proto::SystemTarget {})),
+        body: Some(request::Body::DisarmAnimation(proto::DisarmAnimationRequest { handle: a })),
+    }, None);
+    assert_eq!(anim_state(&scene, a), &AnimState::Idle);
+    assert!(is_anim_enabled(&scene, s), "anim_enabled restored on disarm from off-phase");
+}
+
+#[test]
+fn disarm_while_armed_does_not_touch_anim_enabled() {
+    // If the animation was Armed (never ran), anim_enabled was never changed
+    // so disarm should not touch it either.
+    let mut scene = SceneState::new();
+    let s = create_rect(&mut scene);
+    set_enabled(&mut scene, s, true);
+
+    let a = scene.add_animation(AnimationEntry::armed(flicker(1, 1, None, true), vec![s]));
+    assert!(is_anim_enabled(&scene, s), "before disarm: anim_enabled still true");
+
+    use vstimd::proto;
+    use vstimd::proto::request;
+    scene.handle_request(proto::Request {
+        target: Some(request::Target::System(proto::SystemTarget {})),
+        body: Some(request::Body::DisarmAnimation(proto::DisarmAnimationRequest { handle: a })),
+    }, None);
+    assert_eq!(anim_state(&scene, a), &AnimState::Idle);
+    assert!(is_anim_enabled(&scene, s), "anim_enabled unchanged (was never written)");
 }
 
 // ── FinalAction::RESTORE_STATE ────────────────────────────────────────────────

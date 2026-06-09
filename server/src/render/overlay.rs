@@ -369,11 +369,12 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
 
             if !inputs.is_empty() {
                 ui.label(egui::RichText::new("Inputs").strong());
-                egui::Grid::new("vtl_input_grid").striped(true).num_columns(4).spacing([8.0, 2.0]).show(ui, |ui| {
+                egui::Grid::new("vtl_input_grid").striped(true).num_columns(5).spacing([8.0, 2.0]).show(ui, |ui| {
                     ui.label(egui::RichText::new("Name").strong());
                     ui.label(egui::RichText::new("Bank/Bit").strong());
                     ui.label(egui::RichText::new("Level").strong());
                     ui.label(egui::RichText::new("Rise/Fall").strong());
+                    ui.label(egui::RichText::new("Fire").strong());
                     ui.end_row();
                     for e in &inputs {
                         let b = e.bank as usize;
@@ -385,6 +386,16 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                         ui.label(format!("{}/{}", e.bank, e.bit));
                         dot(ui, high);
                         ui.label(format!("{}/{}", rise as u8, fall as u8));
+                        ui.horizontal(|ui| {
+                            if ui.small_button("↑").on_hover_text("Fire rising edge").clicked() {
+                                owner.set_input_bit(b, e.bit);
+                                owner.set_input_rise(b, mask);
+                            }
+                            if ui.small_button("↓").on_hover_text("Fire falling edge").clicked() {
+                                owner.clear_input_bit(b, e.bit);
+                                owner.set_input_fall(b, mask);
+                            }
+                        });
                         ui.end_row();
                     }
                 });
