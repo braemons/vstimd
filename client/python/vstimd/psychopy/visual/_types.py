@@ -5,13 +5,10 @@ from __future__ import annotations
 from typing import Protocol, runtime_checkable
 
 # Any color value PsychoPy accepts
-ColorInput = str | tuple[float, ...] | list[float] | float | int | None
-
-# (r, g, b, a) normalised to 0..1
-Rgba = tuple[float, float, float, float]
+PsychoPyColor = str | tuple[float, ...] | list[float] | float | int | None
 
 # A 2-D position or size as a sequence of two floats
-Vec2 = tuple[float, float] | list[float]
+PsychoPyVec2 = tuple[float, float] | list[float]
 
 
 @runtime_checkable

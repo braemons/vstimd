@@ -13,17 +13,15 @@ import time
 
 import pytest
 
-from vstimd import Connection
-from ._e2e_cases import *  # noqa: F401, F403
+from .cases.test_shapes import *    # noqa: F401, F403
+from .cases.test_outline import *   # noqa: F401, F403
+from .cases.test_text import *      # noqa: F401, F403
+from .cases.test_vtl import *       # noqa: F401, F403
+from .cases.test_animations import * # noqa: F401, F403
 from .conftest import reachable
 
 _REPO_ROOT = pathlib.Path(__file__).parents[4]
 _DEFAULT_ADDRESS = "tcp://localhost:5555"
-
-
-@pytest.fixture(scope="session")
-def server_address() -> str:
-    return _DEFAULT_ADDRESS
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -60,10 +58,3 @@ def server_process(server_address: str):
 @pytest.fixture
 def step_delay() -> float:
     return 0.0
-
-
-@pytest.fixture(scope="session")
-def conn(server_address: str) -> Connection:
-    c = Connection(server_address)
-    yield c
-    c.close()

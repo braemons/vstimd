@@ -12,9 +12,11 @@ use super::stimulus::text::{
     TextStimulus, anchor_from_str, proto_to_language_style, text_query_params,
     text_render_params_from_proto,
 };
-use crate::ipc::{err, err_not_found, err_wrong_type, ok_ack, ok_body, ok_handle_with_id};
+use crate::ipc::{err, err_not_found, err_wrong_type, ok_ack, ok_body, ok_handle, ok_handle_with_id};
+use super::animation::{AnimState, Animation, AnimationEntry, Edge, FinalAction, VtlBit};
 use crate::proto;
 use crate::proto::request;
+use crate::vtl_state::{VtlNameEntry, VtlState};
 
 // ── Request summary for the command log ───────────────────────────────────────
 
@@ -102,6 +104,26 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::QueryStimulus(_)) => "QueryStimulus".into(),
         Some(request::Body::ListStimuli(_)) => "ListStimuli".into(),
         Some(request::Body::SetName(c)) => format!("SetName({:?})", c.name),
+        Some(request::Body::CreatePolygon(_)) => "CreatePolygon".into(),
+        Some(request::Body::SetPolygonVertices(_)) => "SetPolygonVertices".into(),
+        Some(request::Body::SetVirtualTriggerLineName(c)) => format!("SetVirtualTriggerLineName({:?})", c.name),
+        Some(request::Body::ListVirtualTriggerLines(_)) => "ListVirtualTriggerLines".into(),
+        Some(request::Body::SetInputVirtualTriggerLine(c)) => format!("SetInputVirtualTriggerLine(val={})", c.value),
+        Some(request::Body::ToggleInputVirtualTriggerLine(_)) => "ToggleInputVirtualTriggerLine".into(),
+        Some(request::Body::ClearInputVirtualTriggerLineLatches(_)) => "ClearInputVirtualTriggerLineLatches".into(),
+        Some(request::Body::SetInputVirtualTriggerLineBank(c)) => format!("SetInputVirtualTriggerLineBank(bank={} val={:#018x})", c.bank, c.value),
+        Some(request::Body::SetOutputVirtualTriggerLine(c)) => format!("SetOutputVirtualTriggerLine(val={})", c.value),
+        Some(request::Body::ToggleOutputVirtualTriggerLine(_)) => "ToggleOutputVirtualTriggerLine".into(),
+        Some(request::Body::SetOutputVirtualTriggerLineBank(c)) => format!("SetOutputVirtualTriggerLineBank(bank={} val={:#018x})", c.bank, c.value),
+        Some(request::Body::BringToFront(_)) => "BringToFront".into(),
+        Some(request::Body::SendToBack(_)) => "SendToBack".into(),
+        Some(request::Body::SwapDrawOrder(c)) => format!("SwapDrawOrder({}, {})", c.handle_a, c.handle_b),
+        Some(request::Body::CreateAnimation(c)) => format!("CreateAnimation({:?})", c.name),
+        Some(request::Body::ArmAnimation(c)) => format!("ArmAnimation({})", c.handle),
+        Some(request::Body::DisarmAnimation(c)) => format!("DisarmAnimation({})", c.handle),
+        Some(request::Body::DeleteAnimation(c)) => format!("DeleteAnimation({})", c.handle),
+        Some(request::Body::ListAnimations(_)) => "ListAnimations".into(),
+        Some(request::Body::QueryAnimation(c)) => format!("QueryAnimation({})", c.handle),
         None => "?".into(),
     }
 }
@@ -109,29 +131,26 @@ fn command_summary(req: &proto::Request) -> String {
 // ── DrawMode conversion ───────────────────────────────────────────────────────
 
 fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
-    match proto::DrawMode::try_from(mode).unwrap_or(proto::DrawMode::Unspecified) {
-        proto::DrawMode::Unspecified => Err(Box::new(err(
-            proto::ErrorCode::InvalidArgument,
-            "draw_mode must be set explicitly (UNSPECIFIED is not a valid value)",
-        ))),
-        proto::DrawMode::Filled => Ok(SceneDrawMode::Fill),
-        proto::DrawMode::Outlined => Ok(SceneDrawMode::Stroke),
-        proto::DrawMode::FilledAndOutlined => Ok(SceneDrawMode::FillAndStroke),
+    match proto::ShapeDrawMode::try_from(mode).unwrap_or(proto::ShapeDrawMode::Unspecified) {
+        proto::ShapeDrawMode::Unspecified => Ok(SceneDrawMode::Fill),
+        proto::ShapeDrawMode::Filled => Ok(SceneDrawMode::Fill),
+        proto::ShapeDrawMode::Outlined => Ok(SceneDrawMode::Stroke),
+        proto::ShapeDrawMode::FilledAndOutlined => Ok(SceneDrawMode::FillAndStroke),
     }
 }
 
 fn scene_draw_mode_to_proto(mode: SceneDrawMode) -> i32 {
     match mode {
-        SceneDrawMode::Fill => proto::DrawMode::Filled as i32,
-        SceneDrawMode::Stroke => proto::DrawMode::Outlined as i32,
-        SceneDrawMode::FillAndStroke => proto::DrawMode::FilledAndOutlined as i32,
+        SceneDrawMode::Fill => proto::ShapeDrawMode::Filled as i32,
+        SceneDrawMode::Stroke => proto::ShapeDrawMode::Outlined as i32,
+        SceneDrawMode::FillAndStroke => proto::ShapeDrawMode::FilledAndOutlined as i32,
     }
 }
 
 // ── Main dispatcher ───────────────────────────────────────────────────────────
 
 impl SceneState {
-    pub fn handle_request(&mut self, req: proto::Request) -> proto::Response {
+    pub fn handle_request(&mut self, req: proto::Request, vtl: Option<&mut VtlState>) -> proto::Response {
         let log_handle = match &req.target {
             Some(request::Target::Stimulus(h)) => *h,
             _ => 0,
@@ -141,7 +160,7 @@ impl SceneState {
         let response = match req.body {
             None => err(proto::ErrorCode::InvalidArgument, "empty request body"),
             Some(body) => match req.target {
-                Some(request::Target::System(_)) | None => self.handle_system_command(body),
+                Some(request::Target::System(_)) | None => self.handle_system_command(body, vtl),
                 Some(request::Target::Stimulus(handle)) => {
                     self.handle_stimulus_command(handle, body)
                 }
@@ -165,19 +184,39 @@ impl SceneState {
 
     // ── System command dispatcher ─────────────────────────────────────────────
 
-    fn handle_system_command(&mut self, body: request::Body) -> proto::Response {
+    fn handle_system_command(&mut self, body: request::Body, vtl: Option<&mut VtlState>) -> proto::Response {
         match body {
             request::Body::CreateRect(cmd) => self.cmd_create_rect(cmd),
             request::Body::CreateCircle(cmd) => self.cmd_create_circle(cmd),
             request::Body::CreateEllipse(cmd) => self.cmd_create_ellipse(cmd),
             request::Body::CreateGrating(cmd) => self.cmd_create_grating(cmd),
             request::Body::CreateText(cmd) => self.cmd_create_text(cmd),
+            request::Body::CreatePolygon(_) => err(
+                proto::ErrorCode::NotSupported,
+                "CreatePolygon is not yet implemented",
+            ),
             request::Body::SetBackground(cmd) => self.cmd_set_background(cmd),
             request::Body::SetDeferredMode(cmd) => self.cmd_set_deferred_mode(cmd),
             request::Body::DeleteAll(_) => self.cmd_delete_all(),
             request::Body::SetAllEnabled(cmd) => self.cmd_set_all_enabled(cmd),
             request::Body::QueryServerInfo(_) => self.cmd_query_server_info(),
             request::Body::ListStimuli(_) => self.cmd_list_stimuli(),
+            request::Body::SetVirtualTriggerLineName(cmd) => self.cmd_set_virtual_trigger_line_name(cmd, vtl),
+            request::Body::ListVirtualTriggerLines(_) => self.cmd_list_virtual_trigger_lines(vtl.as_deref()),
+            request::Body::SetInputVirtualTriggerLine(cmd) => self.cmd_set_input_virtual_trigger_line(cmd, vtl.as_deref()),
+            request::Body::ToggleInputVirtualTriggerLine(cmd) => self.cmd_toggle_input_virtual_trigger_line(cmd, vtl.as_deref()),
+            request::Body::ClearInputVirtualTriggerLineLatches(cmd) => self.cmd_clear_input_virtual_trigger_line_latches(cmd, vtl.as_deref()),
+            request::Body::SetInputVirtualTriggerLineBank(cmd) => self.cmd_set_input_virtual_trigger_line_bank(cmd, vtl.as_deref()),
+            request::Body::SetOutputVirtualTriggerLine(cmd) => self.cmd_set_output_virtual_trigger_line(cmd, vtl.as_deref()),
+            request::Body::ToggleOutputVirtualTriggerLine(cmd) => self.cmd_toggle_output_virtual_trigger_line(cmd, vtl.as_deref()),
+            request::Body::SetOutputVirtualTriggerLineBank(cmd) => self.cmd_set_output_virtual_trigger_line_bank(cmd, vtl.as_deref()),
+            request::Body::SwapDrawOrder(_) => err(proto::ErrorCode::NotSupported, "SwapDrawOrder not yet implemented"),
+            request::Body::CreateAnimation(cmd) => self.cmd_create_animation(cmd, vtl.as_deref()),
+            request::Body::ArmAnimation(cmd) => self.cmd_arm_animation(cmd),
+            request::Body::DisarmAnimation(cmd) => self.cmd_disarm_animation(cmd),
+            request::Body::DeleteAnimation(cmd) => self.cmd_delete_animation(cmd),
+            request::Body::ListAnimations(_) => self.cmd_list_animations(),
+            request::Body::QueryAnimation(cmd) => self.cmd_query_animation(cmd),
             _ => err(
                 proto::ErrorCode::WrongTarget,
                 "command requires a stimulus handle (target.stimulus > 0)",
@@ -194,12 +233,29 @@ impl SceneState {
             | request::Body::CreateEllipse(_)
             | request::Body::CreateGrating(_)
             | request::Body::CreateText(_)
+            | request::Body::CreatePolygon(_)
             | request::Body::SetBackground(_)
             | request::Body::SetDeferredMode(_)
             | request::Body::DeleteAll(_)
             | request::Body::SetAllEnabled(_)
             | request::Body::QueryServerInfo(_)
-            | request::Body::ListStimuli(_) => err(
+            | request::Body::ListStimuli(_)
+            | request::Body::SetVirtualTriggerLineName(_)
+            | request::Body::ListVirtualTriggerLines(_)
+            | request::Body::SetInputVirtualTriggerLine(_)
+            | request::Body::ToggleInputVirtualTriggerLine(_)
+            | request::Body::ClearInputVirtualTriggerLineLatches(_)
+            | request::Body::SetInputVirtualTriggerLineBank(_)
+            | request::Body::SetOutputVirtualTriggerLine(_)
+            | request::Body::ToggleOutputVirtualTriggerLine(_)
+            | request::Body::SetOutputVirtualTriggerLineBank(_)
+            | request::Body::SwapDrawOrder(_)
+            | request::Body::CreateAnimation(_)
+            | request::Body::ArmAnimation(_)
+            | request::Body::DisarmAnimation(_)
+            | request::Body::DeleteAnimation(_)
+            | request::Body::ListAnimations(_)
+            | request::Body::QueryAnimation(_) => err(
                 proto::ErrorCode::WrongTarget,
                 "system command must use target.system (not a stimulus handle)",
             ),
@@ -241,6 +297,18 @@ impl SceneState {
             }
             request::Body::SetText(cmd) => self.cmd_set_text(handle, cmd),
             request::Body::SetTextColor(cmd) => self.cmd_set_text_color(handle, cmd),
+            request::Body::SetPolygonVertices(_) => err(
+                proto::ErrorCode::NotSupported,
+                "SetPolygonVertices is not yet implemented",
+            ),
+            request::Body::BringToFront(_) => err(
+                proto::ErrorCode::NotSupported,
+                "BringToFront not yet implemented",
+            ),
+            request::Body::SendToBack(_) => err(
+                proto::ErrorCode::NotSupported,
+                "SendToBack not yet implemented",
+            ),
             request::Body::QueryStimulus(_) => self.cmd_query_stimulus(handle),
         }
     }
@@ -248,80 +316,74 @@ impl SceneState {
     // ── CreateRect ────────────────────────────────────────────────────────────
 
     fn cmd_create_rect(&mut self, cmd: proto::CreateRectRequest) -> proto::Response {
-        let center = cmd.center.unwrap_or_default();
-        let width = if cmd.width == 0.0 { 100.0 } else { cmd.width };
-        let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
-        let fill = color_or_default(cmd.fill, self.default_fill);
         let id = match parse_or_new_uuid(&cmd.id) {
             Ok(id) => id,
             Err(resp) => return *resp,
         };
-        let name = nonempty(cmd.name);
-        let handle = self.alloc_stim_handle();
-        self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
+        let center = cmd.center.unwrap_or_default();
+        let width  = if cmd.width  == 0.0 { 100.0 } else { cmd.width  };
+        let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
+        let fill   = color_or_default(cmd.fill_color, self.default_fill);
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
             flags: StimulusFlags { enabled: true, ..Default::default() },
-            transform: Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
+            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
             appearance: Deferred::new(ShapeAppearance {
-                fill_color: fill,
+                fill_color:    fill,
                 outline_color: self.default_outline,
                 ..Default::default()
             }),
             size: Deferred::new([width / 2.0, height / 2.0]),
-        }))));
+        })));
+        let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
 
     // ── CreateCircle ──────────────────────────────────────────────────────────
 
     fn cmd_create_circle(&mut self, cmd: proto::CreateCircleRequest) -> proto::Response {
-        let center = cmd.center.unwrap_or_default();
-        let radius = if cmd.radius == 0.0 { 50.0 } else { cmd.radius };
-        let fill = color_or_default(cmd.fill, self.default_fill);
         let id = match parse_or_new_uuid(&cmd.id) {
             Ok(id) => id,
             Err(resp) => return *resp,
         };
-        let name = nonempty(cmd.name);
-        let handle = self.alloc_stim_handle();
-        self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
+        let center = cmd.center.unwrap_or_default();
+        let radius = if cmd.radius == 0.0 { 50.0 } else { cmd.radius };
+        let fill   = color_or_default(cmd.fill_color, self.default_fill);
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
             flags: StimulusFlags { enabled: true, ..Default::default() },
-            transform: Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
+            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
             appearance: Deferred::new(ShapeAppearance {
-                fill_color: fill,
+                fill_color:    fill,
                 outline_color: self.default_outline,
                 ..Default::default()
             }),
             radius: Deferred::new(radius),
-        }))));
+        })));
+        let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
 
     // ── CreateEllipse ─────────────────────────────────────────────────────────
 
     fn cmd_create_ellipse(&mut self, cmd: proto::CreateEllipseRequest) -> proto::Response {
-        let center = cmd.center.unwrap_or_default();
-        let width = if cmd.width == 0.0 { 100.0 } else { cmd.width };
-        let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
-        let fill = color_or_default(cmd.fill, self.default_fill);
         let id = match parse_or_new_uuid(&cmd.id) {
             Ok(id) => id,
             Err(resp) => return *resp,
         };
-        let name = nonempty(cmd.name);
-        let handle = self.alloc_stim_handle();
-        self.stimuli.insert(handle, StimulusEntry::new(id, name, Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
+        let center = cmd.center.unwrap_or_default();
+        let width  = if cmd.width  == 0.0 { 100.0 } else { cmd.width  };
+        let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
+        let fill   = color_or_default(cmd.fill_color, self.default_fill);
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
             flags: StimulusFlags { enabled: true, ..Default::default() },
-            transform: Deferred::new(Transform2D {
-                pos: [center.x, center.y],
-                angle: cmd.angle,
-            }),
+            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: cmd.angle }),
             appearance: Deferred::new(ShapeAppearance {
-                fill_color: fill,
+                fill_color:    fill,
                 outline_color: self.default_outline,
                 ..Default::default()
             }),
             radii: Deferred::new([width / 2.0, height / 2.0]),
-        }))));
+        })));
+        let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
 
@@ -815,7 +877,7 @@ impl SceneState {
             height: h,
             frame_rate: self.frame_rate,
             background_color: Some(proto::Color { r: bg[0], g: bg[1], b: bg[2], a: bg[3] }),
-            backend: proto::Backend::Unspecified as i32,
+            backend: proto::RenderBackend::Unspecified as i32,
             version: Some(version),
         }))
     }
@@ -891,7 +953,7 @@ impl SceneState {
                         Some(proto::Color { r: fc[0], g: fc[1], b: fc[2], a: op }),
                         None,
                         0.0,
-                        proto::DrawMode::Filled as i32,
+                        proto::ShapeDrawMode::Filled as i32,
                         op,
                     )
                 }
@@ -903,7 +965,7 @@ impl SceneState {
                         Some(proto::Color { r: c[0], g: c[1], b: c[2], a: c[3] }),
                         None,
                         0.0,
-                        proto::DrawMode::Filled as i32,
+                        proto::ShapeDrawMode::Filled as i32,
                         c[3],
                     )
                 }
@@ -912,6 +974,7 @@ impl SceneState {
         ok_body(proto::response::Body::StimulusInfo(proto::QueryStimulusResponse {
             stimulus_type,
             enabled: stim.flags().enabled,
+            anim_enabled: stim.flags().anim_enabled,
             pos: Some(proto::Vec2 { x: pos[0], y: pos[1] }),
             orientation: angle,
             opacity,
@@ -923,6 +986,236 @@ impl SceneState {
             id: entry.id.to_string(),
             name: entry.name.clone().unwrap_or_default(),
         }))
+    }
+
+    // ── Virtual Trigger Line commands ─────────────────────────────────────────
+
+    fn cmd_set_virtual_trigger_line_name(
+        &mut self,
+        cmd: proto::SetVirtualTriggerLineNameRequest,
+        vtl: Option<&mut VtlState>,
+    ) -> proto::Response {
+        use vtl::{Direction, MAX_BANKS};
+
+        if cmd.bank >= MAX_BANKS as u32 {
+            return err(proto::ErrorCode::InvalidArgument, "bank out of range");
+        }
+        if cmd.bit >= 64 {
+            return err(proto::ErrorCode::InvalidArgument, "bit must be 0..63");
+        }
+        let dir = match proto::VirtualTriggerLineDirection::try_from(cmd.direction) {
+            Ok(proto::VirtualTriggerLineDirection::Input)  => Direction::Input,
+            Ok(proto::VirtualTriggerLineDirection::Output) => Direction::Output,
+            _ => return err(proto::ErrorCode::InvalidArgument, "direction must be INPUT or OUTPUT"),
+        };
+        let Some(vtl) = vtl else {
+            return err(proto::ErrorCode::NotSupported, "VTL shared memory not available");
+        };
+
+        if !cmd.name.is_empty()
+            && vtl.names.iter().any(|e| e.name == cmd.name && (e.bank != cmd.bank as u8 || e.bit != cmd.bit as u8))
+        {
+            return err(proto::ErrorCode::InvalidArgument, "name already assigned to a different line");
+        }
+
+        vtl.names.retain(|e| !(e.bank == cmd.bank as u8 && e.bit == cmd.bit as u8));
+        if !cmd.name.is_empty() {
+            vtl.names.push(VtlNameEntry {
+                name:      cmd.name,
+                bank:      cmd.bank as u8,
+                bit:       cmd.bit  as u8,
+                direction: dir,
+            });
+        }
+
+        vtl.sync_names_to_shm();
+        ok_ack()
+    }
+
+    fn cmd_list_virtual_trigger_lines(&self, vtl: Option<&VtlState>) -> proto::Response {
+        let Some(vtl) = vtl else {
+            return ok_body(proto::response::Body::VirtualTriggerLineList(
+                proto::ListVirtualTriggerLinesResponse { lines: vec![] },
+            ));
+        };
+        let owner = vtl.owner();
+
+        let state_word = |bank: usize, dir: vtl::Direction| -> u64 {
+            match dir {
+                vtl::Direction::Input  => owner.input_state(bank),
+                vtl::Direction::Output => owner.output_state(bank),
+            }
+        };
+
+        let lines: Vec<proto::VirtualTriggerLineInfo> = vtl.names.iter().map(|e| {
+            let high = state_word(e.bank as usize, e.direction) >> e.bit & 1 == 1;
+            proto::VirtualTriggerLineInfo {
+                name:      e.name.clone(),
+                bank:      e.bank as u32,
+                bit:       e.bit  as u32,
+                direction: match e.direction {
+                    vtl::Direction::Input  => proto::VirtualTriggerLineDirection::Input  as i32,
+                    vtl::Direction::Output => proto::VirtualTriggerLineDirection::Output as i32,
+                },
+                high,
+            }
+        }).collect();
+        ok_body(proto::response::Body::VirtualTriggerLineList(
+            proto::ListVirtualTriggerLinesResponse { lines },
+        ))
+    }
+
+    fn cmd_set_input_virtual_trigger_line(
+        &self,
+        cmd: proto::SetInputVirtualTriggerLineRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let Some(vtl) = vtl else {
+            return err(proto::ErrorCode::NotSupported, "VTL shared memory not available");
+        };
+        let (bank, bit) = match resolve_vtl_handle(cmd.handle.as_ref(), &vtl.names) {
+            Ok(v) => v,
+            Err(e) => return *e,
+        };
+        let owner = vtl.owner();
+        if cmd.value {
+            if owner.set_input_bit(bank, bit) {
+                owner.set_input_rise(bank, 1u64 << bit);
+            }
+        } else {
+            if owner.clear_input_bit(bank, bit) {
+                owner.set_input_fall(bank, 1u64 << bit);
+            }
+        }
+        ok_ack()
+    }
+
+    fn cmd_toggle_input_virtual_trigger_line(
+        &self,
+        cmd: proto::ToggleInputVirtualTriggerLineRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let Some(vtl) = vtl else {
+            return err(proto::ErrorCode::NotSupported, "VTL shared memory not available");
+        };
+        let (bank, bit) = match resolve_vtl_handle(cmd.handle.as_ref(), &vtl.names) {
+            Ok(v) => v,
+            Err(e) => return *e,
+        };
+        let owner = vtl.owner();
+        let mask = 1u64 << bit;
+        let rose = owner.toggle_input_bit(bank, bit);
+        if rose { owner.set_input_rise(bank, mask); } else { owner.set_input_fall(bank, mask); }
+        ok_body(proto::response::Body::VirtualTriggerLineState(
+            proto::VirtualTriggerLineStateResponse { high: rose },
+        ))
+    }
+
+    fn cmd_clear_input_virtual_trigger_line_latches(
+        &self,
+        cmd: proto::ClearInputVirtualTriggerLineLatchesRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let Some(vtl) = vtl else {
+            return err(proto::ErrorCode::NotSupported, "VTL shared memory not available");
+        };
+        let (bank, bit) = match resolve_vtl_handle(cmd.handle.as_ref(), &vtl.names) {
+            Ok(v) => v,
+            Err(e) => return *e,
+        };
+        let owner = vtl.owner();
+        let mask = 1u64 << bit;
+        owner.drain_input_rise(bank, mask);
+        owner.drain_input_fall(bank, mask);
+        ok_ack()
+    }
+
+    fn cmd_set_input_virtual_trigger_line_bank(
+        &self,
+        cmd: proto::SetInputVirtualTriggerLineBankRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let Some(vtl) = vtl else {
+            return err(proto::ErrorCode::NotSupported, "VTL shared memory not available");
+        };
+        if cmd.bank >= vtl::MAX_BANKS as u32 {
+            return err(proto::ErrorCode::InvalidArgument, "bank out of range");
+        }
+        let owner = vtl.owner();
+        let bank    = cmd.bank as usize;
+        let prev    = owner.input_state(bank);
+        let next    = cmd.value;
+        let rising  = (!prev) & next;
+        let falling = prev & (!next);
+        owner.set_input_state(bank, next);
+        if rising  != 0 { owner.set_input_rise(bank,  rising);  }
+        if falling != 0 { owner.set_input_fall(bank, falling); }
+        ok_ack()
+    }
+
+    fn cmd_set_output_virtual_trigger_line(
+        &self,
+        cmd: proto::SetOutputVirtualTriggerLineRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let Some(vtl) = vtl else {
+            return err(proto::ErrorCode::NotSupported, "VTL shared memory not available");
+        };
+        let (bank, bit) = match resolve_vtl_handle(cmd.handle.as_ref(), &vtl.names) {
+            Ok(v) => v,
+            Err(e) => return *e,
+        };
+        let owner = vtl.owner();
+        let mask = 1u64 << bit;
+        let prev = owner.output_state(bank);
+        if cmd.value {
+            owner.set_output_state(bank, prev | mask);
+        } else {
+            owner.set_output_state(bank, prev & !mask);
+        }
+        ok_ack()
+    }
+
+    fn cmd_toggle_output_virtual_trigger_line(
+        &self,
+        cmd: proto::ToggleOutputVirtualTriggerLineRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let Some(vtl) = vtl else {
+            return err(proto::ErrorCode::NotSupported, "VTL shared memory not available");
+        };
+        let (bank, bit) = match resolve_vtl_handle(cmd.handle.as_ref(), &vtl.names) {
+            Ok(v) => v,
+            Err(e) => return *e,
+        };
+        let owner = vtl.owner();
+        let mask = 1u64 << bit;
+        let prev = owner.output_state(bank);
+        let high = prev & mask == 0; // will be high after toggle
+        if high {
+            owner.set_output_state(bank, prev | mask);
+        } else {
+            owner.set_output_state(bank, prev & !mask);
+        }
+        ok_body(proto::response::Body::VirtualTriggerLineState(
+            proto::VirtualTriggerLineStateResponse { high },
+        ))
+    }
+
+    fn cmd_set_output_virtual_trigger_line_bank(
+        &self,
+        cmd: proto::SetOutputVirtualTriggerLineBankRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let Some(vtl) = vtl else {
+            return err(proto::ErrorCode::NotSupported, "VTL shared memory not available");
+        };
+        if cmd.bank >= vtl::MAX_BANKS as u32 {
+            return err(proto::ErrorCode::InvalidArgument, "bank out of range");
+        }
+        let owner = vtl.owner();
+        owner.set_output_state(cmd.bank as usize, cmd.value);
+        ok_ack()
     }
 
     // ── ListStimuli ───────────────────────────────────────────────────────────
@@ -951,9 +1244,317 @@ impl SceneState {
             .collect();
         ok_body(proto::response::Body::StimulusList(proto::ListStimuliResponse { entries }))
     }
+
+    // ── Animation commands ────────────────────────────────────────────────────
+
+    fn cmd_create_animation(
+        &mut self,
+        cmd: proto::CreateAnimationRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let vtl_names: &[VtlNameEntry] = vtl.map_or(&[], |v| v.names.as_slice());
+        let final_action = FinalAction::from_bits_truncate(cmd.final_action_mask as u8);
+
+        let final_action_trigger_line = if final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE) {
+            match resolve_vtl_handle(cmd.final_action_trigger_line.as_ref(), vtl_names) {
+                Ok((bank, bit)) => Some(VtlBit { bank, bit }),
+                Err(e) => return *e,
+            }
+        } else {
+            None
+        };
+
+        let start_trigger = if cmd.start_trigger.is_some() {
+            match resolve_vtl_handle(cmd.start_trigger.as_ref(), vtl_names) {
+                Ok((bank, bit)) => Some((VtlBit { bank, bit }, proto_vtl_edge(cmd.start_edge))),
+                Err(e) => return *e,
+            }
+        } else {
+            None
+        };
+
+        let animation = match proto_to_animation(&cmd, vtl_names) {
+            Ok(a) => a,
+            Err(e) => return *e,
+        };
+
+        let handle = self.alloc_anim_handle();
+        self.animations.insert(handle, AnimationEntry {
+            name: cmd.name,
+            state: AnimState::Idle,
+            stimuli: cmd.stimuli,
+            final_action,
+            final_action_trigger_line,
+            start_trigger,
+            captured_user_enabled: None,
+            animation,
+        });
+        ok_handle(handle)
+    }
+
+    fn cmd_arm_animation(&mut self, cmd: proto::ArmAnimationRequest) -> proto::Response {
+        match self.animations.get_mut(&cmd.handle) {
+            Some(entry) => { entry.state = AnimState::Armed; ok_ack() }
+            None => err(proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle)),
+        }
+    }
+
+    fn cmd_disarm_animation(&mut self, cmd: proto::DisarmAnimationRequest) -> proto::Response {
+        let entry = match self.animations.get_mut(&cmd.handle) {
+            Some(e) => e,
+            None => return err(proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle)),
+        };
+
+        let was_running = matches!(entry.state, AnimState::Running { .. });
+        let stim_handles = entry.stimuli.clone();
+        entry.state = AnimState::Idle;
+
+        // Release any anim_enabled hold. Safe to do unconditionally: setting true when
+        // already true is a no-op, and we don't need to track which animation types hold it.
+        if was_running {
+            for sh in stim_handles {
+                if let Some(se) = self.stimuli.get_mut(&sh) {
+                    se.stimulus.flags_mut().anim_enabled = true;
+                    se.stimulus.flags_mut().mark_dirty();
+                }
+            }
+        }
+        ok_ack()
+    }
+
+    fn cmd_delete_animation(&mut self, cmd: proto::DeleteAnimationRequest) -> proto::Response {
+        let entry = match self.animations.shift_remove(&cmd.handle) {
+            Some(e) => e,
+            None => return err(proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle)),
+        };
+        if matches!(entry.state, AnimState::Running { .. }) {
+            for sh in entry.stimuli {
+                if let Some(se) = self.stimuli.get_mut(&sh) {
+                    se.stimulus.flags_mut().anim_enabled = true;
+                    se.stimulus.flags_mut().mark_dirty();
+                }
+            }
+        }
+        ok_ack()
+    }
+
+    fn cmd_list_animations(&self) -> proto::Response {
+        let animations: Vec<proto::AnimationInfo> = self.animations.iter().map(|(&handle, entry)| {
+            let state = match entry.state {
+                AnimState::Idle             => proto::AnimationState::Idle    as i32,
+                AnimState::Armed            => proto::AnimationState::Armed   as i32,
+                AnimState::Running { .. }   => proto::AnimationState::Running as i32,
+                AnimState::Done             => proto::AnimationState::Done    as i32,
+            };
+            proto::AnimationInfo {
+                handle,
+                name:      entry.name.clone(),
+                state,
+                type_name: entry.animation.type_name().to_string(),
+            }
+        }).collect();
+        ok_body(proto::response::Body::AnimationList(
+            proto::ListAnimationsResponse { animations },
+        ))
+    }
+
+    fn cmd_query_animation(&self, cmd: proto::QueryAnimationRequest) -> proto::Response {
+        let entry = match self.animations.get(&cmd.handle) {
+            Some(e) => e,
+            None => return err(proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle)),
+        };
+
+        let state = match entry.state {
+            AnimState::Idle           => proto::AnimationState::Idle    as i32,
+            AnimState::Armed          => proto::AnimationState::Armed   as i32,
+            AnimState::Running { .. } => proto::AnimationState::Running as i32,
+            AnimState::Done           => proto::AnimationState::Done    as i32,
+        };
+
+        let (start_trigger, start_edge) = match entry.start_trigger {
+            Some((bit, edge)) => (Some(vtl_bit_to_proto(bit)), edge_to_proto(edge)),
+            None              => (None, 0),
+        };
+
+        let params = proto::CreateAnimationRequest {
+            name:                entry.name.clone(),
+            final_action_mask:   entry.final_action.bits() as u32,
+            final_action_trigger_line: entry.final_action_trigger_line.map(vtl_bit_to_proto),
+            start_trigger,
+            start_edge,
+            stimuli:             entry.stimuli.clone(),
+            body:                Some(animation_to_proto_body(&entry.animation)),
+        };
+
+        ok_body(proto::response::Body::QueryAnimationResponse(proto::QueryAnimationResponse {
+            handle: cmd.handle,
+            state,
+            params: Some(params),
+        }))
+    }
+}
+
+fn vtl_bit_to_proto(bit: VtlBit) -> proto::VirtualTriggerLineHandle {
+    use proto::virtual_trigger_line_handle::Handle;
+    proto::VirtualTriggerLineHandle {
+        handle: Some(Handle::BankBit(proto::VirtualTriggerLineBankBit {
+            bank: bit.bank as u32,
+            bit:  bit.bit  as u32,
+        }))
+    }
+}
+
+fn edge_to_proto(e: Edge) -> i32 {
+    match e {
+        Edge::Rising  => proto::VtlEdge::Rising  as i32,
+        Edge::Falling => proto::VtlEdge::Falling as i32,
+    }
+}
+
+fn animation_to_proto_body(anim: &Animation) -> proto::create_animation_request::Body {
+    use proto::create_animation_request::Body as PBody;
+    match anim {
+        Animation::CoupleVisibilityToInputTriggerLine { trigger, polarity } =>
+            PBody::CoupleVisibilityToInputTriggerLine(proto::CoupleVisibilityToInputTriggerLine {
+                trigger:  Some(vtl_bit_to_proto(*trigger)),
+                polarity: *polarity,
+            }),
+        Animation::EnableOnTriggerEdge { trigger, edge, enabled } =>
+            PBody::EnableOnTriggerEdge(proto::EnableOnTriggerEdge {
+                trigger: Some(vtl_bit_to_proto(*trigger)),
+                edge:    edge_to_proto(*edge),
+                enabled: *enabled,
+            }),
+        Animation::FlashForNFrames { duration_frames } =>
+            PBody::FlashForNFrames(proto::FlashForNFrames { duration_frames: *duration_frames }),
+        Animation::FlickerForNFrames { on_frames, off_frames, total_frames, start_on_phase } =>
+            PBody::FlickerForNFrames(proto::FlickerForNFrames {
+                on_frames:      *on_frames,
+                off_frames:     *off_frames,
+                total_frames:   *total_frames,
+                start_on_phase: *start_on_phase,
+            }),
+        Animation::MoveAlongPath2D { coords } =>
+            PBody::MoveAlongPath2d(proto::MoveAlongPath2D {
+                x: coords.iter().map(|c| c[0]).collect(),
+                y: coords.iter().map(|c| c[1]).collect(),
+            }),
+        Animation::MoveAlongSegments2D { waypoints, speed_px_per_sec } =>
+            PBody::MoveAlongSegments2d(proto::MoveAlongSegments2D {
+                x:                waypoints.iter().map(|w| w[0]).collect(),
+                y:                waypoints.iter().map(|w| w[1]).collect(),
+                speed_px_per_sec: *speed_px_per_sec,
+            }),
+        Animation::ExternalPosition2D { shm_name, x_offset, y_offset } =>
+            PBody::ExternalPosition2d(proto::ExternalPosition2D {
+                shm_name: shm_name.clone(),
+                x_offset: *x_offset,
+                y_offset: *y_offset,
+            }),
+    }
+}
+
+fn proto_vtl_edge(e: i32) -> Edge {
+    match proto::VtlEdge::try_from(e).unwrap_or(proto::VtlEdge::Rising) {
+        proto::VtlEdge::Rising  => Edge::Rising,
+        proto::VtlEdge::Falling => Edge::Falling,
+    }
+}
+
+// ── Animation proto → Rust mapping ───────────────────────────────────────────
+
+fn proto_to_animation(
+    cmd: &proto::CreateAnimationRequest,
+    vtl_names: &[VtlNameEntry],
+) -> Result<Animation, Box<proto::Response>> {
+    use proto::create_animation_request::Body as PBody;
+
+    let vtl_bit = |h: Option<&proto::VirtualTriggerLineHandle>| -> Result<VtlBit, Box<proto::Response>> {
+        let (bank, bit) = resolve_vtl_handle(h, vtl_names)?;
+        Ok(VtlBit { bank, bit })
+    };
+
+    let proto_edge = |e: i32| -> Edge { proto_vtl_edge(e) };
+
+    match cmd.body.as_ref() {
+        Some(PBody::CoupleVisibilityToInputTriggerLine(c)) => Ok(Animation::CoupleVisibilityToInputTriggerLine {
+            trigger:  vtl_bit(c.trigger.as_ref())?,
+            polarity: c.polarity,
+        }),
+        Some(PBody::EnableOnTriggerEdge(c)) => Ok(Animation::EnableOnTriggerEdge {
+            trigger: vtl_bit(c.trigger.as_ref())?,
+            edge:    proto_edge(c.edge),
+            enabled: c.enabled,
+        }),
+        Some(PBody::FlashForNFrames(c)) => Ok(Animation::FlashForNFrames {
+            duration_frames: c.duration_frames,
+        }),
+        Some(PBody::FlickerForNFrames(c)) => Ok(Animation::FlickerForNFrames {
+            on_frames:      c.on_frames,
+            off_frames:     c.off_frames,
+            total_frames:   c.total_frames,
+            start_on_phase: c.start_on_phase,
+        }),
+        Some(PBody::MoveAlongPath2d(c)) => {
+            if c.x.len() != c.y.len() {
+                return Err(Box::new(err(proto::ErrorCode::InvalidArgument, "MoveAlongPath2D: x and y must have equal length")));
+            }
+            Ok(Animation::MoveAlongPath2D {
+                coords: c.x.iter().zip(c.y.iter()).map(|(&x, &y)| [x, y]).collect(),
+            })
+        },
+        Some(PBody::MoveAlongSegments2d(c)) => {
+            if c.x.len() != c.y.len() {
+                return Err(Box::new(err(proto::ErrorCode::InvalidArgument, "MoveAlongSegments2D: x and y must have equal length")));
+            }
+            if c.x.len() < 2 {
+                return Err(Box::new(err(proto::ErrorCode::InvalidArgument, "MoveAlongSegments2D: at least 2 waypoints required")));
+            }
+            Ok(Animation::MoveAlongSegments2D {
+                waypoints:        c.x.iter().zip(c.y.iter()).map(|(&x, &y)| [x, y]).collect(),
+                speed_px_per_sec: c.speed_px_per_sec,
+            })
+        },
+        Some(PBody::ExternalPosition2d(c)) => Ok(Animation::ExternalPosition2D {
+            shm_name: c.shm_name.clone(),
+            x_offset: c.x_offset,
+            y_offset: c.y_offset,
+        }),
+        None => Err(Box::new(err(proto::ErrorCode::InvalidArgument, "animation body must be set"))),
+    }
 }
 
 // ── Module-private helpers ────────────────────────────────────────────────────
+
+fn resolve_vtl_handle(
+    handle: Option<&proto::VirtualTriggerLineHandle>,
+    names: &[VtlNameEntry],
+) -> Result<(usize, u8), Box<proto::Response>> {
+    use proto::virtual_trigger_line_handle::Handle;
+    match handle.and_then(|h| h.handle.as_ref()) {
+        Some(Handle::BankBit(bb)) => {
+            if bb.bank >= vtl::MAX_BANKS as u32 {
+                return Err(Box::new(err(proto::ErrorCode::InvalidArgument, "bank out of range")));
+            }
+            if bb.bit >= 64 {
+                return Err(Box::new(err(proto::ErrorCode::InvalidArgument, "bit must be 0..63")));
+            }
+            Ok((bb.bank as usize, bb.bit as u8))
+        }
+        Some(Handle::Name(name)) => {
+            names.iter()
+                .find(|e| e.name == *name)
+                .map(|e| (e.bank as usize, e.bit))
+                .ok_or_else(|| Box::new(err(proto::ErrorCode::InvalidArgument,
+                    format!("no virtual trigger line named {name:?}"))))
+        }
+        None => Err(Box::new(err(proto::ErrorCode::InvalidArgument, "handle must be set"))),
+    }
+}
 
 fn color_or_default(c: Option<proto::Color>, default: [f32; 4]) -> [f32; 4] {
     c.map(|c| [c.r, c.g, c.b, c.a]).unwrap_or(default)

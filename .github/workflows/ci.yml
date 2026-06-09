@@ -45,6 +45,31 @@ jobs:
           name: vstimd
           path: target/release/vstimd
 
+  # vtl-miri disabled: Miri does not support shm_open, which the vtl
+  # integration tests require. Re-enable once the tests have a Miri-compatible
+  # backend (heap allocation under cfg(miri)).
+  #
+  # vtl-miri:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #       with:
+  #         submodules: false
+  #     - uses: dtolnay/rust-toolchain@nightly
+  #       with:
+  #         components: miri
+  #     - uses: actions/cache@v4
+  #       with:
+  #         path: |
+  #           ~/.cargo/registry
+  #           ~/.cargo/git
+  #           target
+  #         key: ${{ runner.os }}-miri-${{ hashFiles('**/Cargo.lock') }}
+  #         restore-keys: ${{ runner.os }}-miri-
+  #     - run: cargo miri test -p vtl
+  #       env:
+  #         MIRIFLAGS: -Zmiri-strict-provenance
+
   python-unit:
     runs-on: ubuntu-latest
     defaults:
@@ -62,6 +87,21 @@ jobs:
       - uses: astral-sh/setup-uv@v5
 
       - run: xvfb-run -a make test
+
+  python-typecheck:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/python
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: astral-sh/setup-uv@v5
+
+      - run: make typecheck
 
   python-null-e2e:
     runs-on: ubuntu-latest

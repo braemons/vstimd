@@ -1,6 +1,6 @@
 mod init;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use winit::application::ApplicationHandler;
 use winit::event::{ElementState, WindowEvent};
@@ -18,6 +18,8 @@ use crate::scene::stimulus::text::{TextFontSystem, TextSwashCache};
 use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, WindowMode, query_local_ip};
 use crate::scene::SceneState;
 use crate::timing::{FramePhases, FrameStats};
+use crate::vtl_state::VtlState;
+extern crate vtl;
 
 // FIFO is the only present mode used throughout the application.
 //
@@ -39,6 +41,9 @@ struct State {
     // because they hold surface handles and wl_surface proxies into the window
     // that become dangling once the window is destroyed.
     rs: RenderState,
+    vtl: Option<Arc<Mutex<VtlState>>>,
+    /// Animation output bits accumulated this frame; committed at [A] next frame.
+    pending_outputs: [u64; vtl::MAX_BANKS],
     egui_winit: egui_winit::State,
     // ── Window comes after all borrowers ─────────────────────────────────────
     window: Arc<Window>,
@@ -50,6 +55,7 @@ impl State {
     fn new(
         window: Arc<Window>,
         scene: Arc<RwLock<SceneState>>,
+        vtl: Option<Arc<Mutex<VtlState>>>,
         event_loop: &ActiveEventLoop,
         window_mode: WindowMode,
         log_buffer: LogBuffer,
@@ -166,6 +172,8 @@ impl State {
 
         Self {
             rs,
+            vtl,
+            pending_outputs: [0; vtl::MAX_BANKS],
             egui_winit,
             window,
             refresh_hz: hz,
@@ -197,16 +205,50 @@ impl State {
     }
 
     fn render(&mut self) {
+        // NOTE: vblank timing in the winit backend differs from DRM.
+        //
+        // In DRM mode, wait_vblank() is a dedicated blocking call before render,
+        // giving a clean "frame start" boundary.  Here, the vblank boundary is
+        // implicit: vkAcquireNextImageKHR blocks on FIFO until vblank, and
+        // vkWaitForPresentKHR (at the top of render_frame, if present_wait is
+        // available) confirms the previous frame is on screen.
+        //
+        // VTL input poll [A] and output write [B/C] should therefore be placed
+        // around render_one_frame, but the precise vblank-relative position is
+        // less clean than in DRM mode.  See vtl_state.rs for the canonical
+        // description of the frame timeline.
+
         // 1. Collect egui input (via winit event integration, if overlay is on).
         let egui_raw_input = self
             .rs
             .show_overlay
             .then(|| self.egui_winit.take_egui_input(&self.window));
 
+        // [A] Commit previous frame's animation outputs; poll inputs.
+        // Note: in winit mode the vkWaitForPresentKHR confirmation lives inside
+        // render_frame(), so this poll fires at the top of the render loop rather
+        // than at the true vblank boundary.  DRM mode gets exact vblank alignment.
+        if let Some(vtl) = &self.vtl {
+            let (input_edges, output_snapshot) = {
+                let mut v = vtl.lock().unwrap();
+                v.write_outputs(&self.pending_outputs);
+                let edges = v.poll();
+                let snap  = v.output_snapshot();
+                (edges, snap)
+            };
+            self.pending_outputs = [0; vtl::MAX_BANKS];
+            self.rs.scene.write().unwrap().advance_animations(
+                &input_edges, &output_snapshot, &mut self.pending_outputs,
+            );
+        }
+
         // 2. Render: build overlay UI, tessellate scene, record Vulkan commands,
         //    submit to GPU, present to display.
+        //    The frame prepared here will become visible at the next vblank.
         let sys_info = self.sys_info();
-        let (tick, platform_output) = self.rs.render_one_frame(None, egui_raw_input, &sys_info);
+        let (tick, platform_output) = self.rs.render_one_frame(None, egui_raw_input, &sys_info, self.vtl.as_deref());
+
+        // pending_outputs is already saved for commit at next [A].
 
         // 3. Forward egui platform output (cursor changes, clipboard, etc.).
         if let Some(po) = platform_output {
@@ -228,6 +270,7 @@ impl State {
 
 pub struct WinitApp {
     scene: Option<Arc<RwLock<SceneState>>>,
+    vtl: Option<Arc<Mutex<VtlState>>>,
     window_mode: WindowMode,
     state: Option<State>,
     modifiers: winit::event::Modifiers,
@@ -238,11 +281,13 @@ pub struct WinitApp {
 impl WinitApp {
     pub fn new(
         scene: Arc<RwLock<SceneState>>,
+        vtl: Option<Arc<Mutex<VtlState>>>,
         window_mode: WindowMode,
         log_buffer: LogBuffer,
     ) -> Self {
         Self {
             scene: Some(scene),
+            vtl,
             is_fullscreen: window_mode == WindowMode::Fullscreen,
             window_mode,
             state: None,
@@ -314,6 +359,7 @@ impl ApplicationHandler for WinitApp {
             self.state = Some(State::new(
                 window,
                 scene,
+                self.vtl.clone(),
                 event_loop,
                 self.window_mode,
                 log_buffer,

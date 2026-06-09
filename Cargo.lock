@@ -3576,6 +3576,7 @@ version = "0.1.0"
 dependencies = [
  "ash",
  "ash-window",
+ "bitflags 2.11.1",
  "bytemuck",
  "cosmic-text",
  "criterion",
@@ -3597,11 +3598,19 @@ dependencies = [
  "sysinfo",
  "tokio",
  "uuid",
+ "vtl",
  "wayland-backend",
  "wayland-client",
  "wayland-sys",
  "winit",
  "zeromq",
+]
+
+[[package]]
+name = "vtl"
+version = "0.1.0"
+dependencies = [
+ "libc",
 ]
 
 [[package]]

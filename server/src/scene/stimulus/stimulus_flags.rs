@@ -1,7 +1,12 @@
 #[derive(Clone, Copy)]
 pub struct StimulusFlags {
+    /// User-controlled visibility. Written by SetEnabled / SetAllEnabled (ZMQ thread).
     pub enabled: bool,
     pub enabled_copy: bool,
+    /// Animation-controlled visibility. Written by the render thread each frame.
+    /// Defaults to true (no animation hold). Animations set this; user commands do not.
+    /// Not part of deferred mode — the render thread owns it exclusively.
+    pub anim_enabled: bool,
     pub protected: bool, // survives RemoveAll
     /// Set on creation, mutation, or flip. Cleared by the render thread after
     /// tessellation+upload. Prevents redundant vkAllocateMemory every frame.
@@ -13,6 +18,7 @@ impl Default for StimulusFlags {
         Self {
             enabled: false,
             enabled_copy: false,
+            anim_enabled: true,
             protected: false,
             dirty: true,
         }
@@ -33,6 +39,6 @@ impl StimulusFlags {
     }
 
     pub fn is_visible(&self) -> bool {
-        self.enabled
+        self.enabled && self.anim_enabled
     }
 }

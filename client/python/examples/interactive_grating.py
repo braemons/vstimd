@@ -255,10 +255,10 @@ def run(address: str) -> None:
                 apply(sel)
             elif key in ("w", "W"):
                 tex_param.next()
-                win._conn.stimuli.set_grating_waveform(grating._handle, tex_param.value)
+                win._conn.stimuli.grating.set_waveform(grating._handle, tex_param.value)
             elif key in ("m", "M"):
                 mask_param.next()
-                win._conn.stimuli.set_grating_mask(grating._handle, mask_param.value)
+                win._conn.stimuli.grating.set_mask(grating._handle, mask_param.value)
             elif key == " ":
                 visible = not visible
                 grating.autoDraw = visible

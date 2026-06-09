@@ -1,8 +1,22 @@
-PROTO_SRC  := ../../proto/vstimd/v1/common.proto ../../proto/vstimd/v1/stimuli_2d.proto \
-              ../../proto/vstimd/v1/system.proto ../../proto/vstimd/v1/service.proto
+PROTO_SRC  := ../../proto/vstimd/v1/vec2.proto \
+              ../../proto/vstimd/v1/color.proto \
+              ../../proto/vstimd/v1/stimuli/stimulus_type.proto \
+              ../../proto/vstimd/v1/stimuli/shapes.proto \
+              ../../proto/vstimd/v1/stimuli/query.proto \
+              ../../proto/vstimd/v1/stimuli/rect.proto \
+              ../../proto/vstimd/v1/stimuli/circle.proto \
+              ../../proto/vstimd/v1/stimuli/ellipse.proto \
+              ../../proto/vstimd/v1/stimuli/grating.proto \
+              ../../proto/vstimd/v1/stimuli/text.proto \
+              ../../proto/vstimd/v1/stimuli/polygon.proto \
+              ../../proto/vstimd/v1/stimuli/shared_set_requests.proto \
+              ../../proto/vstimd/v1/system.proto \
+              ../../proto/vstimd/v1/vtl.proto \
+              ../../proto/vstimd/v1/animations.proto \
+              ../../proto/vstimd/v1/service.proto
 PROTO_OUT  := vstimd/_proto
 
-.PHONY: build publish proto test test-integration test-e2e test-e2e-null clean
+.PHONY: build publish proto test test-integration test-e2e test-e2e-null typecheck clean
 
 proto:
 	uv run --group dev python -m grpc_tools.protoc \
@@ -30,6 +44,9 @@ test-e2e: proto
 
 test-e2e-null: proto
 	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v
+
+typecheck: proto
+	uv run --group dev ty check
 
 clean:
 	rm -rf dist/ .venv/

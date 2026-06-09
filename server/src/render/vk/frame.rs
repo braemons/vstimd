@@ -67,7 +67,7 @@ pub fn render_frame(
         t
     } else if let (Some(pw), true) = (&ctx.present_wait, this_present_id > 1) {
         unsafe {
-            match pw.wait_for_present(ctx.swapchain, this_present_id - 1, 3_000_000_000) {
+            match pw.wait_for_present(ctx.swapchain, this_present_id - 1, 100_000_000) {
                 Ok(()) => {}
                 Err(vk::Result::TIMEOUT) => {
                     log::warn!(
@@ -97,6 +97,8 @@ pub fn render_frame(
         if sc.pending_flip {
             sc.apply_flip();
         }
+
+
         sc.screen_size = Some(screen_size);
         sc.frame_rate = fps;
         if sc.last_uploaded_size != screen_size {

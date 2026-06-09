@@ -1,0 +1,55 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/color.proto";
+
+// ── Generic stimulus mutations (all types) ────────────────────────────────────
+
+// Stimulus command: show or hide a stimulus.
+message SetEnabledRequest {
+  bool enabled = 1;
+}
+
+// Stimulus command: remove a stimulus from the scene.
+message DeleteRequest {}
+
+// Stimulus command: set or clear the human-readable name of a stimulus.
+message SetNameRequest {
+  string name = 1; // empty string clears the name
+}
+
+// Stimulus command: move the centre of a stimulus.
+message SetPositionRequest {
+  float x = 1;
+  float y = 2;
+}
+
+// Stimulus command: set rotation angle (counter-clockwise degrees).
+message SetOrientationRequest {
+  float angle_deg = 1;
+}
+
+// Stimulus command: set fill/body colour.
+message SetFillColorRequest {
+  Color color = 1;
+}
+
+// Stimulus command: set global opacity (0.0 = transparent, 1.0 = opaque).
+message SetAlphaRequest {
+  float opacity = 1;
+}
+
+// Stimulus command: move this stimulus to the top of the draw order (drawn last = on top).
+// The handle is unchanged; only the draw position within the scene changes.
+message BringToFrontRequest {}
+
+// Stimulus command: move this stimulus to the bottom of the draw order (drawn first = behind all others).
+// The handle is unchanged.
+message SendToBackRequest {}
+
+// System command: swap the draw order of two stimuli.
+// Both handles remain unchanged.
+message SwapDrawOrderRequest {
+  uint32 handle_a = 1;
+  uint32 handle_b = 2;
+}

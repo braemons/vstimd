@@ -1,8 +1,20 @@
 fn main() {
     for proto in &[
-        "../proto/vstimd/v1/common.proto",
-        "../proto/vstimd/v1/stimuli_2d.proto",
+        "../proto/vstimd/v1/vec2.proto",
+        "../proto/vstimd/v1/color.proto",
+        "../proto/vstimd/v1/stimuli/stimulus_type.proto",
+        "../proto/vstimd/v1/stimuli/shapes.proto",
+        "../proto/vstimd/v1/stimuli/query.proto",
+        "../proto/vstimd/v1/stimuli/rect.proto",
+        "../proto/vstimd/v1/stimuli/circle.proto",
+        "../proto/vstimd/v1/stimuli/ellipse.proto",
+        "../proto/vstimd/v1/stimuli/grating.proto",
+        "../proto/vstimd/v1/stimuli/text.proto",
+        "../proto/vstimd/v1/stimuli/polygon.proto",
+        "../proto/vstimd/v1/stimuli/shared_set_requests.proto",
         "../proto/vstimd/v1/system.proto",
+        "../proto/vstimd/v1/vtl.proto",
+        "../proto/vstimd/v1/animations.proto",
         "../proto/vstimd/v1/service.proto",
     ] {
         println!("cargo:rerun-if-changed={}", proto);
@@ -11,9 +23,21 @@ fn main() {
     prost_build::Config::new()
         .compile_protos(
             &[
-                "../proto/vstimd/v1/common.proto",
-                "../proto/vstimd/v1/stimuli_2d.proto",
+                "../proto/vstimd/v1/vec2.proto",
+        "../proto/vstimd/v1/color.proto",
+                "../proto/vstimd/v1/stimuli/stimulus_type.proto",
+        "../proto/vstimd/v1/stimuli/shapes.proto",
+        "../proto/vstimd/v1/stimuli/query.proto",
+        "../proto/vstimd/v1/stimuli/rect.proto",
+                "../proto/vstimd/v1/stimuli/circle.proto",
+                "../proto/vstimd/v1/stimuli/ellipse.proto",
+                "../proto/vstimd/v1/stimuli/grating.proto",
+                "../proto/vstimd/v1/stimuli/text.proto",
+                "../proto/vstimd/v1/stimuli/polygon.proto",
+                "../proto/vstimd/v1/stimuli/shared_set_requests.proto",
                 "../proto/vstimd/v1/system.proto",
+                "../proto/vstimd/v1/vtl.proto",
+                "../proto/vstimd/v1/animations.proto",
                 "../proto/vstimd/v1/service.proto",
             ],
             &["../proto/"],

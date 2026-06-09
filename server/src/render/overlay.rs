@@ -1,16 +1,21 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::SystemMetrics;
 use crate::scene::stimulus::ShapeStimulus;
 use crate::scene::{SceneState, Stimulus};
 use crate::timing::{FramePhases, FrameStats};
+use crate::vtl_state::VtlState;
 
 pub use super::system_info::{ClockSource, SystemInfo};
 use super::benchmark::BenchmarkState;
 
+#[derive(Clone, Copy, PartialEq, Default)]
+enum BankFmt { #[default] Dec, Hex, Bin }
+
 pub struct OverlayArgs<'a> {
     pub scene: &'a Arc<RwLock<SceneState>>,
+    pub vtl: Option<&'a Mutex<VtlState>>,
     pub frame_stats: &'a mut FrameStats,
     pub last_phases: FramePhases,
     pub sys: &'a SystemInfo,
@@ -20,7 +25,7 @@ pub struct OverlayArgs<'a> {
 }
 
 pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
-    let OverlayArgs { scene, frame_stats, last_phases, sys, metrics, log_buffer, bench } = args;
+    let OverlayArgs { scene, vtl, frame_stats, last_phases, sys, metrics, log_buffer, bench } = args;
     let last_phases = *last_phases;
     egui::Window::new("System").show(ctx, |ui| {
         ui.label(format!(
@@ -291,5 +296,130 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                     ui.colored_label(color, text);
                 }
             });
+    });
+
+    egui::Window::new("VTL Lines").default_size([420.0, 160.0]).show(ctx, |ui| {
+        let vtl_guard = vtl.and_then(|v| v.try_lock().ok());
+        let Some(ref vtl_st) = vtl_guard else {
+            ui.label(egui::RichText::new("VTL not available").color(egui::Color32::DARK_GRAY));
+            return;
+        };
+        let owner = vtl_st.owner();
+        let n = vtl_st.names.len();
+        if n == 0 {
+            ui.label(egui::RichText::new("(no named lines)").color(egui::Color32::DARK_GRAY));
+        }
+        {
+            // Split into input and output lines.
+            let inputs:  Vec<_> = vtl_st.names.iter().filter(|e| e.direction == vtl::Direction::Input).collect();
+            let outputs: Vec<_> = vtl_st.names.iter().filter(|e| e.direction == vtl::Direction::Output).collect();
+
+            // --- Bank view (integer representation) ---
+            let fmt_id = egui::Id::new("vtl_bank_fmt");
+            let mut fmt: BankFmt = ctx.data(|d| d.get_temp(fmt_id)).unwrap_or_default();
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("Banks").strong());
+                ui.separator();
+                ui.selectable_value(&mut fmt, BankFmt::Dec, "Dec");
+                ui.selectable_value(&mut fmt, BankFmt::Hex, "Hex");
+                ui.selectable_value(&mut fmt, BankFmt::Bin, "Bin");
+            });
+            ctx.data_mut(|d| d.insert_temp(fmt_id, fmt));
+
+            let fmt_val = |val: u64| -> String {
+                match fmt {
+                    BankFmt::Dec => format!("{}", val),
+                    BankFmt::Hex => format!("0x{:016X}", val),
+                    BankFmt::Bin => {
+                        // 64 bits split into 8 groups of 8, MSB first
+                        let s = format!("{:064b}", val);
+                        s.as_bytes().chunks(8).map(|c| std::str::from_utf8(c).unwrap()).collect::<Vec<_>>().join(" ")
+                    }
+                }
+            };
+
+            let n_in  = owner.num_input_banks()  as usize;
+            let n_out = owner.num_output_banks() as usize;
+            egui::Grid::new("vtl_bank_grid").num_columns(3).spacing([8.0, 2.0]).show(ui, |ui| {
+                ui.label(egui::RichText::new("Dir").strong());
+                ui.label(egui::RichText::new("Bank").strong());
+                ui.label(egui::RichText::new("Value").strong());
+                ui.end_row();
+                for b in 0..n_in {
+                    ui.label("In");
+                    ui.label(format!("{}", b));
+                    ui.label(egui::RichText::new(fmt_val(owner.input_state(b))).monospace());
+                    ui.end_row();
+                }
+                for b in 0..n_out {
+                    ui.label("Out");
+                    ui.label(format!("{}", b));
+                    ui.label(egui::RichText::new(fmt_val(owner.output_state(b))).monospace());
+                    ui.end_row();
+                }
+            });
+            ui.separator();
+
+            // --- Per-line detail ---
+            let dot = |ui: &mut egui::Ui, high: bool| {
+                let color = if high { egui::Color32::from_rgb(80, 200, 80) } else { egui::Color32::DARK_GRAY };
+                let (resp, painter) = ui.allocate_painter(egui::vec2(12.0, 12.0), egui::Sense::hover());
+                painter.circle_filled(resp.rect.center(), 5.0, color);
+            };
+
+            if !inputs.is_empty() {
+                ui.label(egui::RichText::new("Inputs").strong());
+                egui::Grid::new("vtl_input_grid").striped(true).num_columns(5).spacing([8.0, 2.0]).show(ui, |ui| {
+                    ui.label(egui::RichText::new("Name").strong());
+                    ui.label(egui::RichText::new("Bank/Bit").strong());
+                    ui.label(egui::RichText::new("Level").strong());
+                    ui.label(egui::RichText::new("Rise/Fall").strong());
+                    ui.label(egui::RichText::new("Fire").strong());
+                    ui.end_row();
+                    for e in &inputs {
+                        let b = e.bank as usize;
+                        let mask = 1u64 << e.bit;
+                        let high  = owner.input_state(b) & mask != 0;
+                        let rise  = owner.peek_input_rise(b) & mask != 0;
+                        let fall  = owner.peek_input_fall(b) & mask != 0;
+                        ui.label(&e.name);
+                        ui.label(format!("{}/{}", e.bank, e.bit));
+                        dot(ui, high);
+                        ui.label(format!("{}/{}", rise as u8, fall as u8));
+                        ui.horizontal(|ui| {
+                            if ui.small_button("↑").on_hover_text("Fire rising edge").clicked() {
+                                owner.set_input_bit(b, e.bit);
+                                owner.set_input_rise(b, mask);
+                            }
+                            if ui.small_button("↓").on_hover_text("Fire falling edge").clicked() {
+                                owner.clear_input_bit(b, e.bit);
+                                owner.set_input_fall(b, mask);
+                            }
+                        });
+                        ui.end_row();
+                    }
+                });
+                ui.add_space(4.0);
+            }
+
+            if !outputs.is_empty() {
+                ui.label(egui::RichText::new("Outputs").strong());
+                egui::Grid::new("vtl_output_grid").striped(true).num_columns(3).spacing([8.0, 2.0]).show(ui, |ui| {
+                    ui.label(egui::RichText::new("Name").strong());
+                    ui.label(egui::RichText::new("Bank/Bit").strong());
+                    ui.label(egui::RichText::new("Level").strong());
+                    ui.end_row();
+                    for e in &outputs {
+                        let b = e.bank as usize;
+                        let mask = 1u64 << e.bit;
+                        let high = owner.output_state(b) & mask != 0;
+                        ui.label(&e.name);
+                        ui.label(format!("{}/{}", e.bank, e.bit));
+                        dot(ui, high);
+                        ui.end_row();
+                    }
+                });
+            }
+        }
     });
 }

@@ -3,7 +3,7 @@ mod init;
 mod input;
 mod vblank;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::BenchmarkState;
@@ -15,6 +15,8 @@ use crate::scene::stimulus::text::{TextFontSystem, TextSwashCache};
 use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, query_local_ip};
 use crate::scene::SceneState;
 use crate::timing::{FramePhases, FrameStats};
+use crate::vtl_state::VtlState;
+extern crate vtl;
 
 use self::display_guard::DisplayGuard;
 use self::input::{AppKey, InputState};
@@ -28,9 +30,12 @@ use self::vblank::DrmVblank;
 /// after Vulkan has released DRM master.
 pub struct DrmRenderState {
     rs: RenderState,
+    vtl: Option<Arc<Mutex<VtlState>>>,
     input: InputState,
     drm_vblank: Option<DrmVblank>,
     display_info: StimulusDisplayInfo,
+    /// Animation output bits accumulated this frame; committed at [A] next frame.
+    pending_outputs: [u64; vtl::MAX_BANKS],
     /// Holds the CRTC snapshot; dropped last to restore the console after
     /// Vulkan teardown.  `#[allow(dead_code)]` silences the "never read"
     /// warning — the value is consumed by its `Drop` impl.
@@ -87,7 +92,7 @@ fn check_device_permissions() {
 }
 
 impl DrmRenderState {
-    pub fn new(scene: Arc<RwLock<SceneState>>, log_buffer: LogBuffer) -> Self {
+    pub fn new(scene: Arc<RwLock<SceneState>>, vtl: Option<Arc<Mutex<VtlState>>>, log_buffer: LogBuffer) -> Self {
         check_device_permissions();
 
         // Snapshot display state before Vulkan takes DRM master.
@@ -167,9 +172,11 @@ impl DrmRenderState {
 
         Self {
             rs,
+            vtl,
             input: InputState::new(),
             drm_vblank,
             display_info,
+            pending_outputs: [0; vtl::MAX_BANKS],
             display_guard,
         }
     }
@@ -277,12 +284,32 @@ impl DrmRenderState {
                 .then(|| self.build_egui_raw_input(nav_events));
 
             // 3. Wait for the next vblank (blocking kernel scanout ioctl).
+            //    When this returns, the previous frame is confirmed visible on
+            //    the display.  This is the canonical "frame start" boundary.
             let screen_clock = self.wait_vblank();
+
+            // [A] Commit previous frame's animation outputs; poll inputs.
+            if let Some(vtl) = &self.vtl {
+                let (input_edges, output_snapshot) = {
+                    let mut v = vtl.lock().unwrap();
+                    v.write_outputs(&self.pending_outputs);
+                    let edges = v.poll();
+                    let snap  = v.output_snapshot();
+                    (edges, snap)
+                };
+                self.pending_outputs = [0; vtl::MAX_BANKS];
+                self.rs.scene.write().unwrap().advance_animations(
+                    &input_edges, &output_snapshot, &mut self.pending_outputs,
+                );
+            }
 
             // 4. Render: build overlay UI, tessellate scene, record Vulkan
             //    commands, submit to GPU, present to display.
+            //    The frame prepared here will become visible at the next vblank.
             let sys_info = self.sys_info();
-            self.rs.render_one_frame(screen_clock, egui_raw_input, &sys_info);
+            self.rs.render_one_frame(screen_clock, egui_raw_input, &sys_info, self.vtl.as_deref());
+
+            // pending_outputs is already saved for commit at next [A].
         }
         // When the loop exits, `self` is consumed and fields drop in
         // declaration order: `rs` (Vulkan teardown) → `input` → `drm_vblank`

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from ._colors import normalize_color
-from ._types import ColorInput, Vec2
+from ..._handles import StimulusHandle
+from ._colors import to_color
+from ._types import PsychoPyColor, PsychoPyVec2
 from ._units import to_pixels
 from .window import Window
 from vstimd.stimuli.stimuli_models import Color as StimulusColor, Vec2 as StimulusVec2
-from vstimd.stimuli.grating_models import (
+from vstimd.stimuli._grating import (
     GratingMask,
     GratingTexture,
     _MASK_TO_PROTO,
@@ -53,16 +54,16 @@ class GratingStim:
         tex: GratingTexture | str = GratingTexture.SIN,
         mask: GratingMask | str | None = None,
         units: str = "",
-        pos: Vec2 = (0.0, 0.0),
-        size: Vec2 | float | None = None,
+        pos: PsychoPyVec2 = (0.0, 0.0),
+        size: PsychoPyVec2 | float | None = None,
         sf: float = 0.05,
         ori: float = 0.0,
         phase: float | tuple[float, float] = 0.0,
-        color: ColorInput = "white",
+        color: PsychoPyColor = "white",
         colorSpace: str = "rgb",
         contrast: float = 1.0,
         opacity: float = 1.0,
-        backColor: ColorInput = "black",
+        backColor: PsychoPyColor = "black",
         # drift (vstimd extension — not in PsychoPy)
         drift_speed: float = 0.0,
         drift_decoupled: bool = False,
@@ -95,7 +96,7 @@ class GratingStim:
                 f"GratingStim: mask={mask!r} is not supported. "
                 f"Supported values: {[e.value for e in GratingMask]} or None."
             )
-        if hasattr(phase, "__len__") and len(phase) > 1 and float(phase[1]) != 0.0:  # type: ignore[index]
+        if isinstance(phase, tuple) and len(phase) > 1 and float(phase[1]) != 0.0:
             raise NotImplementedError(
                 "GratingStim: two-element phase (x, y) is not supported — only the x component is used. "
                 "Pass a scalar or ensure phase[1] == 0."
@@ -136,14 +137,14 @@ class GratingStim:
         self._height = height
 
         # Phase: PsychoPy accepts (x, y) but we use only one axis.
-        self._phase = float(phase[0]) if hasattr(phase, "__len__") else float(phase)  # type: ignore[index]
+        self._phase = float(phase[0]) if isinstance(phase, tuple) else float(phase)
         self._pos: tuple[float, float] = (float(pos[0]), float(pos[1]))
         self._ori = float(ori)
         self._sf = float(sf)
         self._contrast = float(contrast)
         self._opacity = float(opacity)
-        self._color: ColorInput = color
-        self._back_color: ColorInput = backColor
+        self._color: PsychoPyColor = color
+        self._back_color: PsychoPyColor = backColor
         self._drift_speed = float(drift_speed)
         self._drift_decoupled = bool(drift_decoupled)
         self._drift_angle = float(drift_angle)
@@ -158,18 +159,15 @@ class GratingStim:
         ph = self._scalar_px(self._height)
         # sf is in cycles/unit — convert to cycles/pixel
         psf = self._sf_to_px(self._sf)
-        fore_rgba = normalize_color(color, colorSpace, 1.0) or (1.0, 1.0, 1.0, 1.0)
-        back_rgba = normalize_color(backColor, colorSpace, 1.0) or (0.0, 0.0, 0.0, 1.0)
-
-        self._handle: int = win._conn.stimuli.create_grating(
+        self._handle: StimulusHandle = win._conn.stimuli.grating.create_grating(
             pos=StimulusVec2(px, py),
             width=pw, height=ph,
             sf=psf,
             phase=self._phase,
             angle=self._ori,
             contrast=self._contrast,
-            fore_color=StimulusColor(fore_rgba[0], fore_rgba[1], fore_rgba[2], fore_rgba[3]),
-            back_color=StimulusColor(back_rgba[0], back_rgba[1], back_rgba[2], back_rgba[3]),
+            fore_color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0),
+            back_color=to_color(backColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0),
             opacity=self._opacity,
             waveform=waveform_enum,
             mask=mask_enum,
@@ -187,7 +185,7 @@ class GratingStim:
     def _effective_units(self) -> str:
         return self._win._resolve_units(self._units)
 
-    def _to_px(self, pos: Vec2) -> tuple[float, float]:
+    def _to_px(self, pos: PsychoPyVec2) -> tuple[float, float]:
         result = to_pixels(pos, self._effective_units(), self._win.size, self._win.monitor)
         assert isinstance(result, tuple)
         return result
@@ -230,12 +228,12 @@ class GratingStim:
         return self._pos
 
     @pos.setter
-    def pos(self, value: Vec2) -> None:
+    def pos(self, value: PsychoPyVec2) -> None:
         self._pos = (float(value[0]), float(value[1]))
         px, py = self._to_px(self._pos)
-        self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, px, py)
+        self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, StimulusVec2(px, py))
 
-    def setPos(self, value: Vec2, operation: str = "", log: bool | None = None) -> None:
+    def setPos(self, value: PsychoPyVec2, operation: str = "", log: bool | None = None) -> None:
         if operation == "+":
             value = (self._pos[0] + value[0], self._pos[1] + value[1])
         elif operation == "-":
@@ -268,7 +266,7 @@ class GratingStim:
     def sf(self, value: float) -> None:
         self._sf = float(value)
         psf = self._sf_to_px(self._sf)
-        self._win._dispatch(self._win._conn.stimuli.set_grating_sf, self._handle, psf)
+        self._win._dispatch(self._win._conn.stimuli.grating.set_sf, self._handle, psf)
 
     def setSF(self, value: float, log: bool | None = None) -> None:
         self.sf = value
@@ -279,8 +277,8 @@ class GratingStim:
 
     @phase.setter
     def phase(self, value: float | tuple[float, float]) -> None:
-        self._phase = float(value[0]) if hasattr(value, "__len__") else float(value)  # type: ignore[index]
-        self._win._dispatch(self._win._conn.stimuli.set_grating_phase, self._handle, self._phase)
+        self._phase = float(value[0]) if isinstance(value, tuple) else float(value)
+        self._win._dispatch(self._win._conn.stimuli.grating.set_phase, self._handle, self._phase)
 
     def setPhase(self, value: float, operation: str = "", log: bool | None = None) -> None:
         if operation == "+":
@@ -296,7 +294,7 @@ class GratingStim:
     @contrast.setter
     def contrast(self, value: float) -> None:
         self._contrast = float(value)
-        self._win._dispatch(self._win._conn.stimuli.set_grating_contrast, self._handle, self._contrast)
+        self._win._dispatch(self._win._conn.stimuli.grating.set_contrast, self._handle, self._contrast)
 
     def setContrast(self, value: float, log: bool | None = None) -> None:
         self.contrast = value
@@ -308,7 +306,7 @@ class GratingStim:
     @opacity.setter
     def opacity(self, value: float) -> None:
         self._opacity = float(value)
-        self._win._dispatch(self._win._conn.stimuli.set_grating_opacity, self._handle, self._opacity)
+        self._win._dispatch(self._win._conn.stimuli.grating.set_opacity, self._handle, self._opacity)
 
     def setOpacity(self, value: float, log: bool | None = None) -> None:
         self.opacity = value
@@ -316,21 +314,21 @@ class GratingStim:
     # ── Colour (foreground / peak) ────────────────────────────────────────────
 
     @property
-    def color(self) -> ColorInput:
+    def color(self) -> PsychoPyColor:
         return self._color
 
     @color.setter
-    def color(self, value: ColorInput) -> None:
+    def color(self, value: PsychoPyColor) -> None:
         self._color = value
         self._resend_fore_color()
 
     # PsychoPy new-API alias
     @property
-    def foreColor(self) -> ColorInput:
+    def foreColor(self) -> PsychoPyColor:
         return self._color
 
     @foreColor.setter
-    def foreColor(self, value: ColorInput) -> None:
+    def foreColor(self, value: PsychoPyColor) -> None:
         self.color = value
 
     @property
@@ -346,7 +344,7 @@ class GratingStim:
             )
         self._color_space = value
 
-    def setColor(self, value: ColorInput, colorSpace: str | None = None, log: bool | None = None) -> None:
+    def setColor(self, value: PsychoPyColor, colorSpace: str | None = None, log: bool | None = None) -> None:
         if colorSpace is not None:
             if colorSpace not in ("rgb", "rgb255", "rgb1", ""):
                 raise NotImplementedError(
@@ -356,28 +354,27 @@ class GratingStim:
             self._color_space = colorSpace
         self.color = value
 
-    def setForeColor(self, value: ColorInput, colorSpace: str | None = None, log: bool | None = None) -> None:
+    def setForeColor(self, value: PsychoPyColor, colorSpace: str | None = None, log: bool | None = None) -> None:
         self.setColor(value, colorSpace=colorSpace, log=log)
 
     def _resend_fore_color(self) -> None:
-        rgba = normalize_color(self._color, self._color_space, 1.0) or (1.0, 1.0, 1.0, 1.0)
         self._win._dispatch(
-            self._win._conn.stimuli.set_grating_fore_color,
-            self._handle, rgba[0], rgba[1], rgba[2], rgba[3],
+            self._win._conn.stimuli.grating.set_fore_color,
+            self._handle, to_color(self._color, self._color_space, 1.0) or StimulusColor(1.0, 1.0, 1.0),
         )
 
     # ── Colour (background / trough) ─────────────────────────────────────────
 
     @property
-    def backColor(self) -> ColorInput:
+    def backColor(self) -> PsychoPyColor:
         return self._back_color
 
     @backColor.setter
-    def backColor(self, value: ColorInput) -> None:
+    def backColor(self, value: PsychoPyColor) -> None:
         self._back_color = value
         self._resend_back_color()
 
-    def setBackColor(self, value: ColorInput, colorSpace: str | None = None, log: bool | None = None) -> None:
+    def setBackColor(self, value: PsychoPyColor, colorSpace: str | None = None, log: bool | None = None) -> None:
         if colorSpace is not None:
             if colorSpace not in ("rgb", "rgb255", "rgb1", ""):
                 raise NotImplementedError(
@@ -388,10 +385,9 @@ class GratingStim:
         self.backColor = value
 
     def _resend_back_color(self) -> None:
-        rgba = normalize_color(self._back_color, self._color_space, 1.0) or (0.0, 0.0, 0.0, 1.0)
         self._win._dispatch(
-            self._win._conn.stimuli.set_grating_back_color,
-            self._handle, rgba[0], rgba[1], rgba[2], rgba[3],
+            self._win._conn.stimuli.grating.set_back_color,
+            self._handle, to_color(self._back_color, self._color_space, 1.0) or StimulusColor(0.0, 0.0, 0.0),
         )
 
     # ── Drift (vstimd extension) ──────────────────────────────────────────────
@@ -404,7 +400,7 @@ class GratingStim:
     def drift_speed(self, value: float) -> None:
         self._drift_speed = float(value)
         self._win._dispatch(
-            self._win._conn.stimuli.set_grating_drift_speed, self._handle, self._drift_speed
+            self._win._conn.stimuli.grating.set_drift_speed, self._handle, self._drift_speed
         )
 
     @property
@@ -415,7 +411,7 @@ class GratingStim:
     def drift_decoupled(self, value: bool) -> None:
         self._drift_decoupled = bool(value)
         self._win._dispatch(
-            self._win._conn.stimuli.set_grating_drift_decoupled, self._handle, self._drift_decoupled
+            self._win._conn.stimuli.grating.set_drift_decoupled, self._handle, self._drift_decoupled
         )
 
     @property
@@ -426,5 +422,5 @@ class GratingStim:
     def drift_angle(self, value: float) -> None:
         self._drift_angle = float(value)
         self._win._dispatch(
-            self._win._conn.stimuli.set_grating_drift_angle, self._handle, self._drift_angle
+            self._win._conn.stimuli.grating.set_drift_angle, self._handle, self._drift_angle
         )

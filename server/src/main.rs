@@ -1,9 +1,10 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(target_os = "linux")]
 use vstimd::render::DrmRenderState;
 use vstimd::render::{RenderTarget, WindowMode, WinitApp};
 use vstimd::scene::SceneState;
+use vstimd::vtl_state::VtlState;
 
 fn main() {
     let args = parse_args();
@@ -17,11 +18,27 @@ fn main() {
     let log_buffer = vstimd::log_buffer::install(env_logger, server_start);
 
     let scene = Arc::new(RwLock::new(SceneState::new()));
-    let _zmq = vstimd::ipc::spawn_zmq_thread(scene.clone(), "tcp://0.0.0.0:5555");
+
+    // Create VTL shared memory on Linux. The Arc<Mutex<>> lets both the ZMQ
+    // thread (software triggers, naming) and the render backend (frame polling)
+    // access it safely.
+    #[cfg(target_os = "linux")]
+    let vtl: Option<Arc<Mutex<VtlState>>> = vtl::VtlOwner::create("/vstimd_vtl", 4, 1)
+        .map(|owner| Arc::new(Mutex::new(VtlState::new(owner))))
+        .map_err(|e| log::warn!("vtl: failed to create shm segment: {e}"))
+        .ok();
+    #[cfg(not(target_os = "linux"))]
+    let vtl: Option<Arc<Mutex<VtlState>>> = None;
+
+    if vtl.is_some() {
+        log::info!("vtl: shared memory segment created at /vstimd_vtl");
+    }
+
+    let _zmq = vstimd::ipc::spawn_zmq_thread(scene.clone(), vtl.clone(), "tcp://0.0.0.0:5555");
 
     match args.render_target {
         #[cfg(target_os = "linux")]
-        RenderTarget::Drm => DrmRenderState::new(scene, log_buffer).run_loop(),
+        RenderTarget::Drm => DrmRenderState::new(scene, vtl, log_buffer).run_loop(),
         #[cfg(not(target_os = "linux"))]
         RenderTarget::Drm => {
             log::error!("DRM/console mode is only available on Linux");
@@ -33,12 +50,30 @@ fn main() {
                 std::process::exit(1);
             });
             event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-            let mut app = WinitApp::new(scene, window_mode, log_buffer);
+            let mut app = WinitApp::new(scene, vtl, window_mode, log_buffer);
             event_loop.run_app(&mut app).unwrap();
         }
         RenderTarget::Null => {
-            log::info!("vstimd: null renderer — ZMQ server running, no display");
-            std::thread::park();
+            log::info!("vstimd: null renderer — ZMQ server + animation loop running, no display");
+            let frame_period = {
+                let s = scene.read().unwrap();
+                std::time::Duration::from_secs_f32(1.0 / s.frame_rate)
+            };
+            let mut output_pending = [0u64; vtl::MAX_BANKS];
+            loop {
+                let t0 = std::time::Instant::now();
+                let edges = vtl.as_ref()
+                    .and_then(|v| v.lock().ok().map(|mut g| g.poll()))
+                    .unwrap_or_default();
+                {
+                    let mut s = scene.write().unwrap();
+                    let output_snapshot = [0u64; vtl::MAX_BANKS];
+                    s.advance_animations(&edges, &output_snapshot, &mut output_pending);
+                }
+                if let Some(remaining) = frame_period.checked_sub(t0.elapsed()) {
+                    std::thread::sleep(remaining);
+                }
+            }
         }
     }
 }

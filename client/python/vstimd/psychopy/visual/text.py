@@ -1,8 +1,10 @@
 """PsychoPy-compatible TextBox2 stimulus."""
 from __future__ import annotations
 
-from ._colors import normalize_color
-from ._types import ColorInput, Vec2
+from ..._handles import StimulusHandle
+from ...stimuli.stimuli_models import Color as StimulusColor, LanguageStyle, Vec2 as StimulusVec2
+from ._colors import to_color
+from ._types import PsychoPyColor, PsychoPyVec2
 from ._units import to_pixels
 from .window import Window
 
@@ -30,10 +32,10 @@ class TextBox2:
     * ``autoLog``, ``depth``, ``draggable``
     """
 
-    _LANGUAGE_STYLE_MAP = {
-        "ltr": 1,
-        "rtl": 2,
-        "arabic": 3,
+    _LANGUAGE_STYLE_MAP: dict[str, LanguageStyle] = {
+        "ltr":    LanguageStyle.LTR,
+        "rtl":    LanguageStyle.RTL,
+        "arabic": LanguageStyle.ARABIC,
     }
 
     def __init__(
@@ -41,15 +43,15 @@ class TextBox2:
         win: Window,
         text: str = "",
         font: str = "",
-        pos: Vec2 = (0.0, 0.0),
+        pos: PsychoPyVec2 = (0.0, 0.0),
         units: str = "",
         letterHeight: float | None = None,
-        size: Vec2 | None = None,
-        color: ColorInput = "white",
+        size: PsychoPyVec2 | None = None,
+        color: PsychoPyColor = "white",
         colorSpace: str = "rgb",
-        fillColor: ColorInput = None,
+        fillColor: PsychoPyColor = None,
         fillColorSpace: str = "rgb",
-        borderColor: ColorInput = None,
+        borderColor: PsychoPyColor = None,
         borderWidth: float = 2.0,
         opacity: float = 1.0,
         anchor: str = "center",
@@ -75,8 +77,8 @@ class TextBox2:
 
         self._pos: tuple[float, float] = (float(pos[0]), float(pos[1]))
         self._text = text
-        self._color: ColorInput = color
-        self._fill_color: ColorInput = fillColor
+        self._color: PsychoPyColor = color
+        self._fill_color: PsychoPyColor = fillColor
         self._opacity = float(opacity)
         self._anchor = anchor
         self._auto_draw = False
@@ -104,20 +106,18 @@ class TextBox2:
         px, py = to_pixels(self._pos, self._effective_units(), win.size, win.monitor)
         assert isinstance(px, float) and isinstance(py, float)
 
-        rgba = normalize_color(color, colorSpace, opacity) or (1.0, 1.0, 1.0, opacity)
-        fill = normalize_color(fillColor, fillColorSpace, opacity) or (0.0, 0.0, 0.0, 0.0)
-        lang = self._LANGUAGE_STYLE_MAP.get(languageStyle.lower(), 1)
+        lang = self._LANGUAGE_STYLE_MAP.get(languageStyle.lower(), LanguageStyle.LTR)
 
-        self._handle: int = win._conn.stimuli.create_text(
+        self._handle: StimulusHandle = win._conn.stimuli.text.create_text(
             text=text,
-            x=px, y=py,
+            pos=StimulusVec2(px, py),
             box_width=self._box_w,
             box_height=self._box_h,
             letter_height=self._letter_height_px,
             font=font,
             anchor=anchor,
-            r=rgba[0], g=rgba[1], b=rgba[2], a=rgba[3],
-            fill_r=fill[0], fill_g=fill[1], fill_b=fill[2], fill_a=fill[3],
+            color=to_color(color, colorSpace, opacity) or StimulusColor(1.0, 1.0, 1.0, opacity),
+            fill_color=to_color(fillColor, fillColorSpace, opacity) or StimulusColor(0.0, 0.0, 0.0, 0.0),
             language_style=lang,
             name=name or "",
         )
@@ -156,7 +156,7 @@ class TextBox2:
     @text.setter
     def text(self, value: str) -> None:
         self._text = str(value)
-        self._win._dispatch(self._win._conn.stimuli.set_text, self._handle, self._text)
+        self._win._dispatch(self._win._conn.stimuli.text.set_text, self._handle, self._text)
 
     def setText(self, value: str, log: bool | None = None) -> None:
         self.text = value
@@ -164,24 +164,23 @@ class TextBox2:
     # ── color ─────────────────────────────────────────────────────────────────
 
     @property
-    def color(self) -> ColorInput:
+    def color(self) -> PsychoPyColor:
         return self._color
 
     @color.setter
-    def color(self, value: ColorInput) -> None:
+    def color(self, value: PsychoPyColor) -> None:
         self._color = value
         self._resend_color()
 
-    def setColor(self, value: ColorInput, colorSpace: str | None = None, log: bool | None = None) -> None:
+    def setColor(self, value: PsychoPyColor, colorSpace: str | None = None, log: bool | None = None) -> None:
         if colorSpace is not None:
             self._color_space = colorSpace
         self.color = value
 
     def _resend_color(self) -> None:
-        rgba = normalize_color(self._color, self._color_space, self._opacity) or (1.0, 1.0, 1.0, self._opacity)
         self._win._dispatch(
-            self._win._conn.stimuli.set_text_color,
-            self._handle, rgba[0], rgba[1], rgba[2], rgba[3],
+            self._win._conn.stimuli.text.set_text_color,
+            self._handle, to_color(self._color, self._color_space, self._opacity) or StimulusColor(1.0, 1.0, 1.0, self._opacity),
         )
 
     # ── opacity ───────────────────────────────────────────────────────────────
@@ -205,13 +204,13 @@ class TextBox2:
         return self._pos
 
     @pos.setter
-    def pos(self, value: Vec2) -> None:
+    def pos(self, value: PsychoPyVec2) -> None:
         self._pos = (float(value[0]), float(value[1]))
         px, py = to_pixels(self._pos, self._effective_units(), self._win.size, self._win.monitor)
         assert isinstance(px, float) and isinstance(py, float)
-        self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, px, py)
+        self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, StimulusVec2(px, py))
 
-    def setPos(self, value: Vec2, operation: str = "", log: bool | None = None) -> None:
+    def setPos(self, value: PsychoPyVec2, operation: str = "", log: bool | None = None) -> None:
         if operation == "+":
             value = (self._pos[0] + value[0], self._pos[1] + value[1])
         elif operation == "-":

@@ -5,11 +5,31 @@ The server always works in pixels with origin at screen centre, Y-up.
 
 from __future__ import annotations
 
-from ._types import MonitorProtocol, Vec2
+from typing import overload
+
+from ._types import MonitorProtocol, PsychoPyVec2
+
+
+@overload
+def to_pixels(
+    value: float,
+    units: str,
+    win_size: tuple[int, int],
+    monitor: MonitorProtocol | None = None,
+) -> float: ...
+
+
+@overload
+def to_pixels(
+    value: PsychoPyVec2,
+    units: str,
+    win_size: tuple[int, int],
+    monitor: MonitorProtocol | None = None,
+) -> tuple[float, float]: ...
 
 
 def to_pixels(
-    value: float | Vec2,
+    value: float | PsychoPyVec2,
     units: str,
     win_size: tuple[int, int],
     monitor: MonitorProtocol | None = None,

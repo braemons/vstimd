@@ -1,4 +1,4 @@
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::BenchmarkState;
@@ -12,6 +12,7 @@ use crate::render::vk::{
 use crate::scene::stimulus::text::{TextFontSystem, TextSwashCache};
 use crate::scene::SceneState;
 use crate::timing::{FramePhases, FrameStats, FrameTick};
+use crate::vtl_state::VtlState;
 
 /// Vulkan rendering resources and per-frame bookkeeping shared between the DRM
 /// and winit backends.
@@ -92,6 +93,7 @@ impl RenderState {
         screen_clock: Option<std::time::Instant>,
         egui_raw_input: Option<egui::RawInput>,
         sys_info: &SystemInfo,
+        vtl: Option<&Mutex<VtlState>>,
     ) -> (Option<FrameTick>, Option<egui::PlatformOutput>) {
         let (pipe, grate) = if self.wireframe {
             (&self.wireframe_pipeline, &self.wireframe_grating)
@@ -113,6 +115,7 @@ impl RenderState {
             let output = self.egui_ctx.run_ui(raw_input, |ctx| {
                 build_overlay_ui(ctx, &mut OverlayArgs {
                     scene: &self.scene,
+                    vtl,
                     frame_stats: &mut self.frame_stats,
                     last_phases: phases,
                     sys: sys_info,
