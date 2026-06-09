@@ -11,6 +11,7 @@ from .stimuli_models import (
     Vec2,
 )
 from .grating_models import GratingMask, GratingParams, GratingTexture
+from vstimd._handles import StimulusHandle
 
 __all__ = [
     "StimuliClient",
@@ -22,6 +23,7 @@ __all__ = [
     "GratingParams",
     "GratingTexture",
     "RectParams",
+    "StimulusHandle",
     "StimulusInfo",
     "StimulusParams",
     "StimulusType",

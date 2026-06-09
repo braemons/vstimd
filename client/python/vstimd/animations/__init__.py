@@ -6,10 +6,12 @@ from ._models import (
     FinalAction,
     VtlEdge,
 )
+from vstimd._handles import AnimationHandle
 
 __all__ = [
     "AnimationClient",
     "AnimationDetails",
+    "AnimationHandle",
     "AnimationInfo",
     "AnimationState",
     "FinalAction",

@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 from typing import Callable, Optional, Union
 
+from vstimd._handles import AnimationHandle, StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import animations_pb2, vtl_pb2
 from ._models import AnimationDetails, AnimationInfo, AnimationState, FinalAction, VtlEdge
@@ -15,10 +16,10 @@ _FpsGetter = Callable[[], float]
 VtlHandle = Union[tuple[int, int], str]
 
 # A stimulus or list of stimuli.
-Stimuli = Union[int, list[int]]
+Stimuli = Union[StimulusHandle, list[StimulusHandle]]
 
 
-def _to_stimuli(s: Stimuli) -> list[int]:
+def _to_stimuli(s: Stimuli) -> list[StimulusHandle]:
     return [s] if isinstance(s, int) else list(s)
 
 
@@ -79,21 +80,21 @@ class AnimationClient:
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    def arm(self, handle: int) -> None:
+    def arm(self, handle: AnimationHandle) -> None:
         """Arm an animation (IDLE → ARMED or RUNNING for free-running types)."""
         self._send(service_pb2.Request(
             system=_sys(),
             arm_animation=animations_pb2.ArmAnimationRequest(handle=handle),
         ))
 
-    def disarm(self, handle: int) -> None:
+    def disarm(self, handle: AnimationHandle) -> None:
         """Disarm an animation (returns it to IDLE)."""
         self._send(service_pb2.Request(
             system=_sys(),
             disarm_animation=animations_pb2.DisarmAnimationRequest(handle=handle),
         ))
 
-    def delete(self, handle: int) -> None:
+    def delete(self, handle: AnimationHandle) -> None:
         """Delete an animation."""
         self._send(service_pb2.Request(
             system=_sys(),
@@ -108,7 +109,7 @@ class AnimationClient:
         ))
         return [
             AnimationInfo(
-                handle=a.handle,
+                handle=AnimationHandle(a.handle),
                 name=a.name,
                 state=AnimationState(a.state),
                 type_name=a.type_name,
@@ -116,7 +117,7 @@ class AnimationClient:
             for a in resp.animation_list.animations
         ]
 
-    def query(self, handle: int) -> AnimationDetails:
+    def query(self, handle: AnimationHandle) -> AnimationDetails:
         """Return the full configuration and current state of an animation."""
         resp = self._send(service_pb2.Request(
             system=_sys(),
@@ -126,11 +127,11 @@ class AnimationClient:
         p = r.params
         type_name = p.WhichOneof("body") or "unknown"
         return AnimationDetails(
-            handle=r.handle,
+            handle=AnimationHandle(r.handle),
             name=p.name,
             state=AnimationState(r.state),
             type_name=type_name,
-            stimuli=tuple(p.stimuli),
+            stimuli=tuple(StimulusHandle(s) for s in p.stimuli),
             final_action=FinalAction(p.final_action_mask),
         )
 
@@ -170,7 +171,7 @@ class AnimationClient:
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
         start_edge: VtlEdge = VtlEdge.RISING,
-    ) -> int:
+    ) -> AnimationHandle:
         """Mirror stimulus enabled state to the level of an input trigger line."""
         req = self._make_req(
             stimuli, {
@@ -198,7 +199,7 @@ class AnimationClient:
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
         start_edge: VtlEdge = VtlEdge.RISING,
-    ) -> int:
+    ) -> AnimationHandle:
         """Set stimulus enabled once when a trigger edge fires."""
         req = self._make_req(
             stimuli, {
@@ -225,7 +226,7 @@ class AnimationClient:
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
         start_edge: VtlEdge = VtlEdge.RISING,
-    ) -> int:
+    ) -> AnimationHandle:
         """Enable stimuli for the given duration.
 
         If ``start_trigger`` is given, waits for that edge before starting;
@@ -259,7 +260,7 @@ class AnimationClient:
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
         start_edge: VtlEdge = VtlEdge.RISING,
-    ) -> int:
+    ) -> AnimationHandle:
         """Flicker stimuli on/off. Omit ``total_*`` to run forever.
 
         ``start_on_phase=False`` starts in the off-phase instead of the on-phase.
@@ -291,7 +292,7 @@ class AnimationClient:
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
         start_edge: VtlEdge = VtlEdge.RISING,
-    ) -> int:
+    ) -> AnimationHandle:
         """Move stimulus through a sequence of 2-D positions, one per frame.
 
         ``x`` and ``y`` must have the same length. The animation completes after
@@ -321,7 +322,7 @@ class AnimationClient:
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
         start_edge: VtlEdge = VtlEdge.RISING,
-    ) -> int:
+    ) -> AnimationHandle:
         """Move stimulus along piecewise-linear waypoints at a constant speed.
 
         ``x`` and ``y`` must have the same length and at least 2 entries.
@@ -356,7 +357,7 @@ class AnimationClient:
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
         start_edge: VtlEdge = VtlEdge.RISING,
-    ) -> int:
+    ) -> AnimationHandle:
         """Read stimulus position from a POSIX shared memory float array each frame."""
         req = self._make_req(
             stimuli, {
@@ -374,6 +375,6 @@ class AnimationClient:
 
     # ── Internal ──────────────────────────────────────────────────────────────
 
-    def _create(self, proto_req: animations_pb2.CreateAnimationRequest) -> int:
+    def _create(self, proto_req: animations_pb2.CreateAnimationRequest) -> AnimationHandle:
         resp = self._send(service_pb2.Request(system=_sys(), create_animation=proto_req))
-        return resp.handle
+        return AnimationHandle(resp.handle)

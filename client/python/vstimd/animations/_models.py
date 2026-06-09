@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import IntEnum, IntFlag
 
+from vstimd._handles import AnimationHandle, StimulusHandle
+
 
 class AnimationState(IntEnum):
     IDLE = 0
@@ -28,7 +30,7 @@ class FinalAction(IntFlag):
 
 @dataclass(frozen=True)
 class AnimationInfo:
-    handle: int
+    handle: AnimationHandle
     name: str
     state: AnimationState
     type_name: str
@@ -36,9 +38,9 @@ class AnimationInfo:
 
 @dataclass(frozen=True)
 class AnimationDetails:
-    handle: int
+    handle: AnimationHandle
     name: str
     state: AnimationState
     type_name: str
-    stimuli: tuple[int, ...]
+    stimuli: tuple[StimulusHandle, ...]
     final_action: FinalAction

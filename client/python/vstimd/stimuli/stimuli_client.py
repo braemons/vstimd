@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Callable
 
+from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import vec2_pb2, color_pb2
 from vstimd._proto.vstimd.v1.stimuli import (
@@ -36,7 +37,7 @@ class StimuliClient:
         a: float = 1.0,
         name: str = "",
         id: str = "",
-    ) -> int:
+    ) -> StimulusHandle:
         """Create a rectangle stimulus and return its handle."""
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
@@ -49,7 +50,7 @@ class StimuliClient:
                 id=id,
             ),
         )
-        return self._send(req).handle
+        return StimulusHandle(self._send(req).handle)
 
     def create_circle(
         self,
@@ -63,7 +64,7 @@ class StimuliClient:
         a: float = 1.0,
         name: str = "",
         id: str = "",
-    ) -> int:
+    ) -> StimulusHandle:
         """Create a circle stimulus and return its handle."""
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
@@ -75,7 +76,7 @@ class StimuliClient:
                 id=id,
             ),
         )
-        return self._send(req).handle
+        return StimulusHandle(self._send(req).handle)
 
     def create_ellipse(
         self,
@@ -91,7 +92,7 @@ class StimuliClient:
         a: float = 1.0,
         name: str = "",
         id: str = "",
-    ) -> int:
+    ) -> StimulusHandle:
         """Create an ellipse stimulus and return its handle."""
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
@@ -105,7 +106,7 @@ class StimuliClient:
                 id=id,
             ),
         )
-        return self._send(req).handle
+        return StimulusHandle(self._send(req).handle)
 
     def create_grating(
         self,
@@ -128,7 +129,7 @@ class StimuliClient:
         drift_angle: float = 0.0,
         name: str = "",
         id: str = "",
-    ) -> int:
+    ) -> StimulusHandle:
         """Create a grating stimulus and return its handle.
 
         The grating interpolates between back_color (carrier = -1) and fore_color
@@ -161,7 +162,7 @@ class StimuliClient:
                 id=id,
             ),
         )
-        return self._send(req).handle
+        return StimulusHandle(self._send(req).handle)
 
     def create_text(
         self,
@@ -185,7 +186,7 @@ class StimuliClient:
         language_style: int = 0,
         name: str = "",
         id: str = "",
-    ) -> int:
+    ) -> StimulusHandle:
         """Create a text stimulus and return its handle."""
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
@@ -203,18 +204,18 @@ class StimuliClient:
                 id=id,
             ),
         )
-        return self._send(req).handle
+        return StimulusHandle(self._send(req).handle)
 
     # ── Text-specific mutations ───────────────────────────────────────────────
 
-    def set_text(self, handle: int, text: str) -> None:
+    def set_text(self, handle: StimulusHandle, text: str) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_text=text_pb2.SetTextRequest(text=text),
         )
         self._send(req)
 
-    def set_text_color(self, handle: int, r: float, g: float, b: float, a: float = 1.0) -> None:
+    def set_text_color(self, handle: StimulusHandle, r: float, g: float, b: float, a: float = 1.0) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_text_color=text_pb2.SetTextColorRequest(
@@ -225,7 +226,7 @@ class StimuliClient:
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    def set_name(self, handle: int, name: str) -> None:
+    def set_name(self, handle: StimulusHandle, name: str) -> None:
         """Rename a stimulus (does not affect handle or UUID)."""
         req = service_pb2.Request(
             stimulus=handle,
@@ -233,27 +234,27 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_enabled(self, handle: int, enabled: bool) -> None:
+    def set_enabled(self, handle: StimulusHandle, enabled: bool) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_enabled=shared_set_requests_pb2.SetEnabledRequest(enabled=enabled),
         )
         self._send(req)
 
-    def delete(self, handle: int) -> None:
+    def delete(self, handle: StimulusHandle) -> None:
         req = service_pb2.Request(stimulus=handle, delete=shared_set_requests_pb2.DeleteRequest())
         self._send(req)
 
     # ── Transform ─────────────────────────────────────────────────────────────
 
-    def set_position(self, handle: int, x: float, y: float) -> None:
+    def set_position(self, handle: StimulusHandle, x: float, y: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_position=shared_set_requests_pb2.SetPositionRequest(x=x, y=y),
         )
         self._send(req)
 
-    def set_orientation(self, handle: int, angle_deg: float) -> None:
+    def set_orientation(self, handle: StimulusHandle, angle_deg: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_orientation=shared_set_requests_pb2.SetOrientationRequest(angle_deg=angle_deg),
@@ -262,21 +263,21 @@ class StimuliClient:
 
     # ── Appearance ────────────────────────────────────────────────────────────
 
-    def set_fill_color(self, handle: int, r: float, g: float, b: float, a: float = 1.0) -> None:
+    def set_fill_color(self, handle: StimulusHandle, r: float, g: float, b: float, a: float = 1.0) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_fill_color=shared_set_requests_pb2.SetFillColorRequest(color=color_pb2.Color(r=r, g=g, b=b, a=a)),
         )
         self._send(req)
 
-    def set_alpha(self, handle: int, opacity: float) -> None:
+    def set_alpha(self, handle: StimulusHandle, opacity: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_alpha=shared_set_requests_pb2.SetAlphaRequest(opacity=opacity),
         )
         self._send(req)
 
-    def set_draw_mode(self, handle: int, mode: "DrawMode") -> None:
+    def set_draw_mode(self, handle: StimulusHandle, mode: "DrawMode") -> None:
         from vstimd.stimuli.stimuli_models import DrawMode
         _proto_map = {
             DrawMode.FILLED:              shapes_pb2.SHAPE_DRAW_MODE_FILLED,
@@ -289,7 +290,7 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_outline_color(self, handle: int, r: float, g: float, b: float, a: float = 1.0) -> None:
+    def set_outline_color(self, handle: StimulusHandle, r: float, g: float, b: float, a: float = 1.0) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_outline_color=shared_set_requests_pb2.SetOutlineColorRequest(
@@ -298,7 +299,7 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_outline_width(self, handle: int, line_width: float) -> None:
+    def set_outline_width(self, handle: StimulusHandle, line_width: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_outline_width=shared_set_requests_pb2.SetOutlineWidthRequest(line_width=line_width),
@@ -307,70 +308,70 @@ class StimuliClient:
 
     # ── Shape-specific ────────────────────────────────────────────────────────
 
-    def set_rect_size(self, handle: int, width: float, height: float) -> None:
+    def set_rect_size(self, handle: StimulusHandle, width: float, height: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_rect_size=rect_pb2.SetRectSizeRequest(width=width, height=height),
         )
         self._send(req)
 
-    def set_circle_radius(self, handle: int, radius: float) -> None:
+    def set_circle_radius(self, handle: StimulusHandle, radius: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_circle_radius=circle_pb2.SetCircleRadiusRequest(radius=radius),
         )
         self._send(req)
 
-    def set_ellipse_size(self, handle: int, width: float, height: float) -> None:
+    def set_ellipse_size(self, handle: StimulusHandle, width: float, height: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_ellipse_size=ellipse_pb2.SetEllipseSizeRequest(width=width, height=height),
         )
         self._send(req)
 
-    def set_grating_phase(self, handle: int, phase: float) -> None:
+    def set_grating_phase(self, handle: StimulusHandle, phase: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_phase=grating_pb2.SetGratingPhaseRequest(phase=phase),
         )
         self._send(req)
 
-    def set_grating_sf(self, handle: int, sf: float) -> None:
+    def set_grating_sf(self, handle: StimulusHandle, sf: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_sf=grating_pb2.SetGratingSfRequest(sf=sf),
         )
         self._send(req)
 
-    def set_grating_contrast(self, handle: int, contrast: float) -> None:
+    def set_grating_contrast(self, handle: StimulusHandle, contrast: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_contrast=grating_pb2.SetGratingContrastRequest(contrast=contrast),
         )
         self._send(req)
 
-    def set_grating_waveform(self, handle: int, waveform: GratingTexture) -> None:
+    def set_grating_waveform(self, handle: StimulusHandle, waveform: GratingTexture) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_waveform=grating_pb2.SetGratingWaveformRequest(waveform=_WAVEFORM_TO_PROTO[waveform]),
         )
         self._send(req)
 
-    def set_grating_mask(self, handle: int, mask: GratingMask) -> None:
+    def set_grating_mask(self, handle: StimulusHandle, mask: GratingMask) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_mask=grating_pb2.SetGratingMaskRequest(mask=_MASK_TO_PROTO[mask]),
         )
         self._send(req)
 
-    def set_grating_drift_speed(self, handle: int, drift_speed: float) -> None:
+    def set_grating_drift_speed(self, handle: StimulusHandle, drift_speed: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_drift_speed=grating_pb2.SetGratingDriftSpeedRequest(speed=drift_speed),
         )
         self._send(req)
 
-    def set_grating_drift_decoupled(self, handle: int, drift_decoupled: bool) -> None:
+    def set_grating_drift_decoupled(self, handle: StimulusHandle, drift_decoupled: bool) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_drift_decoupled=grating_pb2.SetGratingDriftDecoupledRequest(
@@ -379,14 +380,14 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_grating_drift_angle(self, handle: int, drift_angle: float) -> None:
+    def set_grating_drift_angle(self, handle: StimulusHandle, drift_angle: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_drift_angle=grating_pb2.SetGratingDriftAngleRequest(angle_deg=drift_angle),
         )
         self._send(req)
 
-    def set_grating_fore_color(self, handle: int, r: float, g: float, b: float, a: float = 1.0) -> None:
+    def set_grating_fore_color(self, handle: StimulusHandle, r: float, g: float, b: float, a: float = 1.0) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_fore_color=grating_pb2.SetGratingForeColorRequest(
@@ -395,7 +396,7 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_grating_back_color(self, handle: int, r: float, g: float, b: float, a: float = 1.0) -> None:
+    def set_grating_back_color(self, handle: StimulusHandle, r: float, g: float, b: float, a: float = 1.0) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_back_color=grating_pb2.SetGratingBackColorRequest(
@@ -404,7 +405,7 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_grating_opacity(self, handle: int, opacity: float) -> None:
+    def set_grating_opacity(self, handle: StimulusHandle, opacity: float) -> None:
         req = service_pb2.Request(
             stimulus=handle,
             set_grating_opacity=grating_pb2.SetGratingOpacityRequest(opacity=opacity),
@@ -413,7 +414,7 @@ class StimuliClient:
 
     # ── Query ─────────────────────────────────────────────────────────────────
 
-    def query(self, handle: int) -> StimulusInfo:
+    def query(self, handle: StimulusHandle) -> StimulusInfo:
         """Return current server-side properties for the given stimulus handle."""
         req = service_pb2.Request(
             stimulus=handle,

@@ -22,6 +22,7 @@ import os as _os
 __path__ = list(__path__) + [_os.path.join(_os.path.dirname(__file__), "_proto", "vstimd")]
 
 from ._connection import Connection
+from ._handles import AnimationHandle, StimulusHandle
 from .system import ServerInfo, ServerVersion
 from .vtl import VtlClient, VtlDirection, VtlLineInfo
 from .animations import (
@@ -47,6 +48,8 @@ from . import psychopy
 
 __all__ = [
     "Connection",
+    "AnimationHandle",
+    "StimulusHandle",
     "ServerInfo",
     "ServerVersion",
     "VstimdError",
