@@ -1,13 +1,10 @@
 from __future__ import annotations
 
-from typing import Callable
-
 from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1.stimuli import query_pb2
 from .stimuli_models import StimulusInfo
-from ._base import _SendFn
-from ._shapes import ShapesClient
+from ._shapes import ShapesClient, _SendFn
 from ._grating import GratingClient
 
 

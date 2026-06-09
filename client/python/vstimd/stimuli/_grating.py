@@ -1,16 +1,28 @@
 from __future__ import annotations
 
+from typing import Callable
+
 from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import vec2_pb2, color_pb2
-from vstimd._proto.vstimd.v1.stimuli import grating_pb2
-from .stimuli_models import Color, Vec2
+from vstimd._proto.vstimd.v1.stimuli import grating_pb2, shared_set_requests_pb2, shapes_pb2
+from .stimuli_models import Color, DrawMode, Vec2
 from .grating_models import GratingMask, GratingTexture, _MASK_TO_PROTO, _WAVEFORM_TO_PROTO
-from ._base import _BaseStimulusClient
+
+_SendFn = Callable[[service_pb2.Request], service_pb2.Response]
+
+_DRAW_MODE_TO_PROTO: dict[DrawMode, int] = {
+    DrawMode.FILLED:              shapes_pb2.SHAPE_DRAW_MODE_FILLED,
+    DrawMode.OUTLINED:            shapes_pb2.SHAPE_DRAW_MODE_OUTLINED,
+    DrawMode.FILLED_AND_OUTLINED: shapes_pb2.SHAPE_DRAW_MODE_FILLED_AND_OUTLINED,
+}
 
 
-class GratingClient(_BaseStimulusClient):
+class GratingClient:
     """Create and mutate grating stimuli."""
+
+    def __init__(self, send: _SendFn) -> None:
+        self._send = send
 
     # ── Creation ──────────────────────────────────────────────────────────────
 
@@ -70,87 +82,146 @@ class GratingClient(_BaseStimulusClient):
         )
         return StimulusHandle(self._send(req).handle)
 
-    # ── Grating mutations ──────────────────────────────────────────────────────
+    # ── Generic mutations ──────────────────────────────────────────────────────
+
+    def set_name(self, handle: StimulusHandle, name: str) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_name=shared_set_requests_pb2.SetNameRequest(name=name),
+        ))
+
+    def set_enabled(self, handle: StimulusHandle, enabled: bool) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_enabled=shared_set_requests_pb2.SetEnabledRequest(enabled=enabled),
+        ))
+
+    def delete(self, handle: StimulusHandle) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            delete=shared_set_requests_pb2.DeleteRequest(),
+        ))
+
+    def set_position(self, handle: StimulusHandle, pos: Vec2) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_position=shared_set_requests_pb2.SetPositionRequest(x=pos.x, y=pos.y),
+        ))
+
+    def set_orientation(self, handle: StimulusHandle, angle_deg: float) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_orientation=shared_set_requests_pb2.SetOrientationRequest(angle_deg=angle_deg),
+        ))
+
+    def set_fill_color(self, handle: StimulusHandle, color: Color) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_fill_color=shared_set_requests_pb2.SetFillColorRequest(
+                color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+            ),
+        ))
+
+    def set_alpha(self, handle: StimulusHandle, opacity: float) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_alpha=shared_set_requests_pb2.SetAlphaRequest(opacity=opacity),
+        ))
+
+    def set_draw_mode(self, handle: StimulusHandle, mode: DrawMode) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_draw_mode=shared_set_requests_pb2.SetDrawModeRequest(
+                mode=_DRAW_MODE_TO_PROTO[mode],
+            ),
+        ))
+
+    def set_outline_color(self, handle: StimulusHandle, color: Color) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_outline_color=shared_set_requests_pb2.SetOutlineColorRequest(
+                color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+            ),
+        ))
+
+    def set_outline_width(self, handle: StimulusHandle, line_width: float) -> None:
+        self._send(service_pb2.Request(
+            stimulus=handle,
+            set_outline_width=shared_set_requests_pb2.SetOutlineWidthRequest(line_width=line_width),
+        ))
+
+    # ── Grating-specific mutations ─────────────────────────────────────────────
 
     def set_phase(self, handle: StimulusHandle, phase: float) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_phase=grating_pb2.SetGratingPhaseRequest(phase=phase),
-        )
-        self._send(req)
+        ))
 
     def set_sf(self, handle: StimulusHandle, sf: float) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_sf=grating_pb2.SetGratingSfRequest(sf=sf),
-        )
-        self._send(req)
+        ))
 
     def set_contrast(self, handle: StimulusHandle, contrast: float) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_contrast=grating_pb2.SetGratingContrastRequest(contrast=contrast),
-        )
-        self._send(req)
+        ))
 
     def set_waveform(self, handle: StimulusHandle, waveform: GratingTexture) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
-            set_grating_waveform=grating_pb2.SetGratingWaveformRequest(waveform=_WAVEFORM_TO_PROTO[waveform]),
-        )
-        self._send(req)
+            set_grating_waveform=grating_pb2.SetGratingWaveformRequest(
+                waveform=_WAVEFORM_TO_PROTO[waveform],
+            ),
+        ))
 
     def set_mask(self, handle: StimulusHandle, mask: GratingMask) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_mask=grating_pb2.SetGratingMaskRequest(mask=_MASK_TO_PROTO[mask]),
-        )
-        self._send(req)
+        ))
 
     def set_drift_speed(self, handle: StimulusHandle, drift_speed: float) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_drift_speed=grating_pb2.SetGratingDriftSpeedRequest(speed=drift_speed),
-        )
-        self._send(req)
+        ))
 
     def set_drift_decoupled(self, handle: StimulusHandle, drift_decoupled: bool) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_drift_decoupled=grating_pb2.SetGratingDriftDecoupledRequest(
-                decoupled=drift_decoupled
+                decoupled=drift_decoupled,
             ),
-        )
-        self._send(req)
+        ))
 
     def set_drift_angle(self, handle: StimulusHandle, drift_angle: float) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_drift_angle=grating_pb2.SetGratingDriftAngleRequest(angle_deg=drift_angle),
-        )
-        self._send(req)
+        ))
 
     def set_fore_color(self, handle: StimulusHandle, color: Color) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_fore_color=grating_pb2.SetGratingForeColorRequest(
                 fore_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
             ),
-        )
-        self._send(req)
+        ))
 
     def set_back_color(self, handle: StimulusHandle, color: Color) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_back_color=grating_pb2.SetGratingBackColorRequest(
                 back_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
             ),
-        )
-        self._send(req)
+        ))
 
     def set_opacity(self, handle: StimulusHandle, opacity: float) -> None:
-        req = service_pb2.Request(
+        self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_opacity=grating_pb2.SetGratingOpacityRequest(opacity=opacity),
-        )
-        self._send(req)
+        ))
