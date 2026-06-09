@@ -14,7 +14,12 @@ dependencies = [
 
 [dependency-groups]
 # grpcio-tools bundles protoc and is required for `make proto`
-dev = ["pytest>=8", "grpcio-tools>=1.62"]
+dev = ["pytest>=8", "grpcio-tools>=1.62", "ty>=0.0.1a1"]
+
+[tool.ty.src]
+# Only check hand-written source; skip generated proto stubs.
+include = ["vstimd"]
+exclude = ["vstimd/_proto"]
 
 [tool.setuptools.packages.find]
 where = ["."]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..._handles import StimulusHandle
 from ._colors import normalize_color
 from ._types import ColorInput, Vec2
 from ._units import to_pixels
@@ -95,7 +96,7 @@ class GratingStim:
                 f"GratingStim: mask={mask!r} is not supported. "
                 f"Supported values: {[e.value for e in GratingMask]} or None."
             )
-        if hasattr(phase, "__len__") and len(phase) > 1 and float(phase[1]) != 0.0:  # type: ignore[index]
+        if isinstance(phase, tuple) and len(phase) > 1 and float(phase[1]) != 0.0:
             raise NotImplementedError(
                 "GratingStim: two-element phase (x, y) is not supported — only the x component is used. "
                 "Pass a scalar or ensure phase[1] == 0."
@@ -136,7 +137,7 @@ class GratingStim:
         self._height = height
 
         # Phase: PsychoPy accepts (x, y) but we use only one axis.
-        self._phase = float(phase[0]) if hasattr(phase, "__len__") else float(phase)  # type: ignore[index]
+        self._phase = float(phase[0]) if isinstance(phase, tuple) else float(phase)
         self._pos: tuple[float, float] = (float(pos[0]), float(pos[1]))
         self._ori = float(ori)
         self._sf = float(sf)
@@ -161,7 +162,7 @@ class GratingStim:
         fore_rgba = normalize_color(color, colorSpace, 1.0) or (1.0, 1.0, 1.0, 1.0)
         back_rgba = normalize_color(backColor, colorSpace, 1.0) or (0.0, 0.0, 0.0, 1.0)
 
-        self._handle: int = win._conn.stimuli.create_grating(
+        self._handle: StimulusHandle = win._conn.stimuli.create_grating(
             pos=StimulusVec2(px, py),
             width=pw, height=ph,
             sf=psf,
@@ -279,7 +280,7 @@ class GratingStim:
 
     @phase.setter
     def phase(self, value: float | tuple[float, float]) -> None:
-        self._phase = float(value[0]) if hasattr(value, "__len__") else float(value)  # type: ignore[index]
+        self._phase = float(value[0]) if isinstance(value, tuple) else float(value)
         self._win._dispatch(self._win._conn.stimuli.set_grating_phase, self._handle, self._phase)
 
     def setPhase(self, value: float, operation: str = "", log: bool | None = None) -> None:

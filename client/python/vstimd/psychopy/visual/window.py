@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+from ..._handles import StimulusHandle
 from ..._connection import Connection
 from ._colors import normalize_color
 from ._types import ColorInput, MonitorProtocol
@@ -36,7 +37,7 @@ class Window:
 
         self._conn = Connection(address)
         self._queue: list[tuple[Callable[..., Any], tuple[Any, ...]]] = []
-        self._to_draw_once: list[int] = []
+        self._to_draw_once: list[StimulusHandle] = []
 
     def _dispatch(self, fn: Callable[..., Any], *args: Any) -> None:
         if self.deferred:

@@ -101,7 +101,7 @@ class AnimationClient:
             delete_animation=animations_pb2.DeleteAnimationRequest(handle=handle),
         ))
 
-    def list(self) -> list[AnimationInfo]:
+    def list_animations(self) -> list[AnimationInfo]:
         """Return all animations and their current state."""
         resp = self._send(service_pb2.Request(
             system=_sys(),

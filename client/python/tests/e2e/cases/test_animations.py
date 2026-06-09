@@ -473,7 +473,7 @@ def test_anim_list_and_query(conn: Connection) -> None:
     a1 = conn.animations.create_flash(s1, duration_frames=120, name="flash_list_test")
     a2 = conn.animations.create_flicker(s2, on_frames=5, off_frames=5, name="flicker_list_test")
 
-    anim_list = conn.animations.list()
+    anim_list = conn.animations.list_animations()
     handles = {a.handle for a in anim_list}
     assert a1 in handles
     assert a2 in handles

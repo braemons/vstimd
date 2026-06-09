@@ -21,16 +21,16 @@ class GratingMask(StrEnum):
     HANN       = "hann"
 
 
-_WAVEFORM_TO_PROTO: dict[GratingTexture, int] = {
+_WAVEFORM_TO_PROTO: dict[GratingTexture, grating_pb2.WaveformType] = {
     GratingTexture.SIN: grating_pb2.WAVEFORM_TYPE_SIN,
     GratingTexture.SQR: grating_pb2.WAVEFORM_TYPE_SQR,
     GratingTexture.SAW: grating_pb2.WAVEFORM_TYPE_SAW,
     GratingTexture.TRI: grating_pb2.WAVEFORM_TYPE_TRI,
 }
 
-_PROTO_TO_WAVEFORM: dict[int, GratingTexture] = {v: k for k, v in _WAVEFORM_TO_PROTO.items()}
+_PROTO_TO_WAVEFORM: dict[grating_pb2.WaveformType, GratingTexture] = {v: k for k, v in _WAVEFORM_TO_PROTO.items()}
 
-_MASK_TO_PROTO: dict[GratingMask, int] = {
+_MASK_TO_PROTO: dict[GratingMask, grating_pb2.MaskType] = {
     GratingMask.NONE:       grating_pb2.MASK_TYPE_NONE,
     GratingMask.CIRCLE:     grating_pb2.MASK_TYPE_CIRCLE,
     GratingMask.GAUSS:      grating_pb2.MASK_TYPE_GAUSS,
@@ -38,7 +38,7 @@ _MASK_TO_PROTO: dict[GratingMask, int] = {
     GratingMask.HANN:       grating_pb2.MASK_TYPE_HANN,
 }
 
-_PROTO_TO_MASK: dict[int, GratingMask] = {v: k for k, v in _MASK_TO_PROTO.items()}
+_PROTO_TO_MASK: dict[grating_pb2.MaskType, GratingMask] = {v: k for k, v in _MASK_TO_PROTO.items()}
 
 
 @dataclass

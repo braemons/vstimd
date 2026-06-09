@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..._handles import StimulusHandle
 from ._colors import normalize_color
 from ._types import ColorInput, Vec2
 from ._units import to_pixels
@@ -53,7 +54,7 @@ class Circle:
         px, py = self._to_px(self._pos)
         pr = self._scalar_px(self._radius)
         rgba = normalize_color(fillColor, colorSpace, opacity) or (0.0, 0.0, 0.0, 0.0)
-        self._handle: int = win._conn.stimuli.create_circle(
+        self._handle: StimulusHandle = win._conn.stimuli.create_circle(
             x=px, y=py, radius=pr,
             r=rgba[0], g=rgba[1], b=rgba[2], a=rgba[3],
         )

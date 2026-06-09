@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from ..._handles import StimulusHandle
 from ._colors import normalize_color
 from ._types import ColorInput, Vec2
 from ._units import to_pixels
@@ -61,7 +62,7 @@ class Rect:
         pw = self._scalar_px(self._width)
         ph = self._scalar_px(self._height)
         rgba = normalize_color(fillColor, colorSpace, opacity) or (0.0, 0.0, 0.0, 0.0)
-        self._handle: int = win._conn.stimuli.create_rect(
+        self._handle: StimulusHandle = win._conn.stimuli.create_rect(
             x=px, y=py, width=pw, height=ph,
             r=rgba[0], g=rgba[1], b=rgba[2], a=rgba[3],
         )

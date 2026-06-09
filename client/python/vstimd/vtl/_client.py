@@ -63,7 +63,7 @@ class VtlClient:
             set_virtual_trigger_line_name=vtl_pb2.SetVirtualTriggerLineNameRequest(
                 bank=bank,
                 bit=bit,
-                direction=int(direction),
+                direction=int(direction),  # ty: ignore[invalid-argument-type]
                 name=name,
             ),
         )

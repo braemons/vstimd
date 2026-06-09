@@ -1,6 +1,7 @@
 """PsychoPy-compatible TextBox2 stimulus."""
 from __future__ import annotations
 
+from ..._handles import StimulusHandle
 from ._colors import normalize_color
 from ._types import ColorInput, Vec2
 from ._units import to_pixels
@@ -108,7 +109,7 @@ class TextBox2:
         fill = normalize_color(fillColor, fillColorSpace, opacity) or (0.0, 0.0, 0.0, 0.0)
         lang = self._LANGUAGE_STYLE_MAP.get(languageStyle.lower(), 1)
 
-        self._handle: int = win._conn.stimuli.create_text(
+        self._handle: StimulusHandle = win._conn.stimuli.create_text(
             text=text,
             x=px, y=py,
             box_width=self._box_w,

@@ -9,7 +9,7 @@ from vstimd._proto.vstimd.v1.stimuli import (
     rect_pb2, circle_pb2, ellipse_pb2, grating_pb2, text_pb2, polygon_pb2,
     shared_set_requests_pb2, query_pb2, shapes_pb2,
 )
-from .stimuli_models import Color, StimulusInfo, Vec2
+from .stimuli_models import Color, DrawMode, StimulusInfo, Vec2
 from .grating_models import GratingMask, GratingTexture, _MASK_TO_PROTO, _WAVEFORM_TO_PROTO
 
 
@@ -199,7 +199,7 @@ class StimuliClient:
                 anchor=anchor,
                 color=color_pb2.Color(r=r, g=g, b=b, a=a),
                 fill_color=color_pb2.Color(r=fill_r, g=fill_g, b=fill_b, a=fill_a),
-                language_style=language_style,
+                language_style=language_style,  # ty: ignore[invalid-argument-type]
                 name=name,
                 id=id,
             ),
@@ -277,8 +277,7 @@ class StimuliClient:
         )
         self._send(req)
 
-    def set_draw_mode(self, handle: StimulusHandle, mode: "DrawMode") -> None:
-        from vstimd.stimuli.stimuli_models import DrawMode
+    def set_draw_mode(self, handle: StimulusHandle, mode: DrawMode) -> None:
         _proto_map = {
             DrawMode.FILLED:              shapes_pb2.SHAPE_DRAW_MODE_FILLED,
             DrawMode.OUTLINED:            shapes_pb2.SHAPE_DRAW_MODE_OUTLINED,
