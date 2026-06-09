@@ -1,8 +1,5 @@
-"""Shared e2e test cases. Imported by test_e2e.py and test_e2e_null.py.
-
-Each function receives a `conn` fixture from the importing test module,
-so the same cases run against both a real and a null-renderer server.
-"""
+"""E2E tests for shape and grating stimuli."""
+from __future__ import annotations
 
 import time
 import uuid as uuid_mod
@@ -10,38 +7,14 @@ import uuid as uuid_mod
 import pytest
 
 from vstimd import Connection, InvalidArgumentError
-from vstimd.stimuli import DrawMode, GratingMask, GratingParams, GratingTexture, RectParams, StimulusType
+from vstimd.stimuli import GratingMask, GratingParams, GratingTexture, RectParams, StimulusType
 from vstimd.stimuli.stimuli_models import Color, Vec2
-from vstimd.vtl import VtlDirection
+from ._helpers import label as _label, update_label as _update_label
 
-
-# ── Label helper ──────────────────────────────────────────────────────────────
-
-def _label(conn: Connection, test_id: str, description: str = "") -> int:
-    """Yellow label near top of screen: '[test_id] description'.
-
-    Pass request.node.name as test_id so the label is always searchable.
-    """
-    text = f"[{test_id}] {description}".rstrip()
-    return conn.stimuli.create_text(
-        text=text, x=0, y=260,
-        box_width=900, box_height=50,
-        letter_height=28,
-        r=1.0, g=1.0, b=0.0, a=1.0,
-        anchor="center",
-        name="_label",
-    )
-
-
-def _update_label(conn: Connection, handle: int, test_id: str, description: str) -> None:
-    conn.stimuli.set_text(handle, f"[{test_id}] {description}")
-
-
-# ── Shape tests ───────────────────────────────────────────────────────────────
 
 def test_create_rect(conn: Connection, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
-    label = _label(conn, tid, "red 100×100 rect")
+    lbl = _label(conn, tid, "red 100×100 rect")
     handle = conn.stimuli.create_rect(x=0, y=0, width=100, height=100, r=1.0, g=0.0, b=0.0)
     assert handle > 0
 
@@ -56,7 +29,7 @@ def test_create_rect(conn: Connection, request: pytest.FixtureRequest) -> None:
 
     time.sleep(1.0)
     conn.stimuli.delete(handle)
-    conn.stimuli.delete(label)
+    conn.stimuli.delete(lbl)
 
 
 def test_create_grating(conn: Connection) -> None:
@@ -171,14 +144,14 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
     ]
 
     conn.system.set_background(r=0.4, g=0.4, b=0.4)
-    label = _label(conn, tid)
+    lbl = _label(conn, tid)
 
     for row_name, patches in ROWS:
         n = len(patches)
         xs = [(j - (n - 1) / 2) * COL_STEP for j in range(n)]
         handles: list[int] = []
 
-        _update_label(conn, label, tid, row_name)
+        _update_label(conn, lbl, tid, row_name)
 
         for x, overrides in zip(xs, patches):
             base: dict = dict(
@@ -217,7 +190,7 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
     )
     assert drift_handle > 0
 
-    _update_label(conn, label, tid, "drift (coupled)")
+    _update_label(conn, lbl, tid, "drift (coupled)")
     conn.stimuli.set_grating_drift_speed(drift_handle, 1.0)
     info = conn.stimuli.query(drift_handle)
     assert isinstance(info.params, GratingParams)
@@ -225,11 +198,11 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
     assert info.params.drift_coupled is True
     time.sleep(step_delay * 3)
 
-    _update_label(conn, label, tid, "drift (reverse)")
+    _update_label(conn, lbl, tid, "drift (reverse)")
     conn.stimuli.set_grating_drift_speed(drift_handle, -1.0)
     time.sleep(step_delay * 3)
 
-    _update_label(conn, label, tid, "drift (decoupled 90°)")
+    _update_label(conn, lbl, tid, "drift (decoupled 90°)")
     conn.stimuli.set_grating_drift_decoupled(drift_handle, True)
     conn.stimuli.set_grating_drift_angle(drift_handle, 90.0)
     info = conn.stimuli.query(drift_handle)
@@ -244,7 +217,7 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
     assert info.params.drift_coupled is True
 
     conn.stimuli.delete(drift_handle)
-    conn.stimuli.delete(label)
+    conn.stimuli.delete(lbl)
     conn.system.set_background(r=0.0, g=0.0, b=0.0)
 
 
@@ -413,264 +386,3 @@ def test_uuid_stable_across_query(conn: Connection) -> None:
     assert id1 == id2
     assert len(id1) > 0
     conn.stimuli.delete(handle)
-
-
-# ── Outline / draw-mode tests ─────────────────────────────────────────────────
-
-def test_set_draw_mode_outlined(conn: Connection) -> None:
-    handle = conn.stimuli.create_rect(width=100, height=100)
-    conn.stimuli.set_draw_mode(handle, DrawMode.OUTLINED)
-    info = conn.stimuli.query(handle)
-    assert info.draw_mode == DrawMode.OUTLINED
-    conn.stimuli.delete(handle)
-
-
-def test_set_draw_mode_filled_and_outlined(conn: Connection) -> None:
-    handle = conn.stimuli.create_circle(radius=50)
-    conn.stimuli.set_draw_mode(handle, DrawMode.FILLED_AND_OUTLINED)
-    info = conn.stimuli.query(handle)
-    assert info.draw_mode == DrawMode.FILLED_AND_OUTLINED
-    conn.stimuli.delete(handle)
-
-
-def test_set_outline_color_roundtrip(conn: Connection) -> None:
-    handle = conn.stimuli.create_rect(width=100, height=80)
-    conn.stimuli.set_outline_color(handle, r=1.0, g=0.5, b=0.0, a=0.8)
-    info = conn.stimuli.query(handle)
-    assert info.outline_color.r == pytest.approx(1.0, abs=0.01)
-    assert info.outline_color.g == pytest.approx(0.5, abs=0.01)
-    assert info.outline_color.b == pytest.approx(0.0, abs=0.01)
-    assert info.outline_color.a == pytest.approx(0.8, abs=0.01)
-    conn.stimuli.delete(handle)
-
-
-def test_set_outline_width_roundtrip(conn: Connection) -> None:
-    handle = conn.stimuli.create_ellipse(width=120, height=80)
-    conn.stimuli.set_outline_width(handle, 6.0)
-    info = conn.stimuli.query(handle)
-    assert info.outline_width == pytest.approx(6.0, abs=0.1)
-    conn.stimuli.delete(handle)
-
-
-def test_draw_mode_default_is_filled(conn: Connection) -> None:
-    for h in [
-        conn.stimuli.create_rect(width=100, height=100),
-        conn.stimuli.create_circle(radius=50),
-        conn.stimuli.create_ellipse(width=100, height=60),
-    ]:
-        info = conn.stimuli.query(h)
-        assert info.draw_mode == DrawMode.FILLED
-        conn.stimuli.delete(h)
-
-
-def test_draw_mode_cycle(conn: Connection) -> None:
-    handle = conn.stimuli.create_rect(width=100, height=100)
-    for mode in (DrawMode.OUTLINED, DrawMode.FILLED_AND_OUTLINED, DrawMode.FILLED):
-        conn.stimuli.set_draw_mode(handle, mode)
-        info = conn.stimuli.query(handle)
-        assert info.draw_mode == mode
-    conn.stimuli.delete(handle)
-
-
-def test_outline_visual(conn: Connection, step_delay: float, request: pytest.FixtureRequest) -> None:
-    """Display each draw mode so a human can visually verify outlines."""
-    tid = request.node.name
-    conn.system.set_background(r=0.15, g=0.15, b=0.15)
-
-    ROWS = [
-        (DrawMode.FILLED,              "fill only"),
-        (DrawMode.OUTLINED,            "outline only"),
-        (DrawMode.FILLED_AND_OUTLINED, "fill + outline"),
-    ]
-
-    label = _label(conn, tid)
-    for mode, description in ROWS:
-        _update_label(conn, label, tid, description)
-        rect = conn.stimuli.create_rect(x=-200, y=0, width=180, height=120,
-                                        r=0.2, g=0.5, b=0.9)
-        circ = conn.stimuli.create_circle(x=0, y=0, radius=70,
-                                          r=0.9, g=0.4, b=0.2)
-        ell  = conn.stimuli.create_ellipse(x=200, y=0, width=200, height=100,
-                                           r=0.3, g=0.8, b=0.3)
-        for h in (rect, circ, ell):
-            conn.stimuli.set_draw_mode(h, mode)
-            conn.stimuli.set_outline_color(h, r=1.0, g=1.0, b=0.0, a=1.0)
-            conn.stimuli.set_outline_width(h, 6.0)
-
-        time.sleep(step_delay)
-
-        for h in (rect, circ, ell):
-            conn.stimuli.delete(h)
-
-    conn.stimuli.delete(label)
-    conn.system.set_background(r=0.0, g=0.0, b=0.0)
-
-
-def test_outline_independent_of_fill_color(conn: Connection) -> None:
-    handle = conn.stimuli.create_rect(width=100, height=100, r=1.0, g=0.0, b=0.0)
-    conn.stimuli.set_outline_color(handle, r=0.0, g=0.0, b=1.0)
-    info = conn.stimuli.query(handle)
-    assert info.fill_color.r == pytest.approx(1.0, abs=0.01)
-    assert info.outline_color.b == pytest.approx(1.0, abs=0.01)
-
-    conn.stimuli.set_fill_color(handle, r=0.0, g=1.0, b=0.0)
-    info = conn.stimuli.query(handle)
-    assert info.fill_color.g == pytest.approx(1.0, abs=0.01)
-    assert info.outline_color.b == pytest.approx(1.0, abs=0.01)
-    conn.stimuli.delete(handle)
-
-
-# ── Text tests ────────────────────────────────────────────────────────────────
-
-def test_create_text(conn: Connection) -> None:
-    handle = conn.stimuli.create_text(
-        text="Hello vstimd",
-        x=0, y=0,
-        box_width=400, box_height=80,
-        letter_height=48,
-        r=1.0, g=1.0, b=1.0, a=1.0,
-    )
-    assert handle > 0
-    conn.stimuli.delete(handle)
-
-
-def test_set_text(conn: Connection) -> None:
-    handle = conn.stimuli.create_text(text="before", x=0, y=0,
-                                      box_width=400, box_height=80, letter_height=40)
-    conn.stimuli.set_text(handle, "after")
-    conn.stimuli.delete(handle)
-
-
-def test_set_text_color(conn: Connection) -> None:
-    handle = conn.stimuli.create_text(text="Color test", x=0, y=0,
-                                      box_width=400, box_height=80, letter_height=40,
-                                      r=1.0, g=1.0, b=1.0, a=1.0)
-    conn.stimuli.set_text_color(handle, r=1.0, g=0.0, b=0.0)
-    conn.stimuli.delete(handle)
-
-
-def test_text_visual(conn: Connection, step_delay: float, request: pytest.FixtureRequest) -> None:
-    """Show text stimuli in various states so a human can visually verify rendering."""
-    tid = request.node.name
-    conn.system.set_background(r=0.1, g=0.1, b=0.1)
-
-    label = _label(conn, tid, "white text")
-    h = conn.stimuli.create_text(
-        text="Hello vstimd",
-        x=0, y=0,
-        box_width=600, box_height=100,
-        letter_height=56,
-        r=1.0, g=1.0, b=1.0, a=1.0,
-    )
-    time.sleep(step_delay)
-
-    conn.stimuli.set_text(h, "Updated text!")
-    _update_label(conn, label, tid, "text updated")
-    time.sleep(step_delay)
-
-    conn.stimuli.set_text_color(h, r=1.0, g=0.8, b=0.0)
-    _update_label(conn, label, tid, "yellow colour")
-    time.sleep(step_delay)
-
-    conn.stimuli.set_text(h, "Step 7 works!")
-    conn.stimuli.set_text_color(h, r=0.4, g=1.0, b=0.4)
-    _update_label(conn, label, tid, "green, new content")
-    time.sleep(step_delay)
-
-    conn.stimuli.delete(h)
-    conn.stimuli.delete(label)
-    conn.system.set_background(r=0.0, g=0.0, b=0.0)
-
-
-# ── VTL tests ─────────────────────────────────────────────────────────────────
-
-def test_vtl_list_lines_empty(conn: Connection) -> None:
-    """list_lines returns an empty list when no lines are named."""
-    lines = conn.vtl.list_lines()
-    assert lines == []
-
-
-def test_vtl_set_and_list_line_name(conn: Connection) -> None:
-    """Named output lines appear in list_lines with the right metadata."""
-    conn.vtl.set_line_name(bank=0, bit=0, direction=VtlDirection.OUTPUT, name="stim_onset")
-    conn.vtl.set_line_name(bank=0, bit=1, direction=VtlDirection.OUTPUT, name="stim_offset")
-
-    lines = conn.vtl.list_lines()
-    names = {l.name for l in lines}
-    assert "stim_onset" in names
-    assert "stim_offset" in names
-
-    for line in lines:
-        if line.name in ("stim_onset", "stim_offset"):
-            assert line.bank == 0
-            assert line.direction == VtlDirection.OUTPUT
-
-    # clean up
-    conn.vtl.set_line_name(bank=0, bit=0, direction=VtlDirection.OUTPUT, name="")
-    conn.vtl.set_line_name(bank=0, bit=1, direction=VtlDirection.OUTPUT, name="")
-
-
-def test_vtl_set_line_by_bank_bit(conn: Connection) -> None:
-    """set_input_line writes the input bank; list_lines reports high for INPUT-named lines."""
-    conn.vtl.set_line_name(bank=0, bit=2, direction=VtlDirection.INPUT, name="test_in")
-
-    conn.vtl.set_input_line((0, 2), True)
-    lines = conn.vtl.list_lines()
-    info = next(l for l in lines if l.name == "test_in")
-    assert info.high is True
-
-    conn.vtl.set_input_line((0, 2), False)
-    lines = conn.vtl.list_lines()
-    info = next(l for l in lines if l.name == "test_in")
-    assert info.high is False
-
-    conn.vtl.set_line_name(bank=0, bit=2, direction=VtlDirection.INPUT, name="")
-
-
-def test_vtl_set_line_by_name(conn: Connection) -> None:
-    """set_input_line accepts a name handle."""
-    conn.vtl.set_line_name(bank=0, bit=3, direction=VtlDirection.INPUT, name="named_in")
-
-    conn.vtl.set_input_line("named_in", True)
-    lines = conn.vtl.list_lines()
-    info = next(l for l in lines if l.name == "named_in")
-    assert info.high is True
-
-    conn.vtl.set_line_name(bank=0, bit=3, direction=VtlDirection.INPUT, name="")
-
-
-def test_vtl_toggle_line(conn: Connection) -> None:
-    """toggle_input_line flips the line and returns the new state."""
-    conn.vtl.set_line_name(bank=0, bit=4, direction=VtlDirection.INPUT, name="toggle_in")
-    conn.vtl.set_input_line((0, 4), False)
-
-    new_state = conn.vtl.toggle_input_line((0, 4))
-    assert new_state is True
-
-    new_state = conn.vtl.toggle_input_line("toggle_in")
-    assert new_state is False
-
-    conn.vtl.set_line_name(bank=0, bit=4, direction=VtlDirection.INPUT, name="")
-
-
-def test_vtl_set_bank(conn: Connection) -> None:
-    """set_input_bank writes a full 64-bit word; INPUT-named bits within the bank reflect it."""
-    conn.vtl.set_line_name(bank=0, bit=5, direction=VtlDirection.INPUT, name="bank_bit5")
-    conn.vtl.set_line_name(bank=0, bit=6, direction=VtlDirection.INPUT, name="bank_bit6")
-
-    # set bits 5 and 6
-    conn.vtl.set_input_bank(bank=0, value=(1 << 5) | (1 << 6))
-    lines = conn.vtl.list_lines()
-    by_name = {l.name: l for l in lines}
-    assert by_name["bank_bit5"].high is True
-    assert by_name["bank_bit6"].high is True
-
-    # clear the whole bank
-    conn.vtl.set_input_bank(bank=0, value=0)
-    lines = conn.vtl.list_lines()
-    by_name = {l.name: l for l in lines}
-    assert by_name["bank_bit5"].high is False
-    assert by_name["bank_bit6"].high is False
-
-    conn.vtl.set_line_name(bank=0, bit=5, direction=VtlDirection.INPUT, name="")
-    conn.vtl.set_line_name(bank=0, bit=6, direction=VtlDirection.INPUT, name="")

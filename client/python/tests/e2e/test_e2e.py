@@ -15,16 +15,14 @@ import time
 
 import pytest
 
-from vstimd import Connection
-from ._e2e_cases import *  # noqa: F401, F403
+from .cases.test_shapes import *    # noqa: F401, F403
+from .cases.test_outline import *   # noqa: F401, F403
+from .cases.test_text import *      # noqa: F401, F403
+from .cases.test_vtl import *       # noqa: F401, F403
+from .cases.test_animations import * # noqa: F401, F403
 from .conftest import reachable
 
 _REPO_ROOT = pathlib.Path(__file__).parents[4]
-
-
-@pytest.fixture(scope="session")
-def server_address(request: pytest.FixtureRequest) -> str:
-    return request.config.getoption("--server")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -71,10 +69,3 @@ def server_process(server_address: str):
     proc.wait(timeout=5)
     log_file.close()
     print(f"\nServer log: {log_path}")
-
-
-@pytest.fixture(scope="session")
-def conn(server_address: str) -> Connection:
-    c = Connection(server_address)
-    yield c
-    c.close()

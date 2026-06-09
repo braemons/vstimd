@@ -102,6 +102,7 @@ class StimulusInfo:
     params: StimulusParams | None
     id: str = ""
     name: str = ""
+    anim_enabled: bool = True  # animation-level enable (False when animation holds it off)
 
     @classmethod
     def from_proto(cls, proto: query_pb2.QueryStimulusResponse) -> StimulusInfo:
@@ -136,4 +137,5 @@ class StimulusInfo:
             params=params,
             id=proto.id,
             name=proto.name,
+            anim_enabled=proto.anim_enabled,
         )

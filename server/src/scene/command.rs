@@ -974,6 +974,7 @@ impl SceneState {
         ok_body(proto::response::Body::StimulusInfo(proto::QueryStimulusResponse {
             stimulus_type,
             enabled: stim.flags().enabled,
+            anim_enabled: stim.flags().anim_enabled,
             pos: Some(proto::Vec2 { x: pos[0], y: pos[1] }),
             orientation: angle,
             opacity,

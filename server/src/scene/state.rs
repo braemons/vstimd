@@ -366,10 +366,22 @@ fn advance_one(
                 total_frames.is_some_and(|tf| frame_counter + 1 >= tf)
             }
 
-            // Motion and external animations — execution deferred to later steps.
-            Animation::MoveAlongPath2D { .. }
-            | Animation::MoveAlongSegments2D { .. }
-            | Animation::ExternalPosition2D { .. } => false,
+            // Path animations complete when all positions have been played.
+            // Position updates are deferred to the render backend (not yet wired).
+            Animation::MoveAlongPath2D { coords } => {
+                frame_counter + 1 >= coords.len() as u32
+            }
+            Animation::MoveAlongSegments2D { waypoints, speed_px_per_sec } => {
+                let total_len: f32 = waypoints.windows(2).map(|w| {
+                    let dx = w[1][0] - w[0][0];
+                    let dy = w[1][1] - w[0][1];
+                    (dx * dx + dy * dy).sqrt()
+                }).sum();
+                let total_frames = (total_len / speed_px_per_sec * scene.frame_rate).ceil() as u32;
+                frame_counter + 1 >= total_frames.max(1)
+            }
+            // External position is driven by an external process; never self-terminates.
+            Animation::ExternalPosition2D { .. } => false,
         }
     };
 

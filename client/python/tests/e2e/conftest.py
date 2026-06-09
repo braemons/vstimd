@@ -5,6 +5,7 @@ import os
 import pytest
 import zmq
 
+from vstimd import Connection
 from vstimd._proto import service_pb2, system_pb2
 
 _E2E_DEFAULT = os.environ.get("VSTIMD_SERVER", "tcp://localhost:5555")
@@ -22,6 +23,18 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=1.0,
         help="Seconds to pause between visual stimulus changes so a human can inspect them (default: 1.0)",
     )
+
+
+@pytest.fixture(scope="session")
+def server_address(request: pytest.FixtureRequest) -> str:
+    return request.config.getoption("--server")
+
+
+@pytest.fixture(scope="session")
+def conn(server_address: str) -> Connection:
+    c = Connection(server_address)
+    yield c
+    c.close()
 
 
 @pytest.fixture

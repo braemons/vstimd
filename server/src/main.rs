@@ -54,8 +54,26 @@ fn main() {
             event_loop.run_app(&mut app).unwrap();
         }
         RenderTarget::Null => {
-            log::info!("vstimd: null renderer — ZMQ server running, no display");
-            std::thread::park();
+            log::info!("vstimd: null renderer — ZMQ server + animation loop running, no display");
+            let frame_period = {
+                let s = scene.read().unwrap();
+                std::time::Duration::from_secs_f32(1.0 / s.frame_rate)
+            };
+            let mut output_pending = [0u64; vtl::MAX_BANKS];
+            loop {
+                let t0 = std::time::Instant::now();
+                let edges = vtl.as_ref()
+                    .and_then(|v| v.lock().ok().map(|mut g| g.poll()))
+                    .unwrap_or_default();
+                {
+                    let mut s = scene.write().unwrap();
+                    let output_snapshot = [0u64; vtl::MAX_BANKS];
+                    s.advance_animations(&edges, &output_snapshot, &mut output_pending);
+                }
+                if let Some(remaining) = frame_period.checked_sub(t0.elapsed()) {
+                    std::thread::sleep(remaining);
+                }
+            }
         }
     }
 }

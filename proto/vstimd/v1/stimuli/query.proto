@@ -31,7 +31,7 @@ message StimulusParams {
 // Response payload for QueryStimulusRequest.
 message QueryStimulusResponse {
   StimulusType   stimulus_type = 1;
-  bool           enabled       = 2;
+  bool           enabled       = 2;  // user-level enable (ZMQ SetEnabled)
   Vec2           pos           = 3;
   float          orientation   = 4;  // degrees CCW
   float          opacity       = 5;
@@ -42,4 +42,5 @@ message QueryStimulusResponse {
   StimulusParams params        = 10;
   string         id            = 11; // stable UUID assigned at creation
   string         name          = 12; // human-readable label (empty if not set)
+  bool           anim_enabled  = 13; // animation-level enable (set by animation system)
 }
