@@ -273,7 +273,7 @@ def run(address: str) -> None:
             _render(address, params, tex_param, mask_param, sel, visible)
 
     finally:
-        win._conn.stimuli.grating.delete(grating._handle)
+        win._conn.stimuli.delete(grating._handle)
         win.close()
 
 

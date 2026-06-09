@@ -11,7 +11,7 @@ from vstimd.stimuli.stimuli_models import Color, Vec2
 def label(conn: Connection, test_id: str, description: str = "") -> int:
     """Yellow label near top of screen: '[test_id] description'."""
     text = f"[{test_id}] {description}".rstrip()
-    return conn.stimuli.shapes.create_text(
+    return conn.stimuli.text.create_text(
         text=text, pos=Vec2(0, 260),
         box_width=900, box_height=50,
         letter_height=28,
@@ -22,7 +22,7 @@ def label(conn: Connection, test_id: str, description: str = "") -> int:
 
 
 def update_label(conn: Connection, handle: int, test_id: str, description: str) -> None:
-    conn.stimuli.shapes.set_text(handle, f"[{test_id}] {description}")
+    conn.stimuli.text.set_text(handle, f"[{test_id}] {description}")
 
 
 def wait_for_anim_state(
@@ -45,5 +45,5 @@ def wait_for_anim_state(
 def make_rect(conn: Connection, *, x: float = 0, y: float = 0, enabled: bool = True) -> int:
     h = conn.stimuli.shapes.create_rect(pos=Vec2(x, y), width=80, height=80, color=Color(0.8, 0.2, 0.2))
     if not enabled:
-        conn.stimuli.shapes.set_enabled(h, False)
+        conn.stimuli.set_enabled(h, False)
     return h

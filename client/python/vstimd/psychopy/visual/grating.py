@@ -6,7 +6,7 @@ from ._types import PsychoPyColor, PsychoPyVec2
 from ._units import to_pixels
 from .window import Window
 from vstimd.stimuli.stimuli_models import Color as StimulusColor, Vec2 as StimulusVec2
-from vstimd.stimuli.grating_models import (
+from vstimd.stimuli._grating import (
     GratingMask,
     GratingTexture,
     _MASK_TO_PROTO,
@@ -213,7 +213,7 @@ class GratingStim:
     @autoDraw.setter
     def autoDraw(self, value: bool) -> None:
         self._auto_draw = bool(value)
-        self._win._dispatch(self._win._conn.stimuli.grating.set_enabled, self._handle, self._auto_draw)
+        self._win._dispatch(self._win._conn.stimuli.set_enabled, self._handle, self._auto_draw)
 
     def setAutoDraw(self, value: bool, log: bool | None = None) -> None:
         self.autoDraw = value
@@ -231,7 +231,7 @@ class GratingStim:
     def pos(self, value: PsychoPyVec2) -> None:
         self._pos = (float(value[0]), float(value[1]))
         px, py = self._to_px(self._pos)
-        self._win._dispatch(self._win._conn.stimuli.grating.set_position, self._handle, StimulusVec2(px, py))
+        self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, StimulusVec2(px, py))
 
     def setPos(self, value: PsychoPyVec2, operation: str = "", log: bool | None = None) -> None:
         if operation == "+":
@@ -247,7 +247,7 @@ class GratingStim:
     @ori.setter
     def ori(self, value: float) -> None:
         self._ori = float(value)
-        self._win._dispatch(self._win._conn.stimuli.grating.set_orientation, self._handle, self._ori)
+        self._win._dispatch(self._win._conn.stimuli.set_orientation, self._handle, self._ori)
 
     def setOri(self, value: float, operation: str = "", log: bool | None = None) -> None:
         self.ori = value

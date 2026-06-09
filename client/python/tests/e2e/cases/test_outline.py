@@ -13,37 +13,37 @@ from ._helpers import label as _label, update_label as _update_label
 
 def test_set_draw_mode_outlined(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect(width=100, height=100)
-    conn.stimuli.shapes.set_draw_mode(handle, DrawMode.OUTLINED)
+    conn.stimuli.set_draw_mode(handle, DrawMode.OUTLINED)
     info = conn.stimuli.query(handle)
     assert info.draw_mode == DrawMode.OUTLINED
-    conn.stimuli.shapes.delete(handle)
+    conn.stimuli.delete(handle)
 
 
 def test_set_draw_mode_filled_and_outlined(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_circle(radius=50)
-    conn.stimuli.shapes.set_draw_mode(handle, DrawMode.FILLED_AND_OUTLINED)
+    conn.stimuli.set_draw_mode(handle, DrawMode.FILLED_AND_OUTLINED)
     info = conn.stimuli.query(handle)
     assert info.draw_mode == DrawMode.FILLED_AND_OUTLINED
-    conn.stimuli.shapes.delete(handle)
+    conn.stimuli.delete(handle)
 
 
 def test_set_outline_color_roundtrip(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect(width=100, height=80)
-    conn.stimuli.shapes.set_outline_color(handle, Color(1.0, 0.5, 0.0, 0.8))
+    conn.stimuli.set_outline_color(handle, Color(1.0, 0.5, 0.0, 0.8))
     info = conn.stimuli.query(handle)
     assert info.outline_color.r == pytest.approx(1.0, abs=0.01)
     assert info.outline_color.g == pytest.approx(0.5, abs=0.01)
     assert info.outline_color.b == pytest.approx(0.0, abs=0.01)
     assert info.outline_color.a == pytest.approx(0.8, abs=0.01)
-    conn.stimuli.shapes.delete(handle)
+    conn.stimuli.delete(handle)
 
 
 def test_set_outline_width_roundtrip(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_ellipse(width=120, height=80)
-    conn.stimuli.shapes.set_outline_width(handle, 6.0)
+    conn.stimuli.set_outline_width(handle, 6.0)
     info = conn.stimuli.query(handle)
     assert info.outline_width == pytest.approx(6.0, abs=0.1)
-    conn.stimuli.shapes.delete(handle)
+    conn.stimuli.delete(handle)
 
 
 def test_draw_mode_default_is_filled(conn: Connection) -> None:
@@ -54,16 +54,16 @@ def test_draw_mode_default_is_filled(conn: Connection) -> None:
     ]:
         info = conn.stimuli.query(h)
         assert info.draw_mode == DrawMode.FILLED
-        conn.stimuli.shapes.delete(h)
+        conn.stimuli.delete(h)
 
 
 def test_draw_mode_cycle(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect(width=100, height=100)
     for mode in (DrawMode.OUTLINED, DrawMode.FILLED_AND_OUTLINED, DrawMode.FILLED):
-        conn.stimuli.shapes.set_draw_mode(handle, mode)
+        conn.stimuli.set_draw_mode(handle, mode)
         info = conn.stimuli.query(handle)
         assert info.draw_mode == mode
-    conn.stimuli.shapes.delete(handle)
+    conn.stimuli.delete(handle)
 
 
 def test_outline_visual(conn: Connection, step_delay: float, request: pytest.FixtureRequest) -> None:
@@ -87,28 +87,28 @@ def test_outline_visual(conn: Connection, step_delay: float, request: pytest.Fix
         ell  = conn.stimuli.shapes.create_ellipse(pos=Vec2(200, 0), width=200, height=100,
                                                   color=Color(0.3, 0.8, 0.3))
         for h in (rect, circ, ell):
-            conn.stimuli.shapes.set_draw_mode(h, mode)
-            conn.stimuli.shapes.set_outline_color(h, Color(1.0, 1.0, 0.0))
-            conn.stimuli.shapes.set_outline_width(h, 6.0)
+            conn.stimuli.set_draw_mode(h, mode)
+            conn.stimuli.set_outline_color(h, Color(1.0, 1.0, 0.0))
+            conn.stimuli.set_outline_width(h, 6.0)
 
         time.sleep(step_delay)
 
         for h in (rect, circ, ell):
-            conn.stimuli.shapes.delete(h)
+            conn.stimuli.delete(h)
 
-    conn.stimuli.shapes.delete(lbl)
+    conn.stimuli.delete(lbl)
     conn.system.set_background(r=0.0, g=0.0, b=0.0)
 
 
 def test_outline_independent_of_fill_color(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect(width=100, height=100, color=Color(1.0, 0.0, 0.0))
-    conn.stimuli.shapes.set_outline_color(handle, Color(0.0, 0.0, 1.0))
+    conn.stimuli.set_outline_color(handle, Color(0.0, 0.0, 1.0))
     info = conn.stimuli.query(handle)
     assert info.fill_color.r == pytest.approx(1.0, abs=0.01)
     assert info.outline_color.b == pytest.approx(1.0, abs=0.01)
 
-    conn.stimuli.shapes.set_fill_color(handle, Color(0.0, 1.0, 0.0))
+    conn.stimuli.set_fill_color(handle, Color(0.0, 1.0, 0.0))
     info = conn.stimuli.query(handle)
     assert info.fill_color.g == pytest.approx(1.0, abs=0.01)
     assert info.outline_color.b == pytest.approx(1.0, abs=0.01)
-    conn.stimuli.shapes.delete(handle)
+    conn.stimuli.delete(handle)

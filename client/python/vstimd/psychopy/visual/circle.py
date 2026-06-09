@@ -82,7 +82,7 @@ class Circle:
     @autoDraw.setter
     def autoDraw(self, value: bool) -> None:
         self._auto_draw = bool(value)
-        self._win._dispatch(self._win._conn.stimuli.shapes.set_enabled, self._handle, self._auto_draw)
+        self._win._dispatch(self._win._conn.stimuli.set_enabled, self._handle, self._auto_draw)
 
     def setAutoDraw(self, value: bool, log: bool | None = None) -> None:
         self.autoDraw = value
@@ -98,7 +98,7 @@ class Circle:
     def pos(self, value: PsychoPyVec2) -> None:
         self._pos = (float(value[0]), float(value[1]))
         px, py = self._to_px(self._pos)
-        self._win._dispatch(self._win._conn.stimuli.shapes.set_position, self._handle, StimulusVec2(px, py))
+        self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, StimulusVec2(px, py))
 
     def setPos(self, value: PsychoPyVec2, operation: str = "", log: bool | None = None) -> None:
         if operation == "+":
@@ -127,7 +127,7 @@ class Circle:
     @ori.setter
     def ori(self, value: float) -> None:
         self._ori = float(value)
-        self._win._dispatch(self._win._conn.stimuli.shapes.set_orientation, self._handle, self._ori)
+        self._win._dispatch(self._win._conn.stimuli.set_orientation, self._handle, self._ori)
 
     def setOri(self, value: float, operation: str = "", log: bool | None = None) -> None:
         self.ori = value
@@ -163,6 +163,6 @@ class Circle:
 
     def _resend_color(self) -> None:
         self._win._dispatch(
-            self._win._conn.stimuli.shapes.set_fill_color,
+            self._win._conn.stimuli.set_fill_color,
             self._handle, to_color(self._fill_color, self._color_space, self._opacity) or StimulusColor(0.0, 0.0, 0.0, 0.0),
         )
