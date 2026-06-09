@@ -4,8 +4,7 @@ from typing import Any, Callable
 
 from ..._handles import StimulusHandle
 from ..._connection import Connection
-from ._colors import normalize_color
-from ._types import ColorInput, MonitorProtocol
+from ._types import PsychoPyColor, MonitorProtocol
 
 
 class Window:
@@ -18,7 +17,7 @@ class Window:
     def __init__(
         self,
         size: tuple[int, int] = (800, 600),
-        color: ColorInput = (-1, -1, -1),
+        color: PsychoPyColor = (-1, -1, -1),
         units: str = "pix",
         monitor: MonitorProtocol | None = None,
         deferred: bool = True,

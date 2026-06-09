@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from typing import overload
 
-from ._types import MonitorProtocol, Vec2
+from ._types import MonitorProtocol, PsychoPyVec2
 
 
 @overload
@@ -21,7 +21,7 @@ def to_pixels(
 
 @overload
 def to_pixels(
-    value: Vec2,
+    value: PsychoPyVec2,
     units: str,
     win_size: tuple[int, int],
     monitor: MonitorProtocol | None = None,
@@ -29,7 +29,7 @@ def to_pixels(
 
 
 def to_pixels(
-    value: float | Vec2,
+    value: float | PsychoPyVec2,
     units: str,
     win_size: tuple[int, int],
     monitor: MonitorProtocol | None = None,

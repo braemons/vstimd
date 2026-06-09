@@ -1,13 +1,14 @@
-"""Color normalization: any PsychoPy-style color input → (r, g, b, a) floats in 0..1.
+"""Color normalization: any PsychoPy-style color input → vstimd Color.
 
 PsychoPy's default colorSpace='rgb' uses -1..1 rather than 0..1.  The midpoint
 0.0 is mid-grey, matching OpenGL convention and making contrast arithmetic clean
-(color * contrast).  We convert to 0..1 before sending over the wire.
+(color * contrast).  We convert to 0..1 before building a Color for the wire.
 """
 
 from __future__ import annotations
 
-from ._types import ColorInput, Rgba
+from ...stimuli.stimuli_models import Color
+from ._types import PsychoPyColor
 
 _NAMED: dict[str, tuple[float, float, float]] = {
     "white":   (1.0, 1.0, 1.0),
@@ -26,12 +27,12 @@ _NAMED: dict[str, tuple[float, float, float]] = {
 }
 
 
-def normalize_color(
-    color: ColorInput,
+def to_color(
+    color: PsychoPyColor,
     color_space: str = "rgb",
     alpha: float = 1.0,
-) -> Rgba | None:
-    """Return (r, g, b, a) in 0..1, or None for transparent/no-color."""
+) -> Color | None:
+    """Convert a PsychoPy-style color value to a vstimd Color, or None for transparent."""
     if color is None:
         return None
 
@@ -41,17 +42,17 @@ def normalize_color(
             if len(h) == 3:
                 h = h[0]*2 + h[1]*2 + h[2]*2
             r, g, b = (int(h[i:i+2], 16) / 255.0 for i in (0, 2, 4))
-            return (r, g, b, alpha)
+            return Color(r, g, b, alpha)
         name = color.lower()
         if name in _NAMED:
             r, g, b = _NAMED[name]
-            return (r, g, b, alpha)
+            return Color(r, g, b, alpha)
         raise ValueError(f"Unknown color name: {color!r}")
 
     # Single scalar → greyscale in PsychoPy -1..1 convention
     if isinstance(color, (int, float)):
         v = max(0.0, min(1.0, (float(color) + 1.0) / 2.0))
-        return (v, v, v, alpha)
+        return Color(v, v, v, alpha)
 
     seq = tuple(float(x) for x in color)
     if color_space == "rgb255":
@@ -64,4 +65,4 @@ def normalize_color(
 
     r, g, b = (max(0.0, min(1.0, x)) for x in (r, g, b))
     a = float(seq[3]) if len(seq) >= 4 else alpha
-    return (r, g, b, a)
+    return Color(r, g, b, a)

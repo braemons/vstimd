@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from ..._handles import StimulusHandle
 from ...stimuli.stimuli_models import Color as StimulusColor, Vec2 as StimulusVec2
-from ._colors import normalize_color
-from ._types import ColorInput, Vec2
+from ._colors import to_color
+from ._types import PsychoPyColor, PsychoPyVec2
 from ._units import to_pixels
 from .window import Window
 
@@ -17,11 +17,11 @@ class Circle:
         radius: float = 0.5,
         edges: int | str = "circle",  # accepted for compat, server renders smooth circle
         units: str = "",
-        pos: Vec2 = (0.0, 0.0),
+        pos: PsychoPyVec2 = (0.0, 0.0),
         size: float = 1.0,
         ori: float = 0.0,
-        fillColor: ColorInput = "white",
-        lineColor: ColorInput = None,
+        fillColor: PsychoPyColor = "white",
+        lineColor: PsychoPyColor = None,
         lineWidth: float = 1.5,
         colorSpace: str = "rgb",
         opacity: float = 1.0,
@@ -34,7 +34,7 @@ class Circle:
         interpolate: bool = True,
         draggable: bool = False,
         anchor: str | None = None,
-        color: ColorInput = None,
+        color: PsychoPyColor = None,
         lineColorSpace: str | None = None,
         fillColorSpace: str | None = None,
         lineRGB: tuple[float, float, float] | None = None,
@@ -49,15 +49,14 @@ class Circle:
         self._pos: tuple[float, float] = (float(pos[0]), float(pos[1]))
         self._ori = float(ori)
         self._opacity = float(opacity)
-        self._fill_color: ColorInput = fillColor
+        self._fill_color: PsychoPyColor = fillColor
         self._auto_draw = False
 
         px, py = self._to_px(self._pos)
         pr = self._scalar_px(self._radius)
-        rgba = normalize_color(fillColor, colorSpace, opacity) or (0.0, 0.0, 0.0, 0.0)
         self._handle: StimulusHandle = win._conn.stimuli.create_circle(
             pos=StimulusVec2(px, py), radius=pr,
-            color=StimulusColor(rgba[0], rgba[1], rgba[2], rgba[3]),
+            color=to_color(fillColor, colorSpace, opacity) or StimulusColor(0.0, 0.0, 0.0, 0.0),
         )
 
         if autoDraw:
@@ -66,7 +65,7 @@ class Circle:
     def _effective_units(self) -> str:
         return self._win._resolve_units(self._units)
 
-    def _to_px(self, pos: Vec2) -> tuple[float, float]:
+    def _to_px(self, pos: PsychoPyVec2) -> tuple[float, float]:
         result = to_pixels(pos, self._effective_units(), self._win.size, self._win.monitor)
         assert isinstance(result, tuple)
         return result
@@ -96,12 +95,12 @@ class Circle:
         return self._pos
 
     @pos.setter
-    def pos(self, value: Vec2) -> None:
+    def pos(self, value: PsychoPyVec2) -> None:
         self._pos = (float(value[0]), float(value[1]))
         px, py = self._to_px(self._pos)
         self._win._dispatch(self._win._conn.stimuli.set_position, self._handle, StimulusVec2(px, py))
 
-    def setPos(self, value: Vec2, operation: str = "", log: bool | None = None) -> None:
+    def setPos(self, value: PsychoPyVec2, operation: str = "", log: bool | None = None) -> None:
         if operation == "+":
             value = (self._pos[0] + value[0], self._pos[1] + value[1])
         elif operation == "-":
@@ -146,25 +145,24 @@ class Circle:
         self.opacity = value
 
     @property
-    def fillColor(self) -> ColorInput:
+    def fillColor(self) -> PsychoPyColor:
         return self._fill_color
 
     @fillColor.setter
-    def fillColor(self, value: ColorInput) -> None:
+    def fillColor(self, value: PsychoPyColor) -> None:
         self._fill_color = value
         self._resend_color()
 
-    def setFillColor(self, value: ColorInput, colorSpace: str | None = None, log: bool | None = None) -> None:
+    def setFillColor(self, value: PsychoPyColor, colorSpace: str | None = None, log: bool | None = None) -> None:
         if colorSpace is not None:
             self._color_space = colorSpace
         self.fillColor = value
 
-    def setColor(self, value: ColorInput, colorSpace: str | None = None, log: bool | None = None) -> None:
+    def setColor(self, value: PsychoPyColor, colorSpace: str | None = None, log: bool | None = None) -> None:
         self.setFillColor(value, colorSpace, log)
 
     def _resend_color(self) -> None:
-        rgba = normalize_color(self._fill_color, self._color_space, self._opacity) or (0.0, 0.0, 0.0, 0.0)
         self._win._dispatch(
             self._win._conn.stimuli.set_fill_color,
-            self._handle, StimulusColor(rgba[0], rgba[1], rgba[2], rgba[3]),
+            self._handle, to_color(self._fill_color, self._color_space, self._opacity) or StimulusColor(0.0, 0.0, 0.0, 0.0),
         )
