@@ -2,6 +2,9 @@
 name = "vstimd"
 version = "0.1.0"
 edition = "2024"
+license = "AGPL-3.0-only"
+license-file = "../LICENSE"
+repository = "https://github.com/braemons/vstimd"
 
 [dependencies]
 ash        = "0.38"
@@ -17,7 +20,7 @@ indexmap   = "2"
 lyon_tessellation = "1.0"
 log        = "0.4"
 prost      = "0.13"
-vtl        = { path = "../vtl" }
+vtl        = { path = "../vtl", version = "0.1.0" }
 nvml-wrapper = "0.10"
 rand         = "0.10.1"
 uuid         = { version = "1", features = ["v4"] }
