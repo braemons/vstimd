@@ -17,7 +17,7 @@ import pytest
 
 import vstimd.psychopy.visual as visual
 
-from ._psychopy_visual_cases import *  # noqa: F401, F403
+from .psychopy_visual_cases import *  # noqa: F401, F403
 from .conftest import reachable
 
 _REPO_ROOT = pathlib.Path(__file__).parents[4]
