@@ -85,6 +85,10 @@ pub fn text_query_params(s: &TextStimulus) -> proto::StimulusParams {
                 r: p.border_color[0], g: p.border_color[1],
                 b: p.border_color[2], a: p.border_color[3],
             }),
+            text_color: Some(proto::Color {
+                r: p.color[0], g: p.color[1],
+                b: p.color[2], a: p.color[3],
+            }),
             flip_horiz:     p.flip_horiz,
             language_style: language_style_to_proto(s.language_style),
         })),

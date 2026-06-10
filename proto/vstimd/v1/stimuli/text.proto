@@ -61,8 +61,9 @@ message TextParams {
   float         letter_height  = 3;
   Vec2          size           = 4;
   string        anchor         = 5;
-  Color         fill_color     = 6;
-  Color         border_color   = 7;
+  Color         fill_color     = 6;  // background box fill colour
+  Color         border_color   = 7;  // box border colour
   bool          flip_horiz     = 8;
   LanguageStyle language_style = 9;
+  Color         text_color     = 10; // foreground text colour (set by SetTextColorRequest)
 }

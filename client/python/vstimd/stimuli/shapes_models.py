@@ -2,8 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Sequence
 
 from vstimd._proto.vstimd.v1.stimuli import shapes_pb2
+
+from .vec import Vec2
 
 
 class ShapeDrawMode(StrEnum):
@@ -40,3 +43,9 @@ class CircleParams:
 class EllipseParams:
     width: float
     height: float
+
+
+@dataclass
+class PolygonParams:
+    vertices: list[Vec2]
+    close_shape: bool = True

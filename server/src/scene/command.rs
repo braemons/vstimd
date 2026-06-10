@@ -971,6 +971,7 @@ impl SceneState {
                 }
             };
 
+        let draw_order = self.stimuli.get_index_of(&handle).unwrap_or(0) as u32;
         ok_body(proto::response::Body::StimulusInfo(proto::QueryStimulusResponse {
             stimulus_type,
             enabled: stim.flags().enabled,
@@ -985,6 +986,7 @@ impl SceneState {
             params,
             id: entry.id.to_string(),
             name: entry.name.clone().unwrap_or_default(),
+            draw_order,
         }))
     }
 
