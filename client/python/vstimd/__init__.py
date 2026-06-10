@@ -31,6 +31,7 @@ from .animations import (
     AnimationInfo,
     AnimationState,
     FinalAction,
+    StartAction,
     VtlEdge,
 )
 from .exceptions import (
@@ -69,6 +70,7 @@ __all__ = [
     "AnimationInfo",
     "AnimationState",
     "FinalAction",
+    "StartAction",
     "VtlEdge",
     "psychopy",
 ]

@@ -13,7 +13,7 @@ use super::stimulus::text::{
     text_render_params_from_proto,
 };
 use crate::ipc::{err, err_not_found, err_wrong_type, ok_ack, ok_body, ok_handle, ok_handle_with_id};
-use super::animation::{AnimState, Animation, AnimationEntry, Edge, FinalAction, VtlBit};
+use super::animation::{AnimState, Animation, AnimationEntry, Edge, FinalAction, StartAction, VtlBit};
 use crate::proto;
 use crate::proto::request;
 use crate::vtl_state::{VtlNameEntry, VtlState};
@@ -1253,6 +1253,17 @@ impl SceneState {
         vtl: Option<&VtlState>,
     ) -> proto::Response {
         let vtl_names: &[VtlNameEntry] = vtl.map_or(&[], |v| v.names.as_slice());
+        let start_action = StartAction::from_bits_truncate(cmd.start_action_mask as u8);
+
+        let start_action_trigger_line = if start_action.contains(StartAction::START_ACTION_TRIGGER_LINE) {
+            match resolve_vtl_handle(cmd.start_action_trigger_line.as_ref(), vtl_names) {
+                Ok((bank, bit)) => Some(VtlBit { bank, bit }),
+                Err(e) => return *e,
+            }
+        } else {
+            None
+        };
+
         let final_action = FinalAction::from_bits_truncate(cmd.final_action_mask as u8);
 
         let final_action_trigger_line = if final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE) {
@@ -1283,6 +1294,8 @@ impl SceneState {
             name: cmd.name,
             state: AnimState::Idle,
             stimuli: cmd.stimuli,
+            start_action,
+            start_action_trigger_line,
             final_action,
             final_action_trigger_line,
             start_trigger,
@@ -1382,6 +1395,8 @@ impl SceneState {
 
         let params = proto::CreateAnimationRequest {
             name:                entry.name.clone(),
+            start_action_mask:   entry.start_action.bits() as u32,
+            start_action_trigger_line: entry.start_action_trigger_line.map(vtl_bit_to_proto),
             final_action_mask:   entry.final_action.bits() as u32,
             final_action_trigger_line: entry.final_action_trigger_line.map(vtl_bit_to_proto),
             start_trigger,

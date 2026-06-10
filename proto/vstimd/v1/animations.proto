@@ -70,8 +70,13 @@ message MoveAlongSegments2D {
 
 // ── Animation management ──────────────────────────────────────────────────────
 
-// final_action_mask bit values (combine with |):
-//   0x01  DISABLE           — disable stimulus on completion
+// start_action_mask bit values — applied when animation transitions Armed → Running:
+//   0x02  ENABLE                    — enable stimuli at start
+//   0x04  TOGGLE_PHOTODIODE         — toggle the photodiode indicator at start
+//   0x08  START_ACTION_TRIGGER_LINE — pulse start_action_trigger_line for one frame at start
+//
+// final_action_mask bit values — applied when animation completes:
+//   0x01  DISABLE           — disable stimuli on completion
 //   0x04  TOGGLE_PHOTODIODE — toggle the photodiode indicator on completion
 //   0x08  FINAL_ACTION_TRIGGER_LINE — pulse final_action_trigger_line for one frame on completion
 //   0x10  RESTART                   — re-arm and restart the animation on completion
@@ -88,6 +93,10 @@ message CreateAnimationRequest {
   VtlEdge                  start_edge    = 5;
   // Stimuli affected by this animation (shared across all body types).
   repeated uint32          stimuli       = 6;
+  // Actions applied when animation transitions Armed → Running (see bit values above).
+  uint32                   start_action_mask = 7;
+  // Required when START_ACTION_TRIGGER_LINE (0x08) is set; the output line to pulse.
+  VirtualTriggerLineHandle start_action_trigger_line = 8;
 
   oneof body {
     CoupleVisibilityToInputTriggerLine couple_visibility_to_input_trigger_line = 10;

@@ -6,7 +6,7 @@ from typing import Callable, Optional, Union
 from vstimd._handles import AnimationHandle, StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import animations_pb2, vtl_pb2
-from ._models import AnimationDetails, AnimationInfo, AnimationState, FinalAction, VtlEdge
+from ._models import AnimationDetails, AnimationInfo, AnimationState, FinalAction, StartAction, VtlEdge
 
 
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
@@ -143,6 +143,8 @@ class AnimationClient:
         body_kwargs: dict,
         *,
         name: str,
+        start_action_mask: StartAction,
+        start_action_trigger_line: Optional[VtlHandle],
         final_action_mask: FinalAction,
         final_action_trigger_line: Optional[VtlHandle],
         start_trigger: Optional[VtlHandle],
@@ -150,6 +152,8 @@ class AnimationClient:
     ) -> animations_pb2.CreateAnimationRequest:
         return animations_pb2.CreateAnimationRequest(
             name=name,
+            start_action_mask=int(start_action_mask),
+            start_action_trigger_line=_make_vtl_handle(start_action_trigger_line) if start_action_trigger_line else None,
             final_action_mask=int(final_action_mask),
             final_action_trigger_line=_make_vtl_handle(final_action_trigger_line) if final_action_trigger_line else None,
             start_trigger=_make_vtl_handle(start_trigger) if start_trigger else None,
@@ -167,6 +171,8 @@ class AnimationClient:
         *,
         polarity: bool = True,
         name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
         final_action_mask: FinalAction = FinalAction(0),
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
@@ -181,7 +187,10 @@ class AnimationClient:
                         polarity=polarity,
                     ),
             },
-            name=name, final_action_mask=final_action_mask,
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=final_action_mask,
             final_action_trigger_line=final_action_trigger_line,
             start_trigger=start_trigger, start_edge=start_edge,
         )
@@ -195,6 +204,8 @@ class AnimationClient:
         edge: VtlEdge = VtlEdge.RISING,
         enabled: bool = True,
         name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
         final_action_mask: FinalAction = FinalAction(0),
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
@@ -209,7 +220,10 @@ class AnimationClient:
                     enabled=enabled,
                 ),
             },
-            name=name, final_action_mask=final_action_mask,
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=final_action_mask,
             final_action_trigger_line=final_action_trigger_line,
             start_trigger=start_trigger, start_edge=start_edge,
         )
@@ -222,6 +236,8 @@ class AnimationClient:
         *,
         duration_ms: float | None = None,
         name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
         final_action_mask: FinalAction = FinalAction(0),
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
@@ -238,7 +254,10 @@ class AnimationClient:
                     duration_frames=self._to_frames(duration_frames, duration_ms, "duration"),
                 ),
             },
-            name=name, final_action_mask=final_action_mask,
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=final_action_mask,
             final_action_trigger_line=final_action_trigger_line,
             start_trigger=start_trigger, start_edge=start_edge,
         )
@@ -256,6 +275,8 @@ class AnimationClient:
         total_ms: float | None = None,
         start_on_phase: bool = True,
         name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
         final_action_mask: FinalAction = FinalAction(0),
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
@@ -275,7 +296,10 @@ class AnimationClient:
             msg.total_frames = self._to_frames(total_frames, total_ms, "total")
         req = self._make_req(
             stimuli, {"flicker_for_n_frames": msg},
-            name=name, final_action_mask=final_action_mask,
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=final_action_mask,
             final_action_trigger_line=final_action_trigger_line,
             start_trigger=start_trigger, start_edge=start_edge,
         )
@@ -288,6 +312,8 @@ class AnimationClient:
         y: list[float],
         *,
         name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
         final_action_mask: FinalAction = FinalAction(0),
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
@@ -304,7 +330,10 @@ class AnimationClient:
             stimuli, {
                 "move_along_path_2d": animations_pb2.MoveAlongPath2D(x=x, y=y),
             },
-            name=name, final_action_mask=final_action_mask,
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=final_action_mask,
             final_action_trigger_line=final_action_trigger_line,
             start_trigger=start_trigger, start_edge=start_edge,
         )
@@ -318,6 +347,8 @@ class AnimationClient:
         speed_px_per_sec: float,
         *,
         name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
         final_action_mask: FinalAction = FinalAction(0),
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
@@ -339,7 +370,10 @@ class AnimationClient:
                     x=x, y=y, speed_px_per_sec=speed_px_per_sec,
                 ),
             },
-            name=name, final_action_mask=final_action_mask,
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=final_action_mask,
             final_action_trigger_line=final_action_trigger_line,
             start_trigger=start_trigger, start_edge=start_edge,
         )
@@ -353,6 +387,8 @@ class AnimationClient:
         x_offset: float = 0.0,
         y_offset: float = 0.0,
         name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
         final_action_mask: FinalAction = FinalAction(0),
         final_action_trigger_line: Optional[VtlHandle] = None,
         start_trigger: Optional[VtlHandle] = None,
@@ -367,7 +403,10 @@ class AnimationClient:
                     y_offset=y_offset,
                 ),
             },
-            name=name, final_action_mask=final_action_mask,
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=final_action_mask,
             final_action_trigger_line=final_action_trigger_line,
             start_trigger=start_trigger, start_edge=start_edge,
         )

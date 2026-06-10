@@ -18,6 +18,12 @@ class VtlEdge(IntEnum):
     FALLING = 1
 
 
+class StartAction(IntFlag):
+    ENABLE                    = 0x02
+    TOGGLE_PHOTODIODE         = 0x04
+    START_ACTION_TRIGGER_LINE = 0x08
+
+
 class FinalAction(IntFlag):
     DISABLE           = 0x01
     TOGGLE_PHOTODIODE = 0x04

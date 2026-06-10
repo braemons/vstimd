@@ -4,6 +4,7 @@ from ._models import (
     AnimationInfo,
     AnimationState,
     FinalAction,
+    StartAction,
     VtlEdge,
 )
 from vstimd._handles import AnimationHandle
@@ -15,6 +16,7 @@ __all__ = [
     "AnimationInfo",
     "AnimationState",
     "FinalAction",
+    "StartAction",
     "Stimuli",
     "VtlEdge",
     "VtlHandle",

@@ -50,7 +50,7 @@ def wait_for_anim_state(
 
 def make_rect(
     conn: Connection, *, x: float = 0, y: float = 0, enabled: bool = True
-) -> int:
+) -> StimulusHandle:
     h = conn.stimuli.shapes.create_rect(
         pos=Vec2(x, y), width=80, height=80, color=Color(0.8, 0.2, 0.2)
     )

@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 
-use super::animation::{AnimState, Animation, AnimationEntry, FinalAction};
+use super::animation::{AnimState, Animation, AnimationEntry, FinalAction, StartAction};
 use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
 use super::stimulus::StimulusEntry;
@@ -265,6 +265,8 @@ fn advance_one(
                 // Snapshot user_enabled for RESTORE_STATE before modifying anything.
                 let captures_state = entry.final_action.contains(FinalAction::RESTORE_STATE);
                 let stim_handles: Vec<u32> = entry.stimuli.clone();
+                let start_action = entry.start_action;
+                let start_action_trigger_line = entry.start_action_trigger_line;
 
                 if captures_state {
                     let captured: Vec<bool> = stim_handles.iter()
@@ -295,6 +297,25 @@ fn advance_one(
                     }
                     _ => {}
                 }
+
+                // Apply start_action bits.
+                if start_action.contains(StartAction::ENABLE) {
+                    for &sh in &stim_handles {
+                        if let Some(e) = scene.stimuli.get_mut(&sh) {
+                            e.stimulus.flags_mut().enabled = true;
+                            e.stimulus.flags_mut().mark_dirty();
+                        }
+                    }
+                }
+                if start_action.contains(StartAction::TOGGLE_PHOTODIODE) {
+                    scene.photodiode.lit = !scene.photodiode.lit;
+                }
+                if start_action.contains(StartAction::START_ACTION_TRIGGER_LINE) {
+                    if let Some(bit) = start_action_trigger_line {
+                        output_pending[bit.bank] |= 1u64 << bit.bit;
+                    }
+                }
+
                 scene.animations.get_mut(&handle).unwrap().state =
                     AnimState::Running { frame_counter: 0 };
             }
