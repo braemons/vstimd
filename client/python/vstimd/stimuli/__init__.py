@@ -1,20 +1,15 @@
 from vstimd._handles import StimulusHandle
 
-from ._grating import GratingClient, GratingMask, GratingParams, GratingTexture
-from ._shapes import ShapeDrawMode, ShapesClient
-from ._text import TextClient
+from .grating_client import GratingClient
+from .grating_models import GratingMask, GratingParams, GratingTexture
+from .shapes_client import ShapesClient
+from .shapes_models import CircleParams, EllipseParams, PolygonParams, RectParams, ShapeDrawMode
 from .stimuli_client import StimuliClient
-from .stimuli_models import (
-    CircleParams,
-    Color,
-    EllipseParams,
-    LanguageStyle,
-    RectParams,
-    StimulusInfo,
-    StimulusParams,
-    StimulusType,
-    Vec2,
-)
+from .stimuli_models import StimulusInfo, StimulusParams, StimulusType
+from .text_client import TextClient
+from .text_models import LanguageStyle, TextParams
+from .color import Color
+from .vec import Vec2
 
 __all__ = [
     "StimuliClient",
@@ -22,17 +17,19 @@ __all__ = [
     "GratingClient",
     "TextClient",
     "Color",
+    "Vec2",
     "CircleParams",
-    "ShapeDrawMode",
     "EllipseParams",
     "GratingMask",
     "GratingParams",
     "GratingTexture",
     "LanguageStyle",
+    "PolygonParams",
     "RectParams",
+    "ShapeDrawMode",
+    "TextParams",
     "StimulusHandle",
     "StimulusInfo",
     "StimulusParams",
     "StimulusType",
-    "Vec2",
 ]

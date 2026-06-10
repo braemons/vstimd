@@ -13,7 +13,7 @@ use super::stimulus::text::{
     text_render_params_from_proto,
 };
 use crate::ipc::{err, err_not_found, err_wrong_type, ok_ack, ok_body, ok_handle, ok_handle_with_id};
-use super::animation::{AnimState, Animation, AnimationEntry, Edge, FinalAction, VtlBit};
+use super::animation::{AnimState, Animation, AnimationEntry, Edge, FinalAction, StartAction, VtlBit};
 use crate::proto;
 use crate::proto::request;
 use crate::vtl_state::{VtlNameEntry, VtlState};
@@ -124,6 +124,8 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::DeleteAnimation(c)) => format!("DeleteAnimation({})", c.handle),
         Some(request::Body::ListAnimations(_)) => "ListAnimations".into(),
         Some(request::Body::QueryAnimation(c)) => format!("QueryAnimation({})", c.handle),
+        Some(request::Body::WaitForFrames(c)) => format!("WaitForFrames({})", c.count),
+        Some(request::Body::WaitUntil(c)) => format!("WaitUntil({}ns)", c.server_time_ns),
         None => "?".into(),
     }
 }
@@ -255,7 +257,9 @@ impl SceneState {
             | request::Body::DisarmAnimation(_)
             | request::Body::DeleteAnimation(_)
             | request::Body::ListAnimations(_)
-            | request::Body::QueryAnimation(_) => err(
+            | request::Body::QueryAnimation(_)
+            | request::Body::WaitForFrames(_)
+            | request::Body::WaitUntil(_) => err(
                 proto::ErrorCode::WrongTarget,
                 "system command must use target.system (not a stimulus handle)",
             ),
@@ -867,9 +871,7 @@ impl SceneState {
     // ── QueryServerInfo ───────────────────────────────────────────────────────
 
     fn cmd_query_server_info(&self) -> proto::Response {
-        let Some((w, h)) = self.screen_size else {
-            return err(proto::ErrorCode::NotReady, "display not yet initialised");
-        };
+        let (w, h) = self.screen_size.unwrap_or((0, 0));
         let bg = self.background.live;
         let version = parse_cargo_version();
         ok_body(proto::response::Body::ServerInfo(proto::QueryServerInfoResponse {
@@ -971,6 +973,7 @@ impl SceneState {
                 }
             };
 
+        let draw_order = self.stimuli.get_index_of(&handle).unwrap_or(0) as u32;
         ok_body(proto::response::Body::StimulusInfo(proto::QueryStimulusResponse {
             stimulus_type,
             enabled: stim.flags().enabled,
@@ -985,6 +988,7 @@ impl SceneState {
             params,
             id: entry.id.to_string(),
             name: entry.name.clone().unwrap_or_default(),
+            draw_order,
         }))
     }
 
@@ -1253,6 +1257,17 @@ impl SceneState {
         vtl: Option<&VtlState>,
     ) -> proto::Response {
         let vtl_names: &[VtlNameEntry] = vtl.map_or(&[], |v| v.names.as_slice());
+        let start_action = StartAction::from_bits_truncate(cmd.start_action_mask as u8);
+
+        let start_action_trigger_line = if start_action.contains(StartAction::START_ACTION_TRIGGER_LINE) {
+            match resolve_vtl_handle(cmd.start_action_trigger_line.as_ref(), vtl_names) {
+                Ok((bank, bit)) => Some(VtlBit { bank, bit }),
+                Err(e) => return *e,
+            }
+        } else {
+            None
+        };
+
         let final_action = FinalAction::from_bits_truncate(cmd.final_action_mask as u8);
 
         let final_action_trigger_line = if final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE) {
@@ -1283,6 +1298,8 @@ impl SceneState {
             name: cmd.name,
             state: AnimState::Idle,
             stimuli: cmd.stimuli,
+            start_action,
+            start_action_trigger_line,
             final_action,
             final_action_trigger_line,
             start_trigger,
@@ -1382,6 +1399,8 @@ impl SceneState {
 
         let params = proto::CreateAnimationRequest {
             name:                entry.name.clone(),
+            start_action_mask:   entry.start_action.bits() as u32,
+            start_action_trigger_line: entry.start_action_trigger_line.map(vtl_bit_to_proto),
             final_action_mask:   entry.final_action.bits() as u32,
             final_action_trigger_line: entry.final_action_trigger_line.map(vtl_bit_to_proto),
             start_trigger,
@@ -1418,8 +1437,8 @@ fn edge_to_proto(e: Edge) -> i32 {
 fn animation_to_proto_body(anim: &Animation) -> proto::create_animation_request::Body {
     use proto::create_animation_request::Body as PBody;
     match anim {
-        Animation::CoupleVisibilityToInputTriggerLine { trigger, polarity } =>
-            PBody::CoupleVisibilityToInputTriggerLine(proto::CoupleVisibilityToInputTriggerLine {
+        Animation::CoupleVisibilityToTriggerLine { trigger, polarity } =>
+            PBody::CoupleVisibilityToTriggerLine(proto::CoupleVisibilityToTriggerLine {
                 trigger:  Some(vtl_bit_to_proto(*trigger)),
                 polarity: *polarity,
             }),
@@ -1481,7 +1500,7 @@ fn proto_to_animation(
     let proto_edge = |e: i32| -> Edge { proto_vtl_edge(e) };
 
     match cmd.body.as_ref() {
-        Some(PBody::CoupleVisibilityToInputTriggerLine(c)) => Ok(Animation::CoupleVisibilityToInputTriggerLine {
+        Some(PBody::CoupleVisibilityToTriggerLine(c)) => Ok(Animation::CoupleVisibilityToTriggerLine {
             trigger:  vtl_bit(c.trigger.as_ref())?,
             polarity: c.polarity,
         }),

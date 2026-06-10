@@ -6,7 +6,9 @@ from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import vec2_pb2, color_pb2
 from vstimd._proto.vstimd.v1.stimuli import grating_pb2
-from .stimuli_models import Color, Vec2
+from vstimd.response import ServerResponse
+
+from .color import Color
 from .grating_models import (
     GratingMask,
     GratingParams,
@@ -14,17 +16,9 @@ from .grating_models import (
     _MASK_TO_PROTO,
     _WAVEFORM_TO_PROTO,
 )
+from .vec import Vec2
 
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
-
-__all__ = [
-    "GratingClient",
-    "GratingMask",
-    "GratingParams",
-    "GratingTexture",
-    "_MASK_TO_PROTO",
-    "_WAVEFORM_TO_PROTO",
-]
 
 
 class GratingClient:
@@ -93,76 +87,76 @@ class GratingClient:
 
     # ── Grating-specific mutations ─────────────────────────────────────────────
 
-    def set_phase(self, handle: StimulusHandle, phase: float) -> None:
-        self._send(service_pb2.Request(
+    def set_phase(self, handle: StimulusHandle, phase: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_phase=grating_pb2.SetGratingPhaseRequest(phase=phase),
-        ))
+        )))
 
-    def set_sf(self, handle: StimulusHandle, sf: float) -> None:
-        self._send(service_pb2.Request(
+    def set_sf(self, handle: StimulusHandle, sf: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_sf=grating_pb2.SetGratingSfRequest(sf=sf),
-        ))
+        )))
 
-    def set_contrast(self, handle: StimulusHandle, contrast: float) -> None:
-        self._send(service_pb2.Request(
+    def set_contrast(self, handle: StimulusHandle, contrast: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_contrast=grating_pb2.SetGratingContrastRequest(contrast=contrast),
-        ))
+        )))
 
-    def set_waveform(self, handle: StimulusHandle, waveform: GratingTexture) -> None:
-        self._send(service_pb2.Request(
+    def set_waveform(self, handle: StimulusHandle, waveform: GratingTexture) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_waveform=grating_pb2.SetGratingWaveformRequest(
                 waveform=_WAVEFORM_TO_PROTO[waveform],
             ),
-        ))
+        )))
 
-    def set_mask(self, handle: StimulusHandle, mask: GratingMask) -> None:
-        self._send(service_pb2.Request(
+    def set_mask(self, handle: StimulusHandle, mask: GratingMask) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_mask=grating_pb2.SetGratingMaskRequest(mask=_MASK_TO_PROTO[mask]),
-        ))
+        )))
 
-    def set_drift_speed(self, handle: StimulusHandle, drift_speed: float) -> None:
-        self._send(service_pb2.Request(
+    def set_drift_speed(self, handle: StimulusHandle, drift_speed: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_drift_speed=grating_pb2.SetGratingDriftSpeedRequest(speed=drift_speed),
-        ))
+        )))
 
-    def set_drift_decoupled(self, handle: StimulusHandle, drift_decoupled: bool) -> None:
-        self._send(service_pb2.Request(
+    def set_drift_decoupled(self, handle: StimulusHandle, drift_decoupled: bool) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_drift_decoupled=grating_pb2.SetGratingDriftDecoupledRequest(
                 decoupled=drift_decoupled,
             ),
-        ))
+        )))
 
-    def set_drift_angle(self, handle: StimulusHandle, drift_angle: float) -> None:
-        self._send(service_pb2.Request(
+    def set_drift_angle(self, handle: StimulusHandle, drift_angle: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_drift_angle=grating_pb2.SetGratingDriftAngleRequest(angle_deg=drift_angle),
-        ))
+        )))
 
-    def set_fore_color(self, handle: StimulusHandle, color: Color) -> None:
-        self._send(service_pb2.Request(
+    def set_fore_color(self, handle: StimulusHandle, color: Color) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_fore_color=grating_pb2.SetGratingForeColorRequest(
                 fore_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
             ),
-        ))
+        )))
 
-    def set_back_color(self, handle: StimulusHandle, color: Color) -> None:
-        self._send(service_pb2.Request(
+    def set_back_color(self, handle: StimulusHandle, color: Color) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_back_color=grating_pb2.SetGratingBackColorRequest(
                 back_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
             ),
-        ))
+        )))
 
-    def set_opacity(self, handle: StimulusHandle, opacity: float) -> None:
-        self._send(service_pb2.Request(
+    def set_opacity(self, handle: StimulusHandle, opacity: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_opacity=grating_pb2.SetGratingOpacityRequest(opacity=opacity),
-        ))
+        )))

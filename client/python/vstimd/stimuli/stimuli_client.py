@@ -7,11 +7,14 @@ from vstimd._proto.vstimd.v1.stimuli import (
     query_pb2,
     shared_set_requests_pb2,
 )
+from vstimd.response import ServerResponse
 
-from ._grating import GratingClient
-from ._shapes import ShapesClient, _SendFn
-from ._text import TextClient
-from .stimuli_models import Color, StimulusInfo, Vec2
+from .grating_client import GratingClient
+from .shapes_client import ShapesClient, _SendFn
+from .text_client import TextClient
+from .color import Color
+from .stimuli_models import StimulusInfo
+from .vec import Vec2
 
 
 class StimuliClient:
@@ -25,67 +28,93 @@ class StimuliClient:
 
     # ── Generic mutations ──────────────────────────────────────────────────────
 
-    def set_name(self, handle: StimulusHandle, name: str) -> None:
-        self._send(
+    def set_name(self, handle: StimulusHandle, name: str) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_name=shared_set_requests_pb2.SetNameRequest(name=name),
             )
-        )
+        ))
 
-    def set_enabled(self, handle: StimulusHandle, enabled: bool) -> None:
-        self._send(
+    def set_enabled(self, handle: StimulusHandle, enabled: bool) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_enabled=shared_set_requests_pb2.SetEnabledRequest(enabled=enabled),
             )
-        )
+        ))
 
-    def delete(self, handle: StimulusHandle) -> None:
-        self._send(
+    def delete(self, handle: StimulusHandle) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 delete=shared_set_requests_pb2.DeleteRequest(),
             )
-        )
+        ))
 
-    def set_position(self, handle: StimulusHandle, pos: Vec2) -> None:
-        self._send(
+    def set_position(self, handle: StimulusHandle, pos: Vec2) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_position=shared_set_requests_pb2.SetPositionRequest(
                     x=pos.x, y=pos.y
                 ),
             )
-        )
+        ))
 
-    def set_orientation(self, handle: StimulusHandle, angle_deg: float) -> None:
-        self._send(
+    def set_orientation(self, handle: StimulusHandle, angle_deg: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_orientation=shared_set_requests_pb2.SetOrientationRequest(
                     angle_deg=angle_deg
                 ),
             )
-        )
+        ))
 
-    def set_fill_color(self, handle: StimulusHandle, color: Color) -> None:
-        self._send(
+    def set_fill_color(self, handle: StimulusHandle, color: Color) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_fill_color=shared_set_requests_pb2.SetFillColorRequest(
                     color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
                 ),
             )
-        )
+        ))
 
-    def set_alpha(self, handle: StimulusHandle, opacity: float) -> None:
-        self._send(
+    def set_alpha(self, handle: StimulusHandle, opacity: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_alpha=shared_set_requests_pb2.SetAlphaRequest(opacity=opacity),
             )
-        )
+        ))
+
+    def bring_to_front(self, handle: StimulusHandle) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
+            service_pb2.Request(
+                stimulus=handle,
+                bring_to_front=shared_set_requests_pb2.BringToFrontRequest(),
+            )
+        ))
+
+    def send_to_back(self, handle: StimulusHandle) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
+            service_pb2.Request(
+                stimulus=handle,
+                send_to_back=shared_set_requests_pb2.SendToBackRequest(),
+            )
+        ))
+
+    def swap_draw_order(self, handle_a: StimulusHandle, handle_b: StimulusHandle) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
+            service_pb2.Request(
+                system=service_pb2.SystemTarget(),
+                swap_draw_order=shared_set_requests_pb2.SwapDrawOrderRequest(
+                    handle_a=handle_a, handle_b=handle_b,
+                ),
+            )
+        ))
 
     # ── Query ──────────────────────────────────────────────────────────────────
 

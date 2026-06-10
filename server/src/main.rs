@@ -67,6 +67,11 @@ fn main() {
                     .unwrap_or_default();
                 {
                     let mut s = scene.write().unwrap();
+                    if s.pending_flip {
+                        s.apply_flip();
+                    }
+                    s.frame_count += 1;
+                    let _ = s.frame_notifier.send(s.frame_count);
                     let output_snapshot = [0u64; vtl::MAX_BANKS];
                     s.advance_animations(&edges, &output_snapshot, &mut output_pending);
                 }

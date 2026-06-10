@@ -1,6 +1,6 @@
 use indexmap::IndexMap;
 
-use super::animation::{AnimState, Animation, AnimationEntry, FinalAction};
+use super::animation::{AnimState, Animation, AnimationEntry, FinalAction, StartAction};
 use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
 use super::stimulus::StimulusEntry;
@@ -74,6 +74,12 @@ pub struct SceneState {
     pub command_log_total: u64,
     pub command_log_errors: u64,
     pub server_start: std::time::Instant,
+    /// Incremented by the render thread (or null loop) once per rendered frame.
+    pub frame_count: u64,
+    /// Notifies the ZMQ thread whenever `frame_count` advances.
+    /// Stored here so both the render loop and the null renderer can reach it
+    /// without threading through extra parameters.
+    pub frame_notifier: std::sync::Arc<tokio::sync::watch::Sender<u64>>,
 }
 
 impl SceneState {
@@ -98,6 +104,11 @@ impl SceneState {
             command_log_total: 0,
             command_log_errors: 0,
             server_start: std::time::Instant::now(),
+            frame_count: 0,
+            frame_notifier: {
+                let (tx, _rx) = tokio::sync::watch::channel(0u64);
+                std::sync::Arc::new(tx)
+            },
         }
     }
 
@@ -265,6 +276,8 @@ fn advance_one(
                 // Snapshot user_enabled for RESTORE_STATE before modifying anything.
                 let captures_state = entry.final_action.contains(FinalAction::RESTORE_STATE);
                 let stim_handles: Vec<u32> = entry.stimuli.clone();
+                let start_action = entry.start_action;
+                let start_action_trigger_line = entry.start_action_trigger_line;
 
                 if captures_state {
                     let captured: Vec<bool> = stim_handles.iter()
@@ -295,6 +308,25 @@ fn advance_one(
                     }
                     _ => {}
                 }
+
+                // Apply start_action bits.
+                if start_action.contains(StartAction::ENABLE) {
+                    for &sh in &stim_handles {
+                        if let Some(e) = scene.stimuli.get_mut(&sh) {
+                            e.stimulus.flags_mut().enabled = true;
+                            e.stimulus.flags_mut().mark_dirty();
+                        }
+                    }
+                }
+                if start_action.contains(StartAction::TOGGLE_PHOTODIODE) {
+                    scene.photodiode.lit = !scene.photodiode.lit;
+                }
+                if start_action.contains(StartAction::START_ACTION_TRIGGER_LINE)
+                    && let Some(bit) = start_action_trigger_line
+                {
+                    output_pending[bit.bank] |= 1u64 << bit.bit;
+                }
+
                 scene.animations.get_mut(&handle).unwrap().state =
                     AnimState::Running { frame_counter: 0 };
             }
@@ -316,7 +348,7 @@ fn advance_one(
     let done: bool = {
         let entry = scene.animations.get(&handle).unwrap();
         match &entry.animation {
-            Animation::CoupleVisibilityToInputTriggerLine { trigger, polarity } => {
+            Animation::CoupleVisibilityToTriggerLine { trigger, polarity } => {
                 let level = (input_edges.current[trigger.bank] >> trigger.bit) & 1 != 0;
                 let anim_en = level == *polarity;
                 for &sh in &stim_handles {
@@ -366,19 +398,57 @@ fn advance_one(
                 total_frames.is_some_and(|tf| frame_counter + 1 >= tf)
             }
 
-            // Path animations complete when all positions have been played.
-            // Position updates are deferred to the render backend (not yet wired).
             Animation::MoveAlongPath2D { coords } => {
+                let idx = frame_counter as usize;
+                if idx < coords.len() {
+                    let [x, y] = coords[idx];
+                    for &sh in &stim_handles {
+                        if let Some(e) = scene.stimuli.get_mut(&sh) {
+                            e.stimulus.move_to(false, x, y);
+                        }
+                    }
+                }
                 frame_counter + 1 >= coords.len() as u32
             }
             Animation::MoveAlongSegments2D { waypoints, speed_px_per_sec } => {
-                let total_len: f32 = waypoints.windows(2).map(|w| {
-                    let dx = w[1][0] - w[0][0];
-                    let dy = w[1][1] - w[0][1];
-                    (dx * dx + dy * dy).sqrt()
-                }).sum();
-                let total_frames = (total_len / speed_px_per_sec * scene.frame_rate).ceil() as u32;
-                frame_counter + 1 >= total_frames.max(1)
+                if waypoints.len() < 2 || *speed_px_per_sec <= 0.0 {
+                    true
+                } else {
+                    // Compute cumulative lengths along each segment.
+                    let seg_lens: Vec<f32> = waypoints.windows(2).map(|w| {
+                        let dx = w[1][0] - w[0][0];
+                        let dy = w[1][1] - w[0][1];
+                        (dx * dx + dy * dy).sqrt()
+                    }).collect();
+                    let total_len: f32 = seg_lens.iter().sum();
+                    let total_frames = (total_len / speed_px_per_sec * scene.frame_rate).ceil() as u32;
+                    let total_frames = total_frames.max(1);
+
+                    // How far along the path are we at this frame?
+                    let t = frame_counter as f32 / (total_frames - 1).max(1) as f32;
+                    let dist = t * total_len;
+
+                    // Walk segments to find the current interpolated position.
+                    let mut accum = 0.0f32;
+                    let mut pos = waypoints[0];
+                    for (i, &seg_len) in seg_lens.iter().enumerate() {
+                        if accum + seg_len >= dist || i + 1 == seg_lens.len() {
+                            let local_t = if seg_len > 0.0 { (dist - accum) / seg_len } else { 0.0 };
+                            let local_t = local_t.clamp(0.0, 1.0);
+                            let a = waypoints[i];
+                            let b = waypoints[i + 1];
+                            pos = [a[0] + (b[0] - a[0]) * local_t, a[1] + (b[1] - a[1]) * local_t];
+                            break;
+                        }
+                        accum += seg_len;
+                    }
+                    for &sh in &stim_handles {
+                        if let Some(e) = scene.stimuli.get_mut(&sh) {
+                            e.stimulus.move_to(false, pos[0], pos[1]);
+                        }
+                    }
+                    frame_counter + 1 >= total_frames
+                }
             }
             // External position is driven by an external process; never self-terminates.
             Animation::ExternalPosition2D { .. } => false,
@@ -438,7 +508,7 @@ fn finalize(
     {
         let anim_held = matches!(
             scene.animations.get(&handle).map(|e| &e.animation),
-            Some(Animation::FlickerForNFrames { .. }) | Some(Animation::CoupleVisibilityToInputTriggerLine { .. })
+            Some(Animation::FlickerForNFrames { .. }) | Some(Animation::CoupleVisibilityToTriggerLine { .. })
         );
         if anim_held {
             for &sh in stim_handles {

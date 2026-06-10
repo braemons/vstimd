@@ -21,9 +21,10 @@ Example::
 import os as _os
 __path__ = list(__path__) + [_os.path.join(_os.path.dirname(__file__), "_proto", "vstimd")]
 
-from ._connection import Connection
+from .connection import Connection
 from ._handles import AnimationHandle, StimulusHandle
-from .system import ServerInfo, ServerVersion
+from .response import ErrorCode, ServerResponse
+from .system import ServerInfo, ServerVersion, StimulusListEntry
 from .vtl import VtlClient, VtlDirection, VtlLineInfo
 from .animations import (
     AnimationClient,
@@ -31,6 +32,7 @@ from .animations import (
     AnimationInfo,
     AnimationState,
     FinalAction,
+    StartAction,
     VtlEdge,
 )
 from .exceptions import (
@@ -50,8 +52,11 @@ __all__ = [
     "Connection",
     "AnimationHandle",
     "StimulusHandle",
+    "ErrorCode",
+    "ServerResponse",
     "ServerInfo",
     "ServerVersion",
+    "StimulusListEntry",
     "VstimdError",
     "HandleNotFoundError",
     "WrongStimulusTypeError",
@@ -69,6 +74,7 @@ __all__ = [
     "AnimationInfo",
     "AnimationState",
     "FinalAction",
+    "StartAction",
     "VtlEdge",
     "psychopy",
 ]

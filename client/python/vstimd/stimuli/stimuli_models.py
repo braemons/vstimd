@@ -6,15 +6,17 @@ from typing import Union
 
 from vstimd._proto.vstimd.v1.stimuli import query_pb2, stimulus_type_pb2
 
-from ._shapes import (
-    _PROTO_TO_DRAW_MODE,
-    CircleParams,
-    EllipseParams,
-    RectParams,
-    ShapeDrawMode,
-)
 from .color import Color
 from .grating_models import GratingParams
+from .shapes_models import (
+    CircleParams,
+    EllipseParams,
+    PolygonParams,
+    RectParams,
+    ShapeDrawMode,
+    _PROTO_TO_DRAW_MODE,
+)
+from .text_models import TextParams
 from .vec import Vec2
 
 
@@ -31,13 +33,7 @@ class StimulusType(Enum):
     POLYGON = "polygon"
 
 
-class LanguageStyle(Enum):
-    LTR = "LTR"
-    RTL = "RTL"
-    ARABIC = "Arabic"
-
-
-StimulusParams = Union[RectParams, CircleParams, EllipseParams, GratingParams]
+StimulusParams = Union[RectParams, CircleParams, EllipseParams, GratingParams, TextParams, PolygonParams]
 
 _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     stimulus_type_pb2.STIMULUS_TYPE_RECT: StimulusType.RECT,
@@ -66,9 +62,8 @@ class StimulusInfo:
     params: StimulusParams | None
     id: str = ""
     name: str = ""
-    anim_enabled: bool = (
-        True  # animation-level enable (False when animation holds it off)
-    )
+    anim_enabled: bool = True  # animation-level enable (False when animation holds it off)
+    draw_order: int = 0  # 0-based position in scene draw order (0 = drawn first / behind)
 
     @classmethod
     def from_proto(cls, proto: query_pb2.QueryStimulusResponse) -> StimulusInfo:
@@ -89,6 +84,13 @@ class StimulusInfo:
             )
         elif shape_which == "grating":
             params = GratingParams.from_proto(proto.params.grating)
+        elif shape_which == "text":
+            params = TextParams.from_proto(proto.params.text)
+        elif shape_which == "polygon":
+            params = PolygonParams(
+                vertices=[Vec2(v.x, v.y) for v in proto.params.polygon.vertices],
+                close_shape=proto.params.polygon.close_shape,
+            )
         else:
             params = None
 
@@ -112,4 +114,5 @@ class StimulusInfo:
             id=proto.id,
             name=proto.name,
             anim_enabled=proto.anim_enabled,
+            draw_order=proto.draw_order,
         )

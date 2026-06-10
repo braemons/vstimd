@@ -15,9 +15,9 @@ def label(conn: Connection, test_id: str, description: str = "") -> StimulusHand
     text = f"[{test_id}] {description}".rstrip()
     return conn.stimuli.text.create_text(
         text=text,
-        pos=Vec2(0, 260),
+        pos=Vec2(0, 250),
         box_width=900,
-        box_height=50,
+        box_height=200,
         letter_height=28,
         color=Color(1.0, 1.0, 0.0),
         anchor="center",
@@ -50,7 +50,7 @@ def wait_for_anim_state(
 
 def make_rect(
     conn: Connection, *, x: float = 0, y: float = 0, enabled: bool = True
-) -> int:
+) -> StimulusHandle:
     h = conn.stimuli.shapes.create_rect(
         pos=Vec2(x, y), width=80, height=80, color=Color(0.8, 0.2, 0.2)
     )

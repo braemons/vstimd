@@ -13,11 +13,7 @@ import time
 
 import pytest
 
-from .cases.test_shapes import *    # noqa: F401, F403
-from .cases.test_outline import *   # noqa: F401, F403
-from .cases.test_text import *      # noqa: F401, F403
-from .cases.test_vtl import *       # noqa: F401, F403
-from .cases.test_animations import * # noqa: F401, F403
+from .cases import *  # noqa: F401, F403
 from .conftest import reachable
 
 _REPO_ROOT = pathlib.Path(__file__).parents[4]

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from vstimd import Connection
+from vstimd.response import ErrorCode, ServerResponse
 from vstimd.vtl import VtlDirection
 
 
@@ -13,7 +14,9 @@ def test_vtl_list_lines_empty(conn: Connection) -> None:
 
 def test_vtl_set_and_list_line_name(conn: Connection) -> None:
     """Named output lines appear in list_lines with the right metadata."""
-    conn.vtl.set_line_name(bank=0, bit=0, direction=VtlDirection.OUTPUT, name="stim_onset")
+    resp = conn.vtl.set_line_name(bank=0, bit=0, direction=VtlDirection.OUTPUT, name="stim_onset")
+    assert isinstance(resp, ServerResponse)
+    assert resp.code == ErrorCode.OK
     conn.vtl.set_line_name(bank=0, bit=1, direction=VtlDirection.OUTPUT, name="stim_offset")
 
     lines = conn.vtl.list_lines()
@@ -92,3 +95,65 @@ def test_vtl_set_bank(conn: Connection) -> None:
 
     conn.vtl.set_line_name(bank=0, bit=5, direction=VtlDirection.INPUT, name="")
     conn.vtl.set_line_name(bank=0, bit=6, direction=VtlDirection.INPUT, name="")
+
+
+def test_vtl_clear_input_latches(conn: Connection) -> None:
+    """clear_input_latches returns OK and drains accumulated edge latches."""
+    conn.vtl.set_line_name(bank=0, bit=7, direction=VtlDirection.INPUT, name="latch_test")
+    conn.vtl.set_input_line((0, 7), True)
+    conn.vtl.set_input_line((0, 7), False)
+
+    resp = conn.vtl.clear_input_latches((0, 7))
+    assert isinstance(resp, ServerResponse)
+    assert resp.code == ErrorCode.OK
+
+    conn.vtl.set_line_name(bank=0, bit=7, direction=VtlDirection.INPUT, name="")
+
+
+def test_vtl_set_output_line(conn: Connection) -> None:
+    conn.vtl.set_line_name(bank=0, bit=10, direction=VtlDirection.OUTPUT, name="out_line")
+
+    conn.vtl.set_output_line((0, 10), True)
+    lines = conn.vtl.list_lines()
+    info = next(l for l in lines if l.name == "out_line")
+    assert info.high is True
+
+    conn.vtl.set_output_line((0, 10), False)
+    lines = conn.vtl.list_lines()
+    info = next(l for l in lines if l.name == "out_line")
+    assert info.high is False
+
+    conn.vtl.set_line_name(bank=0, bit=10, direction=VtlDirection.OUTPUT, name="")
+
+
+def test_vtl_toggle_output_line(conn: Connection) -> None:
+    conn.vtl.set_line_name(bank=0, bit=11, direction=VtlDirection.OUTPUT, name="out_toggle")
+    conn.vtl.set_output_line((0, 11), False)
+
+    new_state = conn.vtl.toggle_output_line((0, 11))
+    assert new_state is True
+
+    new_state = conn.vtl.toggle_output_line("out_toggle")
+    assert new_state is False
+
+    conn.vtl.set_line_name(bank=0, bit=11, direction=VtlDirection.OUTPUT, name="")
+
+
+def test_vtl_set_output_bank(conn: Connection) -> None:
+    conn.vtl.set_line_name(bank=0, bit=12, direction=VtlDirection.OUTPUT, name="out_bank12")
+    conn.vtl.set_line_name(bank=0, bit=13, direction=VtlDirection.OUTPUT, name="out_bank13")
+
+    conn.vtl.set_output_bank(bank=0, value=(1 << 12) | (1 << 13))
+    lines = conn.vtl.list_lines()
+    by_name = {l.name: l for l in lines}
+    assert by_name["out_bank12"].high is True
+    assert by_name["out_bank13"].high is True
+
+    conn.vtl.set_output_bank(bank=0, value=0)
+    lines = conn.vtl.list_lines()
+    by_name = {l.name: l for l in lines}
+    assert by_name["out_bank12"].high is False
+    assert by_name["out_bank13"].high is False
+
+    conn.vtl.set_line_name(bank=0, bit=12, direction=VtlDirection.OUTPUT, name="")
+    conn.vtl.set_line_name(bank=0, bit=13, direction=VtlDirection.OUTPUT, name="")

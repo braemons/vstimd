@@ -504,7 +504,7 @@ fn enable_on_trigger_edge_wrong_bank_ignored() {
     assert!(matches!(anim_state(&scene, a), &AnimState::Running { .. }));
 }
 
-// ── CoupleVisibilityToInputTriggerLine ────────────────────────────────────────
+// ── CoupleVisibilityToTriggerLine ─────────────────────────────────────────────
 
 #[test]
 fn couple_visibility_tracks_input_level() {
@@ -513,7 +513,7 @@ fn couple_visibility_tracks_input_level() {
     set_enabled(&mut scene, s, true);
 
     let a = scene.add_animation(AnimationEntry::armed(
-        Animation::CoupleVisibilityToInputTriggerLine { trigger: bit(0, 1), polarity: true },
+        Animation::CoupleVisibilityToTriggerLine { trigger: bit(0, 1), polarity: true },
         vec![s],
     ));
 
@@ -542,7 +542,7 @@ fn couple_visibility_inverted_polarity() {
     set_enabled(&mut scene, s, true);
 
     let _a = scene.add_animation(AnimationEntry::armed(
-        Animation::CoupleVisibilityToInputTriggerLine { trigger: bit(0, 0), polarity: false },
+        Animation::CoupleVisibilityToTriggerLine { trigger: bit(0, 0), polarity: false },
         vec![s],
     ));
 
@@ -566,7 +566,7 @@ fn couple_visibility_anim_enabled_restored_on_disarm() {
     set_enabled(&mut scene, s, true);
 
     let a = scene.add_animation(AnimationEntry::armed(
-        Animation::CoupleVisibilityToInputTriggerLine { trigger: bit(0, 0), polarity: true },
+        Animation::CoupleVisibilityToTriggerLine { trigger: bit(0, 0), polarity: true },
         vec![s],
     ));
 
@@ -898,7 +898,7 @@ fn couple_visibility_anim_enabled_restored_on_delete() {
     set_enabled(&mut scene, s, true);
 
     let a = scene.add_animation(AnimationEntry::armed(
-        Animation::CoupleVisibilityToInputTriggerLine { trigger: bit(0, 0), polarity: true },
+        Animation::CoupleVisibilityToTriggerLine { trigger: bit(0, 0), polarity: true },
         vec![s],
     ));
 

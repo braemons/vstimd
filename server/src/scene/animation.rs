@@ -1,5 +1,15 @@
 bitflags::bitflags! {
     #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct StartAction: u8 {
+        /// Enable stimuli when animation transitions Armed → Running.
+        const ENABLE                      = 0x02;
+        const TOGGLE_PHOTODIODE           = 0x04;
+        const START_ACTION_TRIGGER_LINE   = 0x08;
+    }
+}
+
+bitflags::bitflags! {
+    #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
     pub struct FinalAction: u8 {
         const DISABLE                 = 0x01;
         const TOGGLE_PHOTODIODE       = 0x04;
@@ -23,8 +33,8 @@ pub use crate::vtl_state::{Edge, VtlBit};
 
 #[derive(Clone, Debug)]
 pub enum Animation {
-    /// Mirror stimulus enabled state to the level of an input trigger line.
-    CoupleVisibilityToInputTriggerLine { trigger: VtlBit, polarity: bool },
+    /// Mirror stimulus enabled state to the level of a trigger line (input or output).
+    CoupleVisibilityToTriggerLine { trigger: VtlBit, polarity: bool },
     /// Set stimulus enabled once when a trigger edge fires.
     EnableOnTriggerEdge {
         trigger: VtlBit,
@@ -60,7 +70,7 @@ pub enum Animation {
 impl Animation {
     pub fn type_name(&self) -> &'static str {
         match self {
-            Self::CoupleVisibilityToInputTriggerLine { .. } => "CoupleVisibilityToInputTriggerLine",
+            Self::CoupleVisibilityToTriggerLine { .. } => "CoupleVisibilityToTriggerLine",
             Self::EnableOnTriggerEdge { .. } => "EnableOnTriggerEdge",
             Self::FlashForNFrames { .. } => "FlashForNFrames",
             Self::FlickerForNFrames { .. } => "FlickerForNFrames",
@@ -75,6 +85,10 @@ pub struct AnimationEntry {
     pub name: String,
     pub state: AnimState,
     pub stimuli: Vec<u32>,
+    /// Bitflags applied when the animation transitions Armed → Running.
+    pub start_action: StartAction,
+    /// Output line to pulse for one frame when `START_ACTION_TRIGGER_LINE` is set.
+    pub start_action_trigger_line: Option<VtlBit>,
     /// Bitflags controlling what happens when the animation completes.
     pub final_action: FinalAction,
     /// Output line to pulse for one frame when `FINAL_ACTION_TRIGGER_LINE` is set.
@@ -93,6 +107,8 @@ impl AnimationEntry {
             name: String::new(),
             state: AnimState::Idle,
             stimuli,
+            start_action: StartAction::empty(),
+            start_action_trigger_line: None,
             final_action: FinalAction::empty(),
             final_action_trigger_line: None,
             start_trigger: None,
