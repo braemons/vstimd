@@ -164,7 +164,7 @@ class AnimationClient:
 
     # ── Animation types ───────────────────────────────────────────────────────
 
-    def create_couple_visibility_to_input_trigger_line(
+    def create_couple_visibility_to_trigger_line(
         self,
         trigger: VtlHandle,
         stimuli: Stimuli,
@@ -178,11 +178,11 @@ class AnimationClient:
         start_trigger: Optional[VtlHandle] = None,
         start_edge: VtlEdge = VtlEdge.RISING,
     ) -> AnimationHandle:
-        """Mirror stimulus enabled state to the level of an input trigger line."""
+        """Mirror stimulus enabled state to the level of a trigger line (input or output)."""
         req = self._make_req(
             stimuli, {
-                "couple_visibility_to_input_trigger_line":
-                    animations_pb2.CoupleVisibilityToInputTriggerLine(
+                "couple_visibility_to_trigger_line":
+                    animations_pb2.CoupleVisibilityToTriggerLine(
                         trigger=_make_vtl_handle(trigger),
                         polarity=polarity,
                     ),

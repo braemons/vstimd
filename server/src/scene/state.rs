@@ -337,7 +337,7 @@ fn advance_one(
     let done: bool = {
         let entry = scene.animations.get(&handle).unwrap();
         match &entry.animation {
-            Animation::CoupleVisibilityToInputTriggerLine { trigger, polarity } => {
+            Animation::CoupleVisibilityToTriggerLine { trigger, polarity } => {
                 let level = (input_edges.current[trigger.bank] >> trigger.bit) & 1 != 0;
                 let anim_en = level == *polarity;
                 for &sh in &stim_handles {
@@ -497,7 +497,7 @@ fn finalize(
     {
         let anim_held = matches!(
             scene.animations.get(&handle).map(|e| &e.animation),
-            Some(Animation::FlickerForNFrames { .. }) | Some(Animation::CoupleVisibilityToInputTriggerLine { .. })
+            Some(Animation::FlickerForNFrames { .. }) | Some(Animation::CoupleVisibilityToTriggerLine { .. })
         );
         if anim_held {
             for &sh in stim_handles {

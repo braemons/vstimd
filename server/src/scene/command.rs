@@ -1433,8 +1433,8 @@ fn edge_to_proto(e: Edge) -> i32 {
 fn animation_to_proto_body(anim: &Animation) -> proto::create_animation_request::Body {
     use proto::create_animation_request::Body as PBody;
     match anim {
-        Animation::CoupleVisibilityToInputTriggerLine { trigger, polarity } =>
-            PBody::CoupleVisibilityToInputTriggerLine(proto::CoupleVisibilityToInputTriggerLine {
+        Animation::CoupleVisibilityToTriggerLine { trigger, polarity } =>
+            PBody::CoupleVisibilityToTriggerLine(proto::CoupleVisibilityToTriggerLine {
                 trigger:  Some(vtl_bit_to_proto(*trigger)),
                 polarity: *polarity,
             }),
@@ -1496,7 +1496,7 @@ fn proto_to_animation(
     let proto_edge = |e: i32| -> Edge { proto_vtl_edge(e) };
 
     match cmd.body.as_ref() {
-        Some(PBody::CoupleVisibilityToInputTriggerLine(c)) => Ok(Animation::CoupleVisibilityToInputTriggerLine {
+        Some(PBody::CoupleVisibilityToTriggerLine(c)) => Ok(Animation::CoupleVisibilityToTriggerLine {
             trigger:  vtl_bit(c.trigger.as_ref())?,
             polarity: c.polarity,
         }),

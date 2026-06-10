@@ -357,7 +357,7 @@ def test_anim_couple_visibility_to_vtl_line(
     lbl = _label(conn, tid, "rect coupled to VTL (0,30)")
     s = _make_rect(conn, x=0, y=-200, enabled=False)
 
-    a = conn.animations.create_couple_visibility_to_input_trigger_line(
+    a = conn.animations.create_couple_visibility_to_trigger_line(
         (0, 30),
         s,
         polarity=True,
@@ -410,7 +410,7 @@ def test_anim_couple_visibility_inverted_polarity(
     lbl = _label(conn, tid, "couple inverted polarity on (0,31)")
     s = _make_rect(conn, x=-250, y=-200, enabled=False)
 
-    a = conn.animations.create_couple_visibility_to_input_trigger_line(
+    a = conn.animations.create_couple_visibility_to_trigger_line(
         (0, 31),
         s,
         polarity=False,

@@ -33,8 +33,8 @@ pub use crate::vtl_state::{Edge, VtlBit};
 
 #[derive(Clone, Debug)]
 pub enum Animation {
-    /// Mirror stimulus enabled state to the level of an input trigger line.
-    CoupleVisibilityToInputTriggerLine { trigger: VtlBit, polarity: bool },
+    /// Mirror stimulus enabled state to the level of a trigger line (input or output).
+    CoupleVisibilityToTriggerLine { trigger: VtlBit, polarity: bool },
     /// Set stimulus enabled once when a trigger edge fires.
     EnableOnTriggerEdge {
         trigger: VtlBit,
@@ -70,7 +70,7 @@ pub enum Animation {
 impl Animation {
     pub fn type_name(&self) -> &'static str {
         match self {
-            Self::CoupleVisibilityToInputTriggerLine { .. } => "CoupleVisibilityToInputTriggerLine",
+            Self::CoupleVisibilityToTriggerLine { .. } => "CoupleVisibilityToTriggerLine",
             Self::EnableOnTriggerEdge { .. } => "EnableOnTriggerEdge",
             Self::FlashForNFrames { .. } => "FlashForNFrames",
             Self::FlickerForNFrames { .. } => "FlickerForNFrames",
