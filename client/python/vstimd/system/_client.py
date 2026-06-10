@@ -4,6 +4,7 @@ from typing import Callable
 
 from vstimd._proto import service_pb2, system_pb2
 from vstimd._proto.vstimd.v1 import color_pb2
+from vstimd.stimuli.color import Color
 from ._models import ServerInfo, ServerVersion
 
 
@@ -27,11 +28,13 @@ class SystemClient:
         resp = self._send(req)
         info = resp.server_info
         v = info.version
+        bg = info.background_color
         return ServerInfo(
             width=info.width,
             height=info.height,
             frame_rate=info.frame_rate,
             version=ServerVersion(v.major, v.minor, v.patch),
+            background_color=Color(r=bg.r, g=bg.g, b=bg.b, a=bg.a),
         )
 
     # ── Scene mutations ───────────────────────────────────────────────────────
