@@ -4,6 +4,7 @@ from typing import Callable, Union
 
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import vtl_pb2
+from vstimd.response import ServerResponse
 from ._models import VtlDirection, VtlLineInfo
 
 
@@ -61,7 +62,7 @@ class VtlClient:
         bit: int,
         direction: VtlDirection,
         name: str,
-    ) -> None:
+    ) -> ServerResponse:
         """Register a name for a VTL line. Pass ``name=""`` to clear."""
         req = service_pb2.Request(
             system=_sys(),
@@ -72,7 +73,7 @@ class VtlClient:
                 name=name,
             ),
         )
-        self._send(req)
+        return ServerResponse._from_proto(self._send(req))
 
     def list_lines(self) -> list[VtlLineInfo]:
         """Return all named VTL lines and their current state."""
@@ -94,7 +95,7 @@ class VtlClient:
 
     # ── Input line control ────────────────────────────────────────────────────
 
-    def set_input_line(self, handle: VtlHandle, value: bool) -> None:
+    def set_input_line(self, handle: VtlHandle, value: bool) -> ServerResponse:
         """Drive an input line high or low (simulates a hardware trigger input)."""
         req = service_pb2.Request(
             system=_sys(),
@@ -103,7 +104,7 @@ class VtlClient:
                 value=value,
             ),
         )
-        self._send(req)
+        return ServerResponse._from_proto(self._send(req))
 
     def toggle_input_line(self, handle: VtlHandle) -> bool:
         """Toggle an input line and return the new state."""
@@ -116,7 +117,7 @@ class VtlClient:
         resp = self._send(req)
         return resp.virtual_trigger_line_state.high
 
-    def clear_input_latches(self, handle: VtlHandle) -> None:
+    def clear_input_latches(self, handle: VtlHandle) -> ServerResponse:
         """Drain accumulated rise/fall latches without changing the line level."""
         req = service_pb2.Request(
             system=_sys(),
@@ -124,9 +125,9 @@ class VtlClient:
                 handle=_make_handle(handle),
             ),
         )
-        self._send(req)
+        return ServerResponse._from_proto(self._send(req))
 
-    def set_input_bank(self, bank: int, value: int) -> None:
+    def set_input_bank(self, bank: int, value: int) -> ServerResponse:
         """Write all 64 input lines of a bank at once (bitmask)."""
         req = service_pb2.Request(
             system=_sys(),
@@ -135,11 +136,11 @@ class VtlClient:
                 value=value,
             ),
         )
-        self._send(req)
+        return ServerResponse._from_proto(self._send(req))
 
     # ── Output line control ───────────────────────────────────────────────────
 
-    def set_output_line(self, handle: VtlHandle, value: bool) -> None:
+    def set_output_line(self, handle: VtlHandle, value: bool) -> ServerResponse:
         """Drive an output line high or low."""
         req = service_pb2.Request(
             system=_sys(),
@@ -148,7 +149,7 @@ class VtlClient:
                 value=value,
             ),
         )
-        self._send(req)
+        return ServerResponse._from_proto(self._send(req))
 
     def toggle_output_line(self, handle: VtlHandle) -> bool:
         """Toggle an output line and return the new state."""
@@ -161,7 +162,7 @@ class VtlClient:
         resp = self._send(req)
         return resp.virtual_trigger_line_state.high
 
-    def set_output_bank(self, bank: int, value: int) -> None:
+    def set_output_bank(self, bank: int, value: int) -> ServerResponse:
         """Write all 64 output lines of a bank at once (bitmask)."""
         req = service_pb2.Request(
             system=_sys(),
@@ -170,4 +171,4 @@ class VtlClient:
                 value=value,
             ),
         )
-        self._send(req)
+        return ServerResponse._from_proto(self._send(req))

@@ -23,6 +23,7 @@ __path__ = list(__path__) + [_os.path.join(_os.path.dirname(__file__), "_proto",
 
 from ._connection import Connection
 from ._handles import AnimationHandle, StimulusHandle
+from .response import ErrorCode, ServerResponse
 from .system import ServerInfo, ServerVersion
 from .vtl import VtlClient, VtlDirection, VtlLineInfo
 from .animations import (
@@ -51,6 +52,8 @@ __all__ = [
     "Connection",
     "AnimationHandle",
     "StimulusHandle",
+    "ErrorCode",
+    "ServerResponse",
     "ServerInfo",
     "ServerVersion",
     "VstimdError",

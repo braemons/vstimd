@@ -4,12 +4,17 @@ from __future__ import annotations
 import pytest
 
 from vstimd import Connection, InvalidArgumentError, NotSupportedError
+from vstimd.response import ErrorCode, ServerResponse
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
 
 def test_set_enabled(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect()
-    conn.stimuli.set_enabled(handle, False)
+    resp = conn.stimuli.set_enabled(handle, False)
+    assert isinstance(resp, ServerResponse)
+    assert resp.code == ErrorCode.OK
+    assert resp.error == ""
+    assert resp.frame_count >= 0
     assert conn.stimuli.query(handle).enabled is False
     conn.stimuli.set_enabled(handle, True)
     assert conn.stimuli.query(handle).enabled is True

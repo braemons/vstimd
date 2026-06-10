@@ -6,6 +6,7 @@ from typing import Callable, Optional, Union
 from vstimd._handles import AnimationHandle, StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import animations_pb2, vtl_pb2
+from vstimd.response import ServerResponse
 from ._models import AnimationDetails, AnimationInfo, AnimationState, FinalAction, StartAction, VtlEdge
 
 
@@ -80,26 +81,26 @@ class AnimationClient:
 
     # ── Lifecycle ─────────────────────────────────────────────────────────────
 
-    def arm(self, handle: AnimationHandle) -> None:
+    def arm(self, handle: AnimationHandle) -> ServerResponse:
         """Arm an animation (IDLE → ARMED or RUNNING for free-running types)."""
-        self._send(service_pb2.Request(
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             system=_sys(),
             arm_animation=animations_pb2.ArmAnimationRequest(handle=handle),
-        ))
+        )))
 
-    def disarm(self, handle: AnimationHandle) -> None:
+    def disarm(self, handle: AnimationHandle) -> ServerResponse:
         """Disarm an animation (returns it to IDLE)."""
-        self._send(service_pb2.Request(
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             system=_sys(),
             disarm_animation=animations_pb2.DisarmAnimationRequest(handle=handle),
-        ))
+        )))
 
-    def delete(self, handle: AnimationHandle) -> None:
+    def delete(self, handle: AnimationHandle) -> ServerResponse:
         """Delete an animation."""
-        self._send(service_pb2.Request(
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             system=_sys(),
             delete_animation=animations_pb2.DeleteAnimationRequest(handle=handle),
-        ))
+        )))
 
     def list_animations(self) -> list[AnimationInfo]:
         """Return all animations and their current state."""

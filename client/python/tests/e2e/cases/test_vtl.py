@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from vstimd import Connection
+from vstimd.response import ErrorCode, ServerResponse
 from vstimd.vtl import VtlDirection
 
 
@@ -13,7 +14,9 @@ def test_vtl_list_lines_empty(conn: Connection) -> None:
 
 def test_vtl_set_and_list_line_name(conn: Connection) -> None:
     """Named output lines appear in list_lines with the right metadata."""
-    conn.vtl.set_line_name(bank=0, bit=0, direction=VtlDirection.OUTPUT, name="stim_onset")
+    resp = conn.vtl.set_line_name(bank=0, bit=0, direction=VtlDirection.OUTPUT, name="stim_onset")
+    assert isinstance(resp, ServerResponse)
+    assert resp.code == ErrorCode.OK
     conn.vtl.set_line_name(bank=0, bit=1, direction=VtlDirection.OUTPUT, name="stim_offset")
 
     lines = conn.vtl.list_lines()

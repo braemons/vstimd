@@ -5,6 +5,7 @@ import pytest
 
 from vstimd import Connection
 from vstimd.exceptions import NotReadyError
+from vstimd.response import ErrorCode, ServerResponse
 from vstimd.stimuli.stimuli_models import Vec2
 
 
@@ -76,6 +77,21 @@ def test_set_all_enabled(conn: Connection) -> None:
 
     conn.stimuli.delete(h1)
     conn.stimuli.delete(h2)
+
+
+def test_server_response_fields(conn: Connection) -> None:
+    """Every mutation returns a ServerResponse with sensible metadata."""
+    resp = conn.system.delete_all()
+    assert isinstance(resp, ServerResponse)
+    assert resp.code == ErrorCode.OK
+    assert resp.error == ""
+    assert resp.frame_count >= 0
+    assert resp.server_time_ns > 0
+
+    # frame_count must advance across successive RPCs
+    r1 = conn.system.wait_for_frames(1)
+    r2 = conn.system.wait_for_frames(1)
+    assert r2.frame_count > r1.frame_count
 
 
 def test_set_deferred_mode(conn: Connection) -> None:
