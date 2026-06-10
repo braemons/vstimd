@@ -133,7 +133,7 @@ pub fn layout_and_rasterize(
         .layout_runs()
         .flat_map(|run| {
             run.glyphs.iter().map(|g| {
-                let phys = g.physical((0.0, 0.0), 1.0);
+                let phys = g.physical((0.0, run.line_y), 1.0);
                 PreGlyph { cache_key: phys.cache_key, px: phys.x, py: phys.y }
             }).collect::<Vec<_>>()
         })

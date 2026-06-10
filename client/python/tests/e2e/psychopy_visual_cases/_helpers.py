@@ -8,7 +8,7 @@ def label(win: visual.Window, test_id: str, description: str = "") -> int:
     text = f"[{test_id}] {description}".rstrip()
     return win._conn.stimuli.text.create_text(
         text=text, pos=Vec2(0, 260),
-        box_width=900, box_height=50,
+        box_width=900, box_height=200,
         letter_height=28,
         color=Color(1.0, 1.0, 0.0),
         anchor="center",

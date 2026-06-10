@@ -15,9 +15,9 @@ def label(conn: Connection, test_id: str, description: str = "") -> StimulusHand
     text = f"[{test_id}] {description}".rstrip()
     return conn.stimuli.text.create_text(
         text=text,
-        pos=Vec2(0, 260),
+        pos=Vec2(0, 250),
         box_width=900,
-        box_height=50,
+        box_height=200,
         letter_height=28,
         color=Color(1.0, 1.0, 0.0),
         anchor="center",
