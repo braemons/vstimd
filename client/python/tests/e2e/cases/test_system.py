@@ -83,6 +83,7 @@ def test_set_deferred_mode(conn: Connection) -> None:
     conn.system.set_deferred_mode(True)
     conn.stimuli.set_position(h, Vec2(100, 50))
     conn.system.set_deferred_mode(False)
+    conn.system.wait_for_frames(1)
     info = conn.stimuli.query(h)
     assert info.pos.x == pytest.approx(100.0, abs=0.5)
     conn.stimuli.delete(h)

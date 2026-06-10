@@ -124,6 +124,8 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::DeleteAnimation(c)) => format!("DeleteAnimation({})", c.handle),
         Some(request::Body::ListAnimations(_)) => "ListAnimations".into(),
         Some(request::Body::QueryAnimation(c)) => format!("QueryAnimation({})", c.handle),
+        Some(request::Body::WaitForFrames(c)) => format!("WaitForFrames({})", c.count),
+        Some(request::Body::WaitUntil(c)) => format!("WaitUntil({}ns)", c.server_time_ns),
         None => "?".into(),
     }
 }
@@ -255,7 +257,9 @@ impl SceneState {
             | request::Body::DisarmAnimation(_)
             | request::Body::DeleteAnimation(_)
             | request::Body::ListAnimations(_)
-            | request::Body::QueryAnimation(_) => err(
+            | request::Body::QueryAnimation(_)
+            | request::Body::WaitForFrames(_)
+            | request::Body::WaitUntil(_) => err(
                 proto::ErrorCode::WrongTarget,
                 "system command must use target.system (not a stimulus handle)",
             ),

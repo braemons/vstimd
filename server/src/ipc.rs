@@ -38,6 +38,7 @@ pub fn spawn_zmq_thread(
     bind_addr: &str,
 ) -> std::thread::JoinHandle<()> {
     let addr = bind_addr.to_owned();
+    let frame_rx = scene.read().expect("scene lock poisoned").frame_notifier.subscribe();
     std::thread::Builder::new()
         .name("zmq-server".into())
         .spawn(move || {
@@ -45,7 +46,7 @@ pub fn spawn_zmq_thread(
                 .enable_all()
                 .build()
                 .expect("failed to create tokio runtime for ZMQ thread");
-            rt.block_on(zmq_loop(scene, vtl, &addr));
+            rt.block_on(zmq_loop(scene, vtl, &addr, frame_rx));
         })
         .expect("failed to spawn ZMQ server thread")
 }
@@ -98,84 +99,12 @@ pub(crate) fn err_wrong_type(stim: &Stimulus, cmd: &str, expected: &str) -> prot
     }
 }
 
-/// Null-renderer variant of [`spawn_zmq_thread`].
-///
-/// Identical to the regular ZMQ server except that, after every command, it
-/// applies any pending deferred flip while the write lock is still held.  This
-/// is necessary because the null renderer has no render thread to call
-/// `apply_flip()` at frame boundaries, so without this a query sent
-/// immediately after `SetDeferredMode(end)` would see stale live values.
-pub fn spawn_null_zmq_thread(
-    scene: Arc<RwLock<SceneState>>,
-    vtl: Option<Arc<Mutex<VtlState>>>,
-    bind_addr: &str,
-) -> std::thread::JoinHandle<()> {
-    let addr = bind_addr.to_owned();
-    std::thread::Builder::new()
-        .name("zmq-server-null".into())
-        .spawn(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .expect("failed to create tokio runtime for null ZMQ thread");
-            rt.block_on(zmq_loop_null(scene, vtl, &addr));
-        })
-        .expect("failed to spawn null ZMQ server thread")
-}
-
-async fn zmq_loop_null(
+async fn zmq_loop(
     scene: Arc<RwLock<SceneState>>,
     vtl: Option<Arc<Mutex<VtlState>>>,
     addr: &str,
+    mut frame_rx: tokio::sync::watch::Receiver<u64>,
 ) {
-    let mut socket = zeromq::RepSocket::new();
-    socket
-        .bind(addr)
-        .await
-        .unwrap_or_else(|e| panic!("ZMQ bind to {addr} failed: {e}"));
-    log::info!("ZMQ REP server (null) listening on {addr}");
-
-    loop {
-        let msg = match socket.recv().await {
-            Ok(m) => m,
-            Err(e) => {
-                log::error!("ZMQ recv error: {e}");
-                continue;
-            }
-        };
-
-        let bytes: Vec<u8> = msg
-            .into_vec()
-            .into_iter()
-            .flat_map(|frame| frame.to_vec())
-            .collect();
-
-        let response = match proto::Request::decode(bytes.as_slice()) {
-            Ok(req) => {
-                let mut scene = scene.write().expect("scene lock poisoned");
-                let mut vtl_guard = vtl.as_ref().and_then(|v| v.lock().ok());
-                let vtl_ref = vtl_guard.as_deref_mut();
-                let resp = scene.handle_request(req, vtl_ref);
-                if scene.pending_flip {
-                    scene.apply_flip();
-                }
-                resp
-            }
-            Err(e) => proto::Response {
-                code: proto::ErrorCode::Unknown as i32,
-                error: format!("protobuf decode error: {e}"),
-                ..Default::default()
-            },
-        };
-
-        let out = response.encode_to_vec();
-        if let Err(e) = socket.send(out.into()).await {
-            log::error!("ZMQ send error: {e}");
-        }
-    }
-}
-
-async fn zmq_loop(scene: Arc<RwLock<SceneState>>, vtl: Option<Arc<Mutex<VtlState>>>, addr: &str) {
     let mut socket = zeromq::RepSocket::new();
     socket
         .bind(addr)
@@ -200,10 +129,54 @@ async fn zmq_loop(scene: Arc<RwLock<SceneState>>, vtl: Option<Arc<Mutex<VtlState
 
         let response = match proto::Request::decode(bytes.as_slice()) {
             Ok(req) => {
-                let mut scene = scene.write().expect("scene lock poisoned");
-                let mut vtl_guard = vtl.as_ref().and_then(|v| v.lock().ok());
-                let vtl_ref = vtl_guard.as_deref_mut();
-                scene.handle_request(req, vtl_ref)
+                match &req.body {
+                    Some(proto::request::Body::WaitForFrames(cmd)) => {
+                        let target = scene.read().expect("scene lock poisoned")
+                            .frame_count.saturating_add(cmd.count as u64);
+                        let _ = frame_rx.wait_for(|&c| c >= target).await;
+                        let s = scene.read().expect("scene lock poisoned");
+                        proto::Response {
+                            code: proto::ErrorCode::Ok as i32,
+                            handle: -1,
+                            frame_count: s.frame_count,
+                            server_time_ns: s.server_start.elapsed().as_nanos() as u64,
+                            ..Default::default()
+                        }
+                    }
+                    Some(proto::request::Body::WaitUntil(cmd)) => {
+                        let target_ns = cmd.server_time_ns;
+                        loop {
+                            let elapsed = scene.read().expect("scene lock poisoned")
+                                .server_start.elapsed().as_nanos() as u64;
+                            if elapsed >= target_ns { break; }
+                            let remaining = target_ns - elapsed;
+                            if remaining > 500_000 {
+                                tokio::time::sleep(
+                                    std::time::Duration::from_nanos(remaining - 500_000)
+                                ).await;
+                            } else {
+                                tokio::task::yield_now().await;
+                            }
+                        }
+                        let s = scene.read().expect("scene lock poisoned");
+                        proto::Response {
+                            code: proto::ErrorCode::Ok as i32,
+                            handle: -1,
+                            frame_count: s.frame_count,
+                            server_time_ns: s.server_start.elapsed().as_nanos() as u64,
+                            ..Default::default()
+                        }
+                    }
+                    _ => {
+                        let mut scene = scene.write().expect("scene lock poisoned");
+                        let mut vtl_guard = vtl.as_ref().and_then(|v| v.lock().ok());
+                        let vtl_ref = vtl_guard.as_deref_mut();
+                        let mut resp = scene.handle_request(req, vtl_ref);
+                        resp.frame_count = scene.frame_count;
+                        resp.server_time_ns = scene.server_start.elapsed().as_nanos() as u64;
+                        resp
+                    }
+                }
             }
             Err(e) => proto::Response {
                 code: proto::ErrorCode::Unknown as i32,

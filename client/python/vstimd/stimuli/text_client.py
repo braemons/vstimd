@@ -6,6 +6,7 @@ from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import vec2_pb2, color_pb2
 from vstimd._proto.vstimd.v1.stimuli import text_pb2
+from vstimd.response import ServerResponse
 
 from .color import Color
 from .text_models import LanguageStyle, _LANGUAGE_STYLE_TO_PROTO
@@ -56,16 +57,16 @@ class TextClient:
         )
         return StimulusHandle(self._send(req).handle)
 
-    def set_text(self, handle: StimulusHandle, text: str) -> None:
-        self._send(service_pb2.Request(
+    def set_text(self, handle: StimulusHandle, text: str) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_text=text_pb2.SetTextRequest(text=text),
-        ))
+        )))
 
-    def set_text_color(self, handle: StimulusHandle, color: Color) -> None:
-        self._send(service_pb2.Request(
+    def set_text_color(self, handle: StimulusHandle, color: Color) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_text_color=text_pb2.SetTextColorRequest(
                 color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
             ),
-        ))
+        )))

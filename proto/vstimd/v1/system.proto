@@ -35,6 +35,22 @@ message SetAllEnabledRequest {
   bool enabled = 1;
 }
 
+// ── Timing / synchronisation ──────────────────────────────────────────────────
+
+// Block until the server has rendered at least `count` additional frames.
+// The response carries the current frame_count and server_time_ns.
+// Useful to confirm a deferred flip has been applied before querying state.
+message WaitForFramesRequest {
+  uint32 count = 1;
+}
+
+// Block until the server's monotonic clock reaches `server_time_ns` nanoseconds
+// since server start (the same clock reported in Response.server_time_ns).
+// Call GetServerTimeRequest first to read the current clock value.
+message WaitUntilRequest {
+  uint64 server_time_ns = 1;
+}
+
 // ── System queries ────────────────────────────────────────────────────────────
 
 // System command: query server/display properties.

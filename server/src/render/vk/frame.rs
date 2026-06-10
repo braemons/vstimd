@@ -97,6 +97,8 @@ pub fn render_frame(
         if sc.pending_flip {
             sc.apply_flip();
         }
+        sc.frame_count += 1;
+        let _ = sc.frame_notifier.send(sc.frame_count);
 
 
         sc.screen_size = Some(screen_size);

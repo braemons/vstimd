@@ -74,6 +74,12 @@ pub struct SceneState {
     pub command_log_total: u64,
     pub command_log_errors: u64,
     pub server_start: std::time::Instant,
+    /// Incremented by the render thread (or null loop) once per rendered frame.
+    pub frame_count: u64,
+    /// Notifies the ZMQ thread whenever `frame_count` advances.
+    /// Stored here so both the render loop and the null renderer can reach it
+    /// without threading through extra parameters.
+    pub frame_notifier: std::sync::Arc<tokio::sync::watch::Sender<u64>>,
 }
 
 impl SceneState {
@@ -98,6 +104,11 @@ impl SceneState {
             command_log_total: 0,
             command_log_errors: 0,
             server_start: std::time::Instant::now(),
+            frame_count: 0,
+            frame_notifier: {
+                let (tx, _rx) = tokio::sync::watch::channel(0u64);
+                std::sync::Arc::new(tx)
+            },
         }
     }
 

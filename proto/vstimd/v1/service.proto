@@ -114,6 +114,10 @@ message Request {
     QueryStimulusRequest query_stimulus = 81; // stimulus target
     ListStimuliRequest list_stimuli = 82; // system target
 
+    // ── Timing / synchronisation (system target) ─────────────────────────────
+    WaitForFramesRequest wait_for_frames = 83;
+    WaitUntilRequest wait_until = 84;
+
     // ── VTL (Virtual Trigger Lines) ─────────────────────────────────────────
     SetVirtualTriggerLineNameRequest set_virtual_trigger_line_name = 90;
     ListVirtualTriggerLinesRequest list_virtual_trigger_lines = 91;
@@ -164,6 +168,13 @@ message Response {
     ListAnimationsResponse animation_list = 15;
     QueryAnimationResponse query_animation_response = 16;
   }
+
+  // Server-side monotonic clock at response time, nanoseconds since server
+  // start.  Equivalent to QueryPerformanceCounter / CLOCK_MONOTONIC.
+  uint64 server_time_ns = 20;
+
+  // Render frames completed as of this response (incremented once per vsync).
+  uint64 frame_count = 21;
 }
 
 // ── Service definition (for future gRPC transport) ────────────────────────────

@@ -12,6 +12,7 @@ from vstimd._proto.vstimd.v1.stimuli import (
     rect_pb2,
     shapes_pb2,
 )
+from vstimd.response import ServerResponse
 
 from .color import Color
 from .shapes_models import ShapeDrawMode, _SHAPE_DRAW_MODE_TO_PROTO
@@ -99,33 +100,33 @@ class ShapesClient:
 
     def set_rect_size(
         self, handle: StimulusHandle, width: float, height: float
-    ) -> None:
-        self._send(
+    ) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_rect_size=rect_pb2.SetRectSizeRequest(width=width, height=height),
             )
-        )
+        ))
 
-    def set_circle_radius(self, handle: StimulusHandle, radius: float) -> None:
-        self._send(
+    def set_circle_radius(self, handle: StimulusHandle, radius: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_circle_radius=circle_pb2.SetCircleRadiusRequest(radius=radius),
             )
-        )
+        ))
 
     def set_ellipse_size(
         self, handle: StimulusHandle, width: float, height: float
-    ) -> None:
-        self._send(
+    ) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_ellipse_size=ellipse_pb2.SetEllipseSizeRequest(
                     width=width, height=height
                 ),
             )
-        )
+        ))
 
     def create_polygon(
         self,
@@ -150,42 +151,42 @@ class ShapesClient:
 
     def set_polygon_vertices(
         self, handle: StimulusHandle, vertices: list[Vec2]
-    ) -> None:
-        self._send(
+    ) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_polygon_vertices=polygon_pb2.SetPolygonVerticesRequest(
                     vertices=[vec2_pb2.Vec2(x=v.x, y=v.y) for v in vertices],
                 ),
             )
-        )
+        ))
 
-    def set_draw_mode(self, handle: StimulusHandle, mode: ShapeDrawMode) -> None:
-        self._send(
+    def set_draw_mode(self, handle: StimulusHandle, mode: ShapeDrawMode) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_draw_mode=shapes_pb2.SetDrawModeRequest(
                     mode=_SHAPE_DRAW_MODE_TO_PROTO[mode],
                 ),
             )
-        )
+        ))
 
-    def set_outline_color(self, handle: StimulusHandle, color: Color) -> None:
-        self._send(
+    def set_outline_color(self, handle: StimulusHandle, color: Color) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_outline_color=shapes_pb2.SetOutlineColorRequest(
                     color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
                 ),
             )
-        )
+        ))
 
-    def set_outline_width(self, handle: StimulusHandle, line_width: float) -> None:
-        self._send(
+    def set_outline_width(self, handle: StimulusHandle, line_width: float) -> ServerResponse:
+        return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_outline_width=shapes_pb2.SetOutlineWidthRequest(
                     line_width=line_width
                 ),
             )
-        )
+        ))
