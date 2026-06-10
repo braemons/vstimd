@@ -48,9 +48,10 @@ Or drive the server directly from Python:
 
 ```python
 from vstimd import Connection
+from vstimd import Vec2
 
 with Connection() as conn:
-    h = conn.stimuli.create_rect(x=-200, y=0, width=300, height=200, r=1.0, g=0.0, b=0.0)
+    h = conn.stimuli.shapes.create_rect(pos=Vec2(0,-200, width=300, height=200)
     conn.stimuli.set_enabled(h, False)
     conn.stimuli.delete(h)
     info = conn.system.query_server_info()
