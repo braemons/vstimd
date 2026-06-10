@@ -14,6 +14,7 @@ uv sync
 
 ```python
 from vstimd import Connection
+from vstimd import Vec2
 
 with Connection() as conn:
     h = conn.stimuli.create_rect(x=-200, y=0, width=300, height=200,
@@ -25,85 +26,6 @@ with Connection() as conn:
 ```
 
 `Connection(address="tcp://localhost:5555")` — default address shown.
-
-## Package layout
-
-```
-vstimd/
-  __init__.py          # exports Connection, ServerInfo, exceptions, psychopy
-  _connection.py       # ZMQ REQ socket + protobuf send/recv
-  _proto/              # generated stubs (common, service, stimuli_2d, system)
-  stimuli/             # StimuliClient — create/mutate/query stimulus objects
-  system/              # SystemClient  — scene-wide commands and server queries
-  psychopy/            # PsychoPy-compatible visual layer (see below)
-  exceptions.py        # error code → Python exception mapping
-examples/
-  flash_rects.py       # create two rects, flash them alternately
-  interactive_grating.py
-tests/
-  unit/                # API signature tests (no server required)
-  e2e/                 # full round-trip tests against the null renderer or a real server
-```
-
-## `conn.stimuli` — StimuliClient
-
-### Creation (all return an integer handle)
-
-| Method | Creates |
-|---|---|
-| `create_rect(*, x, y, width, height, r, g, b, a, name, id)` | Rectangle |
-| `create_circle(*, x, y, radius, r, g, b, a, name, id)` | Circle |
-| `create_ellipse(*, x, y, width, height, angle, r, g, b, a, name, id)` | Ellipse |
-| `create_grating(*, pos, width, height, sf, phase, angle, contrast, fore_color, back_color, opacity, waveform, mask, mask_param, drift_speed, drift_decoupled, drift_angle, name, id)` | Grating |
-| `create_text(*, x, y, width, height, text, font_family, letter_height_px, r, g, b, a, anchor, language_style, name, id)` | Text |
-
-All `create_*` methods accept an optional `id` (client-supplied UUID string) and
-`name` (human-readable label). If `id` is empty the server generates a UUID.
-
-### Mutations
-
-| Method | Effect |
-|---|---|
-| `set_enabled(handle, enabled)` | Show / hide |
-| `delete(handle)` | Remove from scene |
-| `set_name(handle, name)` | Rename (clears if `""`) |
-| `set_position(handle, x, y)` | Move centre |
-| `set_orientation(handle, angle_deg)` | Rotate (CCW degrees) |
-| `set_fill_color(handle, r, g, b, a=1)` | Fill colour |
-| `set_alpha(handle, opacity)` | Global opacity `[0, 1]` |
-| `set_outline_color(handle, r, g, b, a=1)` | Outline colour |
-| `set_outline_width(handle, line_width)` | Outline stroke width |
-| `set_rect_size(handle, width, height)` | Resize a Rect |
-| `set_circle_radius(handle, radius)` | Resize a Circle |
-| `set_ellipse_size(handle, width, height)` | Resize an Ellipse |
-| `set_grating_phase(handle, phase)` | Phase `[0, 1]` |
-| `set_grating_sf(handle, sf)` | Spatial frequency in cycles/pixel |
-| `set_grating_contrast(handle, contrast)` | Contrast `[0, 1]` |
-| `set_grating_waveform(handle, waveform)` | `GratingTexture.{SIN,SQR,SAW,TRI}` |
-| `set_grating_mask(handle, mask)` | `GratingMask.{NONE,CIRCLE,GAUSS,HANN,RAISED_COS}` |
-| `set_grating_drift_speed(handle, speed)` | Drift rate in cycles/second |
-| `set_grating_drift_decoupled(handle, bool)` | Decouple drift direction from stripe angle |
-| `set_grating_drift_angle(handle, angle_deg)` | Drift direction when decoupled |
-| `set_grating_fore_color(handle, r, g, b, a=1)` | Peak colour |
-| `set_grating_back_color(handle, r, g, b, a=1)` | Trough colour |
-| `set_grating_opacity(handle, opacity)` | Grating global opacity |
-| `set_text(handle, text)` | Replace the displayed string |
-| `set_text_color(handle, r, g, b, a=1)` | Text colour |
-| `query(handle)` | Returns `StimulusInfo` |
-
-### Coordinate system
-
-Origin at screen centre, Y-up, units in pixels.
-
-## `conn.system` — SystemClient
-
-| Method | Effect |
-|---|---|
-| `query_server_info()` | Returns `ServerInfo(width, height, frame_rate, version)` |
-| `set_background(r, g, b, a=1)` | Background clear colour |
-| `set_deferred_mode(active, *, cancel=False)` | Enter / exit deferred (frame-batched) mode |
-| `delete_all()` | Remove all stimuli |
-| `set_all_enabled(enabled)` | Show / hide all stimuli |
 
 ## `vstimd.psychopy` — PsychoPy-compatible layer
 
