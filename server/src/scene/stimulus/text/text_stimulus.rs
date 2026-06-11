@@ -3,19 +3,51 @@ use crate::scene::stimulus::{StimulusFlags, Transform2D};
 
 use super::text_params::{Anchor, LanguageStyle, TextRenderParams};
 
-pub struct TextStimulus {
-    pub flags: StimulusFlags,
-    pub transform: Deferred<Transform2D>,
-    pub params: Deferred<TextRenderParams>,
-    pub box_size: Deferred<[f32; 2]>,
-    // String is not Copy, so live/copy are managed manually.
-    pub text_live: String,
-    pub text_copy: String,
+/// Serializable text configuration.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct TextConfig {
+    pub flags:            StimulusFlags,
+    pub transform:        Deferred<Transform2D>,
+    pub params:           Deferred<TextRenderParams>,
+    pub box_size:         Deferred<[f32; 2]>,
+    pub text_live:        String,
     // These never change post-creation (would require full re-layout).
-    pub font_family: String,
+    pub font_family:      String,
     pub letter_height_px: f32,
-    pub anchor: Anchor,
-    pub language_style: LanguageStyle,
+    pub anchor:           Anchor,
+    pub language_style:   LanguageStyle,
+}
+
+/// Full text stimulus: serializable config + deferred text copy.
+/// Deref/DerefMut give transparent access to the config fields.
+pub struct TextStimulus {
+    pub config:    TextConfig,
+    // String is not Copy, so live/copy are managed manually. Not serialized;
+    // restored equal to text_live on deserialization.
+    pub text_copy: String,
+}
+
+impl std::ops::Deref for TextStimulus {
+    type Target = TextConfig;
+    fn deref(&self) -> &TextConfig { &self.config }
+}
+
+impl std::ops::DerefMut for TextStimulus {
+    fn deref_mut(&mut self) -> &mut TextConfig { &mut self.config }
+}
+
+impl serde::Serialize for TextStimulus {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.config.serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for TextStimulus {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let config = TextConfig::deserialize(d)?;
+        let text_copy = config.text_live.clone();
+        Ok(Self { config, text_copy })
+    }
 }
 
 impl TextStimulus {
@@ -30,17 +62,20 @@ impl TextStimulus {
         language_style: LanguageStyle,
         params: TextRenderParams,
     ) -> Self {
+        let text_copy = text.clone();
         Self {
-            flags: StimulusFlags { enabled: true, ..Default::default() },
-            transform: Deferred::new(Transform2D { pos, angle: 0.0 }),
-            params: Deferred::new(params),
-            box_size: Deferred::new(box_size),
-            text_live: text.clone(),
-            text_copy: text,
-            font_family,
-            letter_height_px,
-            anchor,
-            language_style,
+            config: TextConfig {
+                flags:            StimulusFlags::enabled(true),
+                transform:        Deferred::new(Transform2D { pos, angle: 0.0 }),
+                params:           Deferred::new(params),
+                box_size:         Deferred::new(box_size),
+                text_live:        text,
+                font_family,
+                letter_height_px,
+                anchor,
+                language_style,
+            },
+            text_copy,
         }
     }
 

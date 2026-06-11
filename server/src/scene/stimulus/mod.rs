@@ -24,6 +24,7 @@ use uuid::Uuid;
 /// `id` is stable across sessions (survives serialization round-trips and lets
 /// reconnecting clients match server-side stimuli to their in-memory objects).
 /// `name` is optional human-readable label for debugging/tooling.
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct StimulusEntry {
     pub id: Uuid,
     pub name: Option<String>,
@@ -39,6 +40,7 @@ impl StimulusEntry {
 
 // ── Stimulus enum ─────────────────────────────────────────────────────────────
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum Stimulus {
     Shape(ShapeStimulus),
     Grating(GratingStimulus),

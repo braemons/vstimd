@@ -1,5 +1,5 @@
 /// Waveform shape of the grating carrier.
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum Waveform {
     #[default]
@@ -10,7 +10,7 @@ pub enum Waveform {
 }
 
 /// Aperture mask applied over the grating patch.
-#[derive(Clone, Copy, Default, PartialEq)]
+#[derive(Clone, Copy, Default, PartialEq, serde::Serialize, serde::Deserialize)]
 #[repr(u8)]
 pub enum GratingMask {
     #[default]
@@ -24,7 +24,7 @@ pub enum GratingMask {
     RaisedCos = 4,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct GratingParams {
     pub sf: f32,       // cycles/pixel
     pub phase: f32,    // static phase offset [0, 1]

@@ -126,19 +126,20 @@
 use vtl::{Direction, VtlOwner, MAX_BANKS};
 
 /// A resolved (bank, bit) address into the VTL shared memory.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct VtlBit {
     pub bank: usize,
     pub bit:  u8,
 }
 
 /// A signal edge direction on a VTL line.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Edge {
     Rising,
     Falling,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct VtlNameEntry {
     pub name:      String,
     pub bank:      u8,

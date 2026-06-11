@@ -329,7 +329,7 @@ impl SceneState {
         let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
         let fill   = color_or_default(cmd.fill_color, self.default_fill);
         let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-            flags: StimulusFlags { enabled: true, ..Default::default() },
+            flags: StimulusFlags::enabled(true),
             transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
             appearance: Deferred::new(ShapeAppearance {
                 fill_color:    fill,
@@ -353,7 +353,7 @@ impl SceneState {
         let radius = if cmd.radius == 0.0 { 50.0 } else { cmd.radius };
         let fill   = color_or_default(cmd.fill_color, self.default_fill);
         let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
-            flags: StimulusFlags { enabled: true, ..Default::default() },
+            flags: StimulusFlags::enabled(true),
             transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
             appearance: Deferred::new(ShapeAppearance {
                 fill_color:    fill,
@@ -378,7 +378,7 @@ impl SceneState {
         let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
         let fill   = color_or_default(cmd.fill_color, self.default_fill);
         let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
-            flags: StimulusFlags { enabled: true, ..Default::default() },
+            flags: StimulusFlags::enabled(true),
             transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: cmd.angle }),
             appearance: Deferred::new(ShapeAppearance {
                 fill_color:    fill,
@@ -1295,16 +1295,18 @@ impl SceneState {
 
         let handle = self.alloc_anim_handle();
         self.animations.insert(handle, AnimationEntry {
-            name: cmd.name,
-            state: AnimState::Idle,
-            stimuli: cmd.stimuli,
-            start_action,
-            start_action_trigger_line,
-            final_action,
-            final_action_trigger_line,
-            start_trigger,
+            config: super::animation::AnimationConfig {
+                name: cmd.name,
+                state: AnimState::Idle,
+                stimuli: cmd.stimuli,
+                start_action,
+                start_action_trigger_line,
+                final_action,
+                final_action_trigger_line,
+                start_trigger,
+                animation,
+            },
             captured_user_enabled: None,
-            animation,
         });
         ok_handle(handle)
     }
@@ -1348,7 +1350,7 @@ impl SceneState {
                 format!("animation handle {} not found", cmd.handle)),
         };
         if matches!(entry.state, AnimState::Running { .. }) {
-            for sh in entry.stimuli {
+            for sh in entry.config.stimuli {
                 if let Some(se) = self.stimuli.get_mut(&sh) {
                     se.stimulus.flags_mut().anim_enabled = true;
                     se.stimulus.flags_mut().mark_dirty();

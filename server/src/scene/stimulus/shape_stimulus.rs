@@ -14,6 +14,7 @@ macro_rules! shape_field {
     };
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub enum ShapeStimulus {
     Rect(RectStimulus),
     Ellipse(EllipseStimulus),

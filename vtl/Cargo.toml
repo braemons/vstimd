@@ -9,6 +9,10 @@ repository = "https://github.com/braemons/vstimd"
 
 [dependencies]
 libc = "0.2"
+serde = { version = "1", features = ["derive"], optional = true }
+
+[features]
+serde = ["dep:serde"]
 
 [[example]]
 name = "vtl-test-client"

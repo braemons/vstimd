@@ -1,18 +1,63 @@
-/// State for the photodiode sync-flash rectangle drawn in a screen corner.
-///
-/// Always rendered last (on top of all stimuli) when `enabled`.
-#[derive(Clone, Copy, Default)]
-pub struct PhotoDiodeState {
+/// Serializable photodiode configuration (live values only).
+#[derive(Clone, Copy, Default, serde::Serialize, serde::Deserialize)]
+pub struct PhotoDiodeConfig {
     pub enabled:  bool,
     pub lit:      bool,
     pub flicker:  bool,
-    pub position: u32,  // 0 = bottom-left, 1 = bottom-right
+    pub position: u32, // 0 = bottom-left, 1 = bottom-right
+}
 
-    // Deferred copies (participate in the same flip mechanism as stimuli)
+/// Full photodiode state: serializable config + deferred copies.
+///
+/// Always rendered last (on top of all stimuli) when `enabled`.
+/// Deref/DerefMut give transparent access to the config fields.
+pub struct PhotoDiodeState {
+    pub config:        PhotoDiodeConfig,
     pub enabled_copy:  bool,
     pub lit_copy:      bool,
     pub flicker_copy:  bool,
     pub position_copy: u32,
+}
+
+impl Default for PhotoDiodeState {
+    fn default() -> Self {
+        Self {
+            config:        PhotoDiodeConfig::default(),
+            enabled_copy:  false,
+            lit_copy:      false,
+            flicker_copy:  false,
+            position_copy: 0,
+        }
+    }
+}
+
+impl std::ops::Deref for PhotoDiodeState {
+    type Target = PhotoDiodeConfig;
+    fn deref(&self) -> &PhotoDiodeConfig { &self.config }
+}
+
+impl std::ops::DerefMut for PhotoDiodeState {
+    fn deref_mut(&mut self) -> &mut PhotoDiodeConfig { &mut self.config }
+}
+
+/// Serde serializes only the live config; copy fields are set to live on deserialize.
+impl serde::Serialize for PhotoDiodeState {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.config.serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for PhotoDiodeState {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let config = PhotoDiodeConfig::deserialize(d)?;
+        Ok(Self {
+            enabled_copy:  config.enabled,
+            lit_copy:      config.lit,
+            flicker_copy:  config.flicker,
+            position_copy: config.position,
+            config,
+        })
+    }
 }
 
 impl PhotoDiodeState {
