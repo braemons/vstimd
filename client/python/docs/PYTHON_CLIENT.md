@@ -33,13 +33,10 @@ This is the **only place** you specify the server's IP and port.
 
 ```python
 # Same machine (default)
-win = visual.Window(size=(1920, 1080))
+win = visual.Window()
 
 # Remote machine — change host and/or port as needed
-win = visual.Window(
-    size=(1920, 1080),
-    address='tcp://192.168.1.10:5555',
-)
+win = visual.Window(address='tcp://192.168.1.10:5555')
 
 # Different port on localhost
 win = visual.Window(address='tcp://localhost:9000')
@@ -54,7 +51,7 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 | psychopy | vstimd | Notes |
 |---|---|---|
 | `from psychopy import visual` | `from vstimd.psychopy import visual` | direct swap |
-| `Window(size=...)` | `Window(size=..., address='tcp://host:port')` | add `address` |
+| `Window(size=...)` | `Window(address='tcp://host:port')` | `size` is ignored — queried from server |
 | `Circle(win, ...)` | identical | ✓ |
 | `Rect(win, ...)` | identical | ✓ |
 | `GratingStim(win, ...)` | identical | ✓ |

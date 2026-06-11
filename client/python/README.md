@@ -54,8 +54,7 @@ from vstimd import psychopy as visual
 The only required addition is `address=` on `Window`:
 
 ```python
-win = visual.Window(size=(1920, 1080), units='pix',
-                    address='tcp://192.168.1.10:5555')
+win = visual.Window(address='tcp://192.168.1.10:5555')
 circ = visual.Circle(win, radius=50, fillColor='red')
 rect = visual.Rect(win, width=200, height=100, fillColor=(-1, 1, -1))
 grat = visual.GratingStim(win, sf=0.05, mask='circle')
