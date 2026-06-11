@@ -80,16 +80,16 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 
 ### `deferred=True` (default — matches psychopy frame model)
 
-Property setters stage commands locally.  Nothing is sent to the server until
-`win.flip()` is called.  All staged commands are sent as a single ZMQ multipart
-message — the server applies them atomically before the next render frame.
+Property setters send commands to the server's deferred queue immediately.
+`win.flip()` tells the server to apply the entire queue atomically before the
+next render frame.
 
 ```python
 win = visual.Window(deferred=True)   # default
 circle = visual.Circle(win, radius=50)
-circle.pos = (100, 0)   # staged, not sent yet
-circle.opacity = 0.8    # staged
-win.flip()              # ← sends everything here
+circle.pos = (100, 0)   # queued on server
+circle.opacity = 0.8    # queued on server
+win.flip()              # ← server applies all queued commands before next vsync
 ```
 
 ### `deferred=False` (immediate)

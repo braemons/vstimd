@@ -78,9 +78,10 @@ accepted and silently ignored for drop-in compatibility.
 
 ### Deferred (frame-buffer) mode
 
-By default (`deferred=True`) property changes are queued locally and flushed
-atomically on `win.flip()`, aligned to the next vsync. Set `deferred=False`
-to send each command immediately.
+By default (`deferred=True`) property changes are sent to the server's deferred
+queue immediately; `win.flip()` tells the server to apply the entire queue
+atomically before the next vsync. Set `deferred=False` to apply each command
+immediately as it arrives.
 
 ### Color formats accepted
 
