@@ -6,6 +6,18 @@ over ZMQ using protobuf encoding.
 ## Install
 
 ```bash
+pip install vstimd
+```
+
+Or with [uv](https://docs.astral.sh/uv/):
+
+```bash
+uv add vstimd
+```
+
+### Development install
+
+```bash
 cd client/python
 uv sync
 ```

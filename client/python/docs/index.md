@@ -1,0 +1,14 @@
+# vstimd Python Client
+
+```{include} ../README.md
+:relative-docs: docs/
+:relative-images:
+```
+
+```{toctree}
+:maxdepth: 2
+:hidden:
+
+guide
+api/index
+```

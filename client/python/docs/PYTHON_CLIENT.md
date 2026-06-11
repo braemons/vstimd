@@ -22,7 +22,7 @@ cd client/python
 uv sync
 ```
 
-Requires Python ≥ 3.10 and `pyzmq >= 25`.
+Requires Python ≥ 3.12 and `pyzmq >= 25`.
 
 ---
 
@@ -129,32 +129,6 @@ filesystem path as a string.  The server loads the asset from disk.
 
 Inline binary (numpy arrays, PIL Images) and chunked upload for remote/large
 assets are planned for v2.
-
----
-
-## Running the compatibility check
-
-```bash
-# Print human-readable report
-python vstimd/compat/check_compat.py
-
-# Generate pytest fixture file and run tests
-python vstimd/compat/check_compat.py --output-pytest-fixtures vstimd/tests/_compat_fixtures.py
-pytest vstimd/tests/test_api_compat.py -v
-```
-
-Example output:
-
-```
-vstimd.visual  ←→  psychopy.visual  compatibility check
-==============================================================
-  Window             OK  (2 extensions: address, deferred)
-  Circle             OK
-  Rect               OK
-  Polygon            OK
-  Line               OK
-  ShapeStim          OK
-```
 
 ---
 
