@@ -1,6 +1,13 @@
 # Animations
 
 ```{eval-rst}
+.. data:: vstimd.AnimationHandle
+
+   Opaque integer handle returned by every ``conn.animations.create_*`` call.
+   Pass it to :meth:`~vstimd.AnimationClient.arm`,
+   :meth:`~vstimd.AnimationClient.disarm`, and
+   :meth:`~vstimd.AnimationClient.delete`.
+
 .. autoclass:: vstimd.AnimationClient
    :members:
    :undoc-members:

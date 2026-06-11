@@ -1,12 +1,12 @@
-# API Reference
+# Command API Reference
 
 ```{toctree}
 :maxdepth: 1
 
 connection
-stimuli
+stimuli/index
+system
 animations
 vtl
-psychopy
 exceptions
 ```

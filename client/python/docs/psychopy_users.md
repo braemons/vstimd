@@ -1,7 +1,22 @@
-# Python Client (`vstimd`)
+# vstimd for PsychoPy Users
 
-`vstimd` is a PsychoPy-compatible Python package that controls `vstimd`
-over ZeroMQ.  Experiment scripts can swap:
+## Overview
+
+The native vstimd Python API is command-oriented and maps closely to the
+underlying protobuf/ZeroMQ protocol: you create stimuli, set properties, and
+send commands that are executed by the server.  The `vstimd.psychopy` layer
+wraps this command API in object-oriented classes that mirror the
+`psychopy.visual` interface.
+
+```{important}
+As of v0.1, the PsychoPy-compatible layer does **not** expose vstimd's
+**animation** or **VTL** (Virtual Trigger Lines) systems.  Those systems
+are the primary mechanism for vstimd's sub-millisecond frame-timing
+guarantees.  Use the native command API directly when precise stimulus
+timing matters.
+```
+
+## Quick start — drop-in import swap
 
 ```python
 # Before
@@ -11,42 +26,28 @@ from psychopy import visual
 from vstimd.psychopy import visual
 ```
 
-and have their code mostly work without changes.
-
----
-
-## Install
-
-```bash
-cd client/python
-uv sync
-```
-
-Requires Python ≥ 3.12 and `pyzmq >= 25`.
+Most experiment code works unchanged after this substitution.
 
 ---
 
 ## Connecting to the server
 
-The connection address is set on the `Window` object via the `address` parameter.
-This is the **only place** you specify the server's IP and port.
+The connection address is set on the `Window` object via the `address`
+parameter.  This is the **only place** you specify the server's IP and port.
 
 ```python
-# Same machine (default)
+# Same machine (default — tcp://localhost:5555)
 win = visual.Window()
 
-# Remote machine — change host and/or port as needed
+# Remote machine
 win = visual.Window(address='tcp://192.168.1.10:5555')
-
-# Different port on localhost
-win = visual.Window(address='tcp://localhost:9000')
 ```
 
 The ZMQ endpoint format is `tcp://<host>:<port>`.
 
 ---
 
-## Migration from psychopy
+## Migration reference
 
 | psychopy | vstimd | Notes |
 |---|---|---|
@@ -55,17 +56,18 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 | `Circle(win, ...)` | identical | ✓ |
 | `Rect(win, ...)` | identical | ✓ |
 | `GratingStim(win, ...)` | identical | ✓ |
-| `Polygon(win, ...)` | not in v1 | raises `AttributeError` |
-| `Line(win, ...)` | not in v1 | raises `AttributeError` |
-| `ShapeStim(win, ...)` | not in v1 | raises `AttributeError` |
-| `TextStim` | not in v1 | raises `AttributeError` |
-| `ImageStim` | not in v1 | raises `AttributeError` |
+| `Polygon(win, ...)` | not in v0.1 | raises `AttributeError` |
+| `Line(win, ...)` | not in v0.1 | raises `AttributeError` |
+| `ShapeStim(win, ...)` | not in v0.1 | raises `AttributeError` |
+| `TextStim` | not in v0.1 | raises `AttributeError` |
+| `TextBox2(win, ...)` | identical | ✓ text, color, pos, opacity, autoDraw, languageStyle |
+| `ImageStim` | not in v0.1 | raises `AttributeError` |
 | `win.flip()` | identical | sends batch to server |
 | `stim.draw()` | identical | one-shot per frame |
 | `stim.autoDraw = True` | identical | always rendered |
-| `contains()` / `overlaps()` | not in v1 | raises `NotImplementedError` |
+| `contains()` / `overlaps()` | not in v0.1 | raises `NotImplementedError` |
 
-### What is a no-op stub
+### No-op stubs
 
 - `monitor=` on Window is accepted for future deg/cm units but ignored if units are `pix`/`norm`/`height`
 - `autoLog=` is accepted but logging is not wired up yet
@@ -75,7 +77,7 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 
 ## Deferred vs immediate mode
 
-### `deferred=True` (default — matches psychopy frame model)
+### `deferred=True` (default — matches PsychoPy frame model)
 
 Property setters send commands to the server's deferred queue immediately.
 `win.flip()` tells the server to apply the entire queue atomically before the
@@ -91,8 +93,9 @@ win.flip()              # ← server applies all queued commands before next vsy
 
 ### `deferred=False` (immediate)
 
-Every property setter sends a ZMQ command immediately.  `win.flip()` is a no-op.
-Use this for interactive / exploratory use, not for time-critical experiments.
+Every property setter sends a ZMQ command immediately.  `win.flip()` is a
+no-op.  Use this for interactive / exploratory use, not for time-critical
+experiments.
 
 ```python
 win = visual.Window(deferred=False)
@@ -104,11 +107,11 @@ circle.pos = (100, 0)   # sent immediately
 ## Unit system
 
 All coordinates are converted to pixels before being sent to the server.
-The server's origin is the window centre (matches psychopy default).
+The server's origin is the window centre (matches PsychoPy default).
 
 Supported units: `pix` (default), `norm`, `height`.
 
-`deg` and `cm` require a psychopy `Monitor` object:
+`deg` and `cm` require a PsychoPy `Monitor` object:
 
 ```python
 from psychopy.monitors import Monitor
@@ -119,17 +122,17 @@ circle = visual.Circle(win, radius=2.0, units='deg')
 
 ---
 
-## Asset transfer (v1)
+## Asset transfer (v0.1)
 
-In v1, the only supported mechanism is **path reference**: pass an absolute
+In v0.1, the only supported mechanism is **path reference**: pass an absolute
 filesystem path as a string.  The server loads the asset from disk.
 
 Inline binary (numpy arrays, PIL Images) and chunked upload for remote/large
-assets are planned for v2.
+assets are planned for v0.2.
 
 ---
 
-## Running unit tests
+## Running tests
 
 ```bash
 cd client/python

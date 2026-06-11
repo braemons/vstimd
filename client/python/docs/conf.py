@@ -25,6 +25,10 @@ autodoc_default_options = {
 }
 autodoc_typehints = "description"
 autodoc_member_order = "bysource"
+autodoc_type_aliases = {
+    "StimulusHandle": "vstimd.StimulusHandle",
+    "AnimationHandle": "vstimd.AnimationHandle",
+}
 
 myst_enable_extensions = ["colon_fence"]
 
