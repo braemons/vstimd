@@ -11,21 +11,19 @@ via the egui overlay (pure egui — no native file dialog — so it works in DRM
 
 ---
 
-## Architecture: `SceneConfig` embedded in `SceneState`
+## Architecture
 
-The serializable fields live in a `SceneConfig` sub-struct embedded directly in `SceneState`.
-`SceneConfig` **is** the file format — saving serializes `scene.config` directly, loading
-deserializes directly into a `SceneConfig`. No wrapper type needed.
+Both `SceneState` and `VtlState` follow the same pattern: a serializable config sub-struct is
+embedded directly, with `Deref<Target = ConfigType>` so all existing field access continues to
+compile unchanged. The config structs are the canonical owners of their data — nothing is ever
+copied between them for save/load.
 
-The non-serializable runtime fields (`Instant`, `tokio::watch`, command log, etc.) live in a
-companion `SceneRuntimeState`. `SceneState` implements `Deref<Target = SceneConfig>` so all
-existing field access (`scene.stimuli`, `scene.background`, …) continues to work unchanged.
+### `SceneState`
 
 ```rust
 // scene/config.rs  (new file)
 #[derive(Clone, Serialize, Deserialize)]
 pub struct SceneConfig {
-    pub version:          u32,                   // = 1; checked on load
     pub background:       Deferred<[f32; 4]>,
     pub default_fill:     [f32; 4],
     pub default_outline:  [f32; 4],
@@ -34,20 +32,11 @@ pub struct SceneConfig {
     pub next_stim_handle: u32,
     pub animations:       IndexMap<u32, AnimationEntry>,
     pub next_anim_handle: u32,
-    pub io:               IoConfig,              // VTL names + future I/O mappings
+    // No `io` field — I/O config lives in VtlState
 }
-
-#[derive(Clone, Serialize, Deserialize, Default)]
-pub struct IoConfig {
-    pub vtl_names: Vec<VtlNameEntry>,
-    // future: gamepad_mappings, key_bindings, …
-}
-
-pub const CONFIG_VERSION: u32 = 1;
 ```
 
 ```rust
-// scene/state.rs
 pub struct SceneRuntimeState {
     pub deferred_mode:      bool,
     pub pending_flip:       bool,
@@ -73,27 +62,54 @@ impl Deref    for SceneState { type Target = SceneConfig; fn deref    (&self)   
 impl DerefMut for SceneState {                             fn deref_mut(&mut self) -> &mut SceneConfig { &mut self.config } }
 ```
 
-**Migration impact:** All existing code using `self.stimuli`, `self.background`, etc. compiles
-as-is via `DerefMut`. Only `SceneState::new()` needs to change to initialise the two sub-structs.
+### `VtlState`
 
-### `Deferred<T>` — transparent in JSON
-
-Add custom serde to `Deferred<T>` that serializes only the `live` field and deserializes by
-setting both `live` and `copy` to the loaded value:
+`IoConfig` is a container with one sub-config per I/O subsystem. Each subsystem owns its config
+directly; `IoConfig` only exists transiently during file I/O (as a borrowed view for save, as an
+owned struct for load).
 
 ```rust
-impl<T: Serialize + Copy + Default> Serialize for Deferred<T> {
-    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error> { self.live.serialize(s) }
+// src/io_config.rs  (new file)
+
+/// VTL-specific config — owned by VtlState.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct VtlConfig {
+    pub vtl_names: Vec<VtlNameEntry>,
 }
-impl<'de, T: Deserialize<'de> + Copy + Default> Deserialize<'de> for Deferred<T> {
-    fn deserialize<D>(d: D) -> Result<Self, D::Error> {
-        let v = T::deserialize(d)?;
-        Ok(Deferred { live: v, copy: v })
-    }
+
+/// Borrowed view assembled at save time — never stored.
+#[derive(Serialize)]
+pub struct IoConfigRef<'a> {
+    pub vtl: &'a VtlConfig,
+    // future: pub keyboard: &'a KeyboardConfig,
+    // future: pub gamepad:  &'a GamepadConfig,
+}
+
+/// Owned struct populated at load time — each field moved to its subsystem owner.
+#[derive(Deserialize, Default)]
+pub struct IoConfigFile {
+    #[serde(default)]
+    pub vtl: VtlConfig,
+    // future: pub keyboard: KeyboardConfig,
+    // future: pub gamepad:  GamepadConfig,
 }
 ```
 
-This makes all `Deferred` fields transparent in JSON (e.g. `"background": [0,0,0,1]`).
+```rust
+// vtl_state.rs  (additions)
+pub struct VtlState {
+    pub config:  VtlConfig,        // serializable — canonical VTL config
+    owner:       VtlOwner,
+    prev_input:  [u64; MAX_BANKS],
+    prev_output: [u64; MAX_BANKS],
+}
+
+impl Deref    for VtlState { type Target = VtlConfig; fn deref    (&self)    -> &VtlConfig { &self.config } }
+impl DerefMut for VtlState {                           fn deref_mut(&mut self) -> &mut VtlConfig { &mut self.config } }
+```
+
+Existing `vtl.vtl_names` access continues to work via `DerefMut`. The `names` field (previously a
+bare `Vec<VtlNameEntry>` on `VtlState`) moves into `VtlConfig`.
 
 ---
 
@@ -107,44 +123,73 @@ Files saved from vstimd follow the pattern `vstimd_<name>.<type>.ext`:
 | Archive (config + assets) | `vstimd_<name>.archive.zip` | `vstimd_motion_exp.archive.zip` |
 | Event log | `vstimd_<name>.events.sqlite` | `vstimd_motion_exp.events.sqlite` |
 
-The egui file browser enforces this when saving (auto-appends `vstimd_` prefix and `.config.json`
-suffix if absent). The ZMQ protocol accepts any path — callers are responsible for the convention.
+The egui file browser enforces this when saving. The ZMQ protocol accepts any path.
 
 ---
 
-## File I/O
+## File Format & I/O
+
+The JSON file has three top-level keys: `version`, `scene`, and `io`. `io` is itself an object
+with one key per subsystem (`vtl`, and future `keyboard`, `gamepad`, …).
+
+Two thin types handle serialization — neither is stored; they exist only on the call stack:
 
 ```rust
-// scene/config.rs
-impl SceneConfig {
-    pub fn save_to_file(&self, path: &Path) -> std::io::Result<()> {
-        std::fs::write(path, serde_json::to_string_pretty(self)?)
-    }
+// src/io_config.rs  (additions)
+pub const CONFIG_VERSION: u32 = 1;
 
-    pub fn load_from_file(path: &Path) -> anyhow::Result<Self> {
-        let s = std::fs::read_to_string(path)?;
-        let cfg: SceneConfig = serde_json::from_str(&s)?;
-        anyhow::ensure!(cfg.version == CONFIG_VERSION,
-            "Unsupported config version {} (expected {})", cfg.version, CONFIG_VERSION);
-        Ok(cfg)
-    }
+/// Borrowed view — used only during save. No allocation or copies.
+#[derive(Serialize)]
+struct ConfigFileRef<'a> {
+    version: u32,
+    scene:   &'a SceneConfig,
+    io:      IoConfigRef<'a>,
+}
+
+/// Owned — used only during load. Fields are moved to their subsystem owners.
+#[derive(Deserialize)]
+struct ConfigFile {
+    version: u32,
+    scene:   SceneConfig,
+    io:      IoConfigFile,
+}
+
+pub fn save_config(scene: &SceneConfig, vtl: &VtlConfig, path: &Path) -> std::io::Result<()> {
+    let view = ConfigFileRef {
+        version: CONFIG_VERSION,
+        scene,
+        io: IoConfigRef { vtl },
+    };
+    std::fs::write(path, serde_json::to_string_pretty(&view)?)
+}
+
+pub fn load_config(path: &Path) -> anyhow::Result<(SceneConfig, IoConfigFile)> {
+    let s = std::fs::read_to_string(path)?;
+    parse_config_json(&s)
+}
+
+/// Parse and validate a config JSON string without touching the filesystem.
+/// Used by both `load_config` and `UploadConfig` validation.
+pub fn parse_config_json(s: &str) -> anyhow::Result<(SceneConfig, IoConfigFile)> {
+    let f: ConfigFile = serde_json::from_str(s)?;
+    anyhow::ensure!(f.version == CONFIG_VERSION,
+        "Unsupported config version {} (expected {})", f.version, CONFIG_VERSION);
+    Ok((f.scene, f.io))
 }
 ```
 
-**Save** is just:
+**Save** — borrows in place, no copies:
 ```rust
-scene.read().config.save_to_file(&path)
+save_config(&scene.read().config, &vtl.lock().config, &path)?;
 ```
-(VTL names are already inside `config.io` — no assembly required.)
 
-**After load**, propagate the I/O section and apply to scene:
+**Load** — moves each piece to its owner:
 ```rust
-let cfg = SceneConfig::load_from_file(&path)?;
-if let Some(vtl) = vtl {
-    vtl.lock().names = cfg.io.vtl_names.clone();
-    vtl.lock().sync_names_to_shm();
-}
-scene.write().load_snapshot(cfg, load_mode);
+let (scene_cfg, io) = load_config(&path)?;
+vtl.lock().config = io.vtl;          // move, not copy
+vtl.lock().sync_names_to_shm();
+scene.write().load_snapshot(scene_cfg, load_mode);
+// future: keyboard.lock().config = io.keyboard;
 ```
 
 ---
@@ -162,7 +207,6 @@ impl SceneState {
                 self.fixup_after_load();
             }
             LoadMode::Additive => {
-                // Remap handles to avoid collision with existing scene
                 let stim_offset = self.config.next_stim_handle;
                 let anim_offset = self.config.next_anim_handle;
                 for (handle, entry) in cfg.stimuli {
@@ -175,7 +219,7 @@ impl SceneState {
                 }
                 self.config.next_stim_handle += cfg.next_stim_handle;
                 self.config.next_anim_handle += cfg.next_anim_handle;
-                // background/photodiode/io not merged in additive mode
+                // background/photodiode not merged in additive mode
             }
         }
     }
@@ -192,6 +236,24 @@ impl SceneState {
         }
         self.config.background.make_copy();
         self.config.photodiode.make_copy();
+    }
+}
+```
+
+---
+
+## `Deferred<T>` — transparent in JSON
+
+Custom serde that serializes only `live` and deserializes into both halves:
+
+```rust
+impl<T: Serialize + Copy + Default> Serialize for Deferred<T> {
+    fn serialize<S>(&self, s: S) -> Result<S::Ok, S::Error> { self.live.serialize(s) }
+}
+impl<'de, T: Deserialize<'de> + Copy + Default> Deserialize<'de> for Deferred<T> {
+    fn deserialize<D>(d: D) -> Result<Self, D::Error> {
+        let v = T::deserialize(d)?;
+        Ok(Deferred { live: v, copy: v })
     }
 }
 ```
@@ -217,16 +279,16 @@ Add `#[derive(Serialize, Deserialize)]` to:
 | `scene/stimulus/entry.rs` (or mod.rs) | `StimulusEntry` |
 | `scene/animation.rs` | `Animation`, `AnimState`, `StartAction`, `FinalAction`, `Edge`, `AnimationEntry` |
 | `scene/photodiode.rs` | `PhotoDiodeState` |
-| `vtl_state.rs` | `VtlNameEntry`, `VtlBit`, `Edge` |
+| `vtl_state.rs` | `VtlConfig`, `VtlNameEntry`, `VtlBit`, `Edge` |
 
-`bitflags!` types (`StartAction`, `FinalAction`) — use `#[serde(transparent)]` wrapping the u8.
+`bitflags!` types (`StartAction`, `FinalAction`) — `#[serde(transparent)]` wrapping u8.
 `uuid` needs the `"serde"` feature. `indexmap` needs the `"serde"` feature.
 
-If `vtl::Direction` lacks serde (external crate), wrap it:
+If `vtl::Direction` lacks serde, use a remote derive:
 ```rust
 #[derive(Serialize, Deserialize)]
 #[serde(remote = "vtl::Direction")]
-enum DirectionDef { In, Out }   // mirror the actual variants
+enum DirectionDef { In, Out }
 ```
 
 ---
@@ -235,23 +297,24 @@ enum DirectionDef { In, Out }   // mirror the actual variants
 
 ```rust
 struct Args {
-    render_target: RenderTarget,
-    verbose: bool,
-    config_file: Option<PathBuf>,   // --config / -c
+    render_target:  RenderTarget,
+    verbose:        bool,
+    config_file:    Option<PathBuf>,  // --config <path>  arbitrary startup file
+    config_dir:     Option<PathBuf>,  // --config-dir <path>  managed folder (default: platform-specific)
 }
 ```
 
 After `SceneState::new()`, before `spawn_zmq_thread()`:
 ```rust
 if let Some(ref path) = args.config_file {
-    match SceneConfig::load_from_file(path) {
-        Ok(cfg) => {
+    match load_config(path) {
+        Ok((scene_cfg, io)) => {
             if let Some(ref vtl) = vtl {
                 let mut v = vtl.lock().unwrap();
-                v.names = cfg.io.vtl_names.clone();
+                v.config = io.vtl;
                 v.sync_names_to_shm();
             }
-            scene.write().unwrap().load_snapshot(cfg, LoadMode::Replace);
+            scene.write().unwrap().load_snapshot(scene_cfg, LoadMode::Replace);
         }
         Err(e) => log::error!("Failed to load config {path:?}: {e}"),
     }
@@ -279,8 +342,8 @@ pub struct FileBrowser {
 
 UI layout (inside `egui::Window`):
 - Path breadcrumbs (clickable directory segments)
-- Scrollable `egui::Grid` of entries: `📁 dirname` / `📄 filename.config.json`
-- `TextEdit` for filename (editable; auto-filled on selection; save mode auto-appends `.config.json` if missing, and `vstimd_` prefix if absent)
+- Scrollable `egui::Grid` of entries: `📁 dirname` / `📄 vstimd_name.config.json`
+- `TextEdit` for filename (auto-appends `vstimd_` prefix and `.config.json` suffix on save)
 - `[Open]` / `[Save]` + `[Cancel]` buttons
 
 File filter: `*.config.json` (parent dirs always shown).
@@ -292,37 +355,26 @@ File filter: `*.config.json` (parent dirs always shown).
 New `egui::Window::new("Config")`:
 
 ```rust
-egui::Window::new("Config").show(ctx, |ui| {
-    ui.horizontal(|ui| {
-        if ui.button("Save…").clicked()             { args.file_browser.open(BrowserMode::Save); }
-        if ui.button("Load (replace)…").clicked()  { args.file_browser.open(BrowserMode::OpenReplace); }
-        if ui.button("Load (additive)…").clicked() { args.file_browser.open(BrowserMode::OpenAdditive); }
-    });
-});
-args.file_browser.show(ctx);
-
 if let Some((mode, path)) = args.file_browser.take_result() {
     match mode {
         BrowserMode::Save => {
-            // VTL names already live in scene.config.io — just sync from VtlState first
-            if let Some(vtl) = args.vtl.as_ref() {
-                scene.write().unwrap().config.io.vtl_names = vtl.lock().unwrap().names.clone();
-            }
-            if let Err(e) = scene.read().unwrap().config.save_to_file(&path) {
+            let default_vtl = VtlConfig::default();
+            let vtl_cfg = args.vtl.as_ref().map(|v| &v.lock().unwrap().config).unwrap_or(&default_vtl);
+            if let Err(e) = save_config(&scene.read().unwrap().config, vtl_cfg, &path) {
                 log::error!("{e}");
             }
         }
         BrowserMode::OpenReplace | BrowserMode::OpenAdditive => {
             let load_mode = if matches!(mode, BrowserMode::OpenReplace) {
                 LoadMode::Replace } else { LoadMode::Additive };
-            match SceneConfig::load_from_file(&path) {
-                Ok(cfg) => {
+            match load_config(&path) {
+                Ok((scene_cfg, io)) => {
                     if let Some(vtl) = args.vtl.as_ref() {
                         let mut v = vtl.lock().unwrap();
-                        v.names = cfg.io.vtl_names.clone();
+                        v.config = io.vtl;
                         v.sync_names_to_shm();
                     }
-                    scene.write().unwrap().load_snapshot(cfg, load_mode);
+                    scene.write().unwrap().load_snapshot(scene_cfg, load_mode);
                 }
                 Err(e) => log::error!("{e}"),
             }
@@ -332,7 +384,6 @@ if let Some((mode, path)) = args.file_browser.take_result() {
 ```
 
 `OverlayArgs` gains `file_browser: &mut FileBrowser` and `vtl: Option<&Arc<Mutex<VtlState>>>`.
-`FileBrowser` lives on `RenderState`.
 
 ---
 
@@ -341,7 +392,7 @@ if let Some((mode, path)) = args.file_browser.take_result() {
 ```toml
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
-anyhow     = "1"                                         # if not already present
+anyhow     = "1"
 uuid       = { version = "1", features = ["v4", "serde"] }
 indexmap   = { version = "2", features = ["serde"] }
 ```
@@ -351,7 +402,8 @@ indexmap   = { version = "2", features = ["serde"] }
 ## Files Created / Modified
 
 **New files:**
-- `server/src/scene/config.rs` — `SceneConfig`, `IoConfig`, `SceneRuntimeState`, `CONFIG_VERSION`, save/load
+- `server/src/scene/config.rs` — `SceneConfig`, `SceneRuntimeState`
+- `server/src/io_config.rs` — `VtlConfig`, `IoConfigRef`, `IoConfigFile`, `CONFIG_VERSION`, `save_config`, `load_config`
 - `server/src/render/file_browser.rs` — egui file browser widget
 
 **Modified files (main changes):**
@@ -365,82 +417,118 @@ indexmap   = { version = "2", features = ["serde"] }
 - `server/src/scene/stimulus/{mod,entry,stimulus_flags,transform2d,shape_appearance,primitive_shapes}.rs` — serde derives
 - `server/src/scene/stimulus/grating/{grating_params,grating_stimulus}.rs` — serde derives
 - `server/src/scene/stimulus/text/{text_params,text_stimulus}.rs` — serde derives
-- `server/src/vtl_state.rs` — serde derives on `VtlNameEntry`, `VtlBit`, `Edge`
+- `server/src/vtl_state.rs` — add `VtlConfig`, split into `config: VtlConfig` + runtime fields; serde derives on `VtlConfig`, `VtlNameEntry`, `VtlBit`, `Edge`; add `Deref<Target=VtlConfig>` for `VtlState`
 - `server/src/render/overlay.rs` — Config window + file browser integration
 - `server/src/render/mod.rs` — expose `file_browser` module
-- `proto/vstimd/v1/service.proto` — add `SaveConfigRequest`/`LoadConfigRequest` to `Request.body`; add 4 new `ErrorCode` values
-- `proto/vstimd/v1/system.proto` — define `SaveConfigRequest` and `LoadConfigRequest` messages
+- `proto/vstimd/v1/service.proto` — add 4 new request fields to `Request.body`, 2 new response body variants, 5 new `ErrorCode` values
+- `proto/vstimd/v1/system.proto` — define `ListConfigsRequest/Response`, `LoadConfigRequest`, `UploadConfigRequest`, `RetrieveConfigRequest/Response`
 - `server/src/scene/command.rs` — dispatch `SaveConfig` and `LoadConfig` arms in `handle_system_command`
 
 ---
 
-## Proto: Save / Load Commands
+## Config Directory
+
+The server maintains a managed config folder. Location is set by `--config-dir <path>` (new CLI
+flag). Sensible defaults:
+
+- **Linux interactive/daemon**: `/etc/vstimd/configs/` (daemon) or `~/.config/vstimd/configs/`
+- **Windows**: `%APPDATA%\vstimd\configs\`
+
+`SceneState` (or a top-level server struct) holds the resolved `config_dir: PathBuf` at runtime.
+All folder-based proto commands operate within this directory; filenames are bare names
+(e.g. `motion_exp`), the `.config.json` suffix is appended/stripped by the server.
+
+The `--config <path>` startup flag (arbitrary path, handled in `main.rs`) is separate and
+independent of `--config-dir`.
+
+---
+
+## Proto: Config Persistence Commands
 
 ### New messages (`system.proto`)
 
 ```protobuf
-// Save the current scene + I/O config to a file on the server's filesystem.
-// path should follow the vstimd_<name>.config.json convention.
-message SaveConfigRequest {
-  string path = 1;
+// List all configs available in the server's config directory.
+// Returns a ListConfigsResponse.
+message ListConfigsRequest {}
+
+message ListConfigsResponse {
+  repeated string names = 1;  // bare names, no path or extension
 }
 
-// Load a config file from the server's filesystem.
-// additive=false: clear existing scene then restore (default)
-// additive=true:  merge stimuli/animations into the current scene;
-//                 I/O config (VTL names etc.) is always fully replaced.
+// Load a named config from the server's config directory and apply it.
+// additive=false: clear existing scene then restore (default).
+// additive=true:  merge stimuli/animations; I/O config always fully replaced.
 message LoadConfigRequest {
-  string path     = 1;
+  string name     = 1;
   bool   additive = 2;
+}
+
+// Save a config (supplied as JSON) to the server's config directory.
+// apply_now=true also applies the config immediately after saving.
+// overwrite=false returns ERROR_CODE_FILE_ALREADY_EXISTS if the name exists.
+message UploadConfigRequest {
+  string name      = 1;
+  string json      = 2;
+  bool   overwrite = 3;
+  bool   apply_now = 4;
+  bool   additive  = 5;  // only used when apply_now=true
+}
+
+// Return the current scene + I/O config as a JSON string.
+// The client can inspect it, save it locally, or re-upload it.
+message RetrieveConfigRequest {}
+
+message RetrieveConfigResponse {
+  string json = 1;
 }
 ```
 
 ### New fields in `Request.body` oneof (`service.proto`, system target)
 
 ```protobuf
-// ── Config persistence (system target) ──────────────────────────────────────
-SaveConfigRequest save_config = 110;
-LoadConfigRequest load_config = 111;
+// ── Config persistence (system target) ─────────────────────────────────────
+ListConfigsRequest   list_configs    = 110;
+LoadConfigRequest    load_config     = 111;
+UploadConfigRequest  upload_config   = 112;
+RetrieveConfigRequest retrieve_config = 113;
+```
+
+### New response body variant
+
+```protobuf
+// In Response.body oneof:
+ListConfigsResponse   config_list        = 17;
+RetrieveConfigResponse retrieved_config  = 18;
 ```
 
 ### New error codes (`service.proto`)
 
 ```protobuf
-// The specified file path does not exist or cannot be opened.
-ERROR_CODE_FILE_NOT_FOUND      = 10;
-// A filesystem error occurred (permission denied, disk full, etc.).
-ERROR_CODE_FILE_IO             = 11;
-// The file is not valid JSON or fails schema validation.
-ERROR_CODE_FILE_FORMAT         = 12;
-// The file's version field is not supported by this server.
-ERROR_CODE_UNSUPPORTED_VERSION = 13;
+ERROR_CODE_FILE_NOT_FOUND      = 10;  // named config does not exist
+ERROR_CODE_FILE_IO             = 11;  // permission denied, disk full, etc.
+ERROR_CODE_FILE_FORMAT         = 12;  // invalid JSON or schema mismatch
+ERROR_CODE_UNSUPPORTED_VERSION = 13;  // version field not supported
+ERROR_CODE_FILE_ALREADY_EXISTS = 14;  // upload collision with overwrite=false
 ```
 
 ### Dispatch (`command.rs`)
 
-`handle_system_command` gains two new arms:
-
 ```rust
-request::Body::SaveConfig(r) => {
-    // Sync live VTL names into config.io before saving
-    if let Some(vtl) = vtl.as_ref() {
-        self.config.io.vtl_names = vtl.lock().names.clone();
-    }
-    match self.config.save_to_file(Path::new(&r.path)) {
-        Ok(()) => ok_ack(),
-        Err(e) if e.kind() == NotFound => err(ErrorCode::FileNotFound, &e.to_string()),
-        Err(e) => err(ErrorCode::FileIo, &e.to_string()),
-    }
+request::Body::ListConfigs(_) => {
+    let names = list_config_names(&self.config_dir)?;
+    ok_body(proto::ListConfigsResponse { names })
 }
 request::Body::LoadConfig(r) => {
-    match SceneConfig::load_from_file(Path::new(&r.path)) {
-        Ok(cfg) => {
+    let path = self.config_dir.join(format!("{}.config.json", r.name));
+    match load_config(&path) {
+        Ok((scene_cfg, io)) => {
             if let Some(vtl) = vtl {
-                vtl.lock().names = cfg.io.vtl_names.clone();
-                vtl.lock().sync_names_to_shm();
+                vtl.config = io.vtl;
+                vtl.sync_names_to_shm();
             }
             let mode = if r.additive { LoadMode::Additive } else { LoadMode::Replace };
-            self.load_snapshot(cfg, mode);
+            self.load_snapshot(scene_cfg, mode);
             ok_ack()
         }
         Err(e) if is_not_found(&e) => err(ErrorCode::FileNotFound, &e.to_string()),
@@ -448,25 +536,69 @@ request::Body::LoadConfig(r) => {
         Err(e)                     => err(ErrorCode::FileIo, &e.to_string()),
     }
 }
+request::Body::UploadConfig(r) => {
+    // Validate before touching disk: parse JSON and check version + schema.
+    let (scene_cfg, io) = match parse_config_json(&r.json) {
+        Ok(v)  => v,
+        Err(e) => return err(ErrorCode::FileFormat, &e.to_string()),
+    };
+    let path = self.config_dir.join(format!("{}.config.json", r.name));
+    if path.exists() && !r.overwrite {
+        return err(ErrorCode::FileAlreadyExists, "config already exists");
+    }
+    if let Err(e) = std::fs::write(&path, &r.json) {
+        return err(ErrorCode::FileIo, &e.to_string());
+    }
+    if r.apply_now {
+        if let Some(vtl) = vtl { vtl.config = io.vtl; vtl.sync_names_to_shm(); }
+        let mode = if r.additive { LoadMode::Additive } else { LoadMode::Replace };
+        self.load_snapshot(scene_cfg, mode);
+    }
+    ok_ack()
+}
+request::Body::RetrieveConfig(_) => {
+    let default_vtl = VtlConfig::default();
+    let vtl_cfg = vtl.as_ref().map(|v| &v.config).unwrap_or(&default_vtl);
+    match retrieve_config(&self.config, vtl_cfg) {
+        Ok(json) => ok_body(proto::RetrieveConfigResponse { json }),
+        Err(e)   => err(ErrorCode::Unknown, &e.to_string()),
+    }
+}
 ```
 
-`handle_request` already takes `vtl: Option<&mut VtlState>` — pass it through to these arms.
+`config_dir` is added to `SceneState` (or a separate server context struct passed alongside it).
+`retrieve_config` serializes the current state using `ConfigFileRef` — no copies.
+
+---
+
+## Future: Config Schema
+
+When the config format stabilises, expose a JSON Schema so clients can validate configs locally
+before uploading and editors can provide IntelliSense.
+
+Preferred approach: **`schemars`** — add `#[derive(JsonSchema)]` alongside `Serialize/Deserialize`
+on `SceneConfig`, `IoConfigFile`, and all nested types. The schema is then generated at build time
+or on demand. A new proto command exposes it:
+
+```protobuf
+message GetConfigSchemaRequest {}
+message GetConfigSchemaResponse { string json_schema = 1; }
+```
+
+This keeps the schema in sync with the Rust types automatically. No manual schema maintenance.
+
+`UploadConfigRequest` can optionally enforce schema validation using the generated schema before
+the `parse_config_json` step (strict field validation beyond what serde gives by default).
 
 ---
 
 ## Future: Archive Format (`vstimd_<name>.archive.zip`)
 
-When stimuli that reference external assets (images, movies, 3-D models) are added, the config
-file alone will not be self-contained. A future archive format will bundle:
+When stimuli reference external assets, a future archive will bundle:
+- `vstimd_<name>.config.json` (scene + I/O config, same format)
+- All referenced asset files under `assets/` inside the ZIP
 
-- The `vstimd_<name>.config.json` file (scene + I/O config)
-- All referenced asset files under an `assets/` directory inside the ZIP
-
-Asset paths in `SceneConfig` will be stored as relative `Option<PathBuf>` fields on future stimulus
-types; on load they resolve against the extract directory. The JSON format is unchanged — assets are
-additional fields. The archive wraps the same JSON.
-
-The egui file browser will support both `*.config.json` and `*.archive.zip` when implemented.
+Asset paths stored as relative `Option<PathBuf>` on future stimulus types. JSON format unchanged.
 
 ---
 
@@ -474,11 +606,11 @@ The egui file browser will support both `*.config.json` and `*.archive.zip` when
 
 1. `cargo build --release` — no compile errors
 2. `cargo clippy` — no new warnings
-3. Start server (null renderer); create stimuli + animations via Python client; open overlay → "Save…" → inspect `vstimd_test.config.json` (check `version=1`, `scene.*` fields and `io.vtl_names` present)
-4. Restart server with `--config <file>` → verify stimuli reappear with correct positions and appearances; VTL names restored
-5. Load at runtime via overlay (replace mode) → scene replaced, dirty flags trigger retessellation
-6. Load at runtime via overlay (additive mode) → new stimuli appended, no handle collisions
-7. Verify animation stimulus handle references remapped correctly in additive mode
-8. Send `SaveConfigRequest{path: "vstimd_test.config.json"}` via Python client → file appears, JSON valid
-9. Send `LoadConfigRequest{path: "...", additive: false}` → scene restored; bad path → `ERROR_CODE_FILE_NOT_FOUND`; bad JSON → `ERROR_CODE_FILE_FORMAT`
-10. `make test-e2e-null` — existing tests still pass
+3. Start server (null renderer); create stimuli + animations; set VTL names via Python client; open overlay → "Save…" → inspect `vstimd_test.config.json` (check `version=1`, `scene.*` and `io.vtl_names` present)
+4. Restart with `--config <file>` → stimuli reappear; VTL names restored
+5. Load via overlay (replace) → scene replaced, retessellation triggered
+6. Load via overlay (additive) → stimuli appended, no handle collisions
+7. Animation stimulus handle references remapped correctly in additive mode
+8. `SaveConfigRequest` via Python client → file written, valid JSON
+9. `LoadConfigRequest` with bad path → `ERROR_CODE_FILE_NOT_FOUND`; bad JSON → `ERROR_CODE_FILE_FORMAT`
+10. `make test-e2e-null` — existing tests pass
