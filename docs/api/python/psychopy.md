@@ -7,13 +7,13 @@ space, units) to vstimd commands.
 ## Usage
 
 ```python
-from vstimd.psychopy import Window, Rect, Circle, GratingStim
+from vstimd.psychopy import visual
 
-win = Window(size=(1920, 1080), address="tcp://localhost:5555")
+win = visual.Window(size=(1920, 1080), address="tcp://localhost:5555")
 
-rect = Rect(win, width=0.5, height=0.25, fillColor="red", pos=(0, 0))
-circ = Circle(win, radius=0.1, fillColor=(-1, 1, -1))   # PsychoPy RGB [-1, 1]
-grat = GratingStim(win, sf=4, size=0.5, ori=45)
+rect = visual.Rect(win, width=0.5, height=0.25, fillColor="red", pos=(0, 0))
+circ = visual.Circle(win, radius=0.1, fillColor=(-1, 1, -1))   # PsychoPy RGB [-1, 1]
+grat = visual.GratingStim(win, sf=4, size=0.5, ori=45)
 
 rect.draw()
 circ.draw()

@@ -14,11 +14,11 @@ uv sync
 
 ```python
 from vstimd import Connection
-from vstimd import Vec2
+from vstimd.stimuli import Vec2, Color
 
 with Connection() as conn:
-    h = conn.stimuli.create_rect(x=-200, y=0, width=300, height=200,
-                                 r=1.0, g=0.0, b=0.0)
+    h = conn.stimuli.shapes.create_rect(pos=Vec2(-200, 0), width=300, height=200,
+                                        color=Color(1.0, 0.0, 0.0))
     conn.stimuli.set_enabled(h, False)
     conn.stimuli.delete(h)
     info = conn.system.query_server_info()
@@ -88,7 +88,7 @@ make proto   # requires grpcio-tools in the dev dependency group
 cd client/python
 
 # Unit tests (no server required)
-uv run pytest tests/unit/ -v
+make test
 
 # E2E against the null renderer (builds server binary automatically)
 make test-e2e-null

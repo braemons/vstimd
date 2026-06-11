@@ -8,7 +8,7 @@ over ZeroMQ.  Experiment scripts can swap:
 from psychopy import visual
 
 # After
-from vstimd import visual
+from vstimd.psychopy import visual
 ```
 
 and have their code mostly work without changes.
@@ -18,9 +18,8 @@ and have their code mostly work without changes.
 ## Install
 
 ```bash
-pip install -e vstimd/
-# or, with test dependencies:
-pip install -e "vstimd/[dev]"
+cd client/python
+uv sync
 ```
 
 Requires Python ≥ 3.10 and `pyzmq >= 25`.
@@ -54,14 +53,14 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 
 | psychopy | vstimd | Notes |
 |---|---|---|
-| `from psychopy import visual` | `from vstimd import visual` | direct swap |
+| `from psychopy import visual` | `from vstimd.psychopy import visual` | direct swap |
 | `Window(size=...)` | `Window(size=..., address='tcp://host:port')` | add `address` |
 | `Circle(win, ...)` | identical | ✓ |
 | `Rect(win, ...)` | identical | ✓ |
-| `Polygon(win, ...)` | identical | ✓ |
-| `Line(win, ...)` | identical | ✓ |
-| `ShapeStim(win, ...)` | identical | ✓ |
-| `GratingStim` | not in v1 | raises `AttributeError` |
+| `GratingStim(win, ...)` | identical | ✓ |
+| `Polygon(win, ...)` | not in v1 | raises `AttributeError` |
+| `Line(win, ...)` | not in v1 | raises `AttributeError` |
+| `ShapeStim(win, ...)` | not in v1 | raises `AttributeError` |
 | `TextStim` | not in v1 | raises `AttributeError` |
 | `ImageStim` | not in v1 | raises `AttributeError` |
 | `win.flip()` | identical | sends batch to server |
@@ -162,9 +161,14 @@ vstimd.visual  ←→  psychopy.visual  compatibility check
 ## Running unit tests
 
 ```bash
-# Unit and API compat tests (no server required)
-pytest vstimd/tests/ -v
+cd client/python
 
-# Integration tests (requires live server)
-VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 pytest vstimd/tests/test_integration.py --run-integration -v
+# Unit tests (no server required)
+make test
+
+# E2E against the null renderer (builds server binary automatically)
+make test-e2e-null
+
+# E2E against a real running server
+VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 make test-e2e
 ```

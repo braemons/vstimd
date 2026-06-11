@@ -14,16 +14,19 @@ cd client/python && uv sync
 
 ```python
 from vstimd import Connection
+from vstimd.stimuli import Vec2, Color
 
 with Connection("tcp://localhost:5555") as conn:
-    h = conn.stimuli.create_rect(x=0, y=0, width=200, height=100, r=1.0, g=0.0, b=0.0)
+    h = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=200, height=100,
+                                        color=Color(1.0, 0.0, 0.0))
 
-    with conn.system.deferred():
-        conn.stimuli.set_enabled(h, True)
-        conn.stimuli.set_position(h, x=100, y=50)
+    conn.system.set_deferred_mode(active=True)
+    conn.stimuli.set_enabled(h, True)
+    conn.stimuli.set_position(h, pos=Vec2(100, 50))
+    conn.system.set_deferred_mode(active=False)
 
     info = conn.system.query_server_info()
-    print(f"{info.display_width}×{info.display_height} @ {info.frame_rate:.1f} Hz")
+    print(f"{info.width}×{info.height} @ {info.frame_rate:.1f} Hz")
 
     conn.stimuli.delete(h)
 ```

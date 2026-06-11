@@ -12,7 +12,7 @@
 
 ::: vstimd.stimuli.stimuli_models.Vec2
 
-::: vstimd.stimuli.stimuli_models.DrawMode
+::: vstimd.stimuli.stimuli_models.ShapeDrawMode
 
 ::: vstimd.stimuli.stimuli_models.StimulusType
 
