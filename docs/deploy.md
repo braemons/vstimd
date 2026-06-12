@@ -13,12 +13,57 @@ display directly via `VK_KHR_display` without a compositor.
 
 ---
 
+## Manual install (any distro)
+
+The repo ships a `Makefile` with a `DESTDIR`-aware `install` target — the same
+target used by the `.deb` and `.rpm` packaging backends.
+
+```bash
+# 1. Build
+cargo build --release          # or: make build
+
+# 2. Install files and create the vstimd system user
+sudo make install              # → /usr/bin/vstimd, /usr/lib/systemd/system/, /usr/lib/sysusers.d/
+sudo make setup-user           # runs systemd-sysusers to create the vstimd user/groups
+
+# 3. Enable and start
+sudo systemctl daemon-reload
+sudo systemctl enable --now vstimd
+```
+
+### Makefile targets
+
+| Target | Effect |
+|---|---|
+| `make build` | `cargo build --release` |
+| `make install` | Install binary, unit file, and sysusers conf to `$(DESTDIR)$(PREFIX)/…` |
+| `make uninstall` | Stop, disable, and remove all installed files |
+| `make setup-user` | Create the `vstimd` system user via `systemd-sysusers` |
+
+Override defaults with variables:
+
+```bash
+sudo make install PREFIX=/usr/local UNITDIR=/usr/local/lib/systemd/system
+```
+
+### User and group provisioning
+
+`make install` places `packaging/sysusers/vstimd.conf` in `/usr/lib/sysusers.d/`.
+`make setup-user` then calls `systemd-sysusers` to create the `vstimd` system user
+and add it to the `input`, `video`, and `render` groups.  Package installs (`.deb`,
+`.rpm`) run this step automatically in their post-install hooks.
+
+---
+
 ## Common setup (all platforms)
 
-### 1. Disable the display manager
+### 1. Display manager
 
-The display manager must not be running — it holds the display and
-`VK_KHR_display` will fail to acquire it.
+vstimd acquires the display via `VK_KHR_display`, which requires DRM master on the
+VT it is configured to use (`TTYPath=/dev/tty1` in the unit file).
+
+**Dedicated / headless hardware (recommended):** disable the display manager
+entirely so nothing contends for the display.
 
 ```bash
 # Ubuntu / L4T
@@ -29,28 +74,27 @@ sudo systemctl disable --now lightdm
 # or via raspi-config → System Options → Boot → Console (no desktop)
 ```
 
-### 2. Add the service user to the right groups
+**Desktop / development machine:** VT switching allows coexistence.  If your
+desktop session runs on VT2 (common with SDDM on Fedora/KDE), vstimd can hold
+VT1.  The unit file strips `DISPLAY`, `WAYLAND_DISPLAY`, and `XDG_RUNTIME_DIR`
+from the environment (`UnsetEnvironment`) so Vulkan does not fall back to WSI.
 
-The process needs access to `/dev/input/event*` (keyboard via libinput) and
-`/dev/dri/*` (Vulkan / DRM).
+### 2. Groups
+
+The `vstimd` user needs:
+
+| Group | Device | Notes |
+|---|---|---|
+| `input` | `/dev/input/event*` | libinput keyboard/mouse |
+| `video` | `/dev/dri/card*` | DRM master / Vulkan |
+| `render` | `/dev/dri/renderD*` | GPU nodes on Raspberry Pi OS |
+
+These are added automatically by `make setup-user` / package post-install.
+For an existing login user running vstimd directly (development only):
 
 ```bash
-# Ubuntu / L4T
-sudo usermod -aG input,video $USER
-
-# Raspberry Pi OS — 'render' is used instead of 'video' for GPU nodes
 sudo usermod -aG input,video,render $USER
-```
-
-If running as a dedicated system user (rather than a login user), set
-`SupplementaryGroups=input video` in the unit file (already done).
-
-### 3. Install the service unit
-
-```bash
-sudo cp packaging/systemd/vstimd.service /usr/lib/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now vstimd
+# log out and back in for group changes to take effect
 ```
 
 ---
@@ -121,18 +165,21 @@ cat /sys/module/nvidia_drm/parameters/modeset   # should print Y
 ```
 
 Without `modeset=1`, `VK_KHR_display` will find no displays and fail at startup.
-No other display manager interaction is needed once this parameter is set.
 
 ---
 
 ## Packaging
 
-Package layout:
+### Installed file layout
 
-| Source path | Installed path |
+| Source | Installed path |
 |---|---|
 | `target/release/vstimd` | `/usr/bin/vstimd` |
 | `packaging/systemd/vstimd.service` | `/usr/lib/systemd/system/vstimd.service` |
+| `packaging/sysusers/vstimd.conf` | `/usr/lib/sysusers.d/vstimd.conf` |
+
+Both `.deb` and `.rpm` backends delegate file installation to `make install` via
+`DESTDIR`, so the layout above is always consistent.
 
 ### Build the .deb (Docker — recommended)
 
@@ -177,13 +224,8 @@ sudo dpkg -i vstimd_0.1.0-1_arm64.deb
 sudo systemctl enable --now vstimd
 ```
 
-`postinst` will warn if a display manager (GDM, LightDM, etc.) is enabled.
-Disable it first — it will hold the DRM master and block vstimd:
-
-```bash
-sudo systemctl disable --now gdm   # Ubuntu / L4T
-sudo systemctl disable --now lightdm  # Raspberry Pi OS
-```
+`postinst` calls `systemd-sysusers` to create the `vstimd` user, and warns if a
+display manager is enabled on the same VT.
 
 ---
 
@@ -211,3 +253,34 @@ The test script (`packaging/docker/test-service.sh`) exercises:
 3. ZMQ port 5555 is reachable
 4. `systemctl stop vstimd` — clean SIGTERM shutdown
 5. No zombie process after stop
+
+---
+
+## Roadmap
+
+### RPM / Fedora packaging
+
+`packaging/rpm/vstimd.spec` exists and uses the same `make install DESTDIR=…`
+backend as the `.deb`.  Building it requires a pre-built binary and `rpmbuild`:
+
+```bash
+cargo build --release
+rpmbuild -bb packaging/rpm/vstimd.spec \
+    --define "_sourcedir $(pwd)/target/release"
+```
+
+A Docker-based `.rpm` builder (mirroring `Dockerfile.deb-builder`) and a Fedora
+integration test are planned but not yet implemented.
+
+### CI packaging
+
+The GitHub Actions pipeline currently builds, tests, and runs the null-renderer
+e2e suite.  Planned additions:
+
+- **`make install` smoke test** — verify the Makefile install target places files
+  correctly using `DESTDIR`, without requiring a real system install.
+- **`.deb` build job** — run the Docker deb builder on every PR and upload the
+  package as an artifact.
+- **`.rpm` build job** — same, once the RPM Docker builder exists.
+- **Integration test job** — run `packaging/docker/run-test.sh` in CI to catch
+  regressions in the full install + systemd lifecycle.
