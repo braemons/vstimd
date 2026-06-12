@@ -78,8 +78,10 @@ pub fn list_config_names(dir: &std::path::Path) -> anyhow::Result<Vec<String>> {
         let entry = entry?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if let Some(bare) = name.strip_suffix(".config.json") {
-            names.push(bare.to_string());
+        if let Some(prefixed) = name.strip_suffix(".config.json") {
+            if let Some(bare) = prefixed.strip_prefix("vstimd_") {
+                names.push(bare.to_string());
+            }
         }
     }
     names.sort();

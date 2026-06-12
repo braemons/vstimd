@@ -23,10 +23,12 @@ pub struct FileBrowser {
 
 impl FileBrowser {
     pub fn new(initial_dir: PathBuf) -> Self {
+        // Canonicalize so that parent() navigation always works on absolute paths.
+        let current_dir = initial_dir.canonicalize().unwrap_or(initial_dir);
         let mut fb = Self {
             open: false,
             mode: BrowserMode::OpenReplace,
-            current_dir: initial_dir,
+            current_dir,
             entries: vec![],
             filename: String::new(),
             result: None,
@@ -39,6 +41,7 @@ impl FileBrowser {
         self.mode = BrowserMode::Save;
         self.filename.clear();
         self.result = None;
+        self.refresh();
         self.open = true;
     }
 
@@ -46,6 +49,7 @@ impl FileBrowser {
         self.mode = BrowserMode::OpenReplace;
         self.filename.clear();
         self.result = None;
+        self.refresh();
         self.open = true;
     }
 
@@ -53,6 +57,7 @@ impl FileBrowser {
         self.mode = BrowserMode::OpenAdditive;
         self.filename.clear();
         self.result = None;
+        self.refresh();
         self.open = true;
     }
 
@@ -71,7 +76,7 @@ impl FileBrowser {
                 if !name.starts_with('.') {
                     dirs.push(name);
                 }
-            } else if name.ends_with(".config.json") {
+            } else if name.starts_with("vstimd_") && name.ends_with(".config.json") {
                 files.push(name);
             }
         }
@@ -147,8 +152,9 @@ impl FileBrowser {
                                 self.current_dir.push(&name);
                                 self.refresh();
                             } else {
-                                // Strip .config.json suffix for the filename field
-                                self.filename = name.strip_suffix(".config.json")
+                                // Strip vstimd_ prefix and .config.json suffix for the filename field
+                                self.filename = name.strip_prefix("vstimd_")
+                                    .and_then(|n| n.strip_suffix(".config.json"))
                                     .unwrap_or(&name)
                                     .to_string();
                                 if matches!(self.mode, BrowserMode::OpenReplace | BrowserMode::OpenAdditive) {
@@ -173,7 +179,7 @@ impl FileBrowser {
                         let can_save = !self.filename.trim().is_empty();
                         if ui.add_enabled(can_save, egui::Button::new("Save")).clicked() {
                             let bare = self.filename.trim().to_string();
-                            let filename = format!("{}.config.json", bare);
+                            let filename = format!("vstimd_{}.config.json", bare);
                             let path = self.current_dir.join(filename);
                             self.result = Some((self.mode, path));
                             self.open = false;
@@ -191,6 +197,7 @@ impl FileBrowser {
                 }
             });
 
-        self.open = open;
+        // Combine both close signals: window X button sets open=false; Cancel sets self.open=false.
+        self.open &= open;
     }
 }

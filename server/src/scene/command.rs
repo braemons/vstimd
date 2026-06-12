@@ -1630,7 +1630,7 @@ impl SceneState {
     }
 
     fn cmd_load_config(&mut self, cmd: proto::LoadConfigRequest, vtl: Option<&mut VtlState>) -> proto::Response {
-        let path = self.runtime.config_dir.join(format!("{}.config.json", cmd.name));
+        let path = self.runtime.config_dir.join(format!("vstimd_{}.config.json", cmd.name));
         match load_config(&path) {
             Ok((scene_cfg, io)) => {
                 if let Some(v) = vtl {
@@ -1656,7 +1656,7 @@ impl SceneState {
             Ok(v) => v,
             Err(e) => return err(proto::ErrorCode::FileFormat, &e.to_string()),
         };
-        let path = self.runtime.config_dir.join(format!("{}.config.json", cmd.name));
+        let path = self.runtime.config_dir.join(format!("vstimd_{}.config.json", cmd.name));
         if path.exists() && !cmd.overwrite {
             return err(proto::ErrorCode::FileAlreadyExists, "config already exists");
         }
