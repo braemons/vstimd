@@ -131,14 +131,12 @@ impl FileBrowser {
                 // File list
                 egui::ScrollArea::vertical().max_height(240.0).show(ui, |ui| {
                     // Parent dir entry
-                    if self.current_dir.parent().is_some() {
-                        if ui.selectable_label(false, "📁 ..").clicked() {
-                            if let Some(parent) = self.current_dir.parent() {
+                    if self.current_dir.parent().is_some()
+                        && ui.selectable_label(false, "📁 ..").clicked()
+                            && let Some(parent) = self.current_dir.parent() {
                                 self.current_dir = parent.to_path_buf();
                                 self.refresh();
                             }
-                        }
-                    }
 
                     let entries: Vec<(String, bool)> = self.entries.iter()
                         .map(|e| (e.name.clone(), e.is_dir))
