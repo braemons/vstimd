@@ -466,12 +466,11 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                 };
                 match load_config(&path) {
                     Ok((scene_cfg, io)) => {
-                        if let Some(v) = vtl {
-                            if let Ok(mut v) = v.lock() {
+                        if let Some(v) = vtl
+                            && let Ok(mut v) = v.lock() {
                                 v.config.names = io.vtl.names;
                                 v.sync_names_to_shm();
                             }
-                        }
                         scene.write().unwrap().load_snapshot(scene_cfg, load_mode);
                         log::info!("Config loaded from {:?}", path);
                     }
