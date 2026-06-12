@@ -26,6 +26,7 @@ from ._handles import AnimationHandle, StimulusHandle
 from .response import ErrorCode, ServerResponse
 from .system import ServerInfo, ServerVersion, StimulusListEntry
 from .vtl import VtlClient, VtlDirection, VtlLineInfo
+from .config import ConfigClient
 from .animations import (
     AnimationClient,
     AnimationDetails,
@@ -45,6 +46,11 @@ from .exceptions import (
     NotSupportedError,
     NotReadyError,
     UnknownServerError,
+    ConfigNotFoundError,
+    ConfigIoError,
+    ConfigFormatError,
+    ConfigVersionError,
+    ConfigAlreadyExistsError,
 )
 from . import psychopy
 
@@ -57,6 +63,12 @@ __all__ = [
     "ServerInfo",
     "ServerVersion",
     "StimulusListEntry",
+    "ConfigClient",
+    "ConfigNotFoundError",
+    "ConfigIoError",
+    "ConfigFormatError",
+    "ConfigVersionError",
+    "ConfigAlreadyExistsError",
     "VstimdError",
     "HandleNotFoundError",
     "WrongStimulusTypeError",

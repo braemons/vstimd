@@ -35,3 +35,23 @@ class UnknownServerError(VstimdError):
 
 class NotReadyError(VstimdError):
     """Server is still initialising; retry after the first rendered frame."""
+
+
+class ConfigNotFoundError(VstimdError):
+    """Named config does not exist in the server's config directory."""
+
+
+class ConfigIoError(VstimdError):
+    """Filesystem error while reading or writing a config file."""
+
+
+class ConfigFormatError(VstimdError):
+    """Config file contains invalid JSON or does not match the expected schema."""
+
+
+class ConfigVersionError(VstimdError):
+    """Config file version is not supported by this server."""
+
+
+class ConfigAlreadyExistsError(VstimdError):
+    """Config already exists and overwrite was not requested."""
