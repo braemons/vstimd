@@ -12,6 +12,8 @@ pub use benchmark::BenchmarkState;
 pub(crate) mod system_metrics;
 pub use system_metrics::{MetricsSampler, SystemMetrics};
 pub(crate) mod overlay;
+pub mod file_browser;
+pub use file_browser::FileBrowser;
 pub mod render_state;
 pub use render_state::RenderState;
 pub mod tess;
@@ -60,10 +62,7 @@ pub(crate) fn spawn_demo_stimuli(
     sc.stimuli.insert(
         h1,
         StimulusEntry::new(Uuid::new_v4(), Some("demo_circle".into()), Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
-            flags: StimulusFlags {
-                enabled: true,
-                ..Default::default()
-            },
+            flags: StimulusFlags::enabled(true),
             transform: Deferred::new(Transform2D {
                 pos: [
                     rng.random_range(-500.0..500.0),
@@ -82,10 +81,7 @@ pub(crate) fn spawn_demo_stimuli(
     sc.stimuli.insert(
         h2,
         StimulusEntry::new(Uuid::new_v4(), Some("demo_rect".into()), Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-            flags: StimulusFlags {
-                enabled: true,
-                ..Default::default()
-            },
+            flags: StimulusFlags::enabled(true),
             transform: Deferred::new(Transform2D {
                 pos: [
                     rng.random_range(-500.0..500.0),
@@ -103,25 +99,13 @@ pub(crate) fn spawn_demo_stimuli(
     let h3 = sc.alloc_stim_handle();
     sc.stimuli.insert(
         h3,
-        StimulusEntry::new(Uuid::new_v4(), Some("demo_grating".into()), Stimulus::Grating(GratingStimulus {
-            flags: StimulusFlags {
-                enabled: true,
-                ..Default::default()
-            },
-            transform: Deferred::new(Transform2D {
-                pos: [100.0, -200.0],
-                angle: 0.0,
-            }),
-            size: Deferred::new([100.0, 100.0]),
-            params: Deferred::new(GratingParams {
-                sf: 0.05,
-                contrast: 1.0,
-                drift_speed: 1.0,
-                waveform: Waveform::Sin,
-                ..Default::default()
-            }),
-            phase_accum: 0.0,
-        })),
+        StimulusEntry::new(Uuid::new_v4(), Some("demo_grating".into()), Stimulus::Grating(
+            GratingStimulus::new(
+                [100.0, -200.0], 0.0,
+                [100.0, 100.0],
+                GratingParams { sf: 0.05, contrast: 1.0, drift_speed: 1.0, waveform: Waveform::Sin, ..Default::default() },
+            )
+        )),
     );
     let h4 = sc.alloc_stim_handle();
     sc.stimuli.insert(

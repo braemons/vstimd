@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DrawMode {
     #[default]
     Fill,
@@ -7,7 +7,7 @@ pub enum DrawMode {
 }
 
 /// Fill / outline / stroke appearance for coloured shape stimuli.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct ShapeAppearance {
     pub fill_color: [f32; 4],    // RGBA
     pub outline_color: [f32; 4], // RGBA

@@ -3535,6 +3535,7 @@ checksum = "d258b83ceec21034727ecee8c382cfa6c3e133699b0742c64571814fb420c9f7"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
+ "serde_core",
  "wasm-bindgen",
 ]
 
@@ -3574,6 +3575,7 @@ checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 name = "vstimd"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "ash",
  "ash-window",
  "bitflags 2.11.1",
@@ -3595,6 +3597,8 @@ dependencies = [
  "prost",
  "prost-build",
  "rand 0.10.1",
+ "serde",
+ "serde_json",
  "sysinfo",
  "tokio",
  "uuid",
@@ -3611,6 +3615,7 @@ name = "vtl"
 version = "0.1.0"
 dependencies = [
  "libc",
+ "serde",
 ]
 
 [[package]]

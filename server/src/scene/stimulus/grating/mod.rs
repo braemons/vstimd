@@ -10,4 +10,4 @@ pub use grating_proto::{
     grating_params_from_proto, grating_query_params, mask_to_proto, proto_to_mask,
     proto_to_waveform, waveform_to_proto,
 };
-pub use grating_stimulus::{GratingStimulus, build_grating_push_constants, grating_phase_inc};
+pub use grating_stimulus::{GratingConfig, GratingStimulus, build_grating_push_constants, grating_phase_inc};

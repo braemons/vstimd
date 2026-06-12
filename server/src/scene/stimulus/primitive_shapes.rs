@@ -3,6 +3,7 @@ use super::shape_appearance::ShapeAppearance;
 use super::stimulus_flags::StimulusFlags;
 use super::transform2d::Transform2D;
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct RectStimulus {
     pub flags: StimulusFlags,
     pub transform: Deferred<Transform2D>,
@@ -29,6 +30,7 @@ impl RectStimulus {
     }
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct EllipseStimulus {
     pub flags: StimulusFlags,
     pub transform: Deferred<Transform2D>,
@@ -55,6 +57,7 @@ impl EllipseStimulus {
     }
 }
 
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct CircleStimulus {
     pub flags: StimulusFlags,
     pub transform: Deferred<Transform2D>,

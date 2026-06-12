@@ -49,7 +49,7 @@ fn create_rect(scene: &mut SceneState) -> u32 {
         Uuid::new_v4(),
         None,
         Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-            flags: StimulusFlags { enabled: true, ..Default::default() },
+            flags: StimulusFlags::enabled(true),
             transform:  Deferred::new(Transform2D { pos: [0.0, 0.0], angle: 0.0 }),
             appearance: Deferred::new(ShapeAppearance::default()),
             size:       Deferred::new([50.0, 50.0]),
@@ -120,10 +120,10 @@ fn flash_1_frame_disables_immediately() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::DISABLE,
-        animation: Animation::FlashForNFrames { duration_frames: 1 },
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
+        e.final_action = FinalAction::DISABLE;
+        e
     });
 
     advance(&mut scene);
@@ -137,9 +137,10 @@ fn flash_3_frames_visible_during_frames_0_1_2_then_disabled() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::DISABLE,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 3 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 3 }, vec![s]);
+        e.final_action = FinalAction::DISABLE;
+        e
     });
 
     // Frame 0: enables stim, frame_counter→1, not done (0+1 < 3).
@@ -194,9 +195,10 @@ fn flash_multiple_stimuli() {
     let s1 = create_rect(&mut scene);
     let s2 = create_rect(&mut scene);
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::DISABLE,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s1, s2])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s1, s2]);
+        e.final_action = FinalAction::DISABLE;
+        e
     });
     arm(&mut scene, a);
 
@@ -364,9 +366,10 @@ fn flash_with_start_trigger_stays_armed_until_edge() {
     let s = create_rect(&mut scene);
     set_enabled(&mut scene, s, false); // flash should not enable until trigger fires
 
-    let a = scene.add_animation(AnimationEntry {
-        start_trigger: Some((bit(0, 3), Edge::Rising)),
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.start_trigger = Some((bit(0, 3), Edge::Rising));
+        e
     });
 
     // No edge — stays Armed.
@@ -388,9 +391,10 @@ fn flash_start_trigger_wrong_edge_type_ignored() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
 
-    let a = scene.add_animation(AnimationEntry {
-        start_trigger: Some((bit(0, 0), Edge::Rising)),
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.start_trigger = Some((bit(0, 0), Edge::Rising));
+        e
     });
 
     // Falling edge — should NOT start (wants Rising).
@@ -411,9 +415,10 @@ fn flash_start_trigger_falling_edge() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
 
-    let a = scene.add_animation(AnimationEntry {
-        start_trigger: Some((bit(0, 2), Edge::Falling)),
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.start_trigger = Some((bit(0, 2), Edge::Falling));
+        e
     });
 
     // Rising edge — should NOT start.
@@ -634,9 +639,10 @@ fn restore_state_restores_user_enabled() {
     let s = create_rect(&mut scene);
     set_enabled(&mut scene, s, false); // start disabled; flash enables, RESTORE_STATE restores
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::RESTORE_STATE,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.final_action = FinalAction::RESTORE_STATE;
+        e
     });
 
     assert!(!is_enabled(&scene, s));
@@ -657,9 +663,10 @@ fn restore_state_captures_at_armed_to_running() {
     let s = create_rect(&mut scene);
     set_enabled(&mut scene, s, true); // enabled=true at create time
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::RESTORE_STATE,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
+        e.final_action = FinalAction::RESTORE_STATE;
+        e
     });
 
     // Change state AFTER arm but BEFORE first advance — snapshot taken at transition.
@@ -683,9 +690,10 @@ fn restore_state_takes_priority_over_disable() {
     let s = create_rect(&mut scene);
     set_enabled(&mut scene, s, true);
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::RESTORE_STATE | FinalAction::DISABLE,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
+        e.final_action = FinalAction::RESTORE_STATE | FinalAction::DISABLE;
+        e
     });
 
     advance(&mut scene);
@@ -701,9 +709,10 @@ fn restart_loops_animation() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::RESTART,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.final_action = FinalAction::RESTART;
+        e
     });
 
     advance(&mut scene); // frame 0 → Running{1}
@@ -725,9 +734,10 @@ fn toggle_photodiode_fires_on_done() {
     let s = create_rect(&mut scene);
     let initial = scene.photodiode.lit;
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::TOGGLE_PHOTODIODE,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
+        e.final_action = FinalAction::TOGGLE_PHOTODIODE;
+        e
     });
 
     advance(&mut scene);
@@ -741,9 +751,10 @@ fn toggle_photodiode_toggles_each_restart() {
     let s = create_rect(&mut scene);
     let initial = scene.photodiode.lit;
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::TOGGLE_PHOTODIODE | FinalAction::RESTART,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
+        e.final_action = FinalAction::TOGGLE_PHOTODIODE | FinalAction::RESTART;
+        e
     });
 
     advance(&mut scene); // first done: toggle
@@ -762,10 +773,11 @@ fn final_action_trigger_line_sets_output_bit_on_done() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::FINAL_ACTION_TRIGGER_LINE,
-        final_action_trigger_line: Some(bit(0, 7)),
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.final_action = FinalAction::FINAL_ACTION_TRIGGER_LINE;
+        e.final_action_trigger_line = Some(bit(0, 7));
+        e
     });
 
     let out0 = advance(&mut scene); // frame 0: running, no output
@@ -782,10 +794,11 @@ fn final_action_trigger_line_not_set_before_done() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
 
-    let _a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::FINAL_ACTION_TRIGGER_LINE,
-        final_action_trigger_line: Some(bit(0, 2)),
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 3 }, vec![s])
+    let _a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 3 }, vec![s]);
+        e.final_action = FinalAction::FINAL_ACTION_TRIGGER_LINE;
+        e.final_action_trigger_line = Some(bit(0, 2));
+        e
     });
 
     for i in 0..2 {
@@ -807,14 +820,16 @@ fn output_ordering_chained_animations_one_frame_latency() {
     let s1 = create_rect(&mut scene);
     let s2 = create_rect(&mut scene);
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::FINAL_ACTION_TRIGGER_LINE,
-        final_action_trigger_line: Some(bit(0, 0)),
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s1])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s1]);
+        e.final_action = FinalAction::FINAL_ACTION_TRIGGER_LINE;
+        e.final_action_trigger_line = Some(bit(0, 0));
+        e
     });
-    let b = scene.add_animation(AnimationEntry {
-        start_trigger: Some((bit(0, 0), Edge::Rising)),
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s2])
+    let b = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s2]);
+        e.start_trigger = Some((bit(0, 0), Edge::Rising));
+        e
     });
 
     // Frame N: A completes, output bit set; B checks input_edges (no rising edge) → stays Armed.
@@ -838,17 +853,18 @@ fn end_deferred_sets_pending_flip() {
     let s = create_rect(&mut scene);
 
     scene.begin_deferred();
-    assert!(scene.deferred_mode);
+    assert!(scene.runtime.deferred_mode);
 
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::END_DEFERRED,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
+        e.final_action = FinalAction::END_DEFERRED;
+        e
     });
 
     advance(&mut scene);
     assert_eq!(anim_state(&scene, a), &AnimState::Done);
-    assert!(scene.pending_flip, "END_DEFERRED sets pending_flip");
-    assert!(!scene.deferred_mode, "deferred_mode cleared");
+    assert!(scene.runtime.pending_flip, "END_DEFERRED sets pending_flip");
+    assert!(!scene.runtime.deferred_mode, "deferred_mode cleared");
 }
 
 // ── Idle and Done animations are not re-advanced ──────────────────────────────
@@ -873,9 +889,10 @@ fn idle_animation_not_advanced() {
 fn done_animation_not_re_advanced() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
-    let a = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::DISABLE,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s])
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
+        e.final_action = FinalAction::DISABLE;
+        e
     });
 
     advance(&mut scene); // completes + disables
@@ -950,9 +967,10 @@ fn two_animations_same_stimulus_last_write_wins() {
     let a1 = scene.add_animation(AnimationEntry::armed(
         Animation::FlashForNFrames { duration_frames: 3 }, vec![s],
     ));
-    let a2 = scene.add_animation(AnimationEntry {
-        final_action: FinalAction::DISABLE,
-        ..AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s])
+    let a2 = scene.add_animation({
+        let mut e = AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
+        e.final_action = FinalAction::DISABLE;
+        e
     });
 
     advance(&mut scene);

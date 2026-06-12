@@ -18,7 +18,7 @@ const SCREEN: (u32, u32) = (2560, 1440);
 
 fn make_rect() -> Stimulus {
     Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-        flags: StimulusFlags { enabled: true, ..Default::default() },
+        flags: StimulusFlags::enabled(true),
         transform: Deferred::new(Transform2D { pos: [100.0, 50.0], angle: 15.0 }),
         appearance: Deferred::new(ShapeAppearance {
             fill_color: [1.0, 0.0, 0.0, 1.0],
@@ -30,7 +30,7 @@ fn make_rect() -> Stimulus {
 
 fn make_disc() -> Stimulus {
     Stimulus::Shape(ShapeStimulus::Disc(DiscStimulus {
-        flags: StimulusFlags { enabled: true, ..Default::default() },
+        flags: StimulusFlags::enabled(true),
         transform: Deferred::new(Transform2D { pos: [-200.0, 100.0], angle: 0.0 }),
         appearance: Deferred::new(ShapeAppearance {
             fill_color: [0.0, 0.8, 0.8, 1.0],
@@ -42,7 +42,7 @@ fn make_disc() -> Stimulus {
 
 fn make_ellipse() -> Stimulus {
     Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
-        flags: StimulusFlags { enabled: true, ..Default::default() },
+        flags: StimulusFlags::enabled(true),
         transform: Deferred::new(Transform2D { pos: [300.0, -100.0], angle: 30.0 }),
         appearance: Deferred::new(ShapeAppearance {
             fill_color: [0.5, 0.5, 1.0, 1.0],
@@ -83,7 +83,7 @@ fn bench_scene_update(c: &mut Criterion) {
                 scene.stimuli.insert(
                     h,
                     Stimulus::Shape(ShapeStimulus::Disc(DiscStimulus {
-                        flags: StimulusFlags { enabled: true, ..Default::default() },
+                        flags: StimulusFlags::enabled(true),
                         transform: Deferred::new(Transform2D {
                             pos: [i as f32 * 30.0, 0.0],
                             angle: 0.0,
@@ -96,7 +96,7 @@ fn bench_scene_update(c: &mut Criterion) {
                 scene.stimuli.insert(
                     h,
                     Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-                        flags: StimulusFlags { enabled: true, ..Default::default() },
+                        flags: StimulusFlags::enabled(true),
                         transform: Deferred::new(Transform2D {
                             pos: [i as f32 * 30.0, 100.0],
                             angle: 0.0,

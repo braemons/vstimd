@@ -3,7 +3,7 @@ use lyon_tessellation::math::{Angle, Transform, Vector};
 /// 2-D placement. Used by every positional stimulus.
 /// Position is in stimulus-space pixels with origin at screen centre, Y-up.
 /// Rotation angle is counter-clockwise degrees.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct Transform2D {
     pub pos: [f32; 2],
     pub angle: f32, // ccw degrees, 0 = right, 90 = up

@@ -6,14 +6,44 @@ use super::grating_pipeline::GratingPushConstants;
 
 // ── Grating stimulus ──────────────────────────────────────────────────────────
 
-pub struct GratingStimulus {
-    pub flags: StimulusFlags,
+/// Serializable grating configuration (all Deferred fields serialize as their live value).
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+pub struct GratingConfig {
+    pub flags:     StimulusFlags,
     pub transform: Deferred<Transform2D>,
-    pub size: Deferred<[f32; 2]>, // [half_width, half_height] in pixels
-    pub params: Deferred<GratingParams>,
+    pub size:      Deferred<[f32; 2]>, // [half_width, half_height] in pixels
+    pub params:    Deferred<GratingParams>,
+}
+
+/// Full grating stimulus: serializable config + render-thread runtime state.
+/// Deref/DerefMut give transparent access to the config fields.
+#[derive(Clone)]
+pub struct GratingStimulus {
+    pub config:      GratingConfig,
     /// Phase accumulated by the render thread each frame from `drift_speed`.
     /// Not deferred — updated in place; reset to 0 when drift_speed is set to 0.
     pub phase_accum: f32,
+}
+
+impl std::ops::Deref for GratingStimulus {
+    type Target = GratingConfig;
+    fn deref(&self) -> &GratingConfig { &self.config }
+}
+
+impl std::ops::DerefMut for GratingStimulus {
+    fn deref_mut(&mut self) -> &mut GratingConfig { &mut self.config }
+}
+
+impl serde::Serialize for GratingStimulus {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        self.config.serialize(s)
+    }
+}
+
+impl<'de> serde::Deserialize<'de> for GratingStimulus {
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        Ok(Self { config: GratingConfig::deserialize(d)?, phase_accum: 0.0 })
+    }
 }
 
 impl GratingStimulus {
@@ -24,10 +54,12 @@ impl GratingStimulus {
         params: GratingParams,
     ) -> Self {
         Self {
-            flags: StimulusFlags { enabled: true, ..Default::default() },
-            transform: Deferred::new(Transform2D { pos, angle }),
-            size: Deferred::new(size),
-            params: Deferred::new(params),
+            config: GratingConfig {
+                flags:     StimulusFlags::enabled(true),
+                transform: Deferred::new(Transform2D { pos, angle }),
+                size:      Deferred::new(size),
+                params:    Deferred::new(params),
+            },
             phase_accum: 0.0,
         }
     }
@@ -125,6 +157,10 @@ impl GratingStimulus {
         if !deferred {
             self.flags.mark_dirty();
         }
+    }
+
+    pub fn reset_phase_accum(&mut self) {
+        self.phase_accum = 0.0;
     }
 
     pub fn make_copy(&mut self) {

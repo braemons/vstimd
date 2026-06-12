@@ -16,6 +16,7 @@ pub const SHM_SIZE: usize = 0x5000; // 5 pages, covers state section
 
 /// Direction of a VTL line.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u8)]
 pub enum Direction {
     Input  = 0,
