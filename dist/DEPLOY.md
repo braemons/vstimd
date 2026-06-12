@@ -127,21 +127,96 @@ No other display manager interaction is needed once this parameter is set.
 
 ---
 
-## Packaging (future deb)
+## Packaging
 
-The intended package layout when a `.deb` is produced:
+Package layout:
 
 | Source path | Installed path |
 |---|---|
 | `target/release/vstimd` | `/usr/bin/vstimd` |
 | `dist/systemd/vstimd.service` | `/usr/lib/systemd/system/vstimd.service` |
 
-With `debhelper` >= 13, placing the unit file under `debian/` and using the
-`dh_installsystemd` helper (called automatically by `dh`) handles installation,
-`daemon-reload`, `enable`, and `start` on package install/upgrade/remove.
+### Build the .deb
 
-The `debian/vstimd.service` symlink (or copy) pointing at
-`dist/systemd/vstimd.service` keeps a single source of truth.
+Build requirements: `debhelper` >= 13, `dpkg-dev`.
 
-A `debian/postinst` snippet to disable GDM on install is probably appropriate
-for the Jetson target but should prompt the user rather than doing it silently.
+```bash
+# 1. Build the binary first (packaging does not run cargo).
+cargo build --release
+
+# 2. Build the .deb (binary package only, no source package).
+#    Requires debhelper and dpkg-dev on the host.
+dpkg-buildpackage -b --no-sign
+
+# The .deb appears one directory up: ../vstimd_0.1.0-1_amd64.deb
+```
+
+**No debhelper on the host? Use the builder container:**
+
+```bash
+cargo build --release
+docker build -f dist/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
+docker run --rm -v $(pwd)/dist:/output vstimd-deb-builder
+# dist/vstimd_0.1.0-1_amd64.deb is ready
+```
+
+**Cross-compiling for arm64 (Jetson / Raspberry Pi):**
+
+```bash
+# Install cross toolchain
+sudo apt install gcc-aarch64-linux-gnu
+
+# Build Rust binary for arm64
+cargo build --release --target aarch64-unknown-linux-gnu
+
+# Build .deb targeting arm64
+dpkg-buildpackage -b --no-sign --host-arch arm64
+```
+
+### Install on target
+
+```bash
+sudo dpkg -i vstimd_0.1.0-1_arm64.deb
+sudo systemctl enable --now vstimd
+```
+
+`postinst` will warn if a display manager (GDM, LightDM, etc.) is enabled.
+Disable it first — it will hold the DRM master and block vstimd:
+
+```bash
+sudo systemctl disable --now gdm   # Ubuntu / L4T
+sudo systemctl disable --now lightdm  # Raspberry Pi OS
+```
+
+---
+
+## Docker integration test
+
+Tests the full install + systemd lifecycle using the null renderer (no GPU
+required). Requires Docker with cgroup v2 support and the `.deb` already built.
+
+```bash
+# 1. Build binary and .deb
+cargo build --release
+dpkg-buildpackage -b --no-sign
+
+# 2. Copy the .deb into the build context root so Docker can COPY it
+cp ../vstimd_*.deb .
+
+# 3. Build the test image
+docker build -f dist/docker/Dockerfile.test-deb -t vstimd-test-deb .
+
+# 4. Run the test (privileged required for systemd)
+docker run --rm --privileged \
+    --tmpfs /run --tmpfs /run/lock \
+    -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
+    --cgroupns=host \
+    vstimd-test-deb
+```
+
+The test script (`dist/docker/test-service.sh`) exercises:
+1. `dpkg -i` — package installs cleanly
+2. `systemctl start vstimd` — `Type=notify` handshake succeeds within 20 s
+3. ZMQ port 5555 is reachable
+4. `systemctl stop vstimd` — clean SIGTERM shutdown
+5. No zombie process after stop

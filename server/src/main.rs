@@ -237,8 +237,13 @@ fn wait_zmq_bound(rx: &std::sync::mpsc::Receiver<()>) {
 /// No-op when not launched by systemd or on non-Linux platforms.
 fn notify_ready() {
     #[cfg(target_os = "linux")]
-    if let Err(e) = sd_notify::notify(false, &[sd_notify::NotifyState::Ready]) {
-        log::debug!("vstimd: sd_notify: {e}");
+    {
+        let has_socket = std::env::var_os("NOTIFY_SOCKET").is_some();
+        match sd_notify::notify(false, &[sd_notify::NotifyState::Ready]) {
+            Ok(()) if has_socket => log::info!("vstimd: systemd READY=1 sent"),
+            Ok(()) => log::info!("vstimd: sd_notify: NOTIFY_SOCKET not set (not running under systemd)"),
+            Err(e) => log::warn!("vstimd: sd_notify failed: {e}"),
+        }
     }
 }
 
