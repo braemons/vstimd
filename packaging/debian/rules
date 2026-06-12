@@ -1,39 +1,23 @@
 #!/usr/bin/make -f
 
-# Map the Debian host GNU triplet to a Rust target triple.
-# e.g. aarch64-linux-gnu → aarch64-unknown-linux-gnu
-DEB_HOST_GNU_TYPE  ?= $(shell dpkg-architecture -qDEB_HOST_GNU_TYPE)
-DEB_BUILD_GNU_TYPE ?= $(shell dpkg-architecture -qDEB_BUILD_GNU_TYPE)
-RUST_TARGET        := $(shell echo $(DEB_HOST_GNU_TYPE) | sed 's/-linux-gnu/-unknown-linux-gnu/')
-
-# Use the cross-compiled path when host ≠ build, native path otherwise.
-ifeq ($(DEB_BUILD_GNU_TYPE),$(DEB_HOST_GNU_TYPE))
-VSTIMD_BIN := target/release/vstimd
-else
-VSTIMD_BIN := target/$(RUST_TARGET)/release/vstimd
-endif
-
 %:
 	dh $@
 
-# The binary is built outside dpkg-buildpackage (cargo build --release or
-# cross-compile). Fail early with a clear message if it is missing.
 override_dh_auto_build:
-	@test -f $(VSTIMD_BIN) || { \
+	@test -f target/release/vstimd || { \
 		echo ""; \
-		echo "ERROR: binary not found at $(VSTIMD_BIN)"; \
-		echo "  Native:  cargo build --release"; \
-		echo "  Cross:   cargo build --release --target $(RUST_TARGET)"; \
+		echo "ERROR: binary not found at target/release/vstimd"; \
+		echo "  Build via Docker: see packaging/docker/Dockerfile.deb-builder"; \
 		echo ""; \
 		exit 1; \
 	}
-	@echo "vstimd: using pre-built binary at $(VSTIMD_BIN)"
 
 override_dh_auto_test:
 	:
 
 override_dh_auto_install:
-	install -D -m 0755 $(VSTIMD_BIN) debian/vstimd/usr/bin/vstimd
+	install -D -m 0755 target/release/vstimd \
+		debian/vstimd/usr/bin/vstimd
 	install -D -m 0644 packaging/systemd/vstimd.service \
 		debian/vstimd/usr/lib/systemd/system/vstimd.service
 
