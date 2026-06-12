@@ -1,0 +1,129 @@
+# Multi-stage build: compile and package inside the same OS image so the
+# binary's glibc requirement matches the target exactly.
+#
+# Usage (amd64, Ubuntu 22.04):
+#   docker build -f packaging/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
+#   docker run --rm -v $(pwd)/packaging:/output vstimd-deb-builder
+#
+# Cross-compile for arm64 (Jetson / Raspberry Pi):
+#   docker build -f packaging/docker/Dockerfile.deb-builder \
+#     --build-arg RUST_TARGET=aarch64-unknown-linux-gnu \
+#     --build-arg DEB_HOST_ARCH=arm64 \
+#     -t vstimd-deb-builder-arm64 .
+#
+# Target a different Ubuntu release (e.g. 24.04):
+#   docker build -f packaging/docker/Dockerfile.deb-builder \
+#     --build-arg BASE_IMAGE=ubuntu:24.04 \
+#     -t vstimd-deb-builder-noble .
+
+ARG BASE_IMAGE=ubuntu:22.04
+
+# ── Stage 1: compile ──────────────────────────────────────────────────────────
+FROM ${BASE_IMAGE} AS builder
+
+ARG RUST_TARGET=x86_64-unknown-linux-gnu
+
+ENV DEBIAN_FRONTEND=noninteractive
+ENV CARGO_HOME=/usr/local/cargo
+ENV RUSTUP_HOME=/usr/local/rustup
+ENV PATH=/usr/local/cargo/bin:$PATH
+# Allow pkg_config crate to cross-compile; arm64 wrapper path is set unconditionally
+# but only consulted by the crate when target=aarch64-unknown-linux-gnu.
+ENV PKG_CONFIG_ALLOW_CROSS=1
+ENV PKG_CONFIG_AARCH64_UNKNOWN_LINUX_GNU=/usr/local/bin/aarch64-linux-gnu-pkg-config
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        curl ca-certificates \
+        build-essential pkg-config \
+        libinput-dev libudev-dev libdrm-dev libwayland-dev \
+        protobuf-compiler \
+    && rm -rf /var/lib/apt/lists/*
+
+# arm64 cross-compilation setup (no-op for native amd64 builds).
+# archive.ubuntu.com only carries amd64/i386; arm64 packages come from ports.ubuntu.com.
+RUN if [ "${RUST_TARGET}" = "aarch64-unknown-linux-gnu" ]; then \
+        dpkg --add-architecture arm64 && \
+        sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list && \
+        printf "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse\n\
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse\n\
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse\n" \
+            >> /etc/apt/sources.list && \
+        apt-get update && apt-get install -y --no-install-recommends \
+            gcc-aarch64-linux-gnu \
+            libinput-dev:arm64 libudev-dev:arm64 libdrm-dev:arm64 libwayland-dev:arm64 && \
+        rm -rf /var/lib/apt/lists/* && \
+        mkdir -p ${CARGO_HOME} && \
+        printf '[target.aarch64-unknown-linux-gnu]\nlinker = "aarch64-linux-gnu-gcc"\n' \
+            >> ${CARGO_HOME}/config.toml && \
+        printf '#!/bin/sh\nexec env PKG_CONFIG_PATH=/usr/lib/aarch64-linux-gnu/pkgconfig pkg-config "$@"\n' \
+            > /usr/local/bin/aarch64-linux-gnu-pkg-config && \
+        chmod +x /usr/local/bin/aarch64-linux-gnu-pkg-config; \
+    fi
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+    | sh -s -- -y --no-modify-path --profile minimal --default-toolchain stable \
+    && rustup target add ${RUST_TARGET}
+
+WORKDIR /src
+
+COPY Cargo.toml Cargo.lock ./
+COPY server/ server/
+COPY vtl/ vtl/
+COPY proto/ proto/
+
+# BuildKit cache mounts keep compiled deps across builds without baking them
+# into the image layer.
+RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry \
+    --mount=type=cache,target=/usr/local/cargo/git,id=cargo-git \
+    --mount=type=cache,target=/src/target,id=cargo-target-${RUST_TARGET} \
+    cargo build --release --target ${RUST_TARGET} && \
+    cp target/${RUST_TARGET}/release/vstimd /vstimd && \
+    grep '^version' server/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/' > /version
+
+# ── Stage 2: package ──────────────────────────────────────────────────────────
+FROM ${BASE_IMAGE} AS packager
+
+ARG DEB_HOST_ARCH=amd64
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        build-essential debhelper dpkg-dev file \
+        binutils-aarch64-linux-gnu \
+        libinput10 libudev1 libcap2 libevdev2 libmtdev1 \
+        libwacom9 libgudev-1.0-0 libglib2.0-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# arm64 cross-packaging: install arm64 runtime libs so dh_shlibdeps can resolve
+# shared library dependencies for the arm64 ELF binary (no-op for native amd64).
+RUN if [ "${DEB_HOST_ARCH}" = "arm64" ]; then \
+        dpkg --add-architecture arm64 && \
+        sed -i 's/^deb /deb [arch=amd64] /g' /etc/apt/sources.list && \
+        printf "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy main restricted universe multiverse\n\
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-updates main restricted universe multiverse\n\
+deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports jammy-security main restricted universe multiverse\n" \
+            >> /etc/apt/sources.list && \
+        apt-get update && apt-get install -y --no-install-recommends \
+            libudev1:arm64 libinput10:arm64 \
+            libcap2:arm64 libevdev2:arm64 libmtdev1:arm64 \
+            libwacom9:arm64 libgudev-1.0-0:arm64 libglib2.0-0:arm64 \
+            libgcc-s1:arm64 libc6:arm64 && \
+        rm -rf /var/lib/apt/lists/*; \
+    fi
+
+WORKDIR /build
+
+COPY packaging/debian/   debian/
+COPY packaging/systemd/  packaging/systemd/
+
+COPY --from=builder /vstimd target/release/vstimd
+COPY --from=builder /version /version
+
+# Inject the version from Cargo.toml into the changelog placeholder before packaging.
+RUN VERSION=$(cat /version) && \
+    sed -i "1s/(0\.0\.0-PLACEHOLDER)/($VERSION-1)/" debian/changelog && \
+    dpkg-buildpackage -b -d --no-sign --host-arch ${DEB_HOST_ARCH} 2>&1
+
+RUN mkdir -p /out && cp ../*.deb /out/
+
+CMD ["bash", "-c", "cp /out/*.deb /output/ && echo 'deb copied to /output/'"]

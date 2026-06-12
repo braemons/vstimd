@@ -1,0 +1,19 @@
+Source: vstimd
+Section: science
+Priority: optional
+Maintainer: Joscha Schmiedt <joscha@schmiedt.dev>
+Build-Depends: debhelper-compat (= 13), build-essential
+Standards-Version: 4.6.2
+Homepage: https://github.com/braemons/vstimd
+Rules-Requires-Root: no
+
+Package: vstimd
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, libvulkan1, adduser
+Recommends: vulkan-tools
+Description: Visual stimulus display server for neuroscience experiments
+ vstimd drives a display directly via VK_KHR_display without a compositor,
+ providing sub-millisecond frame timing for psychophysics experiments.
+ .
+ Communicates via ZMQ (port 5555) using a protobuf protocol. Supports
+ Jetson Orin Nano, Raspberry Pi 4/5, and desktop NVIDIA GPUs.

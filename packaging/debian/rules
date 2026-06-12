@@ -1,0 +1,25 @@
+#!/usr/bin/make -f
+
+%:
+	dh $@
+
+override_dh_auto_build:
+	@test -f target/release/vstimd || { \
+		echo ""; \
+		echo "ERROR: binary not found at target/release/vstimd"; \
+		echo "  Build via Docker: see packaging/docker/Dockerfile.deb-builder"; \
+		echo ""; \
+		exit 1; \
+	}
+
+override_dh_auto_test:
+	:
+
+override_dh_auto_install:
+	$(MAKE) install DESTDIR=$(CURDIR)/debian/vstimd PREFIX=/usr UNITDIR=/usr/lib/systemd/system
+
+# Ubuntu containers have libc6 diversions that cause dpkg-shlibdeps to
+# abort with "diversions involved". Pass --ignore-missing-info so it
+# continues and produces correct output despite the warning.
+override_dh_shlibdeps:
+	dh_shlibdeps -- --ignore-missing-info

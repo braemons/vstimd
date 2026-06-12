@@ -50,11 +50,19 @@ fn main() {
         }
     }
 
-    let _zmq = vstimd::ipc::spawn_zmq_thread(scene.clone(), vtl.clone(), "tcp://0.0.0.0:5555");
+    let (zmq_thread, zmq_shutdown, zmq_bound) =
+        vstimd::ipc::spawn_zmq_thread(scene.clone(), vtl.clone(), "tcp://0.0.0.0:5555");
 
     match args.render_target {
         #[cfg(target_os = "linux")]
-        RenderTarget::Drm => DrmRenderState::new(scene, vtl, log_buffer).run_loop(),
+        RenderTarget::Drm => {
+            // Vulkan init (the slow part) runs first; ZMQ should already be
+            // bound by the time DrmRenderState::new() returns.
+            let rs = DrmRenderState::new(scene, vtl, log_buffer);
+            wait_zmq_bound(&zmq_bound);
+            notify_ready();
+            rs.run_loop();
+        }
         #[cfg(not(target_os = "linux"))]
         RenderTarget::Drm => {
             log::error!("DRM/console mode is only available on Linux");
@@ -67,16 +75,35 @@ fn main() {
             });
             event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
             let mut app = WinitApp::new(scene, vtl, window_mode, log_buffer);
+            wait_zmq_bound(&zmq_bound);
+            notify_ready();
             event_loop.run_app(&mut app).unwrap();
         }
         RenderTarget::Null => {
             log::info!("vstimd: null renderer — ZMQ server + animation loop running, no display");
+
+            // Install signal handler so SIGTERM/SIGINT break the loop cleanly.
+            // The proto Shutdown command sets the same flag.
+            extern "C" fn on_signal(_: libc::c_int) {
+                vstimd::shutdown::request();
+            }
+            unsafe {
+                libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
+                libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
+            }
+
+            wait_zmq_bound(&zmq_bound);
+            notify_ready();
+
             let frame_period = {
                 let s = scene.read().unwrap();
                 std::time::Duration::from_secs_f32(1.0 / s.runtime.frame_rate)
             };
             let mut output_pending = [0u64; vtl::MAX_BANKS];
             loop {
+                if vstimd::shutdown::is_requested() {
+                    break;
+                }
                 let t0 = std::time::Instant::now();
                 let edges = vtl.as_ref()
                     .and_then(|v| v.lock().ok().map(|mut g| g.poll()))
@@ -97,6 +124,12 @@ fn main() {
             }
         }
     }
+
+    // Signal the ZMQ thread to exit and wait for it to finish.  This ensures
+    // the thread's Arc references are released — VtlOwner::drop runs shm_unlink
+    // and the shm segment is cleaned up before the process exits.
+    drop(zmq_shutdown);
+    zmq_thread.join().ok();
 }
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
@@ -188,6 +221,29 @@ fn parse_args() -> Args {
         verbose,
         config_file,
         config_dir,
+    }
+}
+
+/// Block until the ZMQ thread signals that `socket.bind()` has succeeded.
+/// Logs a warning and continues if the thread takes more than 10 s (should
+/// never happen in practice — bind is fast).
+fn wait_zmq_bound(rx: &std::sync::mpsc::Receiver<()>) {
+    if rx.recv_timeout(std::time::Duration::from_secs(10)).is_err() {
+        log::warn!("vstimd: ZMQ bind did not complete within 10 s — proceeding anyway");
+    }
+}
+
+/// Send `READY=1` to systemd via `$NOTIFY_SOCKET` if present.
+/// No-op when not launched by systemd or on non-Linux platforms.
+fn notify_ready() {
+    #[cfg(target_os = "linux")]
+    {
+        let has_socket = std::env::var_os("NOTIFY_SOCKET").is_some();
+        match sd_notify::notify(false, &[sd_notify::NotifyState::Ready]) {
+            Ok(()) if has_socket => log::info!("vstimd: systemd READY=1 sent"),
+            Ok(()) => log::info!("vstimd: sd_notify: NOTIFY_SOCKET not set (not running under systemd)"),
+            Err(e) => log::warn!("vstimd: sd_notify failed: {e}"),
+        }
     }
 }
 
