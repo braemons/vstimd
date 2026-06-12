@@ -1,2 +1,6 @@
 target
 .claude/worktrees/
+packaging/*.deb
+packaging/*.rpm
+packaging/*.changes
+packaging/*.buildinfo

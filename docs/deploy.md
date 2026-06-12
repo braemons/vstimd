@@ -1,9 +1,7 @@
-# Wonderlamp deployment notes
+# Deployment
 
-Wonderlamp automatically detects and uses DRM/console mode when running on Linux
-without a display server, driving the display directly via `VK_KHR_display` without
-a compositor. It is designed to replace the display manager on the target system
-and run as a systemd service from boot.
+vstimd is designed to run as a systemd service on bare-metal Linux, driving the
+display directly via `VK_KHR_display` without a compositor.
 
 ## Supported platforms
 
@@ -50,7 +48,7 @@ If running as a dedicated system user (rather than a login user), set
 ### 3. Install the service unit
 
 ```bash
-sudo cp dist/systemd/vstimd.service /usr/lib/systemd/system/
+sudo cp packaging/systemd/vstimd.service /usr/lib/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now vstimd
 ```
@@ -134,43 +132,42 @@ Package layout:
 | Source path | Installed path |
 |---|---|
 | `target/release/vstimd` | `/usr/bin/vstimd` |
-| `dist/systemd/vstimd.service` | `/usr/lib/systemd/system/vstimd.service` |
+| `packaging/systemd/vstimd.service` | `/usr/lib/systemd/system/vstimd.service` |
 
-### Build the .deb
-
-Build requirements: `debhelper` >= 13, `dpkg-dev`.
+### Build the .deb (Docker — recommended)
 
 ```bash
-# 1. Build the binary first (packaging does not run cargo).
+# 1. Build the binary.
 cargo build --release
 
-# 2. Build the .deb (binary package only, no source package).
-#    Requires debhelper and dpkg-dev on the host.
+# 2. Build the .deb inside a container (no packaging tools needed on host).
+docker build -f packaging/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
+docker run --rm -v $(pwd)/packaging:/output vstimd-deb-builder
+# packaging/vstimd_0.1.0-1_amd64.deb is ready
+```
+
+### Build the .deb (native)
+
+Requires `debhelper` >= 13 and `dpkg-dev` on the host.
+`dpkg-buildpackage` expects `debian/` at the repo root, so symlink it first:
+
+```bash
+cargo build --release
+ln -sf packaging/debian debian
 dpkg-buildpackage -b --no-sign
-
-# The .deb appears one directory up: ../vstimd_0.1.0-1_amd64.deb
+rm debian
+# ../vstimd_0.1.0-1_amd64.deb
 ```
 
-**No debhelper on the host? Use the builder container:**
+### Cross-compile for arm64 (Jetson / Raspberry Pi)
 
 ```bash
-cargo build --release
-docker build -f dist/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
-docker run --rm -v $(pwd)/dist:/output vstimd-deb-builder
-# dist/vstimd_0.1.0-1_amd64.deb is ready
-```
-
-**Cross-compiling for arm64 (Jetson / Raspberry Pi):**
-
-```bash
-# Install cross toolchain
 sudo apt install gcc-aarch64-linux-gnu
-
-# Build Rust binary for arm64
 cargo build --release --target aarch64-unknown-linux-gnu
 
-# Build .deb targeting arm64
-dpkg-buildpackage -b --no-sign --host-arch arm64
+# Docker build picks up the cross-compiled binary automatically via debian/rules.
+docker build -f packaging/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
+docker run --rm -v $(pwd)/packaging:/output vstimd-deb-builder
 ```
 
 ### Install on target
@@ -198,23 +195,17 @@ required). Requires Docker with cgroup v2 support and the `.deb` already built.
 ```bash
 # 1. Build binary and .deb
 cargo build --release
-dpkg-buildpackage -b --no-sign
+docker build -f packaging/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
+docker run --rm -v $(pwd)/packaging:/output vstimd-deb-builder
 
-# 2. Copy the .deb into the build context root so Docker can COPY it
-cp ../vstimd_*.deb .
+# 2. Build the test image
+docker build -f packaging/docker/Dockerfile.test-deb -t vstimd-test-deb .
 
-# 3. Build the test image
-docker build -f dist/docker/Dockerfile.test-deb -t vstimd-test-deb .
-
-# 4. Run the test (privileged required for systemd)
-docker run --rm --privileged \
-    --tmpfs /run --tmpfs /run/lock \
-    -v /sys/fs/cgroup:/sys/fs/cgroup:rw \
-    --cgroupns=host \
-    vstimd-test-deb
+# 3. Run the test (privileged required for systemd)
+packaging/docker/run-test.sh
 ```
 
-The test script (`dist/docker/test-service.sh`) exercises:
+The test script (`packaging/docker/test-service.sh`) exercises:
 1. `dpkg -i` — package installs cleanly
 2. `systemctl start vstimd` — `Type=notify` handshake succeeds within 20 s
 3. ZMQ port 5555 is reachable

@@ -4,9 +4,9 @@
 #
 # Usage:
 #   cargo build --release
-#   docker build -f dist/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
-#   docker run --rm -v $(pwd)/dist:/out vstimd-deb-builder
-#   # .deb appears in dist/vstimd_*.deb
+#   docker build -f packaging/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
+#   docker run --rm -v $(pwd)/packaging:/output vstimd-deb-builder
+#   # .deb appears in packaging/vstimd_*.deb
 
 FROM ubuntu:24.04
 
@@ -30,8 +30,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /src
 
 # Copy only what dpkg-buildpackage needs.
-COPY debian/        debian/
-COPY dist/systemd/  dist/systemd/
+# packaging/debian/ is renamed to debian/ — dpkg-buildpackage requires that name.
+COPY packaging/debian/   debian/
+COPY packaging/systemd/  packaging/systemd/
 COPY target/release/vstimd target/release/vstimd
 
 RUN dpkg-buildpackage -b --no-sign 2>&1
@@ -39,4 +40,4 @@ RUN dpkg-buildpackage -b --no-sign 2>&1
 # Copy the resulting .deb to the output volume.
 RUN mkdir -p /out && cp ../*.deb /out/
 
-CMD ["bash", "-c", "cp /out/*.deb /output/ 2>/dev/null && echo 'deb copied to /output/' || echo 'mount -v $(pwd)/dist:/output to extract the .deb'"]
+CMD ["bash", "-c", "cp /out/*.deb /output/ 2>/dev/null && echo 'deb copied to /output/' || echo 'mount -v $(pwd)/packaging:/output to extract the .deb'"]

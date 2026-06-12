@@ -1,10 +1,10 @@
 #!/bin/bash
 # Run the vstimd systemd integration test in a Docker container.
 #
-# Usage: dist/docker/run-test.sh
+# Usage: packaging/docker/run-test.sh
 #
 # Requires:
-#   - vstimd_*.deb in the repo root (built via Dockerfile.deb-builder)
+#   - packaging/vstimd_*.deb (built via Dockerfile.deb-builder)
 #   - Docker with privileged cgroup access
 
 set -euo pipefail
