@@ -3,12 +3,11 @@
 # Runs systemd as PID 1 so we can exercise the full Type=notify lifecycle:
 #   dpkg -i vstimd.deb  →  systemctl start vstimd  →  systemctl stop vstimd
 #
-# Build (after building the .deb — see Dockerfile.deb-builder or DEPLOY.md):
+# Build (after building the .deb — see packaging/docker/Dockerfile.deb-builder or docs/deploy.md):
 #   cargo build --release
-#   docker build -f dist/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
-#   docker run --rm -v $(pwd)/dist:/output vstimd-deb-builder
-#   cp dist/vstimd_*.deb .
-#   docker build -f dist/docker/Dockerfile.test-deb -t vstimd-test-deb .
+#   docker build -f packaging/docker/Dockerfile.deb-builder -t vstimd-deb-builder .
+#   docker run --rm -v $(pwd)/packaging:/output vstimd-deb-builder
+#   docker build -f packaging/docker/Dockerfile.test-deb -t vstimd-test-deb .
 #
 # Run (requires privileged for systemd cgroup access):
 #   docker run --rm --privileged \
@@ -42,21 +41,15 @@ RUN systemctl mask \
         sys-fs-fuse-connections.mount \
         systemd-networkd-wait-online.service
 
-# Copy the .deb (built before docker build via `make deb` or `dpkg-buildpackage`)
-# and the test script.
-COPY dist/docker/test-service.sh /usr/local/bin/test-service.sh
+COPY packaging/docker/test-service.sh /usr/local/bin/test-service.sh
 RUN chmod +x /usr/local/bin/test-service.sh
 
-# The .deb is passed in via a build-arg path or baked at build time.
-# We use a two-stage COPY with a wildcard; the .deb must be present in the
-# build context under dist/ when `docker build` is called.
-COPY dist/vstimd_*.deb /pkg/vstimd.deb
+# The .deb is produced by Dockerfile.deb-builder and output to packaging/.
+COPY packaging/vstimd_*.deb /pkg/vstimd.deb
 
 STOPSIGNAL SIGRTMIN+3
 
-# systemd as PID 1; test script is run as a one-shot service via a drop-in
-# written by the entrypoint so we get proper service ordering.
-COPY dist/docker/entrypoint.sh /entrypoint.sh
+COPY packaging/docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 CMD ["/entrypoint.sh"]
