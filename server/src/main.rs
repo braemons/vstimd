@@ -53,11 +53,13 @@ fn main() {
     let (zmq_thread, zmq_shutdown, zmq_bound) =
         vstimd::ipc::spawn_zmq_thread(scene.clone(), vtl.clone(), "tcp://0.0.0.0:5555");
 
+    // Install signal handlers once, before any render path (including Vulkan
+    // init which can take several seconds on DRM).
+    install_signal_handlers();
+
     match args.render_target {
         #[cfg(target_os = "linux")]
         RenderTarget::Drm => {
-            // Vulkan init (the slow part) runs first; ZMQ should already be
-            // bound by the time DrmRenderState::new() returns.
             let rs = DrmRenderState::new(scene, vtl, log_buffer);
             wait_zmq_bound(&zmq_bound);
             notify_ready();
@@ -75,29 +77,12 @@ fn main() {
             });
             event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
             let mut app = WinitApp::new(scene, vtl, window_mode, log_buffer);
-            extern "C" fn on_signal(_: libc::c_int) {
-                vstimd::shutdown::request();
-            }
-            unsafe {
-                libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
-                libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
-            }
             wait_zmq_bound(&zmq_bound);
             notify_ready();
             event_loop.run_app(&mut app).unwrap();
         }
         RenderTarget::Null => {
             log::info!("vstimd: null renderer — ZMQ server + animation loop running, no display");
-
-            // Install signal handler so SIGTERM/SIGINT break the loop cleanly.
-            // The proto Shutdown command sets the same flag.
-            extern "C" fn on_signal(_: libc::c_int) {
-                vstimd::shutdown::request();
-            }
-            unsafe {
-                libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
-                libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
-            }
 
             wait_zmq_bound(&zmq_bound);
             notify_ready();
@@ -228,6 +213,19 @@ fn parse_args() -> Args {
         verbose,
         config_file,
         config_dir,
+    }
+}
+
+/// Install SIGTERM/SIGINT handlers that set the shared shutdown flag.
+/// Called once before any render path so the handler is active during
+/// Vulkan init (which can take several seconds on DRM hardware).
+fn install_signal_handlers() {
+    extern "C" fn on_signal(_: libc::c_int) {
+        vstimd::shutdown::request();
+    }
+    unsafe {
+        libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
     }
 }
 

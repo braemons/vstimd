@@ -257,16 +257,6 @@ impl DrmRenderState {
     }
 
     pub fn run_loop(mut self) {
-        // SIGTERM/SIGINT → set shared shutdown flag → clean exit so Drop restores the CRTC.
-        // The proto Shutdown command sets the same flag via crate::shutdown::request().
-        extern "C" fn on_signal(_: libc::c_int) {
-            crate::shutdown::request();
-        }
-        unsafe {
-            libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);
-            libc::signal(libc::SIGINT, on_signal as *const () as libc::sighandler_t);
-        }
-
         loop {
             if crate::shutdown::is_requested() {
                 return;
