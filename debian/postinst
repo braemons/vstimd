@@ -15,11 +15,12 @@ if [ "$1" = "configure" ]; then
     fi
 
     # Add vstimd to the groups it needs:
-    #   input — /dev/input/event* (libinput keyboard/mouse)
-    #   video — /dev/dri/card*    (DRM master / Vulkan)
+    #   input  — /dev/input/event* (libinput keyboard/mouse)
+    #   video  — /dev/dri/card*    (DRM master / Vulkan)
+    #   tty    — /dev/ttyN         (TTYPath= with non-root user)
     # 'render' is used instead of 'video' on Raspberry Pi OS; add both
     # so the same package works on all platforms.
-    for grp in input video render; do
+    for grp in input video render tty; do
         if getent group "$grp" > /dev/null 2>&1; then
             usermod -aG "$grp" vstimd
         fi

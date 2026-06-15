@@ -25,8 +25,9 @@ TTYVHangup=yes
 
 # libinput reads /dev/input/event*  (needs 'input' group).
 # DRM/Vulkan opens /dev/dri/*       (needs 'video' or 'render' group).
+# TTYPath=/dev/ttyN with a non-root user requires 'tty' group.
 # See deploy/DEPLOY.md for per-platform group names.
-SupplementaryGroups=input video
+SupplementaryGroups=input video tty
 
 [Install]
 WantedBy=multi-user.target
