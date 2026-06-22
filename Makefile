@@ -23,4 +23,4 @@ uninstall:
 	systemctl daemon-reload 2>/dev/null || true
 
 setup-user:
-	systemd-sysusers $(SYSUSERS)
+	systemd-sysusers $(abspath $(SYSUSERS))
