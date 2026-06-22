@@ -30,7 +30,7 @@ impl VtGuard {
         let fd = unsafe {
             libc::open(
                 path.as_ptr() as *const libc::c_char,
-                libc::O_RDWR | libc::O_CLOEXEC,
+                libc::O_WRONLY | libc::O_CLOEXEC,
             )
         };
         if fd < 0 {
