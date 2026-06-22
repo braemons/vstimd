@@ -5,7 +5,25 @@ BINARY      := target/release/vstimd
 SERVICE     := packaging/systemd/vstimd.service
 SYSUSERS    := packaging/sysusers/vstimd.conf
 
-.PHONY: build install uninstall setup-user
+DIST_DIR          ?= dist
+DEB_BUILDER_IMAGE ?= vstimd-deb-builder
+RPM_BUILDER_IMAGE ?= vstimd-rpm-builder
+
+VERSION  := $(shell grep '^version' server/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+REVISION ?= 1
+
+DEB_AMD64 := $(DIST_DIR)/vstimd_$(VERSION)-$(REVISION)_amd64.deb
+DEB_ARM64 := $(DIST_DIR)/vstimd_$(VERSION)-$(REVISION)_arm64.deb
+RPM_AMD64 := $(DIST_DIR)/vstimd-$(VERSION)-$(REVISION).x86_64.rpm
+RPM_ARM64 := $(DIST_DIR)/vstimd-$(VERSION)-$(REVISION).aarch64.rpm
+
+RUST_SRCS     := Cargo.toml Cargo.lock $(shell find server/src vtl/src proto -type f 2>/dev/null)
+PKG_SRCS      := $(shell find packaging -type f)
+
+.PHONY: build install uninstall setup-user \
+        deb-amd64 deb-arm64 deb \
+        rpm-amd64 rpm-arm64 rpm \
+        packages
 
 build:
 	cargo build --release
@@ -24,3 +42,45 @@ uninstall:
 
 setup-user:
 	systemd-sysusers $(abspath $(SYSUSERS))
+
+# ── Package targets (Docker-based, output to $(DIST_DIR)/) ───────────────────
+
+deb-amd64:
+	DOCKER_BUILDKIT=1 docker build \
+	  -f packaging/docker/Dockerfile.deb-builder \
+	  --build-arg REVISION=$(REVISION) \
+	  -t $(DEB_BUILDER_IMAGE)-amd64 .
+	mkdir -p $(DIST_DIR)
+	docker run --rm -v $(abspath $(DIST_DIR)):/output $(DEB_BUILDER_IMAGE)-amd64
+
+deb-arm64:
+	DOCKER_BUILDKIT=1 docker build \
+	  -f packaging/docker/Dockerfile.deb-builder \
+	  --build-arg RUST_TARGET=aarch64-unknown-linux-gnu \
+	  --build-arg DEB_HOST_ARCH=arm64 \
+	  --build-arg REVISION=$(REVISION) \
+	  -t $(DEB_BUILDER_IMAGE)-arm64 .
+	mkdir -p $(DIST_DIR)
+	docker run --rm -v $(abspath $(DIST_DIR)):/output $(DEB_BUILDER_IMAGE)-arm64
+
+deb: deb-amd64 deb-arm64
+
+rpm-amd64:
+	DOCKER_BUILDKIT=1 docker build \
+	  -f packaging/docker/Dockerfile.rpm-builder \
+	  -t $(RPM_BUILDER_IMAGE)-amd64 .
+	mkdir -p $(DIST_DIR)
+	docker run --rm -v $(abspath $(DIST_DIR)):/output $(RPM_BUILDER_IMAGE)-amd64
+
+rpm-arm64:
+	DOCKER_BUILDKIT=1 docker build \
+	  -f packaging/docker/Dockerfile.rpm-builder \
+	  --build-arg RUST_TARGET=aarch64-unknown-linux-gnu \
+	  --build-arg RPM_ARCH=aarch64 \
+	  -t $(RPM_BUILDER_IMAGE)-arm64 .
+	mkdir -p $(DIST_DIR)
+	docker run --rm -v $(abspath $(DIST_DIR)):/output $(RPM_BUILDER_IMAGE)-arm64
+
+rpm: rpm-amd64 rpm-arm64
+
+packages: deb rpm
