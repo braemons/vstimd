@@ -118,12 +118,18 @@ impl VtGuard {
     ///
     /// Used to forward Ctrl+Alt+Fn because libinput holds an exclusive
     /// EVIOCGRAB and the kernel never sees those key combos on its own.
+    ///
+    /// Only VT_ACTIVATE is issued here — no VT_WAITACTIVE.  Since our VT is in
+    /// VT_PROCESS mode, VT_ACTIVATE causes the kernel to send SIGUSR1 asking us
+    /// to release.  The main loop checks release_requested() next iteration,
+    /// calls allow_release(), and the switch then completes.  Blocking on
+    /// VT_WAITACTIVE here would deadlock: the switch can't complete until
+    /// allow_release() is called, which can't happen while we're blocked.
     pub fn switch_to(&self, vt: u16) {
         unsafe {
             libc::ioctl(self.fd, VT_ACTIVATE, vt as libc::c_int);
-            libc::ioctl(self.fd, VT_WAITACTIVE, vt as libc::c_int);
         }
-        log::info!("vstimd: switched display to tty{vt}");
+        log::info!("vstimd: requesting switch to tty{vt}");
     }
 
     /// Returns true (and clears the flag) if the kernel has requested a VT
