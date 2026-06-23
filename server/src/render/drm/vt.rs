@@ -12,6 +12,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 pub struct VtGuard {
     fd: libc::c_int,
     prev_vt: u16,
+    /// The fd that Vulkan's VK_KHR_display holds DRM master on.
+    /// Discovered after Vulkan init via find_drm_master_fd().
+    /// Dropped on VT release, re-acquired on VT acquire.
+    drm_master_fd: Option<libc::c_int>,
 }
 
 // ioctl codes from <linux/kd.h> and <linux/vt.h>
@@ -25,6 +29,10 @@ const VT_RELDISP: libc::c_ulong = 0x5605;
 const VT_PROCESS: u8 = 1;
 const VT_AUTO: u8 = 0;
 const VT_ACKACQ: libc::c_int = 2;
+
+// DRM master management — _IO('d', 0x1e/0x1f)
+const DRM_IOCTL_SET_MASTER: libc::c_ulong = 0x641e;
+const DRM_IOCTL_DROP_MASTER: libc::c_ulong = 0x641f;
 
 #[repr(C)]
 struct VtMode {
@@ -111,7 +119,7 @@ impl VtGuard {
         }
 
         log::info!("vstimd: activated tty{target_vt} (KD_GRAPHICS); was tty{prev_vt}");
-        Self { fd, prev_vt }
+        Self { fd, prev_vt, drm_master_fd: None }
     }
 
     /// Switch the active VT to `vt` without exiting.
@@ -145,13 +153,64 @@ impl VtGuard {
     }
 
     /// Acknowledge the kernel's VT-release request so the switch proceeds.
-    pub fn allow_release(&self) {
+    ///
+    /// Drops DRM master so the kernel VT console can drive the display.
+    /// On the first call, scans /proc/self/fd to find Vulkan's DRM master fd;
+    /// we do this lazily (not at startup) so we never temporarily drop master
+    /// while Vulkan is initialising or rendering normally.
+    pub fn allow_release(&mut self) {
+        // Lazy discovery: find the fd holding DRM master and drop it.
+        // DROP_MASTER succeeds only on the fd that currently holds master,
+        // so whichever /dev/dri/card* fd succeeds is Vulkan's fd.
+        if self.drm_master_fd.is_none() {
+            if let Ok(dir) = std::fs::read_dir("/proc/self/fd") {
+                for entry in dir.flatten() {
+                    let fd: libc::c_int = match entry.file_name().to_str().and_then(|s| s.parse().ok()) {
+                        Some(n) => n,
+                        None => continue,
+                    };
+                    let link = match std::fs::read_link(entry.path()) {
+                        Ok(l) => l,
+                        Err(_) => continue,
+                    };
+                    if !link.to_str().map(|s| s.contains("/dri/card")).unwrap_or(false) {
+                        continue;
+                    }
+                    let ret = unsafe { libc::ioctl(fd, DRM_IOCTL_DROP_MASTER, 0) };
+                    if ret == 0 {
+                        log::info!("vstimd: DRM master dropped (fd={fd}, {})", link.display());
+                        self.drm_master_fd = Some(fd);
+                        // Skip the second DROP below — already done.
+                        unsafe { libc::ioctl(self.fd, VT_RELDISP, 1 as libc::c_int); }
+                        return;
+                    }
+                }
+                log::warn!("vstimd: DRM master fd not found — display may not switch");
+            }
+        } else if let Some(fd) = self.drm_master_fd {
+            let ret = unsafe { libc::ioctl(fd, DRM_IOCTL_DROP_MASTER, 0) };
+            if ret < 0 {
+                log::warn!("vstimd: DRM DROP_MASTER failed: {}", std::io::Error::last_os_error());
+            } else {
+                log::info!("vstimd: DRM master dropped");
+            }
+        }
         unsafe { libc::ioctl(self.fd, VT_RELDISP, 1 as libc::c_int); }
     }
 
     /// Acknowledge that we have re-acquired the VT.
+    ///
+    /// Re-acquires DRM master so Vulkan can resume presenting frames.
     pub fn confirm_acquire(&self) {
         unsafe { libc::ioctl(self.fd, VT_RELDISP, VT_ACKACQ); }
+        if let Some(fd) = self.drm_master_fd {
+            let ret = unsafe { libc::ioctl(fd, DRM_IOCTL_SET_MASTER, 0) };
+            if ret < 0 {
+                log::warn!("vstimd: DRM SET_MASTER failed: {}", std::io::Error::last_os_error());
+            } else {
+                log::info!("vstimd: DRM master re-acquired");
+            }
+        }
     }
 }
 
