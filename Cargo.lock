@@ -1561,6 +1561,7 @@ dependencies = [
  "anyhow",
  "env_logger",
  "gpio-cdev",
+ "libc",
  "log",
  "sd-notify",
  "serde",

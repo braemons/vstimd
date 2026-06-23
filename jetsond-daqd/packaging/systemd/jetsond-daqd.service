@@ -21,9 +21,16 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=jetsond-daqd
 
-# Minimal capability set: open /dev/gpiochipN and /dev/shm/vstimd_vtl.
-CapabilityBoundingSet=
-AmbientCapabilities=
+# Real-time scheduling: set SCHED_FIFO before exec so all threads inherit it.
+# The Rust code then raises per-thread priorities (output=60, input=50).
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=50
+CPUSchedulingResetOnFork=no
+
+# CAP_SYS_NICE is required so threads can adjust their own SCHED_FIFO priority
+# after spawning (output thread raises to 60).
+CapabilityBoundingSet=CAP_SYS_NICE
+AmbientCapabilities=CAP_SYS_NICE
 
 [Install]
 WantedBy=multi-user.target

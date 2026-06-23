@@ -30,6 +30,7 @@ toml       = "0.8"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 sd-notify = "0.4"
+libc      = "0.2"
 
 [package.metadata.deb]
 maintainer = "Joscha Schmiedt <joscha@schmiedt.dev>"

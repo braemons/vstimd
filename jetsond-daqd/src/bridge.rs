@@ -10,6 +10,34 @@ use crate::config::{Edge, InputLine, OutputLine};
 
 const CONSUMER: &str = "jetsond-daqd";
 
+/// SCHED_FIFO priority for the output polling thread (timing-critical).
+pub const PRIO_OUTPUT: i32 = 60;
+/// SCHED_FIFO priority for input watcher threads (interrupt-driven, less critical).
+pub const PRIO_INPUT: i32 = 50;
+
+/// Attempt to promote the calling thread to `SCHED_FIFO` at `priority` (1–99).
+///
+/// Fails silently with a warning if the process lacks `CAP_SYS_NICE` (e.g.
+/// running unprivileged in development).  Always succeeds when launched via the
+/// systemd unit, which grants `CAP_SYS_NICE` via `CapabilityBoundingSet`.
+#[cfg(target_os = "linux")]
+pub fn set_thread_realtime(priority: i32) {
+    let param = libc::sched_param { sched_priority: priority };
+    let ret = unsafe { libc::sched_setscheduler(0, libc::SCHED_FIFO, &param) };
+    if ret != 0 {
+        warn!(
+            "sched_setscheduler(SCHED_FIFO, {priority}) failed: {} \
+             (running without CAP_SYS_NICE?)",
+            std::io::Error::last_os_error()
+        );
+    } else {
+        info!("thread promoted to SCHED_FIFO priority {priority}");
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn set_thread_realtime(_priority: i32) {}
+
 /// Drives GPIO output pins from VTL `output_state`, polled every `interval`.
 ///
 /// Runs forever (or until a GPIO error). Intended for the main thread after
@@ -20,6 +48,8 @@ pub fn run_output_loop(
     vtl: &VtlSegment,
     interval: Duration,
 ) -> Result<()> {
+    set_thread_realtime(PRIO_OUTPUT);
+
     if outputs.is_empty() {
         info!("no output lines configured, output loop idle");
         loop {
@@ -107,6 +137,8 @@ pub fn poll_outputs_once(chip_path: &str, outputs: &[OutputLine], vtl: &VtlSegme
 }
 
 fn run_input_loop(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) -> Result<()> {
+    set_thread_realtime(PRIO_INPUT);
+
     let mut chip = Chip::new(chip_path)
         .with_context(|| format!("open GPIO chip {chip_path}"))?;
 
