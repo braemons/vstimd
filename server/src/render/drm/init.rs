@@ -111,7 +111,7 @@ pub fn init() -> (VkContext, StimulusDisplayInfo, vk::DisplayKHR) {
         !mode_props.is_empty(),
         "no display modes reported for display — check driver and display connection"
     );
-    let chosen = pick_mode(&mode_props);
+    let (mode_index, chosen) = pick_mode(&mode_props);
     let display_mode = chosen.display_mode;
     let width = chosen.parameters.visible_region.width;
     let height = chosen.parameters.visible_region.height;
@@ -166,12 +166,13 @@ pub fn init() -> (VkContext, StimulusDisplayInfo, vk::DisplayKHR) {
             width_px: width,
             height_px: height,
             refresh_hz,
+            mode_index: Some(mode_index),
         },
         vk_display,
     )
 }
 
-fn pick_mode(modes: &[vk::DisplayModePropertiesKHR]) -> vk::DisplayModePropertiesKHR {
+fn pick_mode(modes: &[vk::DisplayModePropertiesKHR]) -> (usize, vk::DisplayModePropertiesKHR) {
     log::info!("vstimd: available display modes:");
     for (i, m) in modes.iter().enumerate() {
         let w = m.parameters.visible_region.width;
@@ -192,7 +193,7 @@ fn pick_mode(modes: &[vk::DisplayModePropertiesKHR]) -> vk::DisplayModePropertie
                     "vstimd: using display mode {} (VSTIMD_DISPLAY_MODE): {}×{}  {}.{:03} Hz",
                     i, w, h, hz / 1000, hz % 1000
                 );
-                return modes[i];
+                return (i, modes[i]);
             }
             Ok(i) => log::warn!(
                 "vstimd: VSTIMD_DISPLAY_MODE={i} out of range (0..{}), using auto-select",
@@ -206,10 +207,10 @@ fn pick_mode(modes: &[vk::DisplayModePropertiesKHR]) -> vk::DisplayModePropertie
 
     // Auto-select the mode with the highest refresh rate.
     // modes is guaranteed non-empty by the assert at the call site.
-    let best = modes
+    let (best_idx, best) = modes
         .iter()
-        .copied()
-        .max_by_key(|m| m.parameters.refresh_rate)
+        .enumerate()
+        .max_by_key(|(_, m)| m.parameters.refresh_rate)
         .expect("mode list is empty");
     let w = best.parameters.visible_region.width;
     let h = best.parameters.visible_region.height;
@@ -218,7 +219,7 @@ fn pick_mode(modes: &[vk::DisplayModePropertiesKHR]) -> vk::DisplayModePropertie
         "vstimd: auto-selected display mode {}×{}  {}.{:03} Hz",
         w, h, hz / 1000, hz % 1000
     );
-    best
+    (best_idx, *best)
 }
 
 fn find_graphics_queue(instance: &ash::Instance, pd: vk::PhysicalDevice) -> Option<u32> {

@@ -31,9 +31,13 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
     let OverlayArgs { scene, vtl, frame_stats, last_phases, sys, metrics, log_buffer, bench, file_browser } = args;
     let last_phases = *last_phases;
     egui::Window::new("System").show(ctx, |ui| {
+        ui.label(format!("HW: {}", sys.hardware_model));
+        let mode_suffix = sys.display.mode_index
+            .map(|i| format!("  [mode {i}]"))
+            .unwrap_or_default();
         ui.label(format!(
-            "Screen: {}×{}@{:.3} Hz",
-            sys.display.width_px, sys.display.height_px, sys.display.refresh_hz,
+            "Screen: {}×{}@{:.3} Hz{}",
+            sys.display.width_px, sys.display.height_px, sys.display.refresh_hz, mode_suffix,
         ));
         ui.label(format!("Host: {}  IP: {}", sys.hostname, sys.local_ip));
         ui.label(format!("Backend: {:?}", sys.backend));
