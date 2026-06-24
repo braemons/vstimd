@@ -3,12 +3,12 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use gpio_cdev::{Chip, EventRequestFlags, EventType, LineRequestFlags};
-use log::{info, warn};
+use log::{debug, info, warn};
 use vtl::{VtlClient, VtlSegment};
 
 use crate::config::{Edge, InputLine, OutputLine};
 
-const CONSUMER: &str = "jetsond-daqd";
+const CONSUMER: &str = "jetson-daqd";
 
 /// SCHED_FIFO priority for the output polling thread (timing-critical).
 pub const PRIO_OUTPUT: i32 = 60;
@@ -87,6 +87,10 @@ pub fn run_output_loop(
                     .set_value(level)
                     .with_context(|| format!("set GPIO line {} ('{}')", out.gpio_line, out.name))?;
                 prev[i] = level;
+                debug!(
+                    "out  {:>3} '{}' → {}",
+                    out.gpio_line, out.name, if level == 1 { "HIGH" } else { "LOW" }
+                );
             }
         }
         thread::sleep(interval);
@@ -109,6 +113,7 @@ pub fn spawn_input_watcher(
 }
 
 /// Public re-export of the input loop for integration tests.
+#[allow(dead_code)]
 pub fn run_input_loop_pub(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) -> Result<()> {
     run_input_loop(chip_path, inp, vtl)
 }
@@ -117,6 +122,7 @@ pub fn run_input_loop_pub(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) ->
 ///
 /// Opens a fresh `Chip`, drives every pin, and returns.  Use from tests to
 /// exercise one tick of the output loop without spawning a thread.
+#[allow(dead_code)]
 pub fn poll_outputs_once(chip_path: &str, outputs: &[OutputLine], vtl: &VtlSegment) -> Result<()> {
     if outputs.is_empty() {
         return Ok(());
@@ -167,10 +173,12 @@ fn run_input_loop(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) -> Result<
     for event in events {
         match event.context("GPIO event read error")?.event_type() {
             EventType::RisingEdge => {
+                debug!("in   {:>3} '{}' ↑ HIGH", inp.gpio_line, inp.name);
                 vtl.set_input_bit(bank, inp.vtl_bit);
                 vtl.set_input_rise(bank, mask);
             }
             EventType::FallingEdge => {
+                debug!("in   {:>3} '{}' ↓ LOW", inp.gpio_line, inp.name);
                 vtl.clear_input_bit(bank, inp.vtl_bit);
                 vtl.set_input_fall(bank, mask);
             }

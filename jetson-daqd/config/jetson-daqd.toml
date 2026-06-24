@@ -1,4 +1,4 @@
-# /etc/braemons/jetsond-daqd/jetsond-daqd.toml
+# /etc/braemons/jetson-daqd/jetson-daqd.toml
 # Jetson GPIO ↔ VTL trigger-line bridge configuration.
 #
 # GPIO line offsets are kernel line numbers within the chip (not 40-pin header

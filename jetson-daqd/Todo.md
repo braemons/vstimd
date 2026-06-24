@@ -1,4 +1,4 @@
-# jetsond-daqd — TODO
+# jetson-daqd — TODO
 
 ## Missing features
 
@@ -34,12 +34,12 @@ Proposed layout:
 | Thread / process  | Core(s) | Notes |
 |-------------------|---------|-------|
 | vstimd render     | 0–3     | Heavy; leave the high cores free |
-| jetsond-daqd input watchers | 4 | Interrupt-driven; stable L1 cache |
-| jetsond-daqd output loop    | 5 | Timing-critical; dedicated core |
+| jetson-daqd input watchers | 4 | Interrupt-driven; stable L1 cache |
+| jetson-daqd output loop    | 5 | Timing-critical; dedicated core |
 
 Implementation — two layers:
 
-1. **systemd** (`jetsond-daqd.service`): `CPUAffinity=4 5` — confines the whole
+1. **systemd** (`jetson-daqd.service`): `CPUAffinity=4 5` — confines the whole
    process to cores 4–5 at the OS scheduler level, keeping it off vstimd's cores.
    No code change required.
 
