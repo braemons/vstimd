@@ -509,7 +509,7 @@ pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::
         .store_op(vk::AttachmentStoreOp::STORE)
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
-        .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL) // Already rendered to
+        .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
         .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
     let color_ref =
         vk::AttachmentReference::default().layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
@@ -521,8 +521,8 @@ pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::
         .dst_subpass(0)
         .src_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
         .dst_stage_mask(vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT)
-        .src_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE) // Previous pass wrote
-        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE); // This pass also writes
+        .src_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
+        .dst_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE);
     let info = vk::RenderPassCreateInfo::default()
         .attachments(std::slice::from_ref(&attachment))
         .subpasses(std::slice::from_ref(&subpass))
