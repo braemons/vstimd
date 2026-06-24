@@ -14,31 +14,35 @@ const VTL_OPEN_ATTEMPTS: u32 = 30;
 struct Args {
     config: String,
     standalone: bool,
+    verbose: bool,
 }
 
 fn parse_args() -> Result<Args> {
     let mut args = std::env::args().skip(1);
     let mut config = DEFAULT_CONFIG_PATH.to_string();
     let mut standalone = false;
+    let mut verbose = false;
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--standalone" => standalone = true,
+            "-v" | "--verbose" => verbose = true,
             "-c" | "--config" => {
                 config = args.next()
                     .ok_or_else(|| anyhow::anyhow!("{arg} requires a path argument"))?;
             }
-            other => anyhow::bail!("unknown argument: {other}\nUsage: gpiochip-daqd [-c <config>] [--standalone]"),
+            other => anyhow::bail!("unknown argument: {other}\nUsage: gpiochip-daqd [-c <config>] [--standalone] [-v]"),
         }
     }
 
-    Ok(Args { config, standalone })
+    Ok(Args { config, standalone, verbose })
 }
 
 fn main() -> Result<()> {
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    let Args { config: config_path, standalone, verbose } = parse_args()?;
 
-    let Args { config: config_path, standalone } = parse_args()?;
+    let default_level = if verbose { "debug" } else { "info" };
+    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or(default_level)).init();
 
     let raw = fs::read_to_string(&config_path)
         .with_context(|| format!("read config {config_path}"))?;

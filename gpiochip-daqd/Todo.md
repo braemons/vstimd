@@ -64,9 +64,28 @@ output_core = 5   # optional; omit to disable pinning
 input_core  = 4
 ```
 
+### GPIO pull resistors
+`gpio-cdev` 0.6 wraps the kernel v1 ABI and does not expose the bias flags
+(`GPIOHANDLE_REQUEST_BIAS_PULL_UP/DOWN`, bits 5–7) added in Linux 5.5.
+Currently using hardware pull-down resistors as a workaround.
+
+Options to fix in software:
+- **Raw bits**: pass `LineRequestFlags::from_bits_retain(flags.bits() | (1 << 6))`
+  through to the ioctl — works on kernel ≥ 5.5, no new dependencies, but
+  relies on undocumented crate internals.
+- **Migrate to `gpiod` crate**: wraps `libgpiod` 2.x (v2 ABI), full bias +
+  debounce + nanosecond edge timestamps. Requires building `libgpiod` 2.x
+  from source — not in Ubuntu 22.04 repos, only 1.6.3 is installed.
+
+Config addition needed (once implemented):
+```toml
+[[inputs]]
+pull = "down"   # "up" | "down" | "none" (default: "none")
+```
+
 ### Output timing accuracy
-The 1 ms `thread::sleep` drifts under load (std sleep is a minimum, not exact).
-For tighter output timing consider:
+The `thread::sleep` interval drifts under load (std sleep is a minimum, not
+exact). For tighter output timing consider:
 - `timerfd_create(CLOCK_MONOTONIC)` with a fixed interval replacing `sleep`
 - Accepting that outputs are inherently coarser than interrupt-driven inputs
   and documenting the expected worst-case latency
