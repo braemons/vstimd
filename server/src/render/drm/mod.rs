@@ -37,6 +37,7 @@ pub struct DrmRenderState {
     drm_vblank: Option<DrmVblank>,
     vk_vblank: Option<VkVblank>,
     display_info: StimulusDisplayInfo,
+    hardware_model: String,
     /// Animation output bits accumulated this frame; committed at [A] next frame.
     pending_outputs: [u64; vtl::MAX_BANKS],
     /// Holds the CRTC snapshot; dropped before `vt_guard` to restore the
@@ -105,7 +106,7 @@ fn check_device_permissions() {
 }
 
 impl DrmRenderState {
-    pub fn new(scene: Arc<RwLock<SceneState>>, vtl: Option<Arc<Mutex<VtlState>>>, log_buffer: LogBuffer) -> Self {
+    pub fn new(scene: Arc<RwLock<SceneState>>, vtl: Option<Arc<Mutex<VtlState>>>, log_buffer: LogBuffer, hardware_model: String) -> Self {
         check_device_permissions();
 
         // Snapshot display state first, while the current VT still has an
@@ -203,6 +204,7 @@ impl DrmRenderState {
             drm_vblank,
             vk_vblank,
             display_info,
+            hardware_model,
             pending_outputs: [0; vtl::MAX_BANKS],
             display_guard,
             vt_guard,
@@ -217,6 +219,7 @@ impl DrmRenderState {
             local_ip: self.rs.local_ip.clone(),
             hostname: String::new(),
             gpu_name: String::new(),
+            hardware_model: self.hardware_model.clone(),
             wireframe: None,
             clock_source: if self.drm_vblank.is_some() {
                 ClockSource::DrmVblank
@@ -262,12 +265,17 @@ impl DrmRenderState {
                 }
             }
         }
-        if let Some(vblank) = self.vk_vblank.as_ref() {
-            match vblank.wait() {
-                Some(t) => return Some(t),
-                None => {
-                    log::warn!("vstimd: disabling VK_EXT_display_control vblank after error");
-                    self.vk_vblank = None;
+        // vkRegisterDisplayEventEXT requires at least one prior present to succeed
+        // on NVIDIA Tegra nvdisplay.  Skip the VK path on frame 0; it will be
+        // attempted from frame 1 onward once the swapchain has been presented.
+        if self.rs.frame_index > 0 {
+            if let Some(vblank) = self.vk_vblank.as_ref() {
+                match vblank.wait() {
+                    Some(t) => return Some(t),
+                    None => {
+                        log::warn!("vstimd: disabling VK_EXT_display_control vblank after error");
+                        self.vk_vblank = None;
+                    }
                 }
             }
         }
@@ -275,6 +283,7 @@ impl DrmRenderState {
     }
 
     pub fn run_loop(mut self) {
+        let mut clock_logged = false;
         loop {
             if crate::shutdown::is_requested() {
                 return;
@@ -333,6 +342,13 @@ impl DrmRenderState {
             //    When this returns, the previous frame is confirmed visible on
             //    the display.  This is the canonical "frame start" boundary.
             let screen_clock = self.wait_vblank();
+
+            // Log the settled clock source once, after frame 1 (when the VK
+            // vblank path has been exercised for the first time).
+            if !clock_logged && self.rs.frame_index > 0 {
+                clock_logged = true;
+                log::info!("vstimd: vblank clock: {}", self.sys_info().clock_source.as_str());
+            }
 
             // [A] Commit previous frame's animation outputs; poll inputs.
             if let Some(vtl) = &self.vtl {
