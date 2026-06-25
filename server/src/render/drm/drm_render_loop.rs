@@ -2,9 +2,8 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use crate::log_buffer::LogBuffer;
 use crate::render::AppKey;
-use crate::render::MetricsSampler;
 use crate::render::RenderState;
-use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, query_local_ip};
+use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo};
 use crate::render::{SceneRenderer, TextRenderer, UiRenderer};
 use crate::render::render_frame;
 use crate::scene::SceneState;
@@ -49,10 +48,6 @@ struct DrmRenderLoopData {
     input: InputState,
     vblank: DrmVblankState,
     display_info: StimulusDisplayInfo,
-    hardware_model: String,
-    local_ip: String,
-    log_buffer: LogBuffer,
-    metrics: MetricsSampler,
     /// Holds the CRTC snapshot; dropped before `vt_guard` to restore the
     /// console framebuffer before KD_TEXT is re-enabled.
     #[allow(dead_code)]
@@ -162,7 +157,7 @@ impl DrmRenderLoopData {
             ctx.set_debug_name(*img, &format!("swapchain[{i}]"));
         }
 
-        let ui = UiRenderer::new(&ctx, config_dir);
+        let ui = UiRenderer::new(&ctx, config_dir, log_buffer, hardware_model);
 
         // Build vblank state before ctx moves into RenderState.
         let vk_vblank = ctx
@@ -186,10 +181,6 @@ impl DrmRenderLoopData {
             input: InputState::new(),
             vblank,
             display_info,
-            hardware_model,
-            local_ip: query_local_ip(),
-            log_buffer,
-            metrics: MetricsSampler::new(),
             display_guard,
             vt_guard,
             suspended: false,
@@ -197,12 +188,15 @@ impl DrmRenderLoopData {
     }
 
     fn sys_info(&self) -> SystemInfo {
+        let (hardware_model, local_ip) = self.rs.ui.as_ref()
+            .map(|ui| (ui.hardware_model.clone(), ui.local_ip.clone()))
+            .unwrap_or_default();
         SystemInfo {
             display: self.display_info.clone(),
             backend: RenderTarget::Drm,
-            local_ip: self.local_ip.clone(),
+            local_ip,
             gpu_name: String::new(),
-            hardware_model: self.hardware_model.clone(),
+            hardware_model,
             wireframe: None,
             clock_source: self.vblank.clock_source(self.rs.ctx.present_wait.is_some()),
         }
@@ -337,15 +331,12 @@ impl DrmRenderLoopData {
             //    commands, submit to GPU, present to display.
             //    The frame prepared here will become visible at the next vblank.
             let sys_info = self.sys_info();
-            let metrics = self.metrics.sample();
             render_frame(
                 &mut self.rs,
                 screen_clock,
                 egui_raw_input,
                 &sys_info,
                 self.vtl.as_deref(),
-                &self.log_buffer,
-                metrics,
             );
 
             // pending_outputs is already saved for commit at next [A].

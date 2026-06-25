@@ -3,14 +3,14 @@ use std::sync::{Arc, Mutex, RwLock};
 use crate::io_config::{load_config, save_config};
 use crate::log_buffer::LogBuffer;
 use crate::render::SystemMetrics;
-use crate::render::file_browser::{BrowserMode, FileBrowser};
+use super::file_browser::{BrowserMode, FileBrowser};
 use crate::scene::stimulus::ShapeStimulus;
 use crate::scene::{LoadMode, SceneState, Stimulus};
 use crate::timing::{FramePhases, FrameStats};
 use crate::vtl_state::{VtlConfig, VtlState};
 
-pub use super::system_info::{ClockSource, SystemInfo};
-use super::benchmark::BenchmarkState;
+pub use crate::render::system_info::{ClockSource, SystemInfo};
+use crate::render::benchmark::BenchmarkState;
 
 #[derive(Clone, Copy, PartialEq, Default)]
 enum BankFmt { #[default] Dec, Hex, Bin }

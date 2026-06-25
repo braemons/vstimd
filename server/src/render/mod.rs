@@ -16,8 +16,7 @@ pub use system_info::{SystemInfo, query_hardware_model, query_hostname, query_lo
 pub(crate) mod benchmark;
 pub(crate) mod system_metrics;
 pub use system_metrics::{MetricsSampler, SystemMetrics};
-pub mod file_browser;
-pub(crate) mod overlay;
+pub(crate) mod overlay_ui;
 pub mod tess;
 pub(crate) mod vk;
 

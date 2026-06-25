@@ -2,11 +2,9 @@ use std::sync::Mutex;
 
 use ash::vk;
 
-use crate::log_buffer::LogBuffer;
-use crate::render::overlay::{OverlayArgs, build_overlay_ui};
+use crate::render::overlay_ui::{OverlayArgs, build_overlay_ui};
 use crate::render::render_state::RenderState;
 use crate::render::system_info::SystemInfo;
-use crate::render::system_metrics::SystemMetrics;
 use crate::render::tess::{self, tessellate_photodiode};
 use crate::render::vk::{TextPushConstants, TextVertex};
 use crate::scene::photodiode::PHOTODIODE_HANDLE;
@@ -32,15 +30,12 @@ struct EguiStore {
 ///
 /// Returns `(None, _)` when the swapchain is out of date; the caller must
 /// recreate it before the next call.
-#[allow(clippy::too_many_arguments)]
 pub fn render_frame(
     rs: &mut RenderState,
     screen_clock: Option<std::time::Instant>,
     egui_raw_input: Option<egui::RawInput>,
     sys_info: &SystemInfo,
     vtl: Option<&Mutex<VtlState>>,
-    log_buffer: &LogBuffer,
-    metrics: &SystemMetrics,
 ) -> (Option<FrameTick>, Option<egui::PlatformOutput>) {
     // ── 1. Build egui overlay ─────────────────────────────────────────────────
     let mut egui_store: Option<EguiStore> = None;
@@ -51,18 +46,28 @@ pub fn render_frame(
         && let Some(raw_input) = egui_raw_input
     {
         let phases = rs.timing.last_phases;
-        let output = ui.egui_ctx.run_ui(raw_input, |ctx| {
+        let crate::render::ui_renderer::UiRenderer {
+            ref mut egui_ctx,
+            ref hostname,
+            ref mut benchmark,
+            ref mut file_browser,
+            ref mut metrics,
+            ref log_buffer,
+            ..
+        } = *ui;
+        let metrics_sample = metrics.sample();
+        let output = egui_ctx.run_ui(raw_input, |ctx| {
             build_overlay_ui(ctx, &mut OverlayArgs {
                 scene: &rs.scene_renderer.scene,
                 vtl,
                 frame_stats: &mut rs.timing.stats,
                 last_phases: phases,
                 sys: sys_info,
-                hostname: &ui.hostname,
-                metrics,
+                hostname,
+                metrics: metrics_sample,
                 log_buffer,
-                bench: &mut ui.benchmark,
-                file_browser: &mut ui.file_browser,
+                bench: benchmark,
+                file_browser,
             });
         });
         platform_output = Some(output.platform_output);

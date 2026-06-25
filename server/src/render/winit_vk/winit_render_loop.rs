@@ -7,10 +7,9 @@ use winit::keyboard::{KeyCode, PhysicalKey};
 use winit::window::{Fullscreen, Window, WindowId};
 
 use crate::log_buffer::LogBuffer;
-use crate::render::MetricsSampler;
 use crate::render::RenderState;
 use crate::render::system_info::ClockSource;
-use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, WindowMode, query_local_ip};
+use crate::render::{RenderTarget, StimulusDisplayInfo, SystemInfo, WindowMode};
 use crate::render::{SceneRenderer, TextRenderer, UiRenderer};
 use crate::render::render_frame;
 use crate::scene::SceneState;
@@ -64,14 +63,10 @@ struct WinitRenderLoopData {
     /// Animation output bits accumulated this frame; committed at [A] next frame.
     pending_outputs: [u64; vtl::MAX_BANKS],
     egui_winit: egui_winit::State,
-    log_buffer: LogBuffer,
-    metrics: MetricsSampler,
-    local_ip: String,
     // ── Window comes after all borrowers ─────────────────────────────────────
     window: Arc<Window>,
     refresh_hz: f64,
     window_mode: WindowMode,
-    hardware_model: String,
 }
 
 impl WinitRenderLoopData {
@@ -103,7 +98,7 @@ impl WinitRenderLoopData {
             ctx.set_debug_name(*img, &format!("swapchain[{i}]"));
         }
 
-        let ui = UiRenderer::new(&ctx, config_dir);
+        let ui = UiRenderer::new(&ctx, config_dir, log_buffer, hardware_model);
         // egui::Context is Arc-based; clone gives egui_winit a handle to the
         // same context so it can read/write egui state (e.g. zoom factor).
         let egui_ctx = ui.egui_ctx.clone();
@@ -150,18 +145,17 @@ impl WinitRenderLoopData {
             vtl,
             pending_outputs: [0; vtl::MAX_BANKS],
             egui_winit,
-            log_buffer,
-            metrics: MetricsSampler::new(),
-            local_ip: query_local_ip(),
             window,
             refresh_hz: hz,
             window_mode,
-            hardware_model,
         }
     }
 
     fn sys_info(&self) -> SystemInfo {
         let size = self.window.inner_size();
+        let (hardware_model, local_ip) = self.rs.ui.as_ref()
+            .map(|ui| (ui.hardware_model.clone(), ui.local_ip.clone()))
+            .unwrap_or_default();
         SystemInfo {
             display: StimulusDisplayInfo {
                 width_px: size.width,
@@ -170,9 +164,9 @@ impl WinitRenderLoopData {
                 mode_index: None,
             },
             backend: RenderTarget::Desktop(self.window_mode),
-            local_ip: self.local_ip.clone(),
+            local_ip,
             gpu_name: String::new(),
-            hardware_model: self.hardware_model.clone(),
+            hardware_model,
             wireframe: self.rs.ctx.supports_wireframe.then_some(self.rs.scene_renderer.wireframe),
             // VK_GOOGLE_display_timing alone does not mean we're using display
             // timestamps yet — report GpuCompletion until present_wait is active.
@@ -226,15 +220,12 @@ impl WinitRenderLoopData {
         //    submit to GPU, present to display.
         //    The frame prepared here will become visible at the next vblank.
         let sys_info = self.sys_info();
-        let metrics = self.metrics.sample();
         let (tick, platform_output) = render_frame(
             &mut self.rs,
             None,
             egui_raw_input,
             &sys_info,
             self.vtl.as_deref(),
-            &self.log_buffer,
-            metrics,
         );
 
         // pending_outputs is already saved for commit at next [A].

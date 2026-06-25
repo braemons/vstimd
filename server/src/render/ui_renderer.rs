@@ -1,8 +1,10 @@
 use std::path::PathBuf;
 
+use crate::log_buffer::LogBuffer;
 use crate::render::benchmark::BenchmarkState;
-use crate::render::file_browser::FileBrowser;
-use crate::render::system_info::query_hostname;
+use crate::render::overlay_ui::FileBrowser;
+use crate::render::system_info::{query_hostname, query_local_ip};
+use crate::render::system_metrics::MetricsSampler;
 use crate::render::vk::{VkContext, VkEguiRenderer};
 
 /// egui overlay state — renderer, context, and overlay-specific data.
@@ -14,10 +16,14 @@ pub struct UiRenderer {
     pub benchmark: BenchmarkState,
     pub file_browser: FileBrowser,
     pub hostname: String,
+    pub metrics: MetricsSampler,
+    pub log_buffer: LogBuffer,
+    pub hardware_model: String,
+    pub local_ip: String,
 }
 
 impl UiRenderer {
-    pub fn new(ctx: &VkContext, config_dir: PathBuf) -> Self {
+    pub fn new(ctx: &VkContext, config_dir: PathBuf, log_buffer: LogBuffer, hardware_model: String) -> Self {
         let egui_renderer = VkEguiRenderer::new(
             &ctx.device,
             &ctx.instance,
@@ -31,6 +37,10 @@ impl UiRenderer {
             benchmark: BenchmarkState::new(),
             file_browser: FileBrowser::new(config_dir),
             hostname: query_hostname(),
+            metrics: MetricsSampler::new(),
+            log_buffer,
+            hardware_model,
+            local_ip: query_local_ip(),
         }
     }
 
