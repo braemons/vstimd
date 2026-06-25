@@ -1,11 +1,17 @@
 PREFIX      ?= /usr
 UNITDIR     ?= /lib/systemd/system
 SYSUSERSDIR ?= /usr/lib/sysusers.d
+CONFDIR     ?= /etc/braemons
+SHAREDIR    ?= /usr/share/braemons/vstimd
 BINARY      := target/release/vstimd
 SERVICE     := packaging/systemd/vstimd.service
 TARGET_UNIT := packaging/systemd/vstimd.target
 BOOT_SCRIPT := packaging/scripts/vstimd-boot-entry
 SYSUSERS    := packaging/sysusers/vstimd.conf
+RIG_CONFIG  := server/config/default-rig-config.toml
+EXAMPLES    := server/config/jetson-orin-nano.toml \
+               server/config/raspberry-pi-5.toml \
+               server/config/raspberry-pi-4.toml
 
 DIST_DIR          ?= dist
 DEB_BUILDER_IMAGE ?= vstimd-deb-builder
@@ -39,6 +45,11 @@ install:
 	install -D -m 0644 $(SERVICE)     $(DESTDIR)$(UNITDIR)/vstimd.service
 	install -D -m 0644 $(TARGET_UNIT) $(DESTDIR)$(UNITDIR)/vstimd.target
 	install -D -m 0644 $(SYSUSERS)    $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
+	install -d -m 0755 $(DESTDIR)$(CONFDIR)
+	test -f $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml || \
+	  install -m 0644 $(RIG_CONFIG) $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml
+	install -d -m 0755 $(DESTDIR)$(SHAREDIR)
+	for f in $(EXAMPLES); do install -m 0644 $$f $(DESTDIR)$(SHAREDIR)/; done
 
 uninstall:
 	systemctl disable --now vstimd 2>/dev/null || true
@@ -48,6 +59,8 @@ uninstall:
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.service
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.target
 	rm -f $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
+	for f in $(EXAMPLES); do rm -f $(DESTDIR)$(SHAREDIR)/$$(basename $$f); done
+	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(SHAREDIR) $(DESTDIR)$(CONFDIR) 2>/dev/null || true
 	systemctl daemon-reload 2>/dev/null || true
 
 setup-user:
