@@ -1,11 +1,17 @@
 PREFIX      ?= /usr
 UNITDIR     ?= /lib/systemd/system
 SYSUSERSDIR ?= /usr/lib/sysusers.d
+CONFDIR     ?= /etc/braemons
+SHAREDIR    ?= /usr/share/braemons/vstimd
 BINARY      := target/release/vstimd
 SERVICE     := packaging/systemd/vstimd.service
 TARGET_UNIT := packaging/systemd/vstimd.target
 BOOT_SCRIPT := packaging/scripts/vstimd-boot-entry
 SYSUSERS    := packaging/sysusers/vstimd.conf
+RIG_CONFIG  := server/config/default-rig-config.toml
+EXAMPLES    := server/config/jetson-orin-nano.toml \
+               server/config/raspberry-pi-5.toml \
+               server/config/raspberry-pi-4.toml
 
 DIST_DIR          ?= dist
 DEB_BUILDER_IMAGE ?= vstimd-deb-builder
@@ -14,10 +20,13 @@ RPM_BUILDER_IMAGE ?= vstimd-rpm-builder
 VERSION  := $(shell grep '^version' server/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
 REVISION ?= 1
 
-DEB_AMD64 := $(DIST_DIR)/vstimd_$(VERSION)-$(REVISION)_amd64.deb
-DEB_ARM64 := $(DIST_DIR)/vstimd_$(VERSION)-$(REVISION)_arm64.deb
-RPM_AMD64 := $(DIST_DIR)/vstimd-$(VERSION)-$(REVISION).x86_64.rpm
-RPM_ARM64 := $(DIST_DIR)/vstimd-$(VERSION)-$(REVISION).aarch64.rpm
+# Must match [package.metadata.deb] name in server/Cargo.toml
+DEB_NAME  := braemons-vstimd
+
+DEB_AMD64 := $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_amd64.deb
+DEB_ARM64 := $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_arm64.deb
+RPM_AMD64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).x86_64.rpm
+RPM_ARM64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).aarch64.rpm
 
 RUST_SRCS     := Cargo.toml Cargo.lock $(shell find server/src vtl/src proto -type f 2>/dev/null)
 PKG_SRCS      := $(shell find packaging -type f)
@@ -36,6 +45,11 @@ install:
 	install -D -m 0644 $(SERVICE)     $(DESTDIR)$(UNITDIR)/vstimd.service
 	install -D -m 0644 $(TARGET_UNIT) $(DESTDIR)$(UNITDIR)/vstimd.target
 	install -D -m 0644 $(SYSUSERS)    $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
+	install -d -m 0755 $(DESTDIR)$(CONFDIR)
+	test -f $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml || \
+	  install -m 0644 $(RIG_CONFIG) $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml
+	install -d -m 0755 $(DESTDIR)$(SHAREDIR)
+	for f in $(EXAMPLES); do install -m 0644 $$f $(DESTDIR)$(SHAREDIR)/; done
 
 uninstall:
 	systemctl disable --now vstimd 2>/dev/null || true
@@ -45,6 +59,8 @@ uninstall:
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.service
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.target
 	rm -f $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
+	for f in $(EXAMPLES); do rm -f $(DESTDIR)$(SHAREDIR)/$$(basename $$f); done
+	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(SHAREDIR) $(DESTDIR)$(CONFDIR) 2>/dev/null || true
 	systemctl daemon-reload 2>/dev/null || true
 
 setup-user:

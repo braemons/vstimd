@@ -49,6 +49,7 @@ struct State {
     window: Arc<Window>,
     refresh_hz: f64,
     window_mode: WindowMode,
+    hardware_model: String,
 }
 
 impl State {
@@ -59,6 +60,7 @@ impl State {
         event_loop: &ActiveEventLoop,
         window_mode: WindowMode,
         log_buffer: LogBuffer,
+        hardware_model: String,
     ) -> Self {
         let ctx = init::init(&window);
         // FIFO is set by build_context and never changed — the swapchain is
@@ -180,6 +182,7 @@ impl State {
             window,
             refresh_hz: hz,
             window_mode,
+            hardware_model,
         }
     }
 
@@ -190,11 +193,13 @@ impl State {
                 width_px: size.width,
                 height_px: size.height,
                 refresh_hz: self.refresh_hz,
+                mode_index: None,
             },
             backend: RenderTarget::Desktop(self.window_mode),
             local_ip: self.rs.local_ip.clone(),
             hostname: String::new(),
             gpu_name: String::new(),
+            hardware_model: self.hardware_model.clone(),
             wireframe: self.rs.ctx.supports_wireframe.then_some(self.rs.wireframe),
             // VK_GOOGLE_display_timing alone does not mean we're using display
             // timestamps yet — report GpuCompletion until present_wait is active.
@@ -226,14 +231,17 @@ impl State {
             .show_overlay
             .then(|| self.egui_winit.take_egui_input(&self.window));
 
-        // [A] Commit previous frame's animation outputs; poll inputs.
-        // Note: in winit mode the vkWaitForPresentKHR confirmation lives inside
-        // render_frame(), so this poll fires at the top of the render loop rather
-        // than at the true vblank boundary.  DRM mode gets exact vblank alignment.
+        // [A] Raise vblank trigger; commit previous frame's animation outputs;
+        //     poll inputs.  In winit mode this fires at the top of the render
+        //     function rather than at the true vblank boundary (vkWaitForPresentKHR
+        //     lives inside render_frame()).  DRM mode gets exact vblank alignment.
         if let Some(vtl) = &self.vtl {
             let (input_edges, output_snapshot) = {
                 let mut v = vtl.lock().unwrap();
-                v.write_outputs(&self.pending_outputs);
+                let mask = v.vblank_mask();
+                let state: [u64; vtl::MAX_BANKS] =
+                    std::array::from_fn(|i| self.pending_outputs[i] | mask[i]);
+                v.write_outputs_immediate(&state);
                 let edges = v.poll();
                 let snap  = v.output_snapshot();
                 (edges, snap)
@@ -250,7 +258,10 @@ impl State {
         let sys_info = self.sys_info();
         let (tick, platform_output) = self.rs.render_one_frame(None, egui_raw_input, &sys_info, self.vtl.as_deref());
 
-        // pending_outputs is already saved for commit at next [A].
+        // [C] Commit current frame's animation outputs; lower vblank trigger.
+        if let Some(vtl) = &self.vtl {
+            vtl.lock().unwrap().write_outputs_immediate(&self.pending_outputs);
+        }
 
         // 3. Forward egui platform output (cursor changes, clipboard, etc.).
         if let Some(po) = platform_output {
@@ -278,6 +289,7 @@ pub struct WinitApp {
     modifiers: winit::event::Modifiers,
     is_fullscreen: bool,
     log_buffer: Option<LogBuffer>,
+    hardware_model: String,
 }
 
 impl WinitApp {
@@ -286,6 +298,7 @@ impl WinitApp {
         vtl: Option<Arc<Mutex<VtlState>>>,
         window_mode: WindowMode,
         log_buffer: LogBuffer,
+        hardware_model: String,
     ) -> Self {
         Self {
             scene: Some(scene),
@@ -295,6 +308,7 @@ impl WinitApp {
             state: None,
             modifiers: winit::event::Modifiers::default(),
             log_buffer: Some(log_buffer),
+            hardware_model,
         }
     }
 
@@ -371,6 +385,7 @@ impl ApplicationHandler for WinitApp {
                 event_loop,
                 self.window_mode,
                 log_buffer,
+                self.hardware_model.clone(),
             ));
         }
     }

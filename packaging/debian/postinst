@@ -4,6 +4,9 @@ set -e
 if [ "$1" = "configure" ]; then
     systemd-sysusers /usr/lib/sysusers.d/vstimd.conf
 
+    # Create shared config directory (flat — all braemons configs live here).
+    install -d -m 0755 /etc/braemons
+
     # Create log directory (rsyslog writes here as root).
     install -d -m 0755 /var/log/vstimd
 

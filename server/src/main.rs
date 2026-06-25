@@ -2,7 +2,8 @@ use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(target_os = "linux")]
 use vstimd::render::DrmRenderState;
-use vstimd::render::{RenderTarget, WindowMode, WinitApp};
+use vstimd::render::{RenderTarget, WindowMode, WinitApp, query_hardware_model};
+use vstimd::rig_config;
 use vstimd::scene::SceneState;
 use vstimd::vtl_state::VtlState;
 
@@ -22,23 +23,57 @@ fn main() {
         env!("CARGO_PKG_VERSION"),
         env!("VSTIMD_BUILD_DATE"),
     );
+    let hardware_model = query_hardware_model();
+    log::info!("vstimd: hardware: {hardware_model}");
+
+    // Load rig-config (hardware-specific settings). Non-fatal if absent.
+    let rig = match rig_config::load(&args.rig_config) {
+        Ok(r) => {
+            log::info!("vstimd: rig-config loaded from {}", args.rig_config);
+            if let Some(ref d) = r.display.width.map(|w| format!("{w}×{}@{}Hz",
+                r.display.height.unwrap_or(0),
+                r.display.refresh_hz.unwrap_or(0.0)))
+            {
+                log::info!("vstimd: rig display preference: {d} (not yet applied to DRM mode)");
+            }
+            r
+        }
+        Err(e) => {
+            log::error!("vstimd: {e}");
+            std::process::exit(1);
+        }
+    };
 
     let config_dir = args.config_dir.clone().unwrap_or_else(|| std::path::PathBuf::from("."));
     let scene = Arc::new(RwLock::new(SceneState::new_with_config_dir(config_dir.clone())));
 
-    // Create VTL shared memory on Linux. The Arc<Mutex<>> lets both the ZMQ
-    // thread (software triggers, naming) and the render backend (frame polling)
-    // access it safely.
+    // Create VTL shared memory on Linux using rig-config parameters.
+    // The Arc<Mutex<>> lets both the ZMQ thread (software triggers, naming)
+    // and the render backend (frame polling) access it safely.
     #[cfg(target_os = "linux")]
-    let vtl: Option<Arc<Mutex<VtlState>>> = vtl::VtlOwner::create("/vstimd_vtl", 4, 1)
-        .map(|owner| Arc::new(Mutex::new(VtlState::new(owner))))
-        .map_err(|e| log::warn!("vtl: failed to create shm segment: {e}"))
-        .ok();
+    let vtl: Option<Arc<Mutex<VtlState>>> = vtl::VtlOwner::create(
+        &rig.vtl.shm_name,
+        rig.vtl.num_input_banks,
+        rig.vtl.num_output_banks,
+    )
+    .map(|owner| {
+        let mut state = VtlState::new(owner);
+        state.vblank_vtl = rig.vtl.vblank;
+        Arc::new(Mutex::new(state))
+    })
+    .map_err(|e| log::warn!("vtl: failed to create shm segment: {e}"))
+    .ok();
     #[cfg(not(target_os = "linux"))]
     let vtl: Option<Arc<Mutex<VtlState>>> = None;
 
     if vtl.is_some() {
-        log::info!("vtl: shared memory segment created at /vstimd_vtl");
+        log::info!(
+            "vtl: segment '{}' created ({} in / {} out bank(s)){}",
+            rig.vtl.shm_name,
+            rig.vtl.num_input_banks,
+            rig.vtl.num_output_banks,
+            rig.vtl.vblank.map_or(String::new(), |vb| format!("  vblank=bank{}·bit{}", vb.bank, vb.bit)),
+        );
     }
 
     if let Some(ref path) = args.config_file {
@@ -70,7 +105,7 @@ fn main() {
     match args.render_target {
         #[cfg(target_os = "linux")]
         RenderTarget::Drm => {
-            let rs = DrmRenderState::new(scene, vtl, log_buffer);
+            let rs = DrmRenderState::new(scene, vtl, log_buffer, hardware_model);
             if wait_zmq_bound(&zmq_bound, args.zmq_port) { notify_ready(); }
             rs.run_loop();
         }
@@ -85,7 +120,7 @@ fn main() {
                 std::process::exit(1);
             });
             event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-            let mut app = WinitApp::new(scene, vtl, window_mode, log_buffer);
+            let mut app = WinitApp::new(scene, vtl, window_mode, log_buffer, hardware_model);
             if wait_zmq_bound(&zmq_bound, args.zmq_port) { notify_ready(); }
             event_loop.run_app(&mut app).unwrap();
         }
@@ -98,15 +133,19 @@ fn main() {
                 let s = scene.read().unwrap();
                 std::time::Duration::from_secs_f32(1.0 / s.runtime.frame_rate)
             };
-            let mut output_pending = [0u64; vtl::MAX_BANKS];
             loop {
                 if vstimd::shutdown::is_requested() {
                     break;
                 }
                 let t0 = std::time::Instant::now();
-                let edges = vtl.as_ref()
-                    .and_then(|v| v.lock().ok().map(|mut g| g.poll()))
+                let (edges, output_snapshot) = vtl.as_ref()
+                    .and_then(|v| v.lock().ok().map(|mut g| {
+                        let e = g.poll();
+                        let s = g.output_snapshot();
+                        (e, s)
+                    }))
                     .unwrap_or_default();
+                let mut output_pending = [0u64; vtl::MAX_BANKS];
                 {
                     let mut s = scene.write().unwrap();
                     if s.runtime.pending_flip {
@@ -114,8 +153,10 @@ fn main() {
                     }
                     s.runtime.frame_count += 1;
                     let _ = s.runtime.frame_notifier.send(s.runtime.frame_count);
-                    let output_snapshot = [0u64; vtl::MAX_BANKS];
                     s.advance_animations(&edges, &output_snapshot, &mut output_pending);
+                }
+                if let Some(v) = vtl.as_ref() {
+                    v.lock().unwrap().write_outputs_immediate(&output_pending);
                 }
                 if let Some(remaining) = frame_period.checked_sub(t0.elapsed()) {
                     std::thread::sleep(remaining);
@@ -135,10 +176,11 @@ fn main() {
 
 struct Args {
     render_target: RenderTarget,
-    verbose: bool,
-    zmq_port: u16,
-    config_file: Option<std::path::PathBuf>,
-    config_dir:  Option<std::path::PathBuf>,
+    verbose:       bool,
+    zmq_port:      u16,
+    rig_config:    String,
+    config_file:   Option<std::path::PathBuf>,
+    config_dir:    Option<std::path::PathBuf>,
 }
 
 /// Automatically detect the best render target for the current platform.
@@ -173,6 +215,7 @@ fn parse_args() -> Args {
     let mut verbose = false;
     let mut null = false;
     let zmq_port = vstimd::ipc::DEFAULT_ZMQ_PORT;
+    let mut rig_config  = rig_config::DEFAULT_PATH.to_string();
     let mut config_file: Option<std::path::PathBuf> = None;
     let mut config_dir:  Option<std::path::PathBuf> = None;
 
@@ -191,6 +234,12 @@ fn parse_args() -> Args {
                     width: w,
                     height: h,
                 };
+            }
+            "--rig-config" => {
+                rig_config = args.next().unwrap_or_else(|| {
+                    eprintln!("vstimd: --rig-config requires a path argument");
+                    std::process::exit(1);
+                });
             }
             "--config" => {
                 config_file = args.next().map(std::path::PathBuf::from);
@@ -221,6 +270,7 @@ fn parse_args() -> Args {
         render_target,
         verbose,
         zmq_port,
+        rig_config,
         config_file,
         config_dir,
     }
@@ -270,8 +320,9 @@ fn print_usage() {
     eprintln!("  -w, --windowed <WxH>      Start in windowed mode with size WxH (desktop only)");
     eprintln!("      --null                No rendering; ZMQ server only (also: VSTIMD_NULL=1)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
-  eprintln!("      --config <path>        Load config file at startup");
-  eprintln!("      --config-dir <path>    Directory for named config files (default: .)");
+    eprintln!("      --rig-config <path>   Rig config (default: {})", vstimd::rig_config::DEFAULT_PATH);
+    eprintln!("      --config <path>       Load stim-config file at startup");
+    eprintln!("      --config-dir <path>   Directory for named stim-config files (default: .)");
     eprintln!("  -h, --help                Show this help message");
     eprintln!();
     eprintln!("Render target is automatically detected:");

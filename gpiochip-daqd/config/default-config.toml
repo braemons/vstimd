@@ -1,0 +1,75 @@
+# gpiochip-daqd config — /etc/braemons/gpiochip-daqd-config.toml
+#
+# This daemon bridges VTL shared-memory trigger lines to physical GPIO pins
+# via the Linux GPIO character device (/dev/gpiochipN).
+#
+# Board-specific examples (with GPIO line numbers pre-filled) are in:
+#   /usr/share/braemons/gpiochip-daqd/
+#     jetson-orin-nano.toml
+#
+# To start with a board example:
+#   cp /usr/share/braemons/gpiochip-daqd/jetson-orin-nano.toml \
+#      /etc/braemons/gpiochip-daqd-config.toml
+
+# ── VTL shared memory ─────────────────────────────────────────────────────────
+[vtl]
+# POSIX shared-memory name — must match shm_name in vstimd-rig-config.toml.
+# Default: "/vstimd_vtl"
+shm_name = "/vstimd_vtl"
+
+# ── GPIO chip ─────────────────────────────────────────────────────────────────
+[gpio]
+# Linux GPIO character device to use.
+# Common values by board:
+#   Jetson Orin Nano: /dev/gpiochip0  (Tegra GPIO controller)
+#   Raspberry Pi 4:   /dev/gpiochip0  (BCM2711)
+#   Raspberry Pi 5:   /dev/gpiochip4  (RP1 south-bridge)
+# Run `gpiodetect` or `ls /dev/gpiochip*` to list devices on this system.
+chip = "/dev/gpiochip0"
+
+# ── Thread scheduling ─────────────────────────────────────────────────────────
+# [scheduling]
+# # SCHED_FIFO real-time priority for the output thread (1–99).
+# # Higher numbers = higher priority.  Default: 60.
+# # Requires CAP_SYS_NICE; the systemd unit grants this automatically.
+# output_rt_prio = 60
+#
+# # SCHED_FIFO real-time priority for input watcher threads (1–99).
+# # Default: 50.
+# input_rt_prio = 50
+#
+# # CPU core to pin the output thread to.  Not yet applied.
+# # Omit to let the OS schedule on any core.
+# output_cpu_core = 2
+#
+# # CPU core to pin input watcher threads to.  Not yet applied.
+# input_cpu_core = 2
+
+# ── Output lines (VTL → GPIO) ─────────────────────────────────────────────────
+# Each [[outputs]] entry mirrors one VTL output bit to a GPIO output pin.
+# vstimd writes the output state; this daemon drives the pin to match.
+#
+# [[outputs]]
+# # Human-readable name — must match the name registered in the stim-config.
+# name      = "stim_onset"
+# # VTL bank and bit index (0-based).  bank=0, bit=0 is the first output bit.
+# vtl_bank  = 0
+# vtl_bit   = 0
+# # GPIO line offset within the chip (not the 40-pin header number).
+# # Use `gpioinfo /dev/gpiochipN` to list line offsets for your board.
+# gpio_line = 5
+
+# ── Input lines (GPIO → VTL) ──────────────────────────────────────────────────
+# Each [[inputs]] entry watches a GPIO pin and writes a VTL input bit on edges.
+# Blocked on kernel edge events — no busy-waiting.
+#
+# [[inputs]]
+# name      = "trial_start"
+# vtl_bank  = 0
+# vtl_bit   = 0
+# gpio_line = 17
+# # Which GPIO edges to forward to the VTL input bit:
+# #   "rising"  — set bit on rising edge
+# #   "falling" — clear bit on falling edge
+# #   "both"    — update bit on any edge
+# edge      = "both"

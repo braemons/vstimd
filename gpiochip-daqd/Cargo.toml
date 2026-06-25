@@ -1,0 +1,54 @@
+[package]
+name        = "gpiochip-daqd"
+version     = "0.1.0"
+edition     = "2024"
+description = "Linux gpiochip ↔ VTL trigger-line bridge daemon"
+license     = "AGPL-3.0-only"
+repository  = "https://github.com/braemons/vstimd"
+
+# Compile with `--features hw-tests` to include loopback hardware tests.
+# Requires two GPIO pins wired together; see tests/loopback.rs.
+[lib]
+name = "gpiochip_daqd"
+path = "src/lib.rs"
+
+[[bin]]
+name = "gpiochip-daqd"
+path = "src/main.rs"
+
+[features]
+hw-tests = []
+
+[dependencies]
+vtl        = { path = "../vtl", version = "0.1.0" }
+gpio-cdev  = "0.6"
+anyhow     = "1"
+log        = "0.4"
+env_logger = "0.11"
+serde      = { version = "1", features = ["derive"] }
+toml       = "0.8"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+sd-notify = "0.4"
+libc      = "0.2"
+
+[package.metadata.deb]
+name       = "braemons-gpiochip-daqd"
+maintainer = "Joscha Schmiedt <joscha@schmiedt.dev>"
+depends    = "$auto"
+section    = "science"
+priority   = "optional"
+extended-description = """\
+gpiochip-daqd bridges VTL shared-memory trigger lines to physical GPIO pins \
+via the Linux GPIO character device (/dev/gpiochipN).  Compatible with any \
+Linux board that exposes GPIO through the kernel character device interface.\
+"""
+assets = [
+    ["target/release/gpiochip-daqd",            "usr/bin/gpiochip-daqd",                                      "755"],
+    ["config/default-config.toml",              "etc/braemons/gpiochip-daqd-config.toml",                     "644"],
+    ["config/jetson-orin-nano_in16_out4.toml",  "usr/share/braemons/gpiochip-daqd/jetson-orin-nano_in16_out4.toml", "644"],
+]
+maintainer-scripts = "../packaging/debian/"
+
+[package.metadata.deb.systemd-units]
+unit-scripts = "packaging/systemd/"
