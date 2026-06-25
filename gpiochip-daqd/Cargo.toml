@@ -33,6 +33,7 @@ sd-notify = "0.4"
 libc      = "0.2"
 
 [package.metadata.deb]
+name       = "braemons-gpiochip-daqd"
 maintainer = "Joscha Schmiedt <joscha@schmiedt.dev>"
 depends    = "$auto"
 section    = "science"

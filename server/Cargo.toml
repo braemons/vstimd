@@ -55,6 +55,7 @@ prost-build = "0.13"
 naga        = { version = "23", features = ["wgsl-in", "spv-out"] }
 
 [package.metadata.deb]
+name              = "braemons-vstimd"
 maintainer        = "Joscha Schmiedt <joscha@schmiedt.dev>"
 depends           = "$auto, libvulkan1, adduser"
 recommends        = "vulkan-tools"
