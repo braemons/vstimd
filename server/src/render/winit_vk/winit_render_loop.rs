@@ -396,10 +396,10 @@ impl ApplicationHandler for WinitEventHandler {
             } => match key {
                 KeyCode::Escape => event_loop.exit(),
                 KeyCode::F1 => {
-                    if let Some(data) = &mut self.data {
-                        if let Some(ui) = &mut data.rs.ui {
-                            ui.show_overlay = !ui.show_overlay;
-                        }
+                    if let Some(data) = &mut self.data
+                        && let Some(ui) = &mut data.rs.ui
+                    {
+                        ui.show_overlay = !ui.show_overlay;
                     }
                 }
                 KeyCode::F2 => {
