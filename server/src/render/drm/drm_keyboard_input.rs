@@ -1,9 +1,10 @@
-use std::os::fd::OwnedFd;
 use input::event::keyboard::KeyboardEventTrait as _;
+use std::os::fd::OwnedFd;
 use std::path::Path;
 
 // ── Application-level key actions ────────────────────────────────────────────
 
+// TODO: This should be somewhere else, it's shared between drm and winit
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum AppKey {
     Escape,
@@ -43,8 +44,8 @@ impl TtyKbdGuard {
         }
         let mut raw = saved;
         // Disable echo and canonical (line-buffered) mode.
-        raw.c_lflag &= !(libc::ECHO | libc::ECHOE | libc::ECHOK | libc::ECHONL
-            | libc::ICANON | libc::ISIG);
+        raw.c_lflag &=
+            !(libc::ECHO | libc::ECHOE | libc::ECHOK | libc::ECHONL | libc::ICANON | libc::ISIG);
         if unsafe { libc::tcsetattr(fd, libc::TCSANOW, &raw) } < 0 {
             log::warn!("vstimd: tcsetattr failed — keys may echo to terminal");
             unsafe { libc::close(fd) };
@@ -101,7 +102,11 @@ impl InputState {
         let tty_kbd_guard = TtyKbdGuard::acquire();
         let mut ctx = input::Libinput::new_with_udev(Interface);
         match ctx.udev_assign_seat("seat0") {
-            Ok(()) => Self { ctx, modifiers: egui::Modifiers::default(), tty_kbd_guard },
+            Ok(()) => Self {
+                ctx,
+                modifiers: egui::Modifiers::default(),
+                tty_kbd_guard,
+            },
             Err(()) => {
                 log::error!(
                     "vstimd: libinput could not open seat0 — \
@@ -138,15 +143,17 @@ impl InputState {
         let mut egui_events = Vec::new();
 
         for event in self.ctx.by_ref() {
-            let input::Event::Keyboard(kb) = event else { continue };
+            let input::Event::Keyboard(kb) = event else {
+                continue;
+            };
             let pressed = kb.key_state() == input::event::keyboard::KeyState::Pressed;
 
             match kb.key() {
                 // Modifier tracking (press + release) — no separate egui event;
                 // modifier state is embedded in subsequent key events.
-                42 | 54  => self.modifiers.shift = pressed, // KEY_LEFTSHIFT, KEY_RIGHTSHIFT
-                29 | 97  => self.modifiers.ctrl  = pressed, // KEY_LEFTCTRL,  KEY_RIGHTCTRL
-                56 | 100 => self.modifiers.alt   = pressed, // KEY_LEFTALT,   KEY_RIGHTALT
+                42 | 54 => self.modifiers.shift = pressed, // KEY_LEFTSHIFT, KEY_RIGHTSHIFT
+                29 | 97 => self.modifiers.ctrl = pressed,  // KEY_LEFTCTRL,  KEY_RIGHTCTRL
+                56 | 100 => self.modifiers.alt = pressed,  // KEY_LEFTALT,   KEY_RIGHTALT
                 // Ctrl+Alt+F1–F12 → VT switch (libinput grabs input exclusively,
                 // so the kernel never sees these; we forward them ourselves).
                 code @ 59..=68 if pressed && self.modifiers.ctrl && self.modifiers.alt => {
@@ -159,11 +166,11 @@ impl InputState {
                     app_keys.push(AppKey::SwitchVt(12)); // KEY_F12
                 }
                 // App-level keys (press only)
-                1  if pressed => app_keys.push(AppKey::Escape), // KEY_ESC
-                32 if pressed => app_keys.push(AppKey::D),      // KEY_D
-                59 if pressed => app_keys.push(AppKey::F1),     // KEY_F1
-                60 if pressed => app_keys.push(AppKey::F2),     // KEY_F2
-                61 if pressed => app_keys.push(AppKey::F3),     // KEY_F3
+                1 if pressed => app_keys.push(AppKey::Escape), // KEY_ESC
+                32 if pressed => app_keys.push(AppKey::D),     // KEY_D
+                59 if pressed => app_keys.push(AppKey::F1),    // KEY_F1
+                60 if pressed => app_keys.push(AppKey::F2),    // KEY_F2
+                61 if pressed => app_keys.push(AppKey::F3),    // KEY_F3
                 // Navigation / interaction keys → egui events (press + release)
                 code => {
                     if let Some(key) = evdev_to_egui_key(code) {
@@ -188,16 +195,16 @@ fn evdev_to_egui_key(code: u32) -> Option<egui::Key> {
     Some(match code {
         14 => egui::Key::Backspace,
         15 => egui::Key::Tab,
-        28 | 96 => egui::Key::Enter,   // KEY_ENTER, KEY_KPENTER
+        28 | 96 => egui::Key::Enter, // KEY_ENTER, KEY_KPENTER
         57 => egui::Key::Space,
-        102 => egui::Key::Home,        // KEY_HOME
-        103 => egui::Key::ArrowUp,     // KEY_UP
-        104 => egui::Key::PageUp,      // KEY_PAGEUP
-        105 => egui::Key::ArrowLeft,   // KEY_LEFT
-        106 => egui::Key::ArrowRight,  // KEY_RIGHT
-        107 => egui::Key::End,         // KEY_END
-        108 => egui::Key::ArrowDown,   // KEY_DOWN
-        109 => egui::Key::PageDown,    // KEY_PAGEDOWN
+        102 => egui::Key::Home,       // KEY_HOME
+        103 => egui::Key::ArrowUp,    // KEY_UP
+        104 => egui::Key::PageUp,     // KEY_PAGEUP
+        105 => egui::Key::ArrowLeft,  // KEY_LEFT
+        106 => egui::Key::ArrowRight, // KEY_RIGHT
+        107 => egui::Key::End,        // KEY_END
+        108 => egui::Key::ArrowDown,  // KEY_DOWN
+        109 => egui::Key::PageDown,   // KEY_PAGEDOWN
         _ => return None,
     })
 }

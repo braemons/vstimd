@@ -1,7 +1,6 @@
 use ash::vk;
 
-use super::buffers::{PhotodiodeCache, SolidMeshCache};
-use super::vk_text_pipeline::TextMeshCache;
+use crate::render::vk::cache::{PhotodiodeCache, SolidMeshCache, TextMeshCache};
 
 /// Unified GPU-side cache for all stimulus types.
 ///

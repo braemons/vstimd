@@ -40,9 +40,7 @@ impl DrmVblank {
             // VK_KHR_display cannot acquire it during swapchain creation.
             // wait_vblank is an unprivileged ioctl — no master required.
             if let Err(err) = DrmDevice::release_master_lock(&card) {
-                log::warn!(
-                    "vstimd: failed to release DRM master for {path}: {err}"
-                );
+                log::warn!("vstimd: failed to release DRM master for {path}: {err}");
             }
 
             let Ok(res) = card.resource_handles() else {
@@ -116,7 +114,11 @@ impl VkVblank {
         loader: ash::ext::display_control::Device,
         display: ash::vk::DisplayKHR,
     ) -> Self {
-        Self { device, loader, display }
+        Self {
+            device,
+            loader,
+            display,
+        }
     }
 
     /// Register a FIRST_PIXEL_OUT event and return the one-shot fence.
@@ -145,9 +147,7 @@ impl VkVblank {
     /// Destroys the fence regardless of outcome.
     /// Returns `None` on error (caller should disable and fall back).
     pub fn collect(&self, fence: ash::vk::Fence) -> Option<Instant> {
-        let wait_result = unsafe {
-            self.device.wait_for_fences(&[fence], true, u64::MAX)
-        };
+        let wait_result = unsafe { self.device.wait_for_fences(&[fence], true, u64::MAX) };
         let t = Instant::now();
         unsafe { self.device.destroy_fence(fence, None) };
         wait_result.ok()?;

@@ -11,10 +11,12 @@ use crate::render::BenchmarkState;
 use crate::render::MetricsSampler;
 use crate::render::RenderState;
 use crate::render::system_info::ClockSource;
-use crate::render::vk::{GlyphAtlas, SceneCache, VkEguiRenderer, VkGratingPipeline, VkPipeline, VkTextPipeline};
-use crate::scene::stimulus::text::{TextFontSystem, TextSwashCache};
+use crate::render::vk::{
+    GlyphAtlas, SceneCache, VkEguiRenderer, VkGratingPipeline, VkPipeline, VkTextPipeline,
+};
 use crate::render::{FileBrowser, RenderTarget, StimulusDisplayInfo, SystemInfo, query_local_ip};
 use crate::scene::SceneState;
+use crate::scene::stimulus::text::{TextFontSystem, TextSwashCache};
 use crate::timing::{FramePhases, FrameStats};
 use crate::vtl_state::VtlState;
 extern crate vtl;
@@ -66,7 +68,12 @@ fn check_device_permissions() {
 
     let drm_ok = (0..8u32).any(|n| {
         let path = format!("/dev/dri/card{n}\0");
-        unsafe { libc::access(path.as_ptr() as *const libc::c_char, libc::R_OK | libc::W_OK) == 0 }
+        unsafe {
+            libc::access(
+                path.as_ptr() as *const libc::c_char,
+                libc::R_OK | libc::W_OK,
+            ) == 0
+        }
     });
     if !drm_ok {
         missing.push(
@@ -110,7 +117,12 @@ fn check_device_permissions() {
 }
 
 impl DrmRenderState {
-    pub fn new(scene: Arc<RwLock<SceneState>>, vtl: Option<Arc<Mutex<VtlState>>>, log_buffer: LogBuffer, hardware_model: String) -> Self {
+    pub fn new(
+        scene: Arc<RwLock<SceneState>>,
+        vtl: Option<Arc<Mutex<VtlState>>>,
+        log_buffer: LogBuffer,
+        hardware_model: String,
+    ) -> Self {
         check_device_permissions();
 
         // Snapshot display state first, while the current VT still has an
@@ -137,10 +149,21 @@ impl DrmRenderState {
             ash::vk::PolygonMode::FILL
         };
         let pipeline = VkPipeline::new(&ctx.device, ctx.render_pass, ash::vk::PolygonMode::FILL);
-        let grating_pipeline =
-            VkGratingPipeline::new(&ctx.device, &ctx.instance, ctx.physical_device, ctx.render_pass, ash::vk::PolygonMode::FILL);
+        let grating_pipeline = VkGratingPipeline::new(
+            &ctx.device,
+            &ctx.instance,
+            ctx.physical_device,
+            ctx.render_pass,
+            ash::vk::PolygonMode::FILL,
+        );
         let wireframe_pipeline = VkPipeline::new(&ctx.device, ctx.render_pass, wf_mode);
-        let wireframe_grating = VkGratingPipeline::new(&ctx.device, &ctx.instance, ctx.physical_device, ctx.render_pass, wf_mode);
+        let wireframe_grating = VkGratingPipeline::new(
+            &ctx.device,
+            &ctx.instance,
+            ctx.physical_device,
+            ctx.render_pass,
+            wf_mode,
+        );
 
         ctx.set_debug_name(pipeline.pipeline, "solid_pipeline");
         ctx.set_debug_name(grating_pipeline.pipeline, "grating_pipeline");
@@ -170,9 +193,10 @@ impl DrmRenderState {
             glyph_atlas.descriptor_set_layout,
         );
         // Build VkVblank before ctx moves into RenderState.
-        let vk_vblank = ctx.display_control.as_ref().map(|loader| {
-            VkVblank::new(ctx.device.clone(), loader.clone(), vk_display)
-        });
+        let vk_vblank = ctx
+            .display_control
+            .as_ref()
+            .map(|loader| VkVblank::new(ctx.device.clone(), loader.clone(), vk_display));
 
         let config_dir = scene.read().unwrap().runtime.config_dir.clone();
         let rs = RenderState {
@@ -368,7 +392,9 @@ impl DrmRenderState {
             }
 
             // 2. Build egui raw input (DRM: screen rect + libinput nav keys).
-            let egui_raw_input = self.rs.show_overlay
+            let egui_raw_input = self
+                .rs
+                .show_overlay
                 .then(|| self.build_egui_raw_input(nav_events));
 
             // 3. Collect the FIRST_PIXEL_OUT fence from the previous present
@@ -380,7 +406,10 @@ impl DrmRenderState {
             // fence has been collected for the first time).
             if !clock_logged && self.rs.frame_index > 0 {
                 clock_logged = true;
-                log::info!("vstimd: vblank clock: {}", self.sys_info().clock_source.as_str());
+                log::info!(
+                    "vstimd: vblank clock: {}",
+                    self.sys_info().clock_source.as_str()
+                );
             }
 
             // [A] Commit previous frame's animation outputs; poll inputs.
@@ -389,12 +418,14 @@ impl DrmRenderState {
                     let mut v = vtl.lock().unwrap();
                     v.write_outputs(&self.pending_outputs);
                     let edges = v.poll();
-                    let snap  = v.output_snapshot();
+                    let snap = v.output_snapshot();
                     (edges, snap)
                 };
                 self.pending_outputs = [0; vtl::MAX_BANKS];
                 self.rs.scene.write().unwrap().advance_animations(
-                    &input_edges, &output_snapshot, &mut self.pending_outputs,
+                    &input_edges,
+                    &output_snapshot,
+                    &mut self.pending_outputs,
                 );
             }
 
@@ -408,7 +439,8 @@ impl DrmRenderState {
             //    commands, submit to GPU, present to display.
             //    The frame prepared here will become visible at the next vblank.
             let sys_info = self.sys_info();
-            self.rs.render_one_frame(screen_clock, egui_raw_input, &sys_info, self.vtl.as_deref());
+            self.rs
+                .render_one_frame(screen_clock, egui_raw_input, &sys_info, self.vtl.as_deref());
 
             // pending_outputs is already saved for commit at next [A].
         }

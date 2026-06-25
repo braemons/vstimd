@@ -1,17 +1,17 @@
 pub mod grating;
-pub mod text;
 mod primitive_shapes;
 mod shape_appearance;
 mod shape_stimulus;
 mod stimulus_flags;
+pub mod text;
 mod transform2d;
 
 pub use grating::{GratingMask, GratingParams, GratingStimulus, Waveform};
-pub use text::{Anchor, LanguageStyle, TextRenderParams, TextStimulus};
 pub use primitive_shapes::{CircleStimulus, EllipseStimulus, RectStimulus};
-pub use shape_stimulus::ShapeStimulus;
 pub use shape_appearance::{DrawMode, ShapeAppearance};
+pub use shape_stimulus::ShapeStimulus;
 pub use stimulus_flags::StimulusFlags;
+pub use text::{Anchor, LanguageStyle, TextRenderParams, TextStimulus};
 pub use transform2d::Transform2D;
 
 use super::deferred::Deferred;
@@ -37,7 +37,6 @@ impl StimulusEntry {
     }
 }
 
-
 // ── Stimulus enum ─────────────────────────────────────────────────────────────
 
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
@@ -52,33 +51,33 @@ impl Stimulus {
 
     pub fn flags(&self) -> &StimulusFlags {
         match self {
-            Stimulus::Shape(s)   => s.flags(),
+            Stimulus::Shape(s) => s.flags(),
             Stimulus::Grating(s) => &s.flags,
-            Stimulus::Text(s)    => &s.flags,
+            Stimulus::Text(s) => &s.flags,
         }
     }
 
     pub fn flags_mut(&mut self) -> &mut StimulusFlags {
         match self {
-            Stimulus::Shape(s)   => s.flags_mut(),
+            Stimulus::Shape(s) => s.flags_mut(),
             Stimulus::Grating(s) => &mut s.flags,
-            Stimulus::Text(s)    => &mut s.flags,
+            Stimulus::Text(s) => &mut s.flags,
         }
     }
 
     pub fn transform(&self) -> &Deferred<Transform2D> {
         match self {
-            Stimulus::Shape(s)   => s.transform(),
+            Stimulus::Shape(s) => s.transform(),
             Stimulus::Grating(s) => &s.transform,
-            Stimulus::Text(s)    => &s.transform,
+            Stimulus::Text(s) => &s.transform,
         }
     }
 
     pub fn transform_mut(&mut self) -> &mut Deferred<Transform2D> {
         match self {
-            Stimulus::Shape(s)   => s.transform_mut(),
+            Stimulus::Shape(s) => s.transform_mut(),
             Stimulus::Grating(s) => &mut s.transform,
-            Stimulus::Text(s)    => &mut s.transform,
+            Stimulus::Text(s) => &mut s.transform,
         }
     }
 
@@ -96,18 +95,18 @@ impl Stimulus {
     /// Snapshot all live state into copy fields. Call at the start of deferred mode.
     pub fn make_copy(&mut self) {
         match self {
-            Stimulus::Shape(s)   => s.make_copy(),
+            Stimulus::Shape(s) => s.make_copy(),
             Stimulus::Grating(s) => s.make_copy(),
-            Stimulus::Text(s)    => s.make_copy(),
+            Stimulus::Text(s) => s.make_copy(),
         }
     }
 
     /// Promote all copy fields to live. Call at the frame boundary when `pending_flip` is set.
     pub fn flip(&mut self) {
         match self {
-            Stimulus::Shape(s)   => s.flip(),
+            Stimulus::Shape(s) => s.flip(),
             Stimulus::Grating(s) => s.flip(),
-            Stimulus::Text(s)    => s.flip(),
+            Stimulus::Text(s) => s.flip(),
         }
     }
 
@@ -128,7 +127,13 @@ impl Stimulus {
         {
             let t = self.transform_mut();
             let pos = if deferred { t.copy.pos } else { t.live.pos };
-            t.set(deferred, Transform2D { pos, angle: degrees });
+            t.set(
+                deferred,
+                Transform2D {
+                    pos,
+                    angle: degrees,
+                },
+            );
         }
         if !deferred {
             self.flags_mut().mark_dirty();
@@ -149,9 +154,9 @@ impl Stimulus {
 
     pub fn type_name(&self) -> &'static str {
         match self {
-            Stimulus::Shape(s)   => s.type_name(),
+            Stimulus::Shape(s) => s.type_name(),
             Stimulus::Grating(_) => "Grating",
-            Stimulus::Text(_)    => "Text",
+            Stimulus::Text(_) => "Text",
         }
     }
 }

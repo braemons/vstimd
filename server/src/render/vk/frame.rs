@@ -3,11 +3,11 @@ use std::sync::{Arc, RwLock};
 use ash::vk;
 
 use crate::render::tess::{self, tessellate_photodiode};
-use crate::render::vk::scene_cache::SceneCache;
+use crate::render::vk::cache::SceneCache;
+use crate::scene::photodiode::PHOTODIODE_HANDLE;
 use crate::scene::stimulus::text::{TextFontSystem, TextSwashCache, layout_and_rasterize};
 use crate::scene::stimulus::{DrawMode, Stimulus};
 
-const PHOTODIODE_HANDLE: u32 = u32::MAX;
 use crate::scene::SceneState;
 use crate::timing::{FramePhases, FrameStats, FrameTick};
 
