@@ -2,24 +2,63 @@ use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
 pub struct Config {
+    #[serde(default)]
     pub vtl:  VtlConfig,
+    #[serde(default)]
     pub gpio: GpioConfig,
     #[serde(default)]
     pub outputs: Vec<OutputLine>,
     #[serde(default)]
     pub inputs: Vec<InputLine>,
+    #[serde(default)]
+    pub scheduling: SchedulingConfig,
 }
 
 #[derive(Deserialize, Debug)]
 pub struct VtlConfig {
-    /// POSIX shared memory name, e.g. "/vstimd_vtl".
+    /// POSIX shared-memory name (must start with `/`).
+    #[serde(default = "VtlConfig::default_shm_name")]
     pub shm_name: String,
+}
+
+impl VtlConfig {
+    fn default_shm_name() -> String { "/vstimd_vtl".into() }
+}
+
+impl Default for VtlConfig {
+    fn default() -> Self { Self { shm_name: Self::default_shm_name() } }
 }
 
 #[derive(Deserialize, Debug, Clone)]
 pub struct GpioConfig {
-    /// GPIO chip device path, e.g. "/dev/gpiochip0".
+    /// Linux GPIO character device path.
+    #[serde(default = "GpioConfig::default_chip")]
     pub chip: String,
+}
+
+impl GpioConfig {
+    fn default_chip() -> String { "/dev/gpiochip0".into() }
+}
+
+impl Default for GpioConfig {
+    fn default() -> Self { Self { chip: Self::default_chip() } }
+}
+
+/// Thread scheduling options.
+///
+/// All fields are optional.  Omit a field to use the built-in default.
+/// `*_cpu_core` is accepted by the parser but not yet applied.
+#[derive(Deserialize, Debug, Default)]
+#[allow(dead_code)]
+pub struct SchedulingConfig {
+    /// SCHED_FIFO priority for the output thread (1–99).  Default: 60.
+    pub output_rt_prio: Option<i32>,
+    /// CPU core to pin the output thread to.  Not yet applied.
+    pub output_cpu_core: Option<usize>,
+    /// SCHED_FIFO priority for each input watcher thread (1–99).  Default: 50.
+    pub input_rt_prio: Option<i32>,
+    /// CPU core to pin input watcher threads to.  Not yet applied.
+    pub input_cpu_core: Option<usize>,
 }
 
 /// Maps one VTL output bit → one GPIO output pin.

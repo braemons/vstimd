@@ -3723,6 +3723,7 @@ dependencies = [
  "serde_json",
  "sysinfo",
  "tokio",
+ "toml",
  "uuid",
  "vtl",
  "wayland-backend",

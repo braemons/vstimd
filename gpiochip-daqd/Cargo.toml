@@ -43,8 +43,9 @@ via the Linux GPIO character device (/dev/gpiochipN).  Compatible with any \
 Linux board that exposes GPIO through the kernel character device interface.\
 """
 assets = [
-    ["target/release/gpiochip-daqd",               "usr/bin/gpiochip-daqd",                        "755"],
-    ["config/jetson-orin-nano_in16_out4.toml",       "etc/braemons/gpiochip-daqd/gpiochip-daqd.toml", "644"],
+    ["target/release/gpiochip-daqd",            "usr/bin/gpiochip-daqd",                                      "755"],
+    ["config/default-config.toml",              "etc/braemons/gpiochip-daqd-config.toml",                     "644"],
+    ["config/jetson-orin-nano_in16_out4.toml",  "usr/share/braemons/gpiochip-daqd/jetson-orin-nano.toml",     "644"],
 ]
 maintainer-scripts = "../packaging/debian/"
 

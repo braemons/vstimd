@@ -148,15 +148,14 @@ pub struct VtlNameEntry {
 }
 
 /// Serializable VTL configuration — owned by `VtlState.config`.
+///
+/// This is the experiment-level (stim-config) portion of VTL config: named
+/// lines that describe what each bit means for the current experiment.
+/// Hardware-level settings (shm name, bank counts, vblank trigger bit) live
+/// in the rig-config (`RigConfig.vtl`).
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 pub struct VtlConfig {
     pub names: Vec<VtlNameEntry>,
-    /// Output bit that the render loop drives HIGH at the start of each frame
-    /// (immediately after the vblank wait) and LOW once the GPU work for that
-    /// frame has been submitted.  The pulse width is vstimd's per-frame compute
-    /// time.  Optional — omit to disable the vblank trigger.
-    #[serde(skip_serializing_if = "Option::is_none", default)]
-    pub vblank_vtl: Option<VtlBit>,
 }
 
 #[derive(Default, Clone)]
@@ -168,6 +167,8 @@ pub struct VtlEdges {
 
 pub struct VtlState {
     pub config:  VtlConfig,
+    /// Vblank trigger bit from rig-config; None disables the trigger.
+    pub vblank_vtl: Option<VtlBit>,
     owner:       VtlOwner,
     prev_input:  [u64; MAX_BANKS],
     prev_output: [u64; MAX_BANKS],
@@ -184,7 +185,13 @@ impl std::ops::DerefMut for VtlState {
 
 impl VtlState {
     pub fn new(owner: VtlOwner) -> Self {
-        Self { config: VtlConfig::default(), owner, prev_input: [0; MAX_BANKS], prev_output: [0; MAX_BANKS] }
+        Self {
+            config: VtlConfig::default(),
+            vblank_vtl: None,
+            owner,
+            prev_input:  [0; MAX_BANKS],
+            prev_output: [0; MAX_BANKS],
+        }
     }
 
     pub fn owner(&self) -> &VtlOwner {
@@ -264,7 +271,7 @@ impl VtlState {
     /// [C], so the trigger goes LOW automatically.
     pub fn vblank_mask(&self) -> [u64; MAX_BANKS] {
         let mut mask = [0u64; MAX_BANKS];
-        if let Some(vb) = self.config.vblank_vtl {
+        if let Some(vb) = self.vblank_vtl {
             if vb.bank < MAX_BANKS {
                 mask[vb.bank] |= 1u64 << vb.bit;
             }
