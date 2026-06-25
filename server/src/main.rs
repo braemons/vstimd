@@ -1,8 +1,9 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(target_os = "linux")]
-use vstimd::render::DrmRenderState;
-use vstimd::render::{RenderTarget, WindowMode, WinitApp, query_hardware_model};
+use vstimd::render::drm::run_render_loop as run_drm_render_loop;
+use vstimd::render::{RenderTarget, WindowMode, query_hardware_model};
+use vstimd::render::winit_vk::run_render_loop as run_winit_render_loop;
 use vstimd::scene::SceneState;
 use vstimd::vtl_state::VtlState;
 
@@ -78,11 +79,11 @@ fn main() {
     match args.render_target {
         #[cfg(target_os = "linux")]
         RenderTarget::Drm => {
-            let rs = DrmRenderState::new(scene, vtl, log_buffer, hardware_model);
-            if wait_zmq_bound(&zmq_bound, args.zmq_port) {
-                notify_ready();
-            }
-            rs.run_loop();
+            run_drm_render_loop(scene, vtl, log_buffer, hardware_model, || {
+                if wait_zmq_bound(&zmq_bound, args.zmq_port) {
+                    notify_ready();
+                }
+            });
         }
         #[cfg(not(target_os = "linux"))]
         RenderTarget::Drm => {
@@ -90,16 +91,11 @@ fn main() {
             std::process::exit(1);
         }
         RenderTarget::Desktop(window_mode) => {
-            let event_loop = winit::event_loop::EventLoop::new().unwrap_or_else(|e| {
-                log::error!("vstimd: failed to create event loop: {e}");
-                std::process::exit(1);
+            run_winit_render_loop(scene, vtl, window_mode, log_buffer, hardware_model, || {
+                if wait_zmq_bound(&zmq_bound, args.zmq_port) {
+                    notify_ready();
+                }
             });
-            event_loop.set_control_flow(winit::event_loop::ControlFlow::Poll);
-            let mut app = WinitApp::new(scene, vtl, window_mode, log_buffer, hardware_model);
-            if wait_zmq_bound(&zmq_bound, args.zmq_port) {
-                notify_ready();
-            }
-            event_loop.run_app(&mut app).unwrap();
         }
         RenderTarget::Null => {
             log::info!("vstimd: null renderer — ZMQ server + animation loop running, no display");

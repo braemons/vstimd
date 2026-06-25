@@ -2,19 +2,7 @@ use input::event::keyboard::KeyboardEventTrait as _;
 use std::os::fd::OwnedFd;
 use std::path::Path;
 
-// ── Application-level key actions ────────────────────────────────────────────
-
-// TODO: This should be somewhere else, it's shared between drm and winit
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum AppKey {
-    Escape,
-    F1,
-    F2,
-    F3,
-    D,
-    /// Ctrl+Alt+Fn pressed — forward to the kernel as a VT switch.
-    SwitchVt(u16),
-}
+use crate::render::AppKey;
 
 // ── TTY keyboard suppression guard ───────────────────────────────────────────
 

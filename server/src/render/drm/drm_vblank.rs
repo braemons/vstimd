@@ -4,6 +4,8 @@ use std::time::Instant;
 use drm::Device as DrmDevice;
 use drm::control::Device as ControlDevice;
 
+use crate::render::system_info::ClockSource;
+
 struct Card(std::fs::File);
 
 impl AsFd for Card {
@@ -36,7 +38,7 @@ impl DrmVblank {
 
             // Release master immediately. Opening with O_RDWR automatically
             // grants DRM master when no other fd holds it (which is the case
-            // here: DisplayGuard already released master). If we keep master,
+            // here: DrmDisplayGuard already released master). If we keep master,
             // VK_KHR_display cannot acquire it during swapchain creation.
             // wait_vblank is an unprivileged ioctl — no master required.
             if let Err(err) = DrmDevice::release_master_lock(&card) {
@@ -85,6 +87,8 @@ impl DrmVblank {
     }
 }
 
+// ── VkVblank ─────────────────────────────────────────────────────────────────
+
 /// Vblank clock using `VK_EXT_display_control`.
 ///
 /// `vkRegisterDisplayEventEXT` creates a one-shot fence that fires on the
@@ -114,11 +118,7 @@ impl VkVblank {
         loader: ash::ext::display_control::Device,
         display: ash::vk::DisplayKHR,
     ) -> Self {
-        Self {
-            device,
-            loader,
-            display,
-        }
+        Self { device, loader, display }
     }
 
     /// Register a FIRST_PIXEL_OUT event and return the one-shot fence.
@@ -152,5 +152,88 @@ impl VkVblank {
         unsafe { self.device.destroy_fence(fence, None) };
         wait_result.ok()?;
         Some(t)
+    }
+}
+
+// ── DrmVblankState ────────────────────────────────────────────────────────────
+
+/// Owns both vblank clock sources and the pending FIRST_PIXEL_OUT fence,
+/// collapsing the three separate fields and two methods that previously lived
+/// in `DrmRenderState`.
+pub struct DrmVblankState {
+    drm: Option<DrmVblank>,
+    vk: Option<VkVblank>,
+    /// Fence registered at end of previous frame; collected at start of next.
+    pending_fence: Option<ash::vk::Fence>,
+    /// Retained solely to destroy any orphaned fence if `vk` is disabled
+    /// between a register and the following collect.
+    device: ash::Device,
+}
+
+impl DrmVblankState {
+    pub fn new(device: ash::Device, drm: Option<DrmVblank>, vk: Option<VkVblank>) -> Self {
+        Self { device, drm, vk, pending_fence: None }
+    }
+
+    pub fn clock_source(&self, has_present_wait: bool) -> ClockSource {
+        if self.drm.is_some() {
+            ClockSource::DrmVblank
+        } else if self.vk.is_some() {
+            ClockSource::VkDisplayControl
+        } else if has_present_wait {
+            ClockSource::PresentWait
+        } else {
+            ClockSource::GpuCompletion
+        }
+    }
+
+    /// Block until the next vblank (DRM path) or collect the pending
+    /// FIRST_PIXEL_OUT fence registered at the end of the previous frame
+    /// (VK path).  Returns `None` on frame 0 or when no clock is available.
+    pub fn wait(&mut self) -> Option<Instant> {
+        if let Some(vblank) = self.drm.as_ref() {
+            match vblank.wait() {
+                Some(t) => return Some(t),
+                None => {
+                    log::warn!("vstimd: disabling DRM vblank clock after wait_vblank error");
+                    self.drm = None;
+                }
+            }
+        }
+        // VK path: collect the fence registered at the end of the previous frame.
+        // On frame 0 there is no pending fence; we return None and render without
+        // a vblank timestamp (render_one_frame falls back to Instant::now()).
+        if let Some(fence) = self.pending_fence.take() {
+            if let Some(vblank) = self.vk.as_ref() {
+                match vblank.collect(fence) {
+                    Some(t) => return Some(t),
+                    None => {
+                        log::warn!("vstimd: disabling VK_EXT_display_control vblank after error");
+                        self.vk = None;
+                    }
+                }
+            } else {
+                // vk was disabled between register and collect; destroy the orphaned fence.
+                unsafe { self.device.destroy_fence(fence, None) };
+            }
+        }
+        None
+    }
+
+    /// Register a FIRST_PIXEL_OUT fence for collection at the top of the next
+    /// frame.  No-op on the DRM path (DRM uses a blocking ioctl instead) and
+    /// on frame 0 (driver returns ERROR_UNKNOWN on Tegra before first present).
+    pub fn register(&mut self, frame_index: u64) {
+        if self.drm.is_some() {
+            return;
+        }
+        // vkRegisterDisplayEventEXT always returns ERROR_UNKNOWN on NVIDIA Tegra
+        // before the first present.  Skip frame 0 to avoid a spurious warning.
+        if frame_index == 0 {
+            return;
+        }
+        if let Some(vblank) = self.vk.as_ref() {
+            self.pending_fence = vblank.register();
+        }
     }
 }
