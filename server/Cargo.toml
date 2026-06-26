@@ -20,6 +20,7 @@ anyhow     = "1"
 indexmap   = { version = "2", features = ["serde"] }
 serde      = { version = "1", features = ["derive"] }
 serde_json = "1"
+toml       = "0.8"
 lyon_tessellation = "1.0"
 log        = "0.4"
 prost      = "0.13"
@@ -54,6 +55,7 @@ prost-build = "0.13"
 naga        = { version = "23", features = ["wgsl-in", "spv-out"] }
 
 [package.metadata.deb]
+name              = "braemons-vstimd"
 maintainer        = "Joscha Schmiedt <joscha@schmiedt.dev>"
 depends           = "$auto, libvulkan1, adduser"
 recommends        = "vulkan-tools"
@@ -65,10 +67,14 @@ providing sub-millisecond frame timing for psychophysics experiments.\n\
 Communicates via ZMQ (port 5555) using a protobuf protocol. Supports \
 Jetson Orin Nano, Raspberry Pi 4/5, and desktop NVIDIA/AMD GPUs."""
 assets = [
-    ["target/release/vstimd",              "usr/bin/vstimd",                         "755"],
-    ["../packaging/sysusers/vstimd.conf",  "usr/lib/sysusers.d/vstimd.conf",         "644"],
-    ["../packaging/rsyslog/vstimd.conf",   "etc/rsyslog.d/10-vstimd.conf",           "644"],
-    ["../packaging/logrotate/vstimd",      "etc/logrotate.d/vstimd",                 "644"],
+    ["target/release/vstimd",                    "usr/bin/vstimd",                                             "755"],
+    ["../packaging/sysusers/vstimd.conf",         "usr/lib/sysusers.d/vstimd.conf",                            "644"],
+    ["../packaging/rsyslog/vstimd.conf",          "etc/rsyslog.d/10-vstimd.conf",                              "644"],
+    ["../packaging/logrotate/vstimd",             "etc/logrotate.d/vstimd",                                    "644"],
+    ["config/default-rig-config.toml",           "etc/braemons/vstimd-rig-config.toml",                       "644"],
+    ["config/jetson-orin-nano.toml",             "usr/share/braemons/vstimd/jetson-orin-nano.toml",           "644"],
+    ["config/raspberry-pi-5.toml",               "usr/share/braemons/vstimd/raspberry-pi-5.toml",             "644"],
+    ["config/raspberry-pi-4.toml",               "usr/share/braemons/vstimd/raspberry-pi-4.toml",             "644"],
 ]
 maintainer-scripts = "../packaging/debian/"
 

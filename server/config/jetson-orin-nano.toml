@@ -1,0 +1,45 @@
+# vstimd rig-config — NVIDIA Jetson Orin Nano
+#
+# Install to: /etc/braemons/vstimd-rig-config.toml
+#
+# This file configures hardware-specific behaviour that does not change between
+# experiments.  Experiment-level settings (stimuli, named VTL lines) go in the
+# stim-config passed via --config.
+#
+# Companion daemon config: /etc/braemons/gpiochip-daqd-config.toml
+# See /usr/share/braemons/gpiochip-daqd/jetson-orin-nano.toml for a matching example.
+
+# ── VTL shared memory ─────────────────────────────────────────────────────────
+[vtl]
+# POSIX shared-memory name — must match shm_name in gpiochip-daqd-config.toml.
+shm_name         = "/vstimd_vtl"
+# 64 input bits; sufficient for 16 GPIO inputs on Orin Nano.
+num_input_banks  = 1
+# 64 output bits; gpiochip-daqd uses bits 36–40 in the Jetson example.
+num_output_banks = 1
+
+# Vblank trigger: pulsed HIGH immediately after each vblank wait, LOW after the
+# GPU command buffer is submitted.  Pulse width = vstimd's per-frame compute
+# time.  Bit 63 is safe — not used by any gpiochip-daqd output line.
+#
+# Ensure this bit is NOT listed as a vtl_bit in [[outputs]] in gpiochip-daqd
+# config, or both daemons will fight over the same bit.
+[vtl.vblank]
+bank = 0
+bit  = 63
+
+# ── Display ───────────────────────────────────────────────────────────────────
+# Preferred DRM display mode.  Omit to accept the display's EDID preferred mode.
+# Not yet applied — wiring into DRM mode selection is a planned feature.
+#
+# [display]
+# width      = 1920
+# height     = 1080
+# refresh_hz = 60.0
+
+# ── Thread scheduling ─────────────────────────────────────────────────────────
+# CPU core affinity for the render/vblank thread.  Not yet applied.
+# On Orin Nano the efficiency cores are 0–3; performance cores are 4–5.
+#
+# [scheduling]
+# render_cpu_core = 5

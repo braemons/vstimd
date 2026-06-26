@@ -5,6 +5,7 @@ use vstimd::render::drm::DrmBackend;
 use vstimd::render::{BackendData, HostInfo, NullBackend, RenderTarget, WindowMode};
 use vstimd::render::{query_hardware_model, query_hostname, query_local_ip};
 use vstimd::render::winit_vk::WinitBackend;
+use vstimd::rig_config;
 use vstimd::scene::SceneState;
 use vstimd::vtl_state::VtlState;
 
@@ -31,6 +32,24 @@ fn main() {
     };
     log::info!("vstimd: hardware: {}", host_info.hardware_model);
 
+    // Load rig-config (hardware-specific settings). Non-fatal if absent.
+    let rig = match rig_config::load(&args.rig_config) {
+        Ok(r) => {
+            log::info!("vstimd: rig-config loaded from {}", args.rig_config);
+            if let Some(ref d) = r.display.width.map(|w| format!("{w}×{}@{}Hz",
+                r.display.height.unwrap_or(0),
+                r.display.refresh_hz.unwrap_or(0.0)))
+            {
+                log::info!("vstimd: rig display preference: {d} (not yet applied to DRM mode)");
+            }
+            r
+        }
+        Err(e) => {
+            log::error!("vstimd: {e}");
+            std::process::exit(1);
+        }
+    };
+
     let config_dir = args
         .config_dir
         .clone()
@@ -39,19 +58,33 @@ fn main() {
         config_dir.clone(),
     )));
 
-    // Create VTL shared memory on Linux. The Arc<Mutex<>> lets both the ZMQ
-    // thread (software triggers, naming) and the render backend (frame polling)
-    // access it safely.
+    // Create VTL shared memory on Linux using rig-config parameters.
+    // The Arc<Mutex<>> lets both the ZMQ thread (software triggers, naming)
+    // and the render backend (frame polling) access it safely.
     #[cfg(target_os = "linux")]
-    let vtl: Option<Arc<Mutex<VtlState>>> = vtl::VtlOwner::create("/vstimd_vtl", 4, 1)
-        .map(|owner| Arc::new(Mutex::new(VtlState::new(owner))))
-        .map_err(|e| log::warn!("vtl: failed to create shm segment: {e}"))
-        .ok();
+    let vtl: Option<Arc<Mutex<VtlState>>> = vtl::VtlOwner::create(
+        &rig.vtl.shm_name,
+        rig.vtl.num_input_banks,
+        rig.vtl.num_output_banks,
+    )
+    .map(|owner| {
+        let mut state = VtlState::new(owner);
+        state.vblank_vtl = rig.vtl.vblank;
+        Arc::new(Mutex::new(state))
+    })
+    .map_err(|e| log::warn!("vtl: failed to create shm segment: {e}"))
+    .ok();
     #[cfg(not(target_os = "linux"))]
     let vtl: Option<Arc<Mutex<VtlState>>> = None;
 
     if vtl.is_some() {
-        log::info!("vtl: shared memory segment created at /vstimd_vtl");
+        log::info!(
+            "vtl: segment '{}' created ({} in / {} out bank(s)){}",
+            rig.vtl.shm_name,
+            rig.vtl.num_input_banks,
+            rig.vtl.num_output_banks,
+            rig.vtl.vblank.map_or(String::new(), |vb| format!("  vblank=bank{}·bit{}", vb.bank, vb.bit)),
+        );
     }
 
     if let Some(ref path) = args.config_file {
@@ -117,6 +150,7 @@ struct Args {
     render_target: RenderTarget,
     verbose: bool,
     zmq_port: u16,
+    rig_config: String,
     config_file: Option<std::path::PathBuf>,
     config_dir: Option<std::path::PathBuf>,
 }
@@ -153,6 +187,7 @@ fn parse_args() -> Args {
     let mut verbose = false;
     let mut null = false;
     let zmq_port = vstimd::ipc::DEFAULT_ZMQ_PORT;
+    let mut rig_config  = rig_config::DEFAULT_PATH.to_string();
     let mut config_file: Option<std::path::PathBuf> = None;
     let mut config_dir: Option<std::path::PathBuf> = None;
 
@@ -171,6 +206,12 @@ fn parse_args() -> Args {
                     width: w,
                     height: h,
                 };
+            }
+            "--rig-config" => {
+                rig_config = args.next().unwrap_or_else(|| {
+                    eprintln!("vstimd: --rig-config requires a path argument");
+                    std::process::exit(1);
+                });
             }
             "--config" => {
                 config_file = args.next().map(std::path::PathBuf::from);
@@ -201,6 +242,7 @@ fn parse_args() -> Args {
         render_target,
         verbose,
         zmq_port,
+        rig_config,
         config_file,
         config_dir,
     }
@@ -257,8 +299,10 @@ fn print_usage() {
     eprintln!("  -w, --windowed <WxH>      Start in windowed mode with size WxH (desktop only)");
     eprintln!("      --null                No rendering; ZMQ server only (also: VSTIMD_NULL=1)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
-    eprintln!("      --config <path>        Load config file at startup");
-    eprintln!("      --config-dir <path>    Directory for named config files (default: .)");
+    eprintln!("      --rig-config <path>   Rig config (default: {})", vstimd::rig_config::DEFAULT_PATH);
+    eprintln!("      --config <path>       Load stim-config file at startup");
+    eprintln!("      --config-dir <path>   Directory for named stim-config files (default: .)");
+
     eprintln!("  -h, --help                Show this help message");
     eprintln!();
     eprintln!("Render target is automatically detected:");

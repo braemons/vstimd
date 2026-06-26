@@ -1,0 +1,56 @@
+# vstimd rig-config — /etc/braemons/vstimd-rig-config.toml
+#
+# This file configures hardware-specific behaviour that does not change between
+# experiments.  Experiment-level settings (stimuli, named VTL lines) go in the
+# stim-config passed via --config.
+#
+# All settings are optional; uncomment and adjust as needed.  The values shown
+# are the built-in defaults.
+#
+# Board-specific examples (with GPIO line numbers pre-filled) are in:
+#   /usr/share/braemons/vstimd/
+#     jetson-orin-nano.toml
+#     raspberry-pi-5.toml
+#     raspberry-pi-4.toml
+#
+# To start with a board example:
+#   cp /usr/share/braemons/vstimd/jetson-orin-nano.toml \
+#      /etc/braemons/vstimd-rig-config.toml
+
+# ── VTL shared memory ─────────────────────────────────────────────────────────
+# [vtl]
+# # POSIX shared-memory name — must start with '/'.
+# # Must match shm_name in /etc/braemons/gpiochip-daqd-config.toml.
+# shm_name = "/vstimd_vtl"
+#
+# # Number of 64-bit input banks.  Total input bits = num_input_banks × 64.
+# # Increase for rigs with more than 64 GPIO inputs.
+# num_input_banks = 1
+#
+# # Number of 64-bit output banks.  Total output bits = num_output_banks × 64.
+# num_output_banks = 1
+#
+# # Vblank trigger: one output bit that vstimd pulses HIGH immediately after
+# # each vblank wait and LOW after the GPU command buffer is submitted.
+# # The pulse width equals vstimd's per-frame GPU work time (~0.1–1 ms).
+# # Useful for aligning external DAQ timestamps to frame boundaries.
+# # Pick a bit not used by any gpiochip-daqd [[outputs]] entry.
+# [vtl.vblank]
+# bank = 0
+# bit  = 63
+
+# ── Display (DRM/console mode only) ──────────────────────────────────────────
+# Preferred display mode.  Omit to accept the display's EDID preferred mode.
+# Not yet applied — wiring into DRM mode selection is a planned feature.
+#
+# [display]
+# width      = 1920
+# height     = 1080
+# refresh_hz = 60.0
+
+# ── Thread scheduling ─────────────────────────────────────────────────────────
+# CPU core affinity for vstimd's render/vblank thread.
+# Not yet applied — CPU affinity wiring is a planned feature.
+#
+# [scheduling]
+# render_cpu_core = 3
