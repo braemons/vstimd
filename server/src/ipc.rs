@@ -145,13 +145,16 @@ async fn zmq_loop(
                     }
                 };
 
-                let bytes: Vec<u8> = msg
-                    .into_vec()
-                    .into_iter()
-                    .flat_map(|frame| frame.to_vec())
-                    .collect();
+                // REP requests are almost always a single frame: decode straight
+                // off it and avoid copying the payload. Only multi-frame messages
+                // need to be concatenated into an owned buffer.
+                let frames = msg.into_vec();
+                let bytes: std::borrow::Cow<[u8]> = match frames.as_slice() {
+                    [frame] => std::borrow::Cow::Borrowed(frame.as_ref()),
+                    _ => std::borrow::Cow::Owned(frames.iter().flat_map(|f| f.iter().copied()).collect()),
+                };
 
-                let response = match proto::Request::decode(bytes.as_slice()) {
+                let response = match proto::Request::decode(bytes.as_ref()) {
                     Ok(req) => {
                         match &req.body {
                             Some(proto::request::Body::WaitForFrames(cmd)) => {
