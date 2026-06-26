@@ -46,6 +46,10 @@ pub struct SceneRuntimeState {
     pub frame_count: u64,
     /// Notifies the ZMQ thread whenever `frame_count` advances.
     pub frame_notifier: std::sync::Arc<tokio::sync::watch::Sender<u64>>,
+    /// Reusable buffer for the per-frame animation-handle snapshot in
+    /// [`SceneState::advance_animations`]. Kept here so its allocation is reused
+    /// across frames instead of being reallocated each tick.
+    anim_scratch: Vec<u32>,
 }
 
 impl SceneRuntimeState {
@@ -66,6 +70,7 @@ impl SceneRuntimeState {
             server_start: std::time::Instant::now(),
             frame_count: 0,
             frame_notifier: std::sync::Arc::new(tx),
+            anim_scratch: Vec::new(),
         }
     }
 
@@ -166,10 +171,16 @@ impl SceneState {
         output_snapshot: &[u64; vtl::MAX_BANKS],
         output_pending: &mut [u64; vtl::MAX_BANKS],
     ) {
-        let handles: Vec<u32> = self.animations.keys().copied().collect();
-        for handle in handles {
+        // Snapshot the handles into a reused buffer: `advance_one` borrows the
+        // whole `SceneState` mutably, so we can't iterate `self.animations`
+        // directly. Taking the scratch Vec out lets us hand `self` to the callee.
+        let mut handles = std::mem::take(&mut self.runtime.anim_scratch);
+        handles.clear();
+        handles.extend(self.animations.keys().copied());
+        for &handle in &handles {
             advance_one(handle, self, input_edges, output_snapshot, output_pending);
         }
+        self.runtime.anim_scratch = handles;
     }
 
     // ── Deferred mode ─────────────────────────────────────────────────────────
