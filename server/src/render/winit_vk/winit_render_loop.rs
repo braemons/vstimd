@@ -185,7 +185,7 @@ impl WinitRenderLoopData {
         // 1. Collect egui input (via winit event integration, if overlay is on).
         let egui_raw_input = self.rs.ui
             .as_ref()
-            .filter(|ui| ui.show_overlay)
+            .filter(|ui| ui.overlay.master_visible)
             .map(|_| self.egui_winit.take_egui_input(&self.window));
 
         // [A] Commit staged outputs; poll inputs; advance animations.
@@ -364,44 +364,59 @@ impl ApplicationHandler for WinitEventHandler {
                         ..
                     },
                 ..
-            } => match key {
-                KeyCode::Escape => event_loop.exit(),
-                KeyCode::F1 => {
+            } => {
+                use crate::render::overlay_ui::OverlayGroup;
+                let group = match key {
+                    KeyCode::F1 => Some(OverlayGroup::Stimuli),
+                    KeyCode::F2 => Some(OverlayGroup::Log),
+                    KeyCode::F3 => Some(OverlayGroup::Vtl),
+                    KeyCode::F4 => Some(OverlayGroup::Animations),
+                    KeyCode::F5 => Some(OverlayGroup::System),
+                    KeyCode::F6 => Some(OverlayGroup::Config),
+                    KeyCode::F7 => Some(OverlayGroup::Benchmarks),
+                    _ => None,
+                };
+                if let Some(group) = group {
                     if let Some(data) = &mut self.render_data
                         && let Some(ui) = &mut data.rs.ui
                     {
-                        ui.show_overlay = !ui.show_overlay;
+                        ui.overlay.select_group(group);
+                    }
+                } else {
+                    match key {
+                        // Esc never quits — close a dialog or hide the overlay.
+                        // The window close button / Alt+F4 still exit the app.
+                        KeyCode::Escape => {
+                            if let Some(data) = &mut self.render_data
+                                && let Some(ui) = &mut data.rs.ui
+                            {
+                                ui.overlay.handle_escape();
+                            }
+                        }
+                        KeyCode::Backquote => {
+                            if let Some(data) = &mut self.render_data
+                                && let Some(ui) = &mut data.rs.ui
+                            {
+                                ui.overlay.toggle_master();
+                            }
+                        }
+                        KeyCode::KeyD => {
+                            // Demo spawn only when the overlay is hidden, so 'd'
+                            // types into dialog fields while the overlay is up.
+                            if let Some(data) = &self.render_data {
+                                let overlay_up = data.rs.ui.as_ref().is_some_and(|ui| ui.overlay.master_visible);
+                                if !overlay_up {
+                                    crate::render::spawn_demo_stimuli(&data.rs.scene_renderer.scene);
+                                }
+                            }
+                        }
+                        KeyCode::F11 => self.toggle_fullscreen(event_loop),
+                        KeyCode::Enter if self.modifiers.state().alt_key() => {
+                            self.toggle_fullscreen(event_loop);
+                        }
+                        _ => {}
                     }
                 }
-                KeyCode::F2 => {
-                    if let Some(data) = &self.render_data {
-                        let mut sc = data.rs.scene_renderer.scene.write().expect("scene lock");
-                        sc.photodiode.enabled = !sc.photodiode.enabled;
-                        sc.photodiode.flicker = true;
-                        sc.photodiode.lit = false;
-                    }
-                }
-                KeyCode::F3 => {
-                    if let Some(data) = &mut self.render_data
-                        && data.rs.ctx.supports_wireframe
-                    {
-                        data.rs.scene_renderer.wireframe = !data.rs.scene_renderer.wireframe;
-                        log::info!(
-                            "vstimd: wireframe {}",
-                            if data.rs.scene_renderer.wireframe { "ON" } else { "OFF" }
-                        );
-                    }
-                }
-                KeyCode::KeyD => {
-                    if let Some(data) = &self.render_data {
-                        crate::render::spawn_demo_stimuli(&data.rs.scene_renderer.scene);
-                    }
-                }
-                KeyCode::F11 => self.toggle_fullscreen(event_loop),
-                KeyCode::Enter if self.modifiers.state().alt_key() => {
-                    self.toggle_fullscreen(event_loop);
-                }
-                _ => {}
             },
             WindowEvent::RedrawRequested => {
                 if let Some(data) = &mut self.render_data {
