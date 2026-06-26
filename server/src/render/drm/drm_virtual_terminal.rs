@@ -9,7 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 ///
 /// On drop the VT is restored to `KD_TEXT` and the previously active VT is
 /// reactivated.
-pub struct VtGuard {
+pub struct DrmVtGuard {
     fd: libc::c_int,
     prev_vt: u16,
     /// The fd that Vulkan's VK_KHR_display holds DRM master on.
@@ -54,7 +54,7 @@ extern "C" fn handle_sigusr2(_: libc::c_int) {
     VT_ACQUIRE_REQUESTED.store(true, Ordering::Relaxed);
 }
 
-impl VtGuard {
+impl DrmVtGuard {
     pub fn acquire() -> Self {
         let target_vt = vt_number_from_env();
 
@@ -214,7 +214,7 @@ impl VtGuard {
     }
 }
 
-impl Drop for VtGuard {
+impl Drop for DrmVtGuard {
     fn drop(&mut self) {
         unsafe {
             // Restore VT_AUTO so the kernel handles subsequent switches itself.
@@ -253,7 +253,6 @@ fn open_vt(target_vt: u16) -> libc::c_int {
     }
 }
 
-/// Return the path of the TTY attached to `fd`, or `None`.
 fn ttyname_of(fd: libc::c_int) -> Option<String> {
     let mut buf = [0u8; 64];
     let ret = unsafe {
@@ -266,7 +265,6 @@ fn ttyname_of(fd: libc::c_int) -> Option<String> {
     Some(String::from_utf8_lossy(&buf[..end]).into_owned())
 }
 
-/// VT number from `VSTIMD_TTY=<n>`, defaulting to 3.
 fn vt_number_from_env() -> u16 {
     match std::env::var("VSTIMD_TTY") {
         Ok(s) => match s.trim().parse::<u16>() {
@@ -280,8 +278,6 @@ fn vt_number_from_env() -> u16 {
     }
 }
 
-/// Read the currently active VT number from `/sys/class/tty/tty0/active`
-/// (returns e.g. `"tty1"`).  Falls back to `None` if the file cannot be read.
 fn active_vt() -> Option<u16> {
     let s = std::fs::read_to_string("/sys/class/tty/tty0/active").ok()?;
     s.trim().strip_prefix("tty")?.parse().ok()

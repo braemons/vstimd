@@ -1,21 +1,23 @@
 pub mod buffers;
-pub mod context;
+pub mod vk_instance;
+pub use vk_instance::create_vk_instance;
+pub mod cache;
 pub mod egui;
-pub mod frame;
-pub mod pipeline;
-pub mod scene_cache;
-pub mod text_atlas;
-pub mod text_pipeline;
+pub mod vk_context;
+pub mod vk_mesh;
+pub mod vk_render_pipeline;
+pub mod vk_text_atlas;
+pub mod vk_text_pipeline;
 
-pub use context::{VkContext, build_context};
-pub use egui::VkEguiRenderer;
-pub use frame::{EguiFrameData, render_frame};
-pub use pipeline::VkPipeline;
-pub use scene_cache::SceneCache;
-pub use text_atlas::GlyphAtlas;
-#[allow(unused_imports)]
-pub use text_atlas::AtlasEntry;
-pub use text_pipeline::VkTextPipeline;
-#[allow(unused_imports)]
-pub use text_pipeline::{TextMeshCache, TextPushConstants, TextVertex};
 pub use crate::scene::stimulus::grating::VkGratingPipeline;
+pub use cache::SceneCache;
+pub use egui::VkEguiRenderer;
+pub use vk_context::{VkContext, build_context};
+pub use vk_mesh::VkMesh;
+pub use vk_render_pipeline::VkPipeline;
+#[allow(unused_imports)]
+pub use vk_text_atlas::AtlasEntry;
+pub use vk_text_atlas::GlyphAtlas;
+pub use vk_text_pipeline::VkTextPipeline;
+#[allow(unused_imports)]
+pub use vk_text_pipeline::{TextPushConstants, TextVertex};

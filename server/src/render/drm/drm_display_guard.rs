@@ -36,16 +36,16 @@ struct SavedOutput {
     framebuffer: Option<drm::control::framebuffer::Handle>,
 }
 
-// ── DisplayGuard ──────────────────────────────────────────────────────────────
+// ── DrmDisplayGuard ───────────────────────────────────────────────────────────
 
 /// Opens the display controller DRM node, snapshots active CRTC state, and
 /// restores it on drop so the framebuffer console can reclaim the display.
-pub struct DisplayGuard {
+pub struct DrmDisplayGuard {
     card: Card,
     saved: Vec<SavedOutput>,
 }
 
-impl DisplayGuard {
+impl DrmDisplayGuard {
     /// Find the display controller and snapshot current CRTC state.
     ///
     /// Walks `/dev/dri/card0..7`, picks the first card that has connected
@@ -173,7 +173,6 @@ impl DisplayGuard {
 
 // ── VRR suppression helpers ───────────────────────────────────────────────────
 
-/// Try to set VRR_ENABLED = 0 on a CRTC.
 fn disable_vrr_on_crtc(card: &Card, crtc: drm::control::crtc::Handle) {
     let props = match card.get_properties(crtc) {
         Ok(p) => p,
@@ -195,7 +194,6 @@ fn disable_vrr_on_crtc(card: &Card, crtc: drm::control::crtc::Handle) {
     }
 }
 
-/// Try to clear VRR / Adaptive Sync properties on a connector.
 fn disable_vrr_on_connector(card: &Card, conn: drm::control::connector::Handle) {
     let props = match card.get_properties(conn) {
         Ok(p) => p,
@@ -213,18 +211,14 @@ fn disable_vrr_on_connector(card: &Card, conn: drm::control::connector::Handle) 
             || name.eq_ignore_ascii_case("vrr_capable")
         {
             match card.set_property(conn, prop_handle, 0) {
-                Ok(()) => log::debug!(
-                    "vstimd: set {name}=0 on connector {conn:?}"
-                ),
-                Err(e) => log::debug!(
-                    "vstimd: set {name}=0 on {conn:?}: {e}"
-                ),
+                Ok(()) => log::debug!("vstimd: set {name}=0 on connector {conn:?}"),
+                Err(e) => log::debug!("vstimd: set {name}=0 on {conn:?}: {e}"),
             }
         }
     }
 }
 
-impl Drop for DisplayGuard {
+impl Drop for DrmDisplayGuard {
     fn drop(&mut self) {
         if self.saved.is_empty() {
             return;
@@ -245,7 +239,8 @@ impl Drop for DisplayGuard {
             ) {
                 Ok(()) => log::info!(
                     "vstimd: CRTC {:?} restored → fb {:?}",
-                    out.crtc_handle, out.framebuffer
+                    out.crtc_handle,
+                    out.framebuffer
                 ),
                 Err(e) => log::error!("vstimd: set_crtc({:?}) failed: {e}", out.crtc_handle),
             }
