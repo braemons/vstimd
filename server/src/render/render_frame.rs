@@ -141,34 +141,25 @@ pub fn render_frame(
         cache.solid.stroke_meshes.retain(|h, _| sc.stimuli.contains_key(h));
         cache.text.meshes.retain(|h, _| sc.stimuli.contains_key(h));
 
-        let handles: Vec<u32> = sc.stimuli.keys().copied().collect();
-        for handle in handles {
-            if let Some(entry) = sc.stimuli.get_mut(&handle)
-                && let Stimulus::Grating(s) = &mut entry.stimulus
-            {
-                if s.flags.is_visible() && s.params.live.drift_speed != 0.0 {
-                    s.phase_accum += grating_phase_inc(s, fps);
+        for (&handle, entry) in sc.stimuli.iter_mut() {
+            match &mut entry.stimulus {
+                Stimulus::Grating(s) => {
+                    if s.flags.is_visible() && s.params.live.drift_speed != 0.0 {
+                        s.phase_accum += grating_phase_inc(s, fps);
+                    }
                 }
-                continue;
-            }
 
-            if matches!(sc.stimuli[&handle].stimulus, Stimulus::Text(_)) {
-                let (skip, glyphs) = {
-                    let Stimulus::Text(text) = &sc.stimuli[&handle].stimulus else { unreachable!() };
+                Stimulus::Text(text) => {
                     let has_mesh = cache.text.meshes.contains_key(&handle);
                     if !text.flags.dirty && (text.flags.is_visible() == has_mesh) {
-                        (true, vec![])
-                    } else {
-                        let gs = if text.flags.is_visible() {
-                            layout_and_rasterize(text, screen_w, screen_h, &mut rs.text.font_system, &mut rs.text.swash_cache)
-                        } else {
-                            Default::default()
-                        };
-                        (false, gs)
+                        continue;
                     }
-                };
+                    let glyphs = if text.flags.is_visible() {
+                        layout_and_rasterize(text, screen_w, screen_h, &mut rs.text.font_system, &mut rs.text.swash_cache)
+                    } else {
+                        Default::default()
+                    };
 
-                if !skip {
                     let half_w = screen_w * 0.5;
                     let half_h = screen_h * 0.5;
                     let mut verts: Vec<TextVertex> = Vec::new();
@@ -192,25 +183,24 @@ pub fn render_frame(
                         idxs.extend_from_slice(&[base, base+1, base+2, base, base+2, base+3]);
                     }
                     cache.text.upload(handle, &ctx.device, bytemuck::cast_slice(&verts), &idxs);
-                    sc.stimuli[&handle].stimulus.flags_mut().dirty = false;
+                    text.flags.dirty = false;
                 }
-                continue;
-            }
 
-            let entry = &sc.stimuli[&handle];
-            let Stimulus::Shape(shape) = &entry.stimulus else { continue };
-            let has_mesh = cache.solid.fill_meshes.contains_key(&handle)
-                || cache.solid.stroke_meshes.contains_key(&handle);
-            if !shape.flags().dirty && (shape.flags().is_visible() == has_mesh) {
-                continue;
+                Stimulus::Shape(shape) => {
+                    let has_mesh = cache.solid.fill_meshes.contains_key(&handle)
+                        || cache.solid.stroke_meshes.contains_key(&handle);
+                    if !shape.flags().dirty && (shape.flags().is_visible() == has_mesh) {
+                        continue;
+                    }
+                    let tr = tess::tessellate_shape_stimulus(shape, screen_size);
+                    log::debug!(
+                        "tess #{handle} {} screen={screen_size:?} fill_verts={} stroke_verts={}",
+                        shape.type_name(), tr.fill.0.len(), tr.stroke.0.len(),
+                    );
+                    cache.solid.upload(handle, &ctx.device, (&tr.fill.0, &tr.fill.1), (&tr.stroke.0, &tr.stroke.1));
+                    shape.flags_mut().dirty = false;
+                }
             }
-            let tr = tess::tessellate_shape_stimulus(shape, screen_size);
-            log::debug!(
-                "tess #{handle} {} screen={screen_size:?} fill_verts={} stroke_verts={}",
-                shape.type_name(), tr.fill.0.len(), tr.stroke.0.len(),
-            );
-            cache.solid.upload(handle, &ctx.device, (&tr.fill.0, &tr.fill.1), (&tr.stroke.0, &tr.stroke.1));
-            sc.stimuli[&handle].stimulus.flags_mut().dirty = false;
         }
 
         sc.photodiode.advance();
