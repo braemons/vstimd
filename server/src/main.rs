@@ -234,7 +234,7 @@ fn parse_args() -> Args {
     let mut explicit_windowed = false;
     let mut verbose = false;
     let mut null = false;
-    let zmq_port = vstimd::ipc::DEFAULT_ZMQ_PORT;
+    let mut zmq_port = vstimd::ipc::DEFAULT_ZMQ_PORT;
     let mut web_enabled: Option<bool> = None;
     let mut web_port: Option<u16> = None;
     let mut rig_config  = rig_config::DEFAULT_PATH.to_string();
@@ -269,6 +269,12 @@ fn parse_args() -> Args {
             }
             "--config-dir" => {
                 config_dir = args.next().map(std::path::PathBuf::from);
+            }
+            "--zmq-port" => {
+                zmq_port = args.next().and_then(|s| s.parse::<u16>().ok()).unwrap_or_else(|| {
+                    eprintln!("vstimd: --zmq-port requires a numeric port argument");
+                    std::process::exit(1);
+                });
             }
             "--no-web" => web_enabled = Some(false),
             "--web-port" => {
@@ -369,6 +375,7 @@ fn print_usage() {
     eprintln!("Options:");
     eprintln!("  -w, --windowed <WxH>      Start in windowed mode with size WxH (desktop only)");
     eprintln!("      --null                No rendering; ZMQ server only (also: VSTIMD_NULL=1)");
+    eprintln!("      --zmq-port <N>        ZMQ REP server port (default: 5555)");
     eprintln!("      --no-web              Disable the embedded web control surface");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
