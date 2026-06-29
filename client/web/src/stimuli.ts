@@ -4,6 +4,8 @@
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { RequestSchema } from "./_proto/vstimd/v1/service_pb.js";
+import { GratingClient } from "./grating.js";
+import { TextClient } from "./text.js";
 import type { Send } from "./transport.js";
 import type { Color, StimulusHandle, Vec2 } from "./types.js";
 
@@ -77,9 +79,13 @@ export class ShapesClient {
 /** Top-level stimulus client; generic mutations live here, shapes under `.shapes`. */
 export class StimuliClient {
   readonly shapes: ShapesClient;
+  readonly grating: GratingClient;
+  readonly text: TextClient;
 
   constructor(private readonly send: Send) {
     this.shapes = new ShapesClient(send);
+    this.grating = new GratingClient(send);
+    this.text = new TextClient(send);
   }
 
   async setEnabled(handle: StimulusHandle, enabled: boolean): Promise<void> {

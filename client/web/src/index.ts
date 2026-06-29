@@ -8,6 +8,8 @@ export { Connection } from "./connection.js";
 export type { SnapshotListener, EventSubscription } from "./connection.js";
 
 export { StimuliClient, ShapesClient } from "./stimuli.js";
+export { GratingClient, type Waveform, type GratingMask } from "./grating.js";
+export { TextClient } from "./text.js";
 export { SystemClient, type ServerInfo } from "./system.js";
 
 export type { SceneSnapshot, StimulusView } from "./snapshot.js";

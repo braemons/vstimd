@@ -126,6 +126,23 @@ describe("vstimd web client e2e (--null)", () => {
     expect(ell.size.height).toBeCloseTo(80, 3);
   });
 
+  it("creates a grating", async () => {
+    await conn.stimuli.grating.create({ width: 300, height: 200, sf: 0.04, name: "grat", waveform: "sqr" });
+    const snap = await conn.nextSnapshot();
+    const g = snap.stimuli.find((s) => s.name === "grat")!;
+    expect(g.kind).toBe("grating");
+    expect(g.size.width).toBeCloseTo(300, 3);
+    expect(g.size.height).toBeCloseTo(200, 3);
+  });
+
+  it("creates and updates a text stimulus", async () => {
+    const h = await conn.stimuli.text.create({ text: "hello", letterHeight: 40, name: "txt" });
+    await conn.stimuli.text.setText(h, "world!");
+    const snap = await conn.nextSnapshot();
+    const t = snap.stimuli.find((s) => s.name === "txt")!;
+    expect(t.kind).toBe("text");
+  });
+
   it("round-trips a position update (RF-mapping style)", async () => {
     const handle = await conn.stimuli.shapes.createCircle({ radius: 20, name: "drag-me" });
     await conn.stimuli.setPosition(handle, { x: 333, y: -111 });
