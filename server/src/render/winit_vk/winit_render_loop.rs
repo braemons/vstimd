@@ -334,8 +334,48 @@ impl ApplicationHandler for WinitEventHandler {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        // Forward all window events to egui first; it may consume input events
-        // (e.g. keyboard when a text field is focused).
+        // ── Global hotkeys — handled BEFORE egui so a focused widget cannot
+        //   swallow them. F1–F7 and backtick must always reach the app. ─────────
+        if let WindowEvent::KeyboardInput {
+            event: winit::event::KeyEvent {
+                physical_key: PhysicalKey::Code(key),
+                state: ElementState::Pressed,
+                ..
+            },
+            ..
+        } = &event
+        {
+            use crate::render::overlay_ui::OverlayGroup;
+            let group = match key {
+                KeyCode::F1 => Some(OverlayGroup::Stimuli),
+                KeyCode::F2 => Some(OverlayGroup::Log),
+                KeyCode::F3 => Some(OverlayGroup::Vtl),
+                KeyCode::F4 => Some(OverlayGroup::Animations),
+                KeyCode::F5 => Some(OverlayGroup::System),
+                KeyCode::F6 => Some(OverlayGroup::Config),
+                KeyCode::F7 => Some(OverlayGroup::Benchmarks),
+                _ => None,
+            };
+            if let Some(group) = group {
+                if let Some(data) = &mut self.render_data
+                    && let Some(ui) = &mut data.rs.ui
+                {
+                    ui.overlay.select_group(group);
+                }
+                return;
+            }
+            if *key == KeyCode::Backquote {
+                if let Some(data) = &mut self.render_data
+                    && let Some(ui) = &mut data.rs.ui
+                {
+                    ui.overlay.toggle_master();
+                }
+                return;
+            }
+        }
+
+        // Forward remaining events to egui; it may consume them (e.g. keyboard
+        // input when a text field is focused).
         if let Some(data) = &mut self.render_data {
             let response = data.egui_winit.on_window_event(&data.window, &event);
             if response.consumed {
@@ -365,57 +405,31 @@ impl ApplicationHandler for WinitEventHandler {
                     },
                 ..
             } => {
-                use crate::render::overlay_ui::OverlayGroup;
-                let group = match key {
-                    KeyCode::F1 => Some(OverlayGroup::Stimuli),
-                    KeyCode::F2 => Some(OverlayGroup::Log),
-                    KeyCode::F3 => Some(OverlayGroup::Vtl),
-                    KeyCode::F4 => Some(OverlayGroup::Animations),
-                    KeyCode::F5 => Some(OverlayGroup::System),
-                    KeyCode::F6 => Some(OverlayGroup::Config),
-                    KeyCode::F7 => Some(OverlayGroup::Benchmarks),
-                    _ => None,
-                };
-                if let Some(group) = group {
-                    if let Some(data) = &mut self.render_data
-                        && let Some(ui) = &mut data.rs.ui
-                    {
-                        ui.overlay.select_group(group);
+                match key {
+                    // Esc never quits — close a dialog or hide the overlay.
+                    // The window close button / Alt+F4 still exit the app.
+                    KeyCode::Escape => {
+                        if let Some(data) = &mut self.render_data
+                            && let Some(ui) = &mut data.rs.ui
+                        {
+                            ui.overlay.handle_escape();
+                        }
                     }
-                } else {
-                    match key {
-                        // Esc never quits — close a dialog or hide the overlay.
-                        // The window close button / Alt+F4 still exit the app.
-                        KeyCode::Escape => {
-                            if let Some(data) = &mut self.render_data
-                                && let Some(ui) = &mut data.rs.ui
-                            {
-                                ui.overlay.handle_escape();
+                    KeyCode::KeyD => {
+                        // Demo spawn only when the overlay is hidden, so 'd'
+                        // types into dialog fields while the overlay is up.
+                        if let Some(data) = &self.render_data {
+                            let overlay_up = data.rs.ui.as_ref().is_some_and(|ui| ui.overlay.master_visible);
+                            if !overlay_up {
+                                crate::render::spawn_demo_stimuli(&data.rs.scene_renderer.scene);
                             }
                         }
-                        KeyCode::Backquote => {
-                            if let Some(data) = &mut self.render_data
-                                && let Some(ui) = &mut data.rs.ui
-                            {
-                                ui.overlay.toggle_master();
-                            }
-                        }
-                        KeyCode::KeyD => {
-                            // Demo spawn only when the overlay is hidden, so 'd'
-                            // types into dialog fields while the overlay is up.
-                            if let Some(data) = &self.render_data {
-                                let overlay_up = data.rs.ui.as_ref().is_some_and(|ui| ui.overlay.master_visible);
-                                if !overlay_up {
-                                    crate::render::spawn_demo_stimuli(&data.rs.scene_renderer.scene);
-                                }
-                            }
-                        }
-                        KeyCode::F11 => self.toggle_fullscreen(event_loop),
-                        KeyCode::Enter if self.modifiers.state().alt_key() => {
-                            self.toggle_fullscreen(event_loop);
-                        }
-                        _ => {}
                     }
+                    KeyCode::F11 => self.toggle_fullscreen(event_loop),
+                    KeyCode::Enter if self.modifiers.state().alt_key() => {
+                        self.toggle_fullscreen(event_loop);
+                    }
+                    _ => {}
                 }
             },
             WindowEvent::RedrawRequested => {

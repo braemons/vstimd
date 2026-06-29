@@ -52,8 +52,10 @@ fn group_window(
         group.fkey_label(),
     );
     let mut open = true;
+    let x = group.index() as f32 * 280.0 + 5.0;
     let mut window = egui::Window::new(title)
         .id(egui::Id::new(("ovl_group", group.index())))
+        .default_pos(egui::pos2(x, 5.0))
         .open(&mut open);
     if is_focused {
         let frame = egui::Frame::window(&ctx.global_style()).stroke(egui::Stroke::new(2.0, FOCUS_STROKE));
