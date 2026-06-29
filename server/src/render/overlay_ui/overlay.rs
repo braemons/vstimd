@@ -35,11 +35,12 @@ const PANEL_COLORS: [egui::Color32; 12] = [
     egui::Color32::from_rgb(25, 45, 15),  // 11           — moss
 ];
 
-fn group_frame(group: OverlayGroup) -> egui::Frame {
-    egui::Frame::new()
+fn group_frame(group: OverlayGroup, style: &egui::Style) -> egui::Frame {
+    // Use the standard side-panel frame so inner_margin is sized correctly,
+    // then override only the fill colour. No custom stroke — the Panel's own
+    // separator line provides the visual division between panels.
+    egui::Frame::side_top_panel(style)
         .fill(PANEL_COLORS[group.index() % PANEL_COLORS.len()])
-        .inner_margin(egui::Margin::same(8))
-        .stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(55)))
 }
 
 pub struct OverlayArgs<'a> {
@@ -66,8 +67,10 @@ fn group_panel_header(
     add: impl FnOnce(&mut egui::Ui, bool),
 ) {
     if is_focused {
+        // clip_rect is the physical panel rect (outside the content inner_margin),
+        // so the border sits in the margin gap rather than on top of content.
         ui.painter().rect_stroke(
-            ui.max_rect(),
+            ui.clip_rect(),
             egui::CornerRadius::ZERO,
             egui::Stroke::new(2.0, FOCUS_STROKE),
             egui::StrokeKind::Inside,
@@ -122,6 +125,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
     // Panel::left fills the full height of Panel::top, so no circular height
     // dependency. The top panel auto-sizes from the tallest left panel.
     const GROUP_W: f32 = 310.0;
+    let style = ctx.global_style();
     #[allow(deprecated)]
     egui::Panel::top("overlay_panel")
         .resizable(true)
@@ -132,7 +136,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
         if visible[OverlayGroup::Stimuli.index()] {
             let mut closed = false;
             egui::Panel::left("ovl_stimuli").resizable(false).default_size(GROUP_W)
-                .frame(group_frame(OverlayGroup::Stimuli))
+                .frame(group_frame(OverlayGroup::Stimuli, &style))
                 .show_inside(ui, |ui| {
                 group_panel_header(ui, OverlayGroup::Stimuli,
                     foc(OverlayGroup::Stimuli), want(OverlayGroup::Stimuli), &mut closed,
@@ -219,7 +223,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
         if visible[OverlayGroup::Log.index()] {
             let mut closed = false;
             egui::Panel::left("ovl_log").resizable(false).default_size(GROUP_W)
-                .frame(group_frame(OverlayGroup::Log))
+                .frame(group_frame(OverlayGroup::Log, &style))
                 .show_inside(ui, |ui| {
                 group_panel_header(ui, OverlayGroup::Log,
                     foc(OverlayGroup::Log), want(OverlayGroup::Log), &mut closed,
@@ -270,7 +274,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
         if visible[OverlayGroup::Vtl.index()] {
             let mut closed = false;
             egui::Panel::left("ovl_vtl").resizable(false).default_size(GROUP_W)
-                .frame(group_frame(OverlayGroup::Vtl))
+                .frame(group_frame(OverlayGroup::Vtl, &style))
                 .show_inside(ui, |ui| {
                 group_panel_header(ui, OverlayGroup::Vtl,
                     foc(OverlayGroup::Vtl), want(OverlayGroup::Vtl), &mut closed,
@@ -285,7 +289,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
         if visible[OverlayGroup::Animations.index()] {
             let mut closed = false;
             egui::Panel::left("ovl_anim").resizable(false).default_size(GROUP_W)
-                .frame(group_frame(OverlayGroup::Animations))
+                .frame(group_frame(OverlayGroup::Animations, &style))
                 .show_inside(ui, |ui| {
                 group_panel_header(ui, OverlayGroup::Animations,
                     foc(OverlayGroup::Animations), want(OverlayGroup::Animations), &mut closed,
@@ -370,7 +374,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
         if visible[OverlayGroup::System.index()] {
             let mut closed = false;
             egui::Panel::left("ovl_system").resizable(false).default_size(GROUP_W)
-                .frame(group_frame(OverlayGroup::System))
+                .frame(group_frame(OverlayGroup::System, &style))
                 .show_inside(ui, |ui| {
                 group_panel_header(ui, OverlayGroup::System,
                     foc(OverlayGroup::System), want(OverlayGroup::System), &mut closed,
@@ -388,7 +392,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
         if visible[OverlayGroup::Config.index()] {
             let mut closed = false;
             egui::Panel::left("ovl_config").resizable(false).default_size(GROUP_W)
-                .frame(group_frame(OverlayGroup::Config))
+                .frame(group_frame(OverlayGroup::Config, &style))
                 .show_inside(ui, |ui| {
                 group_panel_header(ui, OverlayGroup::Config,
                     foc(OverlayGroup::Config), want(OverlayGroup::Config), &mut closed,
@@ -414,7 +418,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
         if visible[OverlayGroup::Benchmarks.index()] {
             let mut closed = false;
             egui::Panel::left("ovl_bench").resizable(false).default_size(GROUP_W)
-                .frame(group_frame(OverlayGroup::Benchmarks))
+                .frame(group_frame(OverlayGroup::Benchmarks, &style))
                 .show_inside(ui, |ui| {
                 group_panel_header(ui, OverlayGroup::Benchmarks,
                     foc(OverlayGroup::Benchmarks), want(OverlayGroup::Benchmarks), &mut closed,
