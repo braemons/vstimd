@@ -41,6 +41,16 @@ export class SystemClient {
     return toServerInfo(resp.body.case === "serverInfo" ? resp.body.value : undefined);
   }
 
+  /** Remove all stimuli from the scene. */
+  async deleteAll(): Promise<void> {
+    await this.send(
+      create(RequestSchema, {
+        target: { case: "system", value: {} },
+        body: { case: "deleteAll", value: {} },
+      }),
+    );
+  }
+
   async setBackground(color: Color): Promise<void> {
     await this.send(
       create(RequestSchema, {
