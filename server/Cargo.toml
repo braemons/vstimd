@@ -6,6 +6,12 @@ description = "Visual stimulus display server for neuroscience experiments"
 license = "AGPL-3.0-only"
 repository = "https://github.com/braemons/vstimd"
 
+[features]
+default = ["web"]
+# Embedded HTTP + WebSocket control surface for the browser UI. Disable with
+# `--no-default-features` to drop axum/futures-util and compile out src/web.
+web = ["dep:axum", "dep:futures-util", "tokio/net", "tokio/macros"]
+
 [dependencies]
 ash        = "0.38"
 ash-window = "0.13"
@@ -32,6 +38,8 @@ sysinfo      = "0.30"
 tokio      = { version = "1", features = ["rt", "sync", "time"] }
 winit      = "=0.30.13"
 zeromq     = "0.4"
+axum         = { version = "0.8", features = ["ws"], optional = true }
+futures-util = { version = "0.3", optional = true }
 
 # Linux-only dependencies for DRM/console mode and Wayland support
 [target.'cfg(target_os = "linux")'.dependencies]

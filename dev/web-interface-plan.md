@@ -250,3 +250,39 @@ runs layers 2–3, and tears down — analogous to the Python client's e2e flow.
   command already does.
 - MVP omits `WaitForFrames`/`WaitUntil` over WS (not needed by an interactive UI);
   add later if a web client needs frame-accurate sequencing.
+
+## Transport refinement (supersedes the single-`/ws` sketch above)
+
+No `ServerEvent` envelope and no multiplexing. **Two WebSocket endpoints on one
+HTTP port**, each carrying exactly one message type:
+- `/ws` — command channel: client `Request` → server `Response` (pure REQ/REP,
+  same dispatch as ZMQ).
+- `/events` — state channel: server pushes raw `SceneSnapshot` frames.
+
+Kept on one port via separate endpoints (a second TCP port adds bind/flag/firewall
+overhead with no browser benefit). `SceneSnapshot` is transport-agnostic and could
+later feed a ZMQ `PUB` socket for non-browser subscribers without changes.
+
+## Implementation status (server side complete)
+
+Done and compiling; verified running under `--null` (HTTP index serves; web + ZMQ
+coexist). Not yet committed.
+- `proto/vstimd/v1/snapshot.proto`: `SceneSnapshot` + `CommandLogEntry` (transport-agnostic, not web-named); wired into `build.rs` (both lists).
+- `scene/command.rs`: extracted `query_stimulus_response()` (shared with `QueryStimulus`)
+  and added single-pass `SceneState::build_snapshot(&self, vtl)` (read-lock only, no
+  per-stimulus dispatch).
+- `server/src/web/mod.rs`: axum server, `spawn_web_thread`, `/ws` + `/events`,
+  ~30 Hz broadcast snapshot pump, reuses `handle_request` exactly like `ipc.rs`.
+- `lib.rs` (`pub mod web`), `main.rs` (spawn + `--web-port`/`--no-web` + shutdown +
+  rig-config `screen_size` seed for null mode), `Cargo.toml` (axum 0.8, futures-util,
+  tokio `net`/`macros`). The `screen_size` prerequisite is implemented in `main.rs`
+  (seeded from rig-config / default 1920×1080), not in `null_backend.rs`.
+- **Web is optional at three levels** (precedence: CLI ?? rig-config ?? default):
+  1. Cargo feature `web` (default-on) — `cargo build --no-default-features` compiles
+     out `src/web` and drops `axum`/`futures-util`. Gated via `#[cfg(feature="web")]`.
+  2. rig-config `[web]` section — `WebRigConfig { enabled: bool = true, port: u16 = 8080 }`.
+  3. CLI — `--no-web`, `--web-port <N>` (Option-typed; override rig-config).
+
+Remaining: WS protobuf round-trip e2e harness (node/python), React frontend under
+`client/web/` with protobuf-es codegen + rust-embed of `dist/`, and a
+`make test-e2e-null` target.
