@@ -258,9 +258,14 @@ impl DrmRenderLoopData {
                             ui.overlay.toggle_master();
                         }
                     }
-                    AppKey::SelectGroup(group) => {
+                    AppKey::ShowGroup(group) => {
                         if let Some(ui) = &mut self.rs.ui {
-                            ui.overlay.select_group(group);
+                            ui.overlay.show_group(group);
+                        }
+                    }
+                    AppKey::HideGroup(group) => {
+                        if let Some(ui) = &mut self.rs.ui {
+                            ui.overlay.hide_group(group);
                         }
                     }
                     AppKey::SwitchVt(n) => self.vt_guard.switch_to(n),

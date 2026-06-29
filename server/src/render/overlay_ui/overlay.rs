@@ -34,12 +34,16 @@ pub struct OverlayArgs<'a> {
 
 /// Render one floating group window if it is visible, with a focus accent and a
 /// stable id (so the title text can change without egui relocating the window).
+///
+/// `col_x` is the horizontal position for this panel's default placement,
+/// computed as the count of visible panels to the left × column width.
 fn group_window(
     ctx: &egui::Context,
     group: OverlayGroup,
     visible: &mut bool,
     is_focused: bool,
     want_focus: bool,
+    col_x: f32,
     add: impl FnOnce(&mut egui::Ui, bool),
 ) {
     if !*visible {
@@ -52,10 +56,10 @@ fn group_window(
         group.fkey_label(),
     );
     let mut open = true;
-    let x = group.index() as f32 * 280.0 + 5.0;
     let mut window = egui::Window::new(title)
         .id(egui::Id::new(("ovl_group", group.index())))
-        .default_pos(egui::pos2(x, 5.0))
+        .default_pos(egui::pos2(col_x, 5.0))
+        .default_width(310.0)
         .open(&mut open);
     if is_focused {
         let frame = egui::Frame::window(&ctx.global_style()).stroke(egui::Stroke::new(2.0, FOCUS_STROKE));
@@ -78,6 +82,25 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
     let focus_now = overlay.pending_focus;
     overlay.pending_focus = false;
 
+    // Compute column x positions for each group based on how many groups with a
+    // lower index are currently visible. This keeps open panels side by side
+    // without gaps from hidden groups. The positions are "default" only — egui
+    // remembers where the user dragged a panel and uses that on subsequent shows.
+    const COL_WIDTH: f32 = 320.0;
+    const COL_MARGIN: f32 = 5.0;
+    let col_x: [f32; 7] = {
+        let mut next = 0usize;
+        std::array::from_fn(|i| {
+            if overlay.visible[i] {
+                let x = next as f32 * COL_WIDTH + COL_MARGIN;
+                next += 1;
+                x
+            } else {
+                0.0
+            }
+        })
+    };
+
     let OverlayState {
         master_visible: _,
         visible,
@@ -92,10 +115,11 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
 
     let want = |g: OverlayGroup| focus_now && focused == g;
     let foc = |g: OverlayGroup| focused == g;
+    let cx = |g: OverlayGroup| col_x[g.index()];
 
     // ── Stimuli ───────────────────────────────────────────────────────────────
     group_window(ctx, OverlayGroup::Stimuli, &mut visible[OverlayGroup::Stimuli.index()],
-        foc(OverlayGroup::Stimuli), want(OverlayGroup::Stimuli), |ui, want_focus| {
+        foc(OverlayGroup::Stimuli), want(OverlayGroup::Stimuli), cx(OverlayGroup::Stimuli), |ui, want_focus| {
         ui.horizontal(|ui| {
             let new_btn = ui.button("➕ New stimulus");
             if want_focus {
@@ -178,7 +202,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
 
     // ── Log (server log + IPC log) ──────────────────────────────────────────────
     group_window(ctx, OverlayGroup::Log, &mut visible[OverlayGroup::Log.index()],
-        foc(OverlayGroup::Log), want(OverlayGroup::Log), |ui, _| {
+        foc(OverlayGroup::Log), want(OverlayGroup::Log), cx(OverlayGroup::Log), |ui, _| {
         ui.label(egui::RichText::new("Server log").strong());
         let entries = log_buffer
             .lock()
@@ -223,13 +247,13 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
 
     // ── Virtual Trigger (VTL) ───────────────────────────────────────────────────
     group_window(ctx, OverlayGroup::Vtl, &mut visible[OverlayGroup::Vtl.index()],
-        foc(OverlayGroup::Vtl), want(OverlayGroup::Vtl), |ui, want_focus| {
+        foc(OverlayGroup::Vtl), want(OverlayGroup::Vtl), cx(OverlayGroup::Vtl), |ui, want_focus| {
         vtl_group(ctx, ui, want_focus, *vtl);
     });
 
     // ── Animations ──────────────────────────────────────────────────────────────
     group_window(ctx, OverlayGroup::Animations, &mut visible[OverlayGroup::Animations.index()],
-        foc(OverlayGroup::Animations), want(OverlayGroup::Animations), |ui, want_focus| {
+        foc(OverlayGroup::Animations), want(OverlayGroup::Animations), cx(OverlayGroup::Animations), |ui, want_focus| {
         let new_btn = ui.button("➕ New animation");
         if want_focus {
             new_btn.request_focus();
@@ -309,7 +333,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
 
     // ── System (host info + frame timing + metrics + toggles) ───────────────────
     group_window(ctx, OverlayGroup::System, &mut visible[OverlayGroup::System.index()],
-        foc(OverlayGroup::System), want(OverlayGroup::System), |ui, _| {
+        foc(OverlayGroup::System), want(OverlayGroup::System), cx(OverlayGroup::System), |ui, _| {
         system_group(ui, sys, display, *wireframe, metrics, scene, wireframe_toggle_requested);
         ui.separator();
         frame_timing(ui, frame_stats, last_phases);
@@ -317,7 +341,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
 
     // ── Config ──────────────────────────────────────────────────────────────────
     group_window(ctx, OverlayGroup::Config, &mut visible[OverlayGroup::Config.index()],
-        foc(OverlayGroup::Config), want(OverlayGroup::Config), |ui, want_focus| {
+        foc(OverlayGroup::Config), want(OverlayGroup::Config), cx(OverlayGroup::Config), |ui, want_focus| {
         ui.label("Save or load the scene + VTL configuration.");
         ui.horizontal(|ui| {
             let save = ui.button("Save…");
@@ -338,7 +362,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
 
     // ── Benchmarks ──────────────────────────────────────────────────────────────
     group_window(ctx, OverlayGroup::Benchmarks, &mut visible[OverlayGroup::Benchmarks.index()],
-        foc(OverlayGroup::Benchmarks), want(OverlayGroup::Benchmarks), |ui, want_focus| {
+        foc(OverlayGroup::Benchmarks), want(OverlayGroup::Benchmarks), cx(OverlayGroup::Benchmarks), |ui, want_focus| {
         ui.heading("Grating stress test");
         if benchmark.is_running() {
             let remaining = benchmark.remaining_frames(frame_stats).unwrap_or(0);

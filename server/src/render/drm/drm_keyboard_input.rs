@@ -171,7 +171,11 @@ impl InputState {
                 59..=68 | 87 | 88 if pressed => {
                     let n = match code { 87 => 11, 88 => 12, _ => (code - 58) as u8 };
                     if let Some(group) = OverlayGroup::from_fkey(n) {
-                        app_keys.push(AppKey::SelectGroup(group));
+                        if self.modifiers.shift {
+                            app_keys.push(AppKey::HideGroup(group));
+                        } else {
+                            app_keys.push(AppKey::ShowGroup(group));
+                        }
                     }
                     continue;
                 }

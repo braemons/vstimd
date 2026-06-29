@@ -335,7 +335,9 @@ impl ApplicationHandler for WinitEventHandler {
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         // ── Global hotkeys — handled BEFORE egui so a focused widget cannot
-        //   swallow them. F1–F7 and backtick must always reach the app. ─────────
+        //   swallow them. F1–F7 and backtick must always reach the app.
+        //   Plain Fn: show + focus that panel.
+        //   Shift+Fn: hide that panel. ─────────────────────────────────────────
         if let WindowEvent::KeyboardInput {
             event: winit::event::KeyEvent {
                 physical_key: PhysicalKey::Code(key),
@@ -360,7 +362,16 @@ impl ApplicationHandler for WinitEventHandler {
                 if let Some(data) = &mut self.render_data
                     && let Some(ui) = &mut data.rs.ui
                 {
-                    ui.overlay.select_group(group);
+                    if self.modifiers.state().shift_key() {
+                        ui.overlay.hide_group(group);
+                    } else {
+                        ui.overlay.show_group(group);
+                        // Clear egui's internal focus so Tab events queued in the
+                        // same input batch don't navigate the previously focused panel.
+                        ui.egui_ctx.memory_mut(|m| {
+                            if let Some(id) = m.focused() { m.surrender_focus(id); }
+                        });
+                    }
                 }
                 return;
             }

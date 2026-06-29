@@ -103,13 +103,36 @@ impl OverlayState {
         self.master_visible = !self.master_visible;
     }
 
-    /// Toggle a group's visibility, reveal the overlay, and give it focus.
-    pub fn select_group(&mut self, group: OverlayGroup) {
+    /// Show a group (make visible), reveal the overlay, and give it focus.
+    pub fn show_group(&mut self, group: OverlayGroup) {
         self.master_visible = true;
-        let i = group.index();
-        self.visible[i] = !self.visible[i];
+        self.visible[group.index()] = true;
         self.focused = group;
         self.pending_focus = true;
+    }
+
+    /// Hide a group. If no groups remain visible the master overlay is hidden too.
+    pub fn hide_group(&mut self, group: OverlayGroup) {
+        self.visible[group.index()] = false;
+        if self.focused == group {
+            // Move focus to the first remaining visible group, if any.
+            if let Some(&next) = OverlayGroup::ALL.iter().find(|&&g| self.visible[g.index()]) {
+                self.focused = next;
+            }
+        }
+        if !self.visible.iter().any(|&v| v) {
+            self.master_visible = false;
+        }
+    }
+
+    /// Toggle a group's visibility, reveal the overlay, and give it focus.
+    /// Kept for DRM backend parity.
+    pub fn select_group(&mut self, group: OverlayGroup) {
+        if self.visible[group.index()] {
+            self.hide_group(group);
+        } else {
+            self.show_group(group);
+        }
     }
 
     pub fn is_visible(&self, group: OverlayGroup) -> bool {

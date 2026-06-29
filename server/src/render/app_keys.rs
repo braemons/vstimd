@@ -7,8 +7,10 @@ pub enum AppKey {
     Escape,
     /// Toggle the whole overlay on/off (backtick).
     ToggleOverlay,
-    /// Toggle + focus one overlay group (F1–F7).
-    SelectGroup(OverlayGroup),
+    /// Show (make visible + focus) one overlay group (F1–F7).
+    ShowGroup(OverlayGroup),
+    /// Hide one overlay group (Shift+F1–F7).
+    HideGroup(OverlayGroup),
     /// Spawn demo stimuli (only acted on when the overlay is hidden).
     D,
     /// Ctrl+Alt+Fn — forward to the kernel as a VT switch.
