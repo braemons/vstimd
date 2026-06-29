@@ -11,8 +11,9 @@ export { StimuliClient, ShapesClient } from "./stimuli.js";
 export { GratingClient, type Waveform, type GratingMask } from "./grating.js";
 export { TextClient } from "./text.js";
 export { SystemClient, type ServerInfo } from "./system.js";
+export { VtlClient, type VtlDirection, type VtlLine } from "./vtl.js";
 
-export type { SceneSnapshot, StimulusView } from "./snapshot.js";
+export type { SceneSnapshot, StimulusView, VtlLineView } from "./snapshot.js";
 
 export { rgb } from "./types.js";
 export type {

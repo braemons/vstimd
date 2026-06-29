@@ -9,7 +9,8 @@
 
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import { connect as netConnect } from "node:net";
-import { existsSync } from "node:fs";
+import { existsSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -60,9 +61,16 @@ let conn: Connection;
 
 describe("vstimd web client e2e (--null)", () => {
   beforeAll(async () => {
+    // Isolate the VTL shm (name is global) so the test server never collides
+    // with a real vstimd the developer may be running.
+    const rig = join(tmpdir(), `vstimd-e2e-rig-${process.pid}.toml`);
+    writeFileSync(rig, `[vtl]\nshm_name = "/vstimd_e2e_${process.pid}"\n`);
     server = spawn(
       serverBinary(),
-      ["--null", "--web-port", String(WEB_PORT), "--zmq-port", String(ZMQ_PORT)],
+      [
+        "--null", "--web-port", String(WEB_PORT),
+        "--zmq-port", String(ZMQ_PORT), "--rig-config", rig,
+      ],
       { stdio: "ignore" },
     );
     await waitForPort(WEB_PORT);
@@ -141,6 +149,18 @@ describe("vstimd web client e2e (--null)", () => {
     const snap = await conn.nextSnapshot();
     const t = snap.stimuli.find((s) => s.name === "txt")!;
     expect(t.kind).toBe("text");
+  });
+
+  it("names and fires a VTL input line", async () => {
+    await conn.vtl.setName(0, 1, "input", "trig");
+    await conn.vtl.setInput("trig", true);
+
+    const snap = await conn.nextSnapshot();
+    const line = snap.vtlLines.find((l) => l.name === "trig")!;
+    expect(line.direction).toBe("input");
+    expect(line.bank).toBe(0);
+    expect(line.bit).toBe(1);
+    expect(line.high).toBe(true);
   });
 
   it("round-trips a position update (RF-mapping style)", async () => {
