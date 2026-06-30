@@ -36,13 +36,27 @@ export type FinalAction =
   | "restoreState"
   | "endDeferred";
 
+/**
+ * Animation-type tag. This is the server's canonical `type_name` — the Rust enum
+ * variant name, which is also the serde tag written to config files. The server
+ * sends it verbatim in both `list()` and `query()`, so the client never derives
+ * or normalizes it; this union just mirrors the server set for autocomplete.
+ */
+export type AnimationTypeName =
+  | "CoupleVisibilityToTriggerLine"
+  | "EnableOnTriggerEdge"
+  | "FlashForNFrames"
+  | "FlickerForNFrames"
+  | "MoveAlongPath2D"
+  | "MoveAlongSegments2D"
+  | "ExternalPosition2D";
+
 /** One animation as returned by `list()`. */
 export interface AnimationInfo {
   handle: AnimationHandle;
   name: string;
   state: AnimationState;
-  /** Animation-type tag, e.g. "flashForNFrames". */
-  typeName: string;
+  typeName: AnimationTypeName;
 }
 
 /** Full configuration + state as returned by `query()`. */
@@ -86,6 +100,7 @@ const FINAL_ACTION: Record<FinalAction, number> = {
   restoreState: 0x40,
   endDeferred: 0x80,
 };
+
 
 function stateOf(s: ProtoState): AnimationState {
   switch (s) {
@@ -154,7 +169,7 @@ export class AnimationsClient {
       handle: a.handle,
       name: a.name,
       state: stateOf(a.state),
-      typeName: a.typeName,
+      typeName: a.typeName as AnimationTypeName,
     }));
   }
 
@@ -170,7 +185,7 @@ export class AnimationsClient {
       handle: r.handle,
       name: p?.name ?? "",
       state: stateOf(r.state),
-      typeName: p?.body.case ?? "unknown",
+      typeName: r.typeName as AnimationTypeName,
       stimuli: p?.stimuli ?? [],
       finalActions: decodeFinalActions(p?.finalActionMask ?? 0),
     };

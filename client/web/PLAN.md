@@ -81,6 +81,14 @@ React UI  ──uses──▶  client library (public API)  ──wraps──▶
 - **Draw-order commands unimplemented server-side**: `bringToFront` / `sendToBack`
   / `swapDrawOrder` are wired in both clients but the server returns `NotSupported`
   (brain-daemons/vstimd#43). The web e2e asserts the `NotSupported` gap for now.
+- **Animation `typeName` casing**: the server reports `type_name` in PascalCase
+  (`MoveAlongPath2D`) from `list()`, while `query()` derives it from the proto
+  oneof (`moveAlongPath2d`). The web client normalizes both to the proto camelCase
+  form (`AnimationTypeName`) so they always agree.
+- **Animation `type_name` is single-source**: the canonical tag is the Rust enum
+  variant name (e.g. `MoveAlongPath2D`), which is also the serde config-file tag.
+  The server sends it verbatim in both `list()` and `query()` (a guard test locks
+  `type_name()` to the serde tag); all clients pass it through unchanged.
 - **Prod config dir**: default is the cwd (good for dev/tests). For systemd, use
   `StateDirectory=vstimd` + `--config-dir ${STATE_DIRECTORY}/configs`
   (`/var/lib/vstimd/configs`) — runtime-mutable state, not `/etc`. (See step 5.)

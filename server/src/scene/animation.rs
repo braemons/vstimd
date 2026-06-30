@@ -178,3 +178,37 @@ impl AnimationEntry {
         e
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Single source of truth: `Animation::type_name()` must equal the serde
+    /// externally-tagged variant key — the exact string written to (and read
+    /// from) config files and surfaced in the proto `type_name` fields. If these
+    /// ever diverge, configs saved by one component break when loaded by another.
+    #[test]
+    fn type_name_matches_serde_config_tag() {
+        let bit = VtlBit { bank: 0, bit: 0 };
+        let variants = [
+            Animation::CoupleVisibilityToTriggerLine { trigger: bit, polarity: true },
+            Animation::EnableOnTriggerEdge { trigger: bit, edge: Edge::Rising, enabled: true },
+            Animation::FlashForNFrames { duration_frames: 1 },
+            Animation::FlickerForNFrames {
+                on_frames: 1, off_frames: 1, total_frames: None, start_on_phase: true,
+            },
+            Animation::MoveAlongPath2D { coords: vec![[0.0, 0.0]] },
+            Animation::MoveAlongSegments2D { waypoints: vec![[0.0, 0.0]], speed_px_per_sec: 1.0 },
+            Animation::ExternalPosition2D { shm_name: String::new(), x_offset: 0.0, y_offset: 0.0 },
+        ];
+        for anim in &variants {
+            let value = serde_json::to_value(anim).expect("serialize");
+            // Externally-tagged enum → a single-key object whose key is the tag.
+            let tag = value.as_object().and_then(|o| o.keys().next()).expect("tagged object");
+            assert_eq!(
+                tag, anim.type_name(),
+                "serde config tag and type_name() diverged for {}", anim.type_name(),
+            );
+        }
+    }
+}

@@ -227,6 +227,10 @@ describe("vstimd web client e2e (--null)", () => {
 
     const details = await conn.animations.query(anim);
     expect(details.stimuli).toContain(h);
+    // Single source of truth: the server sends the same canonical type_name (the
+    // serde config tag) in both list() and query(); the client passes it through.
+    expect(ours!.typeName).toBe("FlashForNFrames");
+    expect(details.typeName).toBe("FlashForNFrames");
   });
 
   it("saves, lists, retrieves, and loads a config", async () => {

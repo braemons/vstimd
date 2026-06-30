@@ -1460,6 +1460,7 @@ impl SceneState {
             handle: cmd.handle,
             state,
             params: Some(params),
+            type_name: entry.animation.type_name().to_string(),
         }))
     }
 }

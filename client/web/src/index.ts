@@ -16,6 +16,7 @@ export { VtlClient, type VtlDirection, type VtlLine } from "./vtl.js";
 export {
   AnimationsClient,
   type AnimationState,
+  type AnimationTypeName,
   type VtlEdge,
   type StartAction,
   type FinalAction,
