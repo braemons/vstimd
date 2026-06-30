@@ -81,7 +81,7 @@ fn test_create_rect_with_fill() {
             center: None,
             width: 0.0,
             height: 0.0,
-            fill_color: Some(fill.clone()),
+            fill_color: Some(fill),
             ..Default::default()
         },
     ), None);

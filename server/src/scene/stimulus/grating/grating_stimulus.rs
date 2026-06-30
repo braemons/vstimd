@@ -231,7 +231,7 @@ mod tests {
     #[test]
     fn set_phase_immediate_resets_accum() {
         let mut s = default_stim();
-        s.phase_accum = 3.14;
+        s.phase_accum = 1.5;
         s.set_phase(false, 0.5);
         assert_eq!(s.phase_accum, 0.0);
         assert_eq!(s.params.live.phase, 0.5);
@@ -240,9 +240,9 @@ mod tests {
     #[test]
     fn set_phase_deferred_preserves_accum() {
         let mut s = default_stim();
-        s.phase_accum = 3.14;
+        s.phase_accum = 1.5;
         s.set_phase(true, 0.5);
-        assert_eq!(s.phase_accum, 3.14);
+        assert_eq!(s.phase_accum, 1.5);
         // live untouched, copy updated
         assert_ne!(s.params.live.phase, 0.5);
         assert_eq!(s.params.copy.phase, 0.5);

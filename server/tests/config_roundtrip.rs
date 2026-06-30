@@ -107,8 +107,10 @@ fn roundtrip_vtl_names() {
 
 #[test]
 fn roundtrip_background_color() {
-    let mut scene = SceneConfig::default();
-    scene.background = Deferred::new(vstimd::Color::new(0.2, 0.3, 0.4, 1.0));
+    let scene = SceneConfig {
+        background: Deferred::new(vstimd::Color::new(0.2, 0.3, 0.4, 1.0)),
+        ..Default::default()
+    };
 
     let vtl = VtlConfig::default();
     let json = retrieve_config_json(&scene, &vtl).unwrap();
