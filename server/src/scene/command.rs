@@ -2,7 +2,7 @@ use uuid::Uuid;
 
 use super::deferred::Deferred;
 use super::state::SceneState;
-use super::stimulus::{CircleStimulus, EllipseStimulus, RectStimulus, ShapeStimulus, Stimulus, StimulusEntry};
+use super::stimulus::{CircleStimulus, EllipseStimulus, RectStimulus, ShapeCommon, Stimulus, StimulusEntry};
 use super::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance, StimulusFlags, Transform2D};
 use super::stimulus::grating::{
     GratingStimulus, grating_params_from_proto, grating_query_params, proto_to_mask,
@@ -351,16 +351,18 @@ impl SceneState {
         let width  = if cmd.width  == 0.0 { 100.0 } else { cmd.width  };
         let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
         let fill   = color_or_default(cmd.fill_color, self.config.default_fill);
-        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-            flags: StimulusFlags::enabled(true),
-            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
-            appearance: Deferred::new(ShapeAppearance {
-                fill_color:    fill,
-                outline_color: self.config.default_outline,
-                ..Default::default()
-            }),
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Rect(RectStimulus {
+            common: ShapeCommon {
+                flags: StimulusFlags::enabled(true),
+                transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color:    fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
+            },
             size: Deferred::new([width / 2.0, height / 2.0]),
-        })));
+        }));
         let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
@@ -375,16 +377,18 @@ impl SceneState {
         let center = cmd.center.unwrap_or_default();
         let radius = if cmd.radius == 0.0 { 50.0 } else { cmd.radius };
         let fill   = color_or_default(cmd.fill_color, self.config.default_fill);
-        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
-            flags: StimulusFlags::enabled(true),
-            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
-            appearance: Deferred::new(ShapeAppearance {
-                fill_color:    fill,
-                outline_color: self.config.default_outline,
-                ..Default::default()
-            }),
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Circle(CircleStimulus {
+            common: ShapeCommon {
+                flags: StimulusFlags::enabled(true),
+                transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: 0.0 }),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color:    fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
+            },
             radius: Deferred::new(radius),
-        })));
+        }));
         let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
@@ -400,16 +404,18 @@ impl SceneState {
         let width  = if cmd.width  == 0.0 { 100.0 } else { cmd.width  };
         let height = if cmd.height == 0.0 { 100.0 } else { cmd.height };
         let fill   = color_or_default(cmd.fill_color, self.config.default_fill);
-        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
-            flags: StimulusFlags::enabled(true),
-            transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: cmd.angle }),
-            appearance: Deferred::new(ShapeAppearance {
-                fill_color:    fill,
-                outline_color: self.config.default_outline,
-                ..Default::default()
-            }),
+        let entry  = StimulusEntry::new(id, nonempty(cmd.name), Stimulus::Ellipse(EllipseStimulus {
+            common: ShapeCommon {
+                flags: StimulusFlags::enabled(true),
+                transform:  Deferred::new(Transform2D { pos: [center.x, center.y], angle: cmd.angle }),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color:    fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
+            },
             radii: Deferred::new([width / 2.0, height / 2.0]),
-        })));
+        }));
         let handle = self.add_stimulus(entry);
         ok_handle_with_id(handle, &id)
     }
@@ -473,18 +479,19 @@ impl SceneState {
         };
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Shape(s) => {
-                    let deferred = self.runtime.deferred_mode;
-                    let app = s.appearance_mut();
-                    let prev = if deferred { app.copy } else { app.live };
-                    app.set(deferred, ShapeAppearance { fill_color: c, ..prev });
-                    if !deferred { s.flags_mut().mark_dirty(); }
-                    ok_ack()
+            Some(entry) => {
+                let stim = &mut entry.stimulus;
+                if !stim.is_shape() {
+                    return err(proto::ErrorCode::WrongStimulusType,
+                        format!("SetFillColor is not supported for {} stimuli", stim.type_name()));
                 }
-                stim => err(proto::ErrorCode::WrongStimulusType,
-                    format!("SetFillColor is not supported for {} stimuli", stim.type_name())),
-            },
+                let deferred = self.runtime.deferred_mode;
+                let app = stim.shape_appearance_mut().expect("is_shape checked");
+                let prev = if deferred { app.copy } else { app.live };
+                app.set(deferred, ShapeAppearance { fill_color: c, ..prev });
+                if !deferred { stim.flags_mut().mark_dirty(); }
+                ok_ack()
+            }
         }
     }
 
@@ -493,19 +500,20 @@ impl SceneState {
     fn cmd_set_alpha(&mut self, handle: u32, cmd: proto::SetAlphaRequest) -> proto::Response {
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Shape(s) => {
-                    let deferred = self.runtime.deferred_mode;
-                    let app = s.appearance_mut();
-                    let mut prev = if deferred { app.copy } else { app.live };
-                    prev.fill_color.a = cmd.opacity;
-                    app.set(deferred, prev);
-                    if !deferred { s.flags_mut().mark_dirty(); }
-                    ok_ack()
+            Some(entry) => {
+                let stim = &mut entry.stimulus;
+                if !stim.is_shape() {
+                    return err(proto::ErrorCode::WrongStimulusType,
+                        format!("SetAlpha is not supported for {} stimuli", stim.type_name()));
                 }
-                stim => err(proto::ErrorCode::WrongStimulusType,
-                    format!("SetAlpha is not supported for {} stimuli", stim.type_name())),
-            },
+                let deferred = self.runtime.deferred_mode;
+                let app = stim.shape_appearance_mut().expect("is_shape checked");
+                let mut prev = if deferred { app.copy } else { app.live };
+                prev.fill_color.a = cmd.opacity;
+                app.set(deferred, prev);
+                if !deferred { stim.flags_mut().mark_dirty(); }
+                ok_ack()
+            }
         }
     }
 
@@ -515,9 +523,9 @@ impl SceneState {
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
             Some(entry) => match &mut entry.stimulus {
-                Stimulus::Shape(ShapeStimulus::Rect(s)) => {
+                Stimulus::Rect(s) => {
                     s.size.set(self.runtime.deferred_mode, [cmd.width / 2.0, cmd.height / 2.0]);
-                    if !self.runtime.deferred_mode { s.flags.mark_dirty(); }
+                    if !self.runtime.deferred_mode { s.common.flags.mark_dirty(); }
                     ok_ack()
                 }
                 stim => err_wrong_type(stim, "SetRectSize", "Rect"),
@@ -531,9 +539,9 @@ impl SceneState {
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
             Some(entry) => match &mut entry.stimulus {
-                Stimulus::Shape(ShapeStimulus::Circle(s)) => {
+                Stimulus::Circle(s) => {
                     s.radius.set(self.runtime.deferred_mode, cmd.radius);
-                    if !self.runtime.deferred_mode { s.flags.mark_dirty(); }
+                    if !self.runtime.deferred_mode { s.common.flags.mark_dirty(); }
                     ok_ack()
                 }
                 stim => err_wrong_type(stim, "SetCircleRadius", "Circle"),
@@ -551,9 +559,9 @@ impl SceneState {
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
             Some(entry) => match &mut entry.stimulus {
-                Stimulus::Shape(ShapeStimulus::Ellipse(s)) => {
+                Stimulus::Ellipse(s) => {
                     s.radii.set(self.runtime.deferred_mode, [cmd.width / 2.0, cmd.height / 2.0]);
-                    if !self.runtime.deferred_mode { s.flags.mark_dirty(); }
+                    if !self.runtime.deferred_mode { s.common.flags.mark_dirty(); }
                     ok_ack()
                 }
                 stim => err_wrong_type(stim, "SetEllipseSize", "Ellipse"),
@@ -570,18 +578,19 @@ impl SceneState {
         };
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Shape(s) => {
-                    let deferred = self.runtime.deferred_mode;
-                    let app = s.appearance_mut();
-                    let prev = if deferred { app.copy } else { app.live };
-                    app.set(deferred, ShapeAppearance { draw_mode: mode, ..prev });
-                    if !deferred { s.flags_mut().mark_dirty(); }
-                    ok_ack()
+            Some(entry) => {
+                let stim = &mut entry.stimulus;
+                if !stim.is_shape() {
+                    return err(proto::ErrorCode::WrongStimulusType,
+                        format!("SetDrawMode is not supported for {} stimuli", stim.type_name()));
                 }
-                stim => err(proto::ErrorCode::WrongStimulusType,
-                    format!("SetDrawMode is not supported for {} stimuli", stim.type_name())),
-            },
+                let deferred = self.runtime.deferred_mode;
+                let app = stim.shape_appearance_mut().expect("is_shape checked");
+                let prev = if deferred { app.copy } else { app.live };
+                app.set(deferred, ShapeAppearance { draw_mode: mode, ..prev });
+                if !deferred { stim.flags_mut().mark_dirty(); }
+                ok_ack()
+            }
         }
     }
 
@@ -598,18 +607,19 @@ impl SceneState {
         };
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Shape(s) => {
-                    let deferred = self.runtime.deferred_mode;
-                    let app = s.appearance_mut();
-                    let prev = if deferred { app.copy } else { app.live };
-                    app.set(deferred, ShapeAppearance { outline_color: c, ..prev });
-                    if !deferred { s.flags_mut().mark_dirty(); }
-                    ok_ack()
+            Some(entry) => {
+                let stim = &mut entry.stimulus;
+                if !stim.is_shape() {
+                    return err(proto::ErrorCode::WrongStimulusType,
+                        format!("SetOutlineColor is not supported for {} stimuli", stim.type_name()));
                 }
-                stim => err(proto::ErrorCode::WrongStimulusType,
-                    format!("SetOutlineColor is not supported for {} stimuli", stim.type_name())),
-            },
+                let deferred = self.runtime.deferred_mode;
+                let app = stim.shape_appearance_mut().expect("is_shape checked");
+                let prev = if deferred { app.copy } else { app.live };
+                app.set(deferred, ShapeAppearance { outline_color: c, ..prev });
+                if !deferred { stim.flags_mut().mark_dirty(); }
+                ok_ack()
+            }
         }
     }
 
@@ -622,18 +632,19 @@ impl SceneState {
     ) -> proto::Response {
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Shape(s) => {
-                    let deferred = self.runtime.deferred_mode;
-                    let app = s.appearance_mut();
-                    let prev = if deferred { app.copy } else { app.live };
-                    app.set(deferred, ShapeAppearance { stroke_width: cmd.line_width, ..prev });
-                    if !deferred { s.flags_mut().mark_dirty(); }
-                    ok_ack()
+            Some(entry) => {
+                let stim = &mut entry.stimulus;
+                if !stim.is_shape() {
+                    return err(proto::ErrorCode::WrongStimulusType,
+                        format!("SetOutlineWidth is not supported for {} stimuli", stim.type_name()));
                 }
-                stim => err(proto::ErrorCode::WrongStimulusType,
-                    format!("SetOutlineWidth is not supported for {} stimuli", stim.type_name())),
-            },
+                let deferred = self.runtime.deferred_mode;
+                let app = stim.shape_appearance_mut().expect("is_shape checked");
+                let prev = if deferred { app.copy } else { app.live };
+                app.set(deferred, ShapeAppearance { stroke_width: cmd.line_width, ..prev });
+                if !deferred { stim.flags_mut().mark_dirty(); }
+                ok_ack()
+            }
         }
     }
 
@@ -941,46 +952,47 @@ impl SceneState {
         let angle = stim.transform().live.angle;
 
         let (stimulus_type, params, fill_color, outline_color, outline_width, draw_mode, opacity) =
-            match stim {
-                Stimulus::Shape(s) => {
-                    let a = s.appearance().live;
-                    let (st, p) = match s {
-                        ShapeStimulus::Rect(r) => (
-                            proto::StimulusType::Rect as i32,
-                            Some(proto::StimulusParams {
-                                shape: Some(proto::stimulus_params::Shape::Rect(proto::RectParams {
-                                    width: r.size.live[0] * 2.0,
-                                    height: r.size.live[1] * 2.0,
-                                })),
-                            }),
-                        ),
-                        ShapeStimulus::Circle(d) => (
-                            proto::StimulusType::Circle as i32,
-                            Some(proto::StimulusParams {
-                                shape: Some(proto::stimulus_params::Shape::Circle(proto::CircleParams {
-                                    radius: d.radius.live,
-                                })),
-                            }),
-                        ),
-                        ShapeStimulus::Ellipse(e) => (
-                            proto::StimulusType::Ellipse as i32,
-                            Some(proto::StimulusParams {
-                                shape: Some(proto::stimulus_params::Shape::Ellipse(proto::EllipseParams {
-                                    width: e.radii.live[0] * 2.0,
-                                    height: e.radii.live[1] * 2.0,
-                                })),
-                            }),
-                        ),
-                    };
-                    (
-                        st, p,
-                        Some(a.fill_color.into()),
-                        Some(a.outline_color.into()),
-                        a.stroke_width,
-                        scene_draw_mode_to_proto(a.draw_mode),
-                        a.fill_color.a,
-                    )
-                }
+            if let Some(app) = stim.shape_appearance() {
+                let a = app.live;
+                let (st, p) = match stim {
+                    Stimulus::Rect(r) => (
+                        proto::StimulusType::Rect as i32,
+                        Some(proto::StimulusParams {
+                            shape: Some(proto::stimulus_params::Shape::Rect(proto::RectParams {
+                                width: r.size.live[0] * 2.0,
+                                height: r.size.live[1] * 2.0,
+                            })),
+                        }),
+                    ),
+                    Stimulus::Circle(d) => (
+                        proto::StimulusType::Circle as i32,
+                        Some(proto::StimulusParams {
+                            shape: Some(proto::stimulus_params::Shape::Circle(proto::CircleParams {
+                                radius: d.radius.live,
+                            })),
+                        }),
+                    ),
+                    Stimulus::Ellipse(e) => (
+                        proto::StimulusType::Ellipse as i32,
+                        Some(proto::StimulusParams {
+                            shape: Some(proto::stimulus_params::Shape::Ellipse(proto::EllipseParams {
+                                width: e.radii.live[0] * 2.0,
+                                height: e.radii.live[1] * 2.0,
+                            })),
+                        }),
+                    ),
+                    _ => unreachable!("shape_appearance() is Some only for shapes"),
+                };
+                (
+                    st, p,
+                    Some(a.fill_color.into()),
+                    Some(a.outline_color.into()),
+                    a.stroke_width,
+                    scene_draw_mode_to_proto(a.draw_mode),
+                    a.fill_color.a,
+                )
+            } else {
+                match stim {
                 Stimulus::Grating(s) => {
                     let fc = s.params.live.fore_color;
                     let op = s.params.live.opacity;
@@ -1005,6 +1017,8 @@ impl SceneState {
                         proto::ShapeDrawMode::Filled as i32,
                         c.a,
                     )
+                }
+                _ => unreachable!("shapes handled in the if-branch"),
                 }
             };
 
@@ -1298,11 +1312,11 @@ impl SceneState {
             .map(|(&handle, entry)| {
                 let stim = &entry.stimulus;
                 let stimulus_type = match stim {
-                    Stimulus::Shape(ShapeStimulus::Rect(_))    => proto::StimulusType::Rect,
-                    Stimulus::Shape(ShapeStimulus::Ellipse(_)) => proto::StimulusType::Ellipse,
-                    Stimulus::Shape(ShapeStimulus::Circle(_))  => proto::StimulusType::Circle,
-                    Stimulus::Grating(_)                       => proto::StimulusType::Grating,
-                    Stimulus::Text(_)                          => proto::StimulusType::Text,
+                    Stimulus::Rect(_)    => proto::StimulusType::Rect,
+                    Stimulus::Ellipse(_) => proto::StimulusType::Ellipse,
+                    Stimulus::Circle(_)  => proto::StimulusType::Circle,
+                    Stimulus::Grating(_) => proto::StimulusType::Grating,
+                    Stimulus::Text(_)    => proto::StimulusType::Text,
                 } as i32;
                 proto::StimulusEntry {
                     handle,

@@ -3,7 +3,7 @@ pub(crate) fn spawn_demo_stimuli(
 ) {
     use crate::scene::{
         Anchor, CircleStimulus, Deferred, GratingParams, GratingStimulus, LanguageStyle,
-        RectStimulus, ShapeAppearance, ShapeStimulus, Stimulus, StimulusEntry, StimulusFlags,
+        RectStimulus, ShapeAppearance, ShapeCommon, Stimulus, StimulusEntry, StimulusFlags,
         TextRenderParams, TextStimulus, Transform2D, Waveform,
     };
     use rand::RngExt;
@@ -18,21 +18,23 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusEntry::new(
             Uuid::new_v4(),
             Some("demo_circle".into()),
-            Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
-                flags: StimulusFlags::enabled(true),
-                transform: Deferred::new(Transform2D {
-                    pos: [
-                        rng.random_range(-500.0..500.0),
-                        rng.random_range(-500.0..500.0),
-                    ],
-                    angle: 0.0,
-                }),
-                appearance: Deferred::new(ShapeAppearance {
-                    fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
-                    ..Default::default()
-                }),
+            Stimulus::Circle(CircleStimulus {
+                common: ShapeCommon {
+                    flags: StimulusFlags::enabled(true),
+                    transform: Deferred::new(Transform2D {
+                        pos: [
+                            rng.random_range(-500.0..500.0),
+                            rng.random_range(-500.0..500.0),
+                        ],
+                        angle: 0.0,
+                    }),
+                    appearance: Deferred::new(ShapeAppearance {
+                        fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
+                        ..Default::default()
+                    }),
+                },
                 radius: Deferred::new(80.0),
-            })),
+            }),
         ),
     );
     let h2 = sc.alloc_stim_handle();
@@ -41,21 +43,23 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusEntry::new(
             Uuid::new_v4(),
             Some("demo_rect".into()),
-            Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-                flags: StimulusFlags::enabled(true),
-                transform: Deferred::new(Transform2D {
-                    pos: [
-                        rng.random_range(-500.0..500.0),
-                        rng.random_range(-500.0..500.0),
-                    ],
-                    angle: 30.0,
-                }),
-                appearance: Deferred::new(ShapeAppearance {
-                    fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
-                    ..Default::default()
-                }),
+            Stimulus::Rect(RectStimulus {
+                common: ShapeCommon {
+                    flags: StimulusFlags::enabled(true),
+                    transform: Deferred::new(Transform2D {
+                        pos: [
+                            rng.random_range(-500.0..500.0),
+                            rng.random_range(-500.0..500.0),
+                        ],
+                        angle: 30.0,
+                    }),
+                    appearance: Deferred::new(ShapeAppearance {
+                        fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
+                        ..Default::default()
+                    }),
+                },
                 size: Deferred::new([120.0, 50.0]),
-            })),
+            }),
         ),
     );
     let h3 = sc.alloc_stim_handle();

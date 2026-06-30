@@ -198,13 +198,14 @@ pub fn render_frame(
                     text.flags.dirty = false;
                 }
 
-                Stimulus::Shape(shape) => {
+                shape @ (Stimulus::Rect(_) | Stimulus::Ellipse(_) | Stimulus::Circle(_)) => {
                     let has_mesh = cache.solid.fill_meshes.contains_key(&handle)
                         || cache.solid.stroke_meshes.contains_key(&handle);
                     if !shape.flags().dirty && (shape.flags().is_visible() == has_mesh) {
                         continue;
                     }
-                    let tr = tess::tessellate_shape_stimulus(shape, screen_size);
+                    let tr = tess::tessellate_shape_stimulus(shape, screen_size)
+                        .expect("shape variant");
                     log::debug!(
                         "tess #{handle} {} screen={screen_size:?} fill_verts={} stroke_verts={}",
                         shape.type_name(), tr.fill.0.len(), tr.stroke.0.len(),
@@ -332,10 +333,10 @@ pub fn render_frame(
                     ctx.device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
                 }
             } else {
-                let draw_mode = match stim {
-                    Stimulus::Shape(s) => s.appearance().live.draw_mode,
-                    _ => DrawMode::Fill,
-                };
+                let draw_mode = stim
+                    .shape_appearance()
+                    .map(|a| a.live.draw_mode)
+                    .unwrap_or(DrawMode::Fill);
                 let draw_fill   = matches!(draw_mode, DrawMode::Fill | DrawMode::FillAndStroke);
                 let draw_stroke = matches!(draw_mode, DrawMode::Stroke | DrawMode::FillAndStroke);
                 if (draw_fill || draw_stroke) && bound != Bound::Solid {

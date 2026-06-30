@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::Color;
 use crate::scene::{
     CircleStimulus, Deferred, EllipseStimulus, GratingParams, GratingStimulus, RectStimulus,
-    ShapeAppearance, ShapeStimulus, Stimulus, StimulusEntry, StimulusFlags, Transform2D, Waveform,
+    ShapeAppearance, ShapeCommon, Stimulus, StimulusEntry, StimulusFlags, Transform2D, Waveform,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -85,25 +85,20 @@ impl StimulusDialog {
             fill_color: Color::new(self.fill[0], self.fill[1], self.fill[2], self.fill[3]),
             ..Default::default()
         });
+        let common = ShapeCommon { flags, transform, appearance };
         let stimulus = match self.kind {
-            Kind::Rect => Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-                flags,
-                transform,
-                appearance,
+            Kind::Rect => Stimulus::Rect(RectStimulus {
+                common,
                 size: Deferred::new([self.rect_size[0] / 2.0, self.rect_size[1] / 2.0]),
-            })),
-            Kind::Circle => Stimulus::Shape(ShapeStimulus::Circle(CircleStimulus {
-                flags,
-                transform,
-                appearance,
+            }),
+            Kind::Circle => Stimulus::Circle(CircleStimulus {
+                common,
                 radius: Deferred::new(self.circle_radius),
-            })),
-            Kind::Ellipse => Stimulus::Shape(ShapeStimulus::Ellipse(EllipseStimulus {
-                flags,
-                transform,
-                appearance,
+            }),
+            Kind::Ellipse => Stimulus::Ellipse(EllipseStimulus {
+                common,
                 radii: Deferred::new([self.ellipse_size[0] / 2.0, self.ellipse_size[1] / 2.0]),
-            })),
+            }),
             Kind::Grating => Stimulus::Grating(GratingStimulus::new(
                 self.pos,
                 self.angle,

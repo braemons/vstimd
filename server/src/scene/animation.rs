@@ -54,6 +54,7 @@ pub enum AnimState {
 pub use crate::vtl_state::{Edge, VtlBit};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type")]
 pub enum Animation {
     /// Mirror stimulus enabled state to the level of a trigger line (input or output).
     CoupleVisibilityToTriggerLine { trigger: VtlBit, polarity: bool },
@@ -203,8 +204,8 @@ mod tests {
         ];
         for anim in &variants {
             let value = serde_json::to_value(anim).expect("serialize");
-            // Externally-tagged enum → a single-key object whose key is the tag.
-            let tag = value.as_object().and_then(|o| o.keys().next()).expect("tagged object");
+            // Internally-tagged enum → the variant name lives in the `type` field.
+            let tag = value.get("type").and_then(|t| t.as_str()).expect("internally-tagged 'type'");
             assert_eq!(
                 tag, anim.type_name(),
                 "serde config tag and type_name() diverged for {}", anim.type_name(),

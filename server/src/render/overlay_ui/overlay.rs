@@ -6,7 +6,6 @@ use crate::render::SystemMetrics;
 use super::animation_dialog::TriggerLine;
 use super::file_browser::BrowserMode;
 use super::overlay_state::{OverlayGroup, OverlayState};
-use crate::scene::stimulus::ShapeStimulus;
 use crate::scene::{AnimState, LoadMode, SceneState, Stimulus};
 use crate::timing::{FramePhases, FrameStats};
 use crate::vtl_state::{VtlConfig, VtlState};
@@ -173,13 +172,13 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                                                 let [hw, hh] = s.size.live;
                                                 format!("{}×{}", (hw*2.0) as i32, (hh*2.0) as i32)
                                             }
-                                            Stimulus::Shape(ShapeStimulus::Rect(s)) => {
+                                            Stimulus::Rect(s) => {
                                                 let [hw, hh] = s.size.live;
                                                 format!("{}×{}", (hw*2.0) as i32, (hh*2.0) as i32)
                                             }
-                                            Stimulus::Shape(ShapeStimulus::Circle(s)) =>
+                                            Stimulus::Circle(s) =>
                                                 format!("r={}", s.radius.live as i32),
-                                            Stimulus::Shape(ShapeStimulus::Ellipse(s)) => {
+                                            Stimulus::Ellipse(s) => {
                                                 let [rx, ry] = s.radii.live;
                                                 format!("{}×{}", (rx*2.0) as i32, (ry*2.0) as i32)
                                             }

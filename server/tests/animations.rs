@@ -13,7 +13,7 @@ use vstimd::scene::{
     SceneState,
     animation::{AnimState, Animation, AnimationEntry, FinalAction},
     stimulus::{
-        RectStimulus, ShapeAppearance, ShapeStimulus, Stimulus, StimulusEntry, StimulusFlags,
+        RectStimulus, ShapeAppearance, ShapeCommon, Stimulus, StimulusEntry, StimulusFlags,
         Transform2D,
     },
 };
@@ -48,12 +48,14 @@ fn create_rect(scene: &mut SceneState) -> u32 {
     scene.add_stimulus(StimulusEntry::new(
         Uuid::new_v4(),
         None,
-        Stimulus::Shape(ShapeStimulus::Rect(RectStimulus {
-            flags: StimulusFlags::enabled(true),
-            transform:  Deferred::new(Transform2D { pos: [0.0, 0.0], angle: 0.0 }),
-            appearance: Deferred::new(ShapeAppearance::default()),
+        Stimulus::Rect(RectStimulus {
+            common: ShapeCommon {
+                flags: StimulusFlags::enabled(true),
+                transform:  Deferred::new(Transform2D { pos: [0.0, 0.0], angle: 0.0 }),
+                appearance: Deferred::new(ShapeAppearance::default()),
+            },
             size:       Deferred::new([50.0, 50.0]),
-        })),
+        }),
     ))
 }
 

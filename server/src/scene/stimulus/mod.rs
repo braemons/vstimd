@@ -1,21 +1,32 @@
 pub mod grating;
 mod primitive_shapes;
 mod shape_appearance;
-mod shape_stimulus;
 mod stimulus_flags;
 pub mod text;
 mod transform2d;
 
 pub use grating::{GratingMask, GratingParams, GratingStimulus, Waveform};
-pub use primitive_shapes::{CircleStimulus, EllipseStimulus, RectStimulus};
+pub use primitive_shapes::{CircleStimulus, EllipseStimulus, RectStimulus, ShapeCommon};
 pub use shape_appearance::{DrawMode, ShapeAppearance};
-pub use shape_stimulus::ShapeStimulus;
 pub use stimulus_flags::StimulusFlags;
 pub use text::{Anchor, LanguageStyle, TextRenderParams, TextStimulus};
 pub use transform2d::Transform2D;
 
 use super::deferred::Deferred;
 use uuid::Uuid;
+
+// Apply `$body` to the inner struct of whichever shape variant `$self` is, or
+// fall through to the non-shape arms. Keeps the shared shape accessors DRY.
+macro_rules! shape_arm {
+    ($self:expr, $s:ident => $body:expr) => {
+        match $self {
+            Stimulus::Rect($s) => $body,
+            Stimulus::Ellipse($s) => $body,
+            Stimulus::Circle($s) => $body,
+            _ => unreachable!("shape_arm! on non-shape stimulus"),
+        }
+    };
+}
 
 // ── StimulusEntry ─────────────────────────────────────────────────────────────
 
@@ -39,9 +50,14 @@ impl StimulusEntry {
 
 // ── Stimulus enum ─────────────────────────────────────────────────────────────
 
+/// A 2-D stimulus. Serialized internally-tagged (`{"type": "Rect", ...}`) so the
+/// config format matches animations and is friendly to schema-driven tooling.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "type")]
 pub enum Stimulus {
-    Shape(ShapeStimulus),
+    Rect(RectStimulus),
+    Ellipse(EllipseStimulus),
+    Circle(CircleStimulus),
     Grating(GratingStimulus),
     Text(TextStimulus),
 }
@@ -51,7 +67,9 @@ impl Stimulus {
 
     pub fn flags(&self) -> &StimulusFlags {
         match self {
-            Stimulus::Shape(s) => s.flags(),
+            Stimulus::Rect(s) => &s.common.flags,
+            Stimulus::Ellipse(s) => &s.common.flags,
+            Stimulus::Circle(s) => &s.common.flags,
             Stimulus::Grating(s) => &s.flags,
             Stimulus::Text(s) => &s.flags,
         }
@@ -59,7 +77,9 @@ impl Stimulus {
 
     pub fn flags_mut(&mut self) -> &mut StimulusFlags {
         match self {
-            Stimulus::Shape(s) => s.flags_mut(),
+            Stimulus::Rect(s) => &mut s.common.flags,
+            Stimulus::Ellipse(s) => &mut s.common.flags,
+            Stimulus::Circle(s) => &mut s.common.flags,
             Stimulus::Grating(s) => &mut s.flags,
             Stimulus::Text(s) => &mut s.flags,
         }
@@ -67,7 +87,9 @@ impl Stimulus {
 
     pub fn transform(&self) -> &Deferred<Transform2D> {
         match self {
-            Stimulus::Shape(s) => s.transform(),
+            Stimulus::Rect(s) => &s.common.transform,
+            Stimulus::Ellipse(s) => &s.common.transform,
+            Stimulus::Circle(s) => &s.common.transform,
             Stimulus::Grating(s) => &s.transform,
             Stimulus::Text(s) => &s.transform,
         }
@@ -75,10 +97,36 @@ impl Stimulus {
 
     pub fn transform_mut(&mut self) -> &mut Deferred<Transform2D> {
         match self {
-            Stimulus::Shape(s) => s.transform_mut(),
+            Stimulus::Rect(s) => &mut s.common.transform,
+            Stimulus::Ellipse(s) => &mut s.common.transform,
+            Stimulus::Circle(s) => &mut s.common.transform,
             Stimulus::Grating(s) => &mut s.transform,
             Stimulus::Text(s) => &mut s.transform,
         }
+    }
+
+    /// Shape appearance (fill/outline/draw-mode) — `None` for grating/text.
+    pub fn shape_appearance(&self) -> Option<&Deferred<ShapeAppearance>> {
+        match self {
+            Stimulus::Rect(_) | Stimulus::Ellipse(_) | Stimulus::Circle(_) => {
+                Some(shape_arm!(self, s => &s.common.appearance))
+            }
+            _ => None,
+        }
+    }
+
+    pub fn shape_appearance_mut(&mut self) -> Option<&mut Deferred<ShapeAppearance>> {
+        match self {
+            Stimulus::Rect(_) | Stimulus::Ellipse(_) | Stimulus::Circle(_) => {
+                Some(shape_arm!(self, s => &mut s.common.appearance))
+            }
+            _ => None,
+        }
+    }
+
+    /// True for rect/ellipse/circle.
+    pub fn is_shape(&self) -> bool {
+        matches!(self, Stimulus::Rect(_) | Stimulus::Ellipse(_) | Stimulus::Circle(_))
     }
 
     // ── Config load ───────────────────────────────────────────────────────────
@@ -95,7 +143,9 @@ impl Stimulus {
     /// Snapshot all live state into copy fields. Call at the start of deferred mode.
     pub fn make_copy(&mut self) {
         match self {
-            Stimulus::Shape(s) => s.make_copy(),
+            Stimulus::Rect(s) => s.make_copy(),
+            Stimulus::Ellipse(s) => s.make_copy(),
+            Stimulus::Circle(s) => s.make_copy(),
             Stimulus::Grating(s) => s.make_copy(),
             Stimulus::Text(s) => s.make_copy(),
         }
@@ -104,7 +154,9 @@ impl Stimulus {
     /// Promote all copy fields to live. Call at the frame boundary when `pending_flip` is set.
     pub fn flip(&mut self) {
         match self {
-            Stimulus::Shape(s) => s.flip(),
+            Stimulus::Rect(s) => s.flip(),
+            Stimulus::Ellipse(s) => s.flip(),
+            Stimulus::Circle(s) => s.flip(),
             Stimulus::Grating(s) => s.flip(),
             Stimulus::Text(s) => s.flip(),
         }
@@ -154,7 +206,9 @@ impl Stimulus {
 
     pub fn type_name(&self) -> &'static str {
         match self {
-            Stimulus::Shape(s) => s.type_name(),
+            Stimulus::Rect(_) => RectStimulus::TYPE_NAME,
+            Stimulus::Ellipse(_) => EllipseStimulus::TYPE_NAME,
+            Stimulus::Circle(_) => CircleStimulus::TYPE_NAME,
             Stimulus::Grating(_) => "Grating",
             Stimulus::Text(_) => "Text",
         }
