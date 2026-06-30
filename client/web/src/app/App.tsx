@@ -1,6 +1,7 @@
 import { useScene } from "./useScene.js";
 import { StimulusMap } from "./StimulusMap.js";
 import { StimuliPanel } from "./StimuliPanel.js";
+import { VtlPanel } from "./VtlPanel.js";
 
 export function App() {
   const { conn, snapshot, connected } = useScene();
@@ -22,6 +23,7 @@ export function App() {
       <div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
         <StimulusMap conn={conn} snapshot={snapshot} />
         <StimuliPanel conn={conn} snapshot={snapshot} />
+        <VtlPanel conn={conn} snapshot={snapshot} />
       </div>
       <p style={{ color: "#666", fontSize: 12, marginTop: 12 }}>
         Drag a stimulus on the map to move it (receptive-field mapping).

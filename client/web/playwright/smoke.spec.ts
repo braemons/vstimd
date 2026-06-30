@@ -35,6 +35,27 @@ test("creates a stimulus", async ({ page }) => {
   await expect(row).toContainText("0, 0");
 });
 
+test("shows a VTL line and toggles its level", async ({ page }) => {
+  // Register a named input line server-side, then load the UI.
+  const conn = await Connection.connect(BACKEND);
+  await conn.vtl.setName(0, 1, "input", "trig");
+  await conn.vtl.setInput("trig", false); // known starting level
+  conn.close();
+
+  await page.goto("/");
+  await expect(page.getByText("connected")).toBeVisible();
+
+  // The named line appears in the Trigger Lines panel, starting low.
+  const row = page.locator("tr", { hasText: "trig" });
+  await expect(row).toBeVisible();
+  const indicator = row.locator("span[title]");
+  await expect(indicator).toHaveAttribute("title", "low");
+
+  // The toggle button drives the line high (reconciled via the next snapshot).
+  await row.getByRole("button", { name: "toggle" }).click();
+  await expect(indicator).toHaveAttribute("title", "high");
+});
+
 test("drag on the map moves the stimulus (RF mapping)", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("connected")).toBeVisible();
