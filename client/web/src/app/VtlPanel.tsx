@@ -1,58 +1,90 @@
-// Virtual trigger line list + level indicators, mirroring the egui VTL overlay.
-// Reads live state from snapshot.vtlLines and drives conn.vtl.
+// Virtual trigger lines as clickable per-bank binary views. Reads the live
+// per-bit state from snapshot.vtlLines (the server lists every bit, named or
+// not) and toggles a line on click: inputs simulate the hardware bridge, outputs
+// override the animation-driven level — both for debugging.
 
-import type { Connection, SceneSnapshot } from "../index.js";
+import type { Connection, SceneSnapshot, VtlDirection, VtlLineView } from "../index.js";
 
 interface Props {
   conn: Connection | null;
   snapshot: SceneSnapshot | null;
 }
 
+interface Bank {
+  direction: VtlDirection;
+  bank: number;
+  bits: (VtlLineView | undefined)[]; // indexed by bit
+}
+
+function groupBanks(lines: VtlLineView[]): Bank[] {
+  const map = new Map<string, Bank>();
+  for (const l of lines) {
+    const key = `${l.direction}:${l.bank}`;
+    let g = map.get(key);
+    if (!g) {
+      g = { direction: l.direction, bank: l.bank, bits: [] };
+      map.set(key, g);
+    }
+    g.bits[l.bit] = l;
+  }
+  return [...map.values()].sort(
+    (a, b) => a.direction.localeCompare(b.direction) || a.bank - b.bank,
+  );
+}
+
 export function VtlPanel({ conn, snapshot }: Props) {
-  const lines = snapshot?.vtlLines ?? [];
+  const banks = groupBanks(snapshot?.vtlLines ?? []);
+
+  function toggle(direction: VtlDirection, bank: number, bit: number) {
+    if (!conn) return;
+    const line = { bank, bit };
+    if (direction === "input") void conn.vtl.toggleInput(line);
+    else void conn.vtl.toggleOutput(line);
+  }
 
   return (
-    <div style={{ minWidth: 260 }}>
+    <div style={{ minWidth: 280 }}>
       <h3>Trigger Lines</h3>
-      {lines.length === 0 ? (
-        <p style={{ color: "#666", fontSize: 13 }}>No lines registered.</p>
-      ) : (
-        <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ textAlign: "left", color: "#888" }}>
-              <th>Line</th><th>Dir</th><th>Level</th><th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {lines.map((l) => (
-              <tr key={`${l.bank}:${l.bit}`}>
-                <td>{l.name || <span style={{ color: "#888" }}>{l.bank}:{l.bit}</span>}</td>
-                <td style={{ color: "#888" }}>{l.direction}</td>
-                <td>
-                  <span
-                    title={l.high ? "high" : "low"}
-                    style={{
-                      display: "inline-block", width: 10, height: 10, borderRadius: "50%",
-                      background: l.high ? "#4c8" : "#444",
-                      boxShadow: l.high ? "0 0 6px #4c8" : "none",
-                    }}
-                  />
-                </td>
-                <td>
-                  {l.direction === "input" && (
-                    <button
-                      disabled={!conn}
-                      onClick={() => conn?.vtl.toggleInput({ bank: l.bank, bit: l.bit })}
+      {banks.length === 0 && <p style={{ color: "#666", fontSize: 13 }}>No VTL banks.</p>}
+      {banks.map((g) => {
+        const width = g.bits.length || 64;
+        // MSB-first (bit width-1 … 0), grouped into bytes of 8.
+        const idxs = Array.from({ length: width }, (_, i) => width - 1 - i);
+        return (
+          <div key={`${g.direction}:${g.bank}`} style={{ marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: "#888", marginBottom: 2 }}>
+              {g.direction === "input" ? "In" : "Out"} bank {g.bank}
+            </div>
+            <div style={{ fontFamily: "monospace", fontSize: 13, lineHeight: 1.6 }}>
+              {idxs.map((bit, i) => {
+                const line = g.bits[bit];
+                const high = line?.high ?? false;
+                const named = !!line?.name;
+                return (
+                  <span key={bit}>
+                    <span
+                      role="button"
+                      title={`${g.direction} bank ${g.bank} bit ${bit}${named ? `: ${line!.name}` : ""}`}
+                      onClick={() => toggle(g.direction, g.bank, bit)}
+                      style={{
+                        cursor: conn ? "pointer" : "default",
+                        color: high ? "#1a1a1a" : "#777",
+                        background: high ? "#4c8" : "transparent",
+                        textDecoration: named ? "underline" : "none",
+                        padding: "0 1px",
+                        borderRadius: 2,
+                      }}
                     >
-                      toggle
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+                      {high ? "1" : "0"}
+                    </span>
+                    {i % 8 === 7 && i !== idxs.length - 1 ? " " : ""}
+                  </span>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

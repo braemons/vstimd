@@ -1446,30 +1446,39 @@ impl SceneState {
         };
         let owner = vtl.owner();
 
-        let state_word = |bank: usize, dir: vtl::Direction| -> u64 {
-            match dir {
-                vtl::Direction::Input => owner.input_state(bank),
-                vtl::Direction::Output => owner.output_state(bank),
-            }
+        // Enumerate every physical bit in the configured banks (not just named
+        // lines) so the UIs can trigger/observe any line for debugging. A name is
+        // attached when one is registered for that (bank, bit, direction).
+        const BITS_PER_BANK: u8 = 64;
+        let name_of = |bank: u8, bit: u8, dir: vtl::Direction| -> String {
+            vtl.names
+                .iter()
+                .find(|e| e.bank == bank && e.bit == bit && e.direction == dir)
+                .map(|e| e.name.clone())
+                .unwrap_or_default()
         };
 
-        let lines: Vec<proto::VirtualTriggerLineInfo> = vtl
-            .names
-            .iter()
-            .map(|e| {
-                let high = state_word(e.bank as usize, e.direction) >> e.bit & 1 == 1;
-                proto::VirtualTriggerLineInfo {
-                    name: e.name.clone(),
-                    bank: e.bank as u32,
-                    bit: e.bit as u32,
-                    direction: match e.direction {
-                        vtl::Direction::Input => proto::VirtualTriggerLineDirection::Input as i32,
-                        vtl::Direction::Output => proto::VirtualTriggerLineDirection::Output as i32,
-                    },
-                    high,
+        let mut lines: Vec<proto::VirtualTriggerLineInfo> = Vec::new();
+        for (dir, proto_dir, n_banks) in [
+            (vtl::Direction::Input, proto::VirtualTriggerLineDirection::Input, owner.num_input_banks()),
+            (vtl::Direction::Output, proto::VirtualTriggerLineDirection::Output, owner.num_output_banks()),
+        ] {
+            for bank in 0..n_banks as usize {
+                let word = match dir {
+                    vtl::Direction::Input => owner.input_state(bank),
+                    vtl::Direction::Output => owner.output_state(bank),
+                };
+                for bit in 0..BITS_PER_BANK {
+                    lines.push(proto::VirtualTriggerLineInfo {
+                        name: name_of(bank as u8, bit, dir),
+                        bank: bank as u32,
+                        bit: bit as u32,
+                        direction: proto_dir as i32,
+                        high: word >> bit & 1 == 1,
+                    });
                 }
-            })
-            .collect();
+            }
+        }
         ok_body(proto::response::Body::VirtualTriggerLineList(
             proto::ListVirtualTriggerLinesResponse { lines },
         ))

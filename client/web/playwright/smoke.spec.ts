@@ -36,7 +36,7 @@ test("creates a stimulus", async ({ page }) => {
   await expect(row).toContainText("0, 0");
 });
 
-test("shows a VTL line and toggles its level", async ({ page }) => {
+test("toggles a VTL bit in the binary grid", async ({ page }) => {
   // Register a named input line server-side, then load the UI.
   const conn = await Connection.connect(BACKEND);
   await conn.vtl.setName(0, 1, "input", "trig");
@@ -46,15 +46,13 @@ test("shows a VTL line and toggles its level", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("connected")).toBeVisible();
 
-  // The named line appears in the Trigger Lines panel, starting low.
-  const row = page.locator("tr", { hasText: "trig" });
-  await expect(row).toBeVisible();
-  const indicator = row.locator("span[title]");
-  await expect(indicator).toHaveAttribute("title", "low");
+  // Every bit is a clickable cell; the named input bit starts low (0).
+  const cell = page.getByTitle("input bank 0 bit 1: trig");
+  await expect(cell).toHaveText("0");
 
-  // The toggle button drives the line high (reconciled via the next snapshot).
-  await row.getByRole("button", { name: "toggle" }).click();
-  await expect(indicator).toHaveAttribute("title", "high");
+  // Clicking toggles the line high (reconciled via the next snapshot).
+  await cell.click();
+  await expect(cell).toHaveText("1");
 });
 
 test("lists an animation and arms it", async ({ page }) => {
