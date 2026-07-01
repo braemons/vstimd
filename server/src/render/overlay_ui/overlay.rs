@@ -128,6 +128,10 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
     let want = |g: OverlayGroup| focus_now && focused == g;
     let foc  = |g: OverlayGroup| focused == g;
 
+    // Quick-load requested from the inline config list; applied after the panels
+    // are drawn (like the file-browser result) so we never write the scene mid-draw.
+    let mut quick_load: Option<(BrowserMode, std::path::PathBuf)> = None;
+
     // ── Top panel — each visible group is a Panel::left inside ───────────────
     // Panel::left fills the full height of Panel::top, so no circular height
     // dependency. The top panel auto-sizes from the tallest left panel.
@@ -416,6 +420,38 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                             file_browser.open_load_additive();
                         }
                     });
+
+                    // Inline listing of the config directory with quick-load buttons.
+                    ui.separator();
+                    ui.label(egui::RichText::new("Saved configs").strong());
+                    match scene.try_read().ok().map(|sc| sc.runtime.config_dir.clone()) {
+                        None => {
+                            ui.label(egui::RichText::new("(scene busy)").color(egui::Color32::DARK_GRAY));
+                        }
+                        Some(dir) => {
+                            let names = crate::io_config::list_config_names(&dir).unwrap_or_default();
+                            if names.is_empty() {
+                                ui.label(egui::RichText::new("(none)").color(egui::Color32::DARK_GRAY));
+                            } else {
+                                egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
+                                    egui::Grid::new("config_list").num_columns(3).spacing([8.0, 2.0])
+                                        .show(ui, |ui| {
+                                        for name in &names {
+                                            let path = dir.join(format!("vstimd_{name}.config.json"));
+                                            ui.label(name);
+                                            if ui.button("Load").clicked() {
+                                                quick_load = Some((BrowserMode::OpenReplace, path.clone()));
+                                            }
+                                            if ui.button("＋").on_hover_text("Load additive").clicked() {
+                                                quick_load = Some((BrowserMode::OpenAdditive, path));
+                                            }
+                                            ui.end_row();
+                                        }
+                                    });
+                                });
+                            }
+                        }
+                    }
                 });
             });
             if closed { visible[OverlayGroup::Config.index()] = false; }
@@ -478,6 +514,9 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
 
     file_browser.show(ctx);
     if let Some((mode, path)) = file_browser.take_result() {
+        handle_file_result(mode, path, scene, *vtl);
+    }
+    if let Some((mode, path)) = quick_load {
         handle_file_result(mode, path, scene, *vtl);
     }
 }
