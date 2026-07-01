@@ -855,16 +855,24 @@ fn vtl_group(ctx: &egui::Context, ui: &mut egui::Ui, want_focus: bool, vtl: Opti
         let bit = m.bit as u8;
         let mask = 1u64 << bit;
         if m.output {
-            if ui.button("High").clicked() { vtl_st.set_staged_bit(bank, bit, true); }
-            if ui.button("Low").clicked() { vtl_st.set_staged_bit(bank, bit, false); }
+            if ui.button("High").clicked() {
+                vtl_st.set_staged_bit(bank, bit, true);
+                log::info!("vtl: manual fire out bank={bank} bit={bit} -> high (state now {:#018x})", vtl_st.owner().output_state(bank));
+            }
+            if ui.button("Low").clicked() {
+                vtl_st.set_staged_bit(bank, bit, false);
+                log::info!("vtl: manual fire out bank={bank} bit={bit} -> low (state now {:#018x})", vtl_st.owner().output_state(bank));
+            }
         } else {
             if ui.button("↑ rise").clicked() {
                 vtl_st.owner().set_input_bit(bank, bit);
                 vtl_st.owner().set_input_rise(bank, mask);
+                log::info!("vtl: manual fire in bank={bank} bit={bit} -> rise (state now {:#018x})", vtl_st.owner().input_state(bank));
             }
             if ui.button("↓ fall").clicked() {
                 vtl_st.owner().clear_input_bit(bank, bit);
                 vtl_st.owner().set_input_fall(bank, mask);
+                log::info!("vtl: manual fire in bank={bank} bit={bit} -> fall (state now {:#018x})", vtl_st.owner().input_state(bank));
             }
         }
     });
