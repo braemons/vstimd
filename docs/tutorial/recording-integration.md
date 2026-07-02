@@ -1,5 +1,7 @@
 # Tutorial: Integrating recording systems
 
+<span class="wip-badge">WIP</span>
+
 The reason to put stimulus rendering on a dedicated device with real trigger lines
 is that electrophysiology and imaging rigs already run on **TTL logic**. They
 record incoming TTLs alongside neural data, and emit TTLs to drive cameras, lasers,

@@ -106,7 +106,7 @@ nav:
       - Frame timing: concepts/frame-timing.md
       - Coordinate system: concepts/coordinate-system.md
       - Deferred mode: concepts/deferred-mode.md
-      - Scene serialization: concepts/scene-serialization.md
+      - Saving and loading: concepts/saving-loading.md
   - Protocol:
       - Overview: protocol/index.md
       - Command reference: protocol/commands.md

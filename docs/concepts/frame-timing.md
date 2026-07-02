@@ -1,5 +1,7 @@
 # Frame Timing
 
+<span class="wip-badge">WIP</span>
+
 Precise frame timing is the central guarantee vstimd provides. This page explains what
 "frame-accurate" means, how the server achieves it, and how to verify it.
 

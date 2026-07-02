@@ -1,5 +1,7 @@
 # Architecture
 
+<span class="wip-badge">WIP</span>
+
 ## Overview
 
 vstimd has a client-server architecture. The server owns the display and renders stimuli;
@@ -76,4 +78,3 @@ handle returned to the client on creation.
 Each stimulus is a variant of the `Stimulus` enum — no trait objects, no heap allocation per
 stimulus. Shared fields (position, colour, enabled flag) are held in component structs
 (`Transform2D`, `ShapeAppearance`, `StimulusFlags`) composed into each variant.
-

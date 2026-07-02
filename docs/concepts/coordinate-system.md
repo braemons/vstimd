@@ -1,5 +1,7 @@
 # Coordinate System
 
+<span class="wip-badge">WIP</span>
+
 All 2-D stimulus positions use a **pixel-space coordinate system**:
 
 - **Origin** at the screen centre

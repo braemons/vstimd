@@ -1,4 +1,6 @@
-# Tutorial: Triggers & animations (VTL)
+# Tutorial: Triggers & animations
+
+<span class="wip-badge">WIP</span>
 
 This is the **frame-accurate, on-device** path. Where the [command API](command-api.md)
 runs one round-trip per change, the trigger/animation path uploads a small
