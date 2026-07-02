@@ -1,7 +1,6 @@
 # Bare-Metal Linux Rendering
 
-> **Status:** Implemented (Jetson Orin Nano / Jetson Nano) / Planned (Raspberry Pi 5)
-> **Last updated:** 2025-05-05
+<span class="wip-badge">WIP</span>
 
 Run vstimd without a compositor on Linux using KMS/DRM for display ownership and raw Vulkan for rendering. No X11, no Wayland, no display server required.
 
@@ -15,15 +14,7 @@ Run vstimd without a compositor on Linux using KMS/DRM for display ownership and
 | NVIDIA Jetson Orin Nano | Working | `VK_KHR_display` | See setup below |
 | Raspberry Pi 5 | Planned | `VK_EXT_acquire_drm_display` (expected) | Hardware not yet available |
 
----
 
-## Motivation
-
-The windowed stack (`winit` + Vulkan surface) assumes a display server is running. For latency-sensitive psychophysics experiments on dedicated hardware — headless servers, embedded systems, single-board computers — the compositor is an unnecessary layer that adds scheduling jitter and prevents direct vblank control.
-
-The bare-metal path removes the compositor entirely, giving the process exclusive ownership of the display plane and deterministic frame timing.
-
----
 
 ## Platform-Specific Setup
 

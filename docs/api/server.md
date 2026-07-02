@@ -1,5 +1,7 @@
 # Server (Rust) API
 
+<span class="wip-badge">WIP</span>
+
 The server internals are documented via `cargo doc`. Generate and open locally:
 
 ```sh

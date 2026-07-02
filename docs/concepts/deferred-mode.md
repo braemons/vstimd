@@ -1,5 +1,7 @@
 # Deferred Mode
 
+<span class="wip-badge">WIP</span>
+
 Deferred mode lets you batch multiple stimulus changes so they all become visible on exactly
 the same frame — no tearing, no partial updates.
 

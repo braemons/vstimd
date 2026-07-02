@@ -1,5 +1,7 @@
 # Tutorial: The command API
 
+<span class="wip-badge">WIP</span>
+
 The command API is the **imperative** path: your client sends a command, the server
 applies it on the next frame and replies. Use it to build the scene, run your trial
 logic, and query state. This tutorial walks from a first stimulus to atomic

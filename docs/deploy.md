@@ -1,5 +1,7 @@
 # Deployment
 
+<span class="wip-badge">WIP</span>
+
 vstimd is designed to run as a systemd service on bare-metal Linux, driving the
 display directly via `VK_KHR_display` without a compositor.
 

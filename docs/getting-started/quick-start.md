@@ -1,5 +1,7 @@
 # Quick Start
 
+<span class="wip-badge">WIP</span>
+
 ## 1. Start the server
 
 ```sh

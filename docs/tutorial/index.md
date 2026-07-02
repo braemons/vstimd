@@ -1,5 +1,7 @@
 # Choosing an API path
 
+<span class="wip-badge">WIP</span>
+
 vstimd is driven along **two complementary paths**. They are not competing
 alternatives — most real experiments use both. Understanding *what each path is
 for* is the single most important thing to get right, so this page covers it
