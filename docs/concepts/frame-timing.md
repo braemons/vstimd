@@ -25,7 +25,9 @@ which frame a batch of changes becomes visible.
 
 The server uses the following priority chain to lock to the display vblank. Each source
 is tried in order; on error the source is permanently disabled and the next is used.
-The active source is shown in the **System** panel of the debug overlay (F1).
+The active source is shown in the **System** panel of the overlay (F5). For the full
+init requirements and module-level details, see
+[Rendering & DRM internals](../developer/rendering.md).
 
 ### Priority chain
 
@@ -67,18 +69,8 @@ For input-latency-sensitive applications (neuroscience, psychophysics) the DRM /
 | Generic Linux desktop | DrmVblank or PresentWait | Depends on driver and present mode |
 | Any platform | GpuCompletion | Last resort if no vblank source is available |
 
-### VK_EXT_display_control prerequisites
-
-The extension requires three things at init time:
-
-1. `VK_EXT_display_surface_counter` enabled as an **instance** extension.
-2. `VK_EXT_display_control` enabled as a **device** extension.
-3. `VkSwapchainCounterCreateInfoEXT` with `VK_SURFACE_COUNTER_VBLANK_BIT_EXT` chained
-   into swapchain creation — without this, `vkRegisterDisplayEventEXT` returns
-   `ERROR_UNKNOWN`.
-
-These are handled automatically by `drm/init.rs` and `vk/context.rs`; the extension is
-only activated when the driver advertises all required capabilities.
+The `VK_EXT_display_control` init prerequisites and the module-level implementation
+are documented in [Rendering & DRM internals](../developer/rendering.md).
 
 ## Present mode
 
@@ -87,14 +79,14 @@ The server always uses `VK_PRESENT_MODE_FIFO_KHR` (vsync, no tearing) in product
 only — it reduces vsync wait by up to one frame but makes it impossible to determine which
 frame a deferred flip was first visible on.
 
-## Debug overlay
+## On-device overlay
 
-Press **F1** to open the overlay. The **Frame Timing** panel shows:
+The overlay has panels on **F1–F7** (Shift+F–key hides one). Two are timing-related:
 
-- FPS and measured frame duration
-- Per-frame sparkline (red bars = missed vblank)
-- Phase breakdown: tessellate / upload / fence / acquire / record / submit (in µs)
-- Drop count and jitter
+- **System (F5)** — active vblank clock source, refresh rate, backend.
+- **Benchmarks (F7)** — FPS and measured frame duration, per-frame sparkline (red bars
+  = missed vblank), phase breakdown (tessellate / upload / fence / acquire / record /
+  submit, in µs), drop count, and jitter.
 
 ## Hardware timing test
 

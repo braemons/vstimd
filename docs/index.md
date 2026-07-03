@@ -1,4 +1,4 @@
-# vstimd
+# ![vstimd](assets/vstimd-logo.svg#only-light){ width="240" }![vstimd](assets/vstimd-logo-dark.svg#only-dark){ width="240" }
 
 !!! danger "Alpha software — not ready for production"
     vstimd is in **early alpha**. The APIs, wire protocol, and behaviour can change at
@@ -11,7 +11,7 @@ hardware and accepts commands from experiment scripts over the network, renderin
 precise, vsync-locked frame timing.
 
 vstimd is controlled along two complementary paths: **direct** commands from a software
-client over ZMQ/protobuf, and **trigger-driven** reactions via Virtual Trigger Lines (VTL)
+client over [ZMQ](https://zeromq.org/)/[protobuf](https://protobuf.dev/), and **trigger-driven** reactions via Virtual Trigger Lines (VTL)
 fed by hardware DAQ or a software simulator.
 
 !!! tip "New here? Start with these"
@@ -21,12 +21,14 @@ fed by hardware DAQ or a software simulator.
       when to use each, with hands-on tutorials.
 
 ```mermaid
-flowchart LR
+flowchart TB
     subgraph EXP["Experiment PC"]
+        direction LR
         client["Software client<br/>Python · C# · MATLAB (planned)"]
         daq["Hardware DAQ (daqd)<br/>or software sim"]
     end
     subgraph STIM["Stimulus PC · Linux / DRM"]
+        direction LR
         vstimd["vstimd<br/>Vulkan + KMS/DRM"]
         vtl["VTL banks<br/>(shared memory)"]
         loop["scene state → render loop<br/>(VTL-driven anims)"]
@@ -49,8 +51,8 @@ ZMQ/protobuf that take effect on the next frame: create a stimulus, set its posi
 enable or disable it.
 
 ```mermaid
-flowchart LR
-    client["Software client<br/>Python · C# · MATLAB (planned)"] -->|"ZMQ / protobuf · create rect / set enabled"| vstimd["vstimd<br/>scene state → render"]
+flowchart TB
+    client["Software client<br/>Python · C# · MATLAB (planned)"] -->|"ZMQ / protobuf<br/>create rect · set enabled"| vstimd["vstimd<br/>scene state → render"]
     vstimd --> monitor([Monitor])
 ```
 
@@ -62,7 +64,7 @@ stimulus visibility, position, and output markers in hardware time — no round-
 to the experiment PC.
 
 ```mermaid
-flowchart LR
+flowchart TB
     daq["Hardware DAQ (daqd)<br/>or software sim"] -->|"TTL pulse<br/>(or ZMQ sim)"| vtl["VTL banks<br/>(shared memory)"]
     vtl -->|"poll @ frame start"| anim["animations → scene → render"]
     anim --> monitor([Monitor])
@@ -78,10 +80,10 @@ entirely inside the server**, staying synchronised to the display and to DAQ mar
 
 - **Frame-accurate stimulus timing** — vsync-locked render loop, DRM vblank wait
 - **Cross-language clients** — Python, MATLAB *(planned)*, C# (and PsychoPy-compatible Python layer)
-- **Bare-metal Linux rendering** — runs without a compositor (X11/Wayland) via KMS/DRM
+- **Bare-metal Linux rendering** — runs without a compositor (X11/Wayland) via [KMS/DRM](https://en.wikipedia.org/wiki/Direct_Rendering_Manager)
 - **Deferred mode** — batch multiple stimulus changes into a single atomic frame flip
 - **Virtual Trigger Lines (VTL)** — hardware TTL / software triggers via shared memory drive frame-accurate, trigger-reactive animations with no DAQ code inside vstimd
-- **Live debug overlay** — frame timing, stimulus list, command log (toggle with F1)
+- **Live on-device overlay** — frame timing, stimulus list, animations, VTL state, and command log across F1–F7 panels
 
 ## Stimulus types
 

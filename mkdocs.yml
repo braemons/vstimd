@@ -92,24 +92,28 @@ extra_css:
 nav:
   - Home: index.md
   - Why vstimd?: why-vstimd.md
-  - Tutorial:
+  - Getting started:
+      - Installation: getting-started/installation.md
+      - Quick start: getting-started/quick-start.md
+  - Tutorials:
       - Choosing an API path: tutorial/index.md
       - The command API: tutorial/command-api.md
       - Triggers & animations (VTL): tutorial/vtl-and-animations.md
       - Integrating recording systems: tutorial/recording-integration.md
-  - Getting started:
-      - Installation: getting-started/installation.md
-      - Quick start: getting-started/quick-start.md
-      - Bare-metal Linux: getting-started/bare-metal.md
   - Concepts:
-      - Architecture: concepts/architecture.md
       - Frame timing: concepts/frame-timing.md
       - Coordinate system: concepts/coordinate-system.md
       - Deferred mode: concepts/deferred-mode.md
-      - Saving and loading: concepts/saving-loading.md
-  - Protocol:
-      - Overview: protocol/index.md
-      - Command reference: protocol/commands.md
-  - Reference:
-      - Server (Rust) API: api/server.md
-      - Deployment: deploy.md
+      - Saving & loading: concepts/saving-loading.md
+  - Client library:
+      - Python client: client/python.md
+      - Web control UI: client/web.md
+  - Running a rig:
+      - Bare-metal Linux: operations/bare-metal.md
+      - Deployment: operations/deployment.md
+  - Developer guide:
+      - Architecture: developer/architecture.md
+      - Rendering & DRM internals: developer/rendering.md
+      - Wire protocol: developer/protocol.md
+      - Server API: developer/server-api.md
+      - Building & packaging: developer/building.md

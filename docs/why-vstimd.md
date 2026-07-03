@@ -48,7 +48,8 @@ vstimd's shape is not new; it deliberately borrows from prior systems.
 What vstimd adds is the *substrate*. Where StimServer renders through the Windows
 desktop and MWorks through the macOS window server — both on general-purpose
 workstations — vstimd reimplements the whole stack in Rust on **bare-metal Linux**:
-a dedicated embedded board rendering directly on the KMS/DRM plane with direct
+a dedicated embedded board rendering directly on the
+[KMS/DRM](https://en.wikipedia.org/wiki/Direct_Rendering_Manager) plane with direct
 vblank control, no compositor and no desktop OS in the timing path, speaking to
 clients in *any* language on *any* OS.
 
@@ -95,7 +96,7 @@ a behaviour box, or a portable setup**.
 
 - **Home-cage training.** Put the device and a small panel on the cage. It boots
   straight into the stimulus server (`vstimd.target`, see
-  [Deployment](deploy.md)), runs unattended, and needs no monitor, keyboard, or
+  [Deployment](operations/deployment.md)), runs unattended, and needs no monitor, keyboard, or
   desktop session. Animals can self-train around the clock while the controlling
   logic runs elsewhere — or entirely on the device.
 - **Many rigs, one design.** Cheap identical boards make it affordable to build a
@@ -105,7 +106,8 @@ a behaviour box, or a portable setup**.
 
 ## 3. Control it from (almost) anything
 
-The device is driven over the network with **protobuf messages over ZeroMQ**. The
+The device is driven over the network with **protobuf messages over
+[ZeroMQ](https://zeromq.org/)**. The
 wire protocol is language- and platform-neutral, so the controlling client can be:
 
 - **Python / PsychoPy** on Linux, Windows, or macOS,

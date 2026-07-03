@@ -31,7 +31,7 @@ sudo dnf install gcc pkg-config \
 The server is a Rust binary. You need a working [Rust toolchain](https://rustup.rs) (stable, edition 2024), and node.js (v22 or later)
 
 ```sh
-git clone https://github.com/vstimd/vstimd.git
+git clone https://github.com/braemons/vstimd.git
 cd vstimd
 make build
 sudo make install

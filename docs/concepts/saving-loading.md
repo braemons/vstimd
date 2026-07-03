@@ -1,0 +1,78 @@
+# Saving & loading scenes
+
+A whole scene — every stimulus, every animation, the background, **and** the VTL
+line names (the I/O map) — can be saved to and loaded from a named **config** on the
+device. This lets a rig boot into a known stimulus configuration with **no client
+connected at all**, and lets you version and share scenes as plain JSON.
+
+Configs are stored as `.config.json` files in the server's config directory
+(set with `--config-dir`; the default is baked into the rig's deployment). You never
+handle paths from a client — configs are addressed by a bare **name**.
+
+## What a config contains
+
+| Included | Not included |
+|---|---|
+| All stimuli (geometry, colour, enabled state, draw order) | Live animation *state* (armed/running) — animations are saved as definitions |
+| All animation definitions | Anything outside the scene (rig-config, network settings) |
+| Background colour | |
+| VTL line **names** (the I/O map) | VTL live line levels |
+
+## From a client (`config` namespace)
+
+```python
+with Connection("tcp://stimulus-pc:5555") as conn:
+    # Build a scene however you like…
+    conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=200, height=100,
+                                    color=Color(1, 0, 0))
+
+    # …then save it under a name on the device:
+    conn.config.save("center_target")             # → center_target.config.json
+
+    # Later, list and load:
+    print(conn.config.list_configs())             # ['center_target', …]
+    conn.config.load("center_target")             # clears the scene, then loads
+```
+
+### Additive load
+
+By default `load` **clears** the scene first. Pass `additive=True` to merge the
+config's stimuli and animations into the current scene instead — handles are remapped
+to avoid collisions. The I/O config (VTL names) is always fully replaced.
+
+```python
+conn.config.load("distractors", additive=True)    # add on top of what's shown
+```
+
+### Retrieve, upload, and round-tripping JSON
+
+`retrieve` returns the current scene as a JSON string (the same format as the
+`.config.json` files), and `upload` sends a JSON string back to the device under a
+name. This lets you inspect, edit, version-control, or template configs off-device:
+
+```python
+text = conn.config.retrieve()                      # current scene → JSON string
+open("my_scene.json", "w").write(text)
+
+# …edit / commit / template it, then push it back:
+conn.config.upload("my_scene", text, overwrite=True, apply_now=True)
+```
+
+`upload` raises `ConfigAlreadyExistsError` if the name exists and `overwrite=False`.
+With `apply_now=True` the config is applied immediately after saving (honouring
+`additive`). `save(name)` is just a convenience wrapper around `retrieve` + `upload`.
+
+## Booting a rig into a fixed scene
+
+Because a config carries the whole scene *and* the VTL line map, a deployed rig can
+come up showing a known configuration with no experiment PC attached — useful for
+home-cage training or a self-contained demo. Save the scene once from any client,
+and have the device load it at startup. See [Deployment](../operations/deployment.md)
+for wiring this into the boot flow, and the **Config** panel (F6) of the on-device
+overlay, or the web control UI, for loading configs interactively.
+
+## See also
+
+- **[Choosing an API path](../tutorial/index.md)** — where config files fit among
+  the command and VTL paths.
+- **[Deferred mode](deferred-mode.md)** — atomic frame flips for coordinated changes.

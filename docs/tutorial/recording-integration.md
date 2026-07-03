@@ -12,17 +12,20 @@ This page covers the two directions of integration and how the timing lines up.
 
 ## The shape of the integration
 
-```
-   Recording system (ephys / imaging)                 Stimulus device (vstimd)
- ┌───────────────────────────────────┐               ┌──────────────────────────┐
- │ digital acquisition               │  TTL: onset   │ VTL output "stim_onset"  │
- │  ─ records TTLs w/ neural data ◄──┼───────────────┤   pulsed at vblank on the │
- │                                   │               │   exact onset frame       │
- │  ─ emits TTLs (trial gate, …) ────┼───────────────► VTL input "trial_start"  │
- └───────────────────────────────────┘  TTL: trigger └──────────────────────────┘
-                    ▲                                          ▲
-                    │  the SAME acquisition clock timestamps   │
-                    └──────────  both sides  ──────────────────┘
+```mermaid
+flowchart TB
+    subgraph DEV["Stimulus device (vstimd)"]
+        out["VTL output 'stim_onset'<br/>pulsed at vblank on the exact onset frame"]
+        vin["VTL input 'trial_start'"]
+    end
+    subgraph REC["Recording system (ephys / imaging)"]
+        acq["digital acquisition<br/>records TTLs with neural data<br/>emits TTLs (trial gate, …)"]
+    end
+    out -->|"TTL: onset"| acq
+    acq -->|"TTL: trigger"| vin
+    clock["the SAME acquisition clock<br/>timestamps both sides"]
+    clock -.-> acq
+    clock -.-> out
 ```
 
 The key property: because the onset marker is recorded **by your acquisition

@@ -7,19 +7,21 @@ alternatives — most real experiments use both. Understanding *what each path i
 for* is the single most important thing to get right, so this page covers it
 before any code.
 
-```
-                          ┌───────────────────────────────────────────────┐
-   Experiment PC          │  Stimulus device (Linux, KMS/DRM)             │
- ┌──────────────────┐     │                                               │
- │ Command API      │ ZMQ │   scene state ──────────► render loop ───────►│──► Monitor
- │ Py / MATLAB / C# │────►│        ▲              (vsync-locked)           │
- └──────────────────┘     │        │                    │                 │
-                          │        │ reacts             │ pulses          │
- ┌──────────────────┐ TTL │   ┌────┴─────┐              ▼                 │
- │ DAQ / Arduino /  │────►│   │ VTL in   │──► animations ──► VTL out ─────│──► TTL to ephys/imaging
- │ recording system │     │   └──────────┘   (on-device, frame-accurate)  │
- └──────────────────┘     │                                               │
-                          └───────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    cmd["Command API<br/>Py / MATLAB / C#"]
+    daq["DAQ / Arduino /<br/>recording system"]
+    subgraph DEV["Stimulus device (Linux, KMS/DRM)"]
+        vin["VTL in"] --> anim["animations<br/>(on-device, frame-accurate)"]
+        anim -->|reacts| scene["scene state"]
+        scene --> loop["render loop<br/>(vsync-locked)"]
+        anim --> vout["VTL out"]
+        loop -->|pulses| vout
+    end
+    cmd -->|ZMQ| scene
+    daq -->|TTL| vin
+    loop --> mon([Monitor])
+    vout -->|TTL| ephys([ephys / imaging])
 ```
 
 ## Path 1 — The command API (imperative)
@@ -94,7 +96,7 @@ Whole scenes — stimuli, animations, background, **and** the VTL line map — c
 saved to and loaded from **versioned JSON config files** on the device (via the
 command API's `config` namespace, or the web UI). This lets a rig boot into a known
 stimulus configuration with no client connected at all. See
-[Scene serialization](../concepts/scene-serialization.md).
+[Saving & loading scenes](../concepts/saving-loading.md).
 
 ## Decision guide
 

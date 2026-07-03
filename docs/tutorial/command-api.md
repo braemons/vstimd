@@ -54,7 +54,7 @@ with Connection() as conn:
 
 The available stimulus types are rectangles, circles, ellipses, gratings, and
 text. Each has a matching `create_*` and its own shape/appearance commands — see
-the [command reference](../protocol/commands.md).
+the [Python client reference](../client/python.md).
 
 ## 3. Mutate and query
 
@@ -78,7 +78,7 @@ removes it entirely.
 Every command is a **synchronous round-trip**: the client blocks until the server
 acknowledges. That makes errors explicit — a bad handle raises
 `HandleNotFoundError`, a value out of range raises `InvalidArgumentError` (see the
-[error codes](../protocol/index.md#error-codes)) — and it makes the API easy to
+[error table](../client/python.md#errors)) — and it makes the API easy to
 reason about.
 
 It also means command timing is bounded by the network + OS, not by the display.
@@ -173,5 +173,5 @@ win.flip()
 
 - **[Triggers & animations](vtl-and-animations.md)** — the frame-accurate,
   on-device path.
-- **[Command reference](../protocol/commands.md)** — every command and its fields.
+- **[Python client reference](../client/python.md)** — the full command surface.
 - **[Deferred mode](../concepts/deferred-mode.md)** — atomic frame flips in depth.

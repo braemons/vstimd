@@ -75,3 +75,10 @@
     border: 1px solid #ffeeba;
     margin-bottom: 12px;
 }
+
+/* Mermaid diagrams: let a diagram that is still wider than the content column
+   scroll horizontally inside its own box instead of shrinking to unreadable. */
+.mermaid {
+    overflow-x: auto;
+    text-align: center;
+}
