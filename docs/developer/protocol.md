@@ -1,7 +1,7 @@
 # Wire protocol
 
-vstimd speaks **[Protocol Buffers](https://protobuf.dev/) (proto3) over ZMQ
-REQ/REP**. Every client — the [Python client](../client/python.md), the web UI, or
+vstimd speaks **[Protocol Buffers](https://protobuf.dev/) (proto3) over
+[ZMQ](https://en.wikipedia.org/wiki/ZeroMQ) REQ/REP**. Every client — the [Python client](../client/python.md), the web UI, or
 one you write yourself — encodes the same messages, so the protocol is the real
 contract for talking to the server.
 

@@ -12,21 +12,14 @@ vstimd has a client–server architecture. The server owns the display and rende
 stimuli; clients connect over TCP and send commands using
 [protobuf](protocol.md) over ZMQ.
 
-```
-┌──────────────────────────────────────────────────────┐
-│  vstimd server                                       │
-│                                                      │
-│  ┌──────────────┐   Arc<RwLock<SceneState>>          │
-│  │  ZMQ thread  │ ──────────────────────────┐        │
-│  │              │                           ▼        │
-│  └──────────────┘                   ┌──────────────┐ │
-│        ▲ TCP:5555                   │ Render thread │ │──► Display
-│        │ protobuf                   │ (Vulkan/DRM)  │ │
-│  ┌─────┴────────┐                   └──────────────┘ │
-│  │ Python /     │                                    │
-│  │ C# / …       │                                    │
-│  └──────────────┘                                    │
-└──────────────────────────────────────────────────────┘
+```mermaid
+flowchart LR
+    client["Client<br/>Python / C# / …"] -->|"TCP:5555<br/>protobuf"| zmq
+    subgraph SERVER["vstimd server"]
+        direction LR
+        zmq["ZMQ thread"] -->|"Arc&lt;RwLock&lt;SceneState&gt;&gt;"| render["Render thread<br/>(Vulkan/DRM)"]
+    end
+    render --> display([Display])
 ```
 
 ## Threads
@@ -60,32 +53,23 @@ and the vblank-source selection logic.
 
 ## Render loop (per frame)
 
-```
-acquire swapchain image
-  │
-  ├── deferred flip (if pending)     ← atomically promote staged changes
-  │
-  ├── poll VTL input lines           ← drain rising/falling-edge latches
-  ├── advance animations             ← flash / flicker / move / couple-to-line
-  │
-  ├── tessellate dirty stimuli       ← CPU: lyon → Vec<Vertex>
-  │
-  ├── upload changed GPU buffers     ← PCIe DMA
-  │
-  ├── Vulkan render pass
-  │     ├── clear to background colour
-  │     ├── draw stimuli (draw order)
-  │     └── egui overlay (if a panel is visible)
-  │
-  ├── vkQueuePresentKHR
-  │
-  ├── commit VTL output lines        ← markers land on the same frame
-  │
-  └── vblank wait
-        ├── DRM vblank (preferred, bare-metal)
-        ├── VK_EXT_display_control (FIRST_PIXEL_OUT)
-        ├── VK_KHR_present_wait
-        └── GPU fence completion (fallback)
+```mermaid
+flowchart TB
+    a["acquire swapchain image"]
+    b["deferred flip (if pending)<br/>atomically promote staged changes"]
+    c["poll VTL input lines<br/>drain rising/falling-edge latches"]
+    d["advance animations<br/>flash / flicker / move / couple-to-line"]
+    e["tessellate dirty stimuli<br/>CPU: lyon → Vec&lt;Vertex&gt;"]
+    f["upload changed GPU buffers<br/>PCIe DMA"]
+    g["Vulkan render pass<br/>clear · draw stimuli · egui overlay"]
+    h["vkQueuePresentKHR"]
+    i["commit VTL output lines<br/>markers land on the same frame"]
+    j{"vblank wait<br/>(first available source)"}
+    a --> b --> c --> d --> e --> f --> g --> h --> i --> j
+    j --> k1["DRM vblank<br/>(preferred, bare-metal)"]
+    j --> k2["VK_EXT_display_control<br/>(FIRST_PIXEL_OUT)"]
+    j --> k3["VK_KHR_present_wait"]
+    j --> k4["GPU fence completion<br/>(fallback)"]
 ```
 
 The order of the VTL poll → animation advance → output commit steps is the "frame
