@@ -20,6 +20,7 @@ pub const DEFAULT_PATH: &str = "/etc/braemons/vstimd-rig-config.toml";
 const EXAMPLES_DIR: &str = "/usr/share/braemons/vstimd/";
 
 #[derive(Debug, Clone, serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RigConfig {
     #[serde(default)]
     pub vtl: VtlRigConfig,
@@ -37,6 +38,7 @@ pub struct RigConfig {
 /// (on by default). When the feature is disabled these fields are ignored.
 /// CLI flags (`--no-web`, `--web-port`) override these values.
 #[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebRigConfig {
     /// Whether to start the web control surface. Default: true.
     #[serde(default = "WebRigConfig::default_enabled")]
@@ -58,6 +60,7 @@ impl Default for WebRigConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VtlRigConfig {
     /// POSIX shared-memory name for the VTL segment (must start with `/`).
     #[serde(default = "VtlRigConfig::default_shm_name")]
@@ -83,6 +86,7 @@ pub struct VtlRigConfig {
 
 /// A (bank, bit) address for the vblank output line in the rig config.
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VblankBit {
     pub bank: usize,
     pub bit:  u8,
@@ -121,6 +125,7 @@ impl Default for VtlRigConfig {
 /// then highest resolution as a tie-break — Vulkan does not expose the
 /// display's EDID-preferred-mode flag).
 #[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DisplayRigConfig {
     /// Preferred horizontal resolution (pixels).
     pub width: Option<u32>,
@@ -190,6 +195,7 @@ impl Default for DisplayRigConfig {
 ///
 /// All fields are parsed but not yet applied — CPU affinity wiring is planned.
 #[derive(Debug, Clone, serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 #[allow(dead_code)]
 pub struct SchedulingRigConfig {
     /// CPU core to pin the render/vblank thread to.  Not yet applied.
