@@ -9,6 +9,9 @@ pub struct BackendData {
     pub scene: Arc<RwLock<SceneState>>,
     pub vtl: Option<Arc<Mutex<VtlState>>>,
     pub host_info: HostInfo,
+    /// egui overlay UI scale factor (independent of OS/window DPI). See
+    /// `rig_config::DisplayRigConfig::overlay_scale`.
+    pub overlay_scale: f32,
 }
 
 

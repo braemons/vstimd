@@ -17,16 +17,21 @@ pub struct UiRenderer {
 }
 
 impl UiRenderer {
-    pub fn new(ctx: &VkContext, config_dir: PathBuf, log_buffer: LogBuffer) -> Self {
+    pub fn new(ctx: &VkContext, config_dir: PathBuf, log_buffer: LogBuffer, overlay_scale: f32) -> Self {
         let egui_renderer = VkEguiRenderer::new(
             &ctx.device,
             &ctx.instance,
             ctx.physical_device,
             ctx.egui_render_pass,
         );
+        let egui_ctx = egui::Context::default();
+        // pixels_per_point = zoom_factor * native_pixels_per_point, so this
+        // composes with the OS DPI scale on desktop and stands alone in DRM
+        // mode (which reports no native scale factor).
+        egui_ctx.set_zoom_factor(overlay_scale);
         Self {
             egui_renderer,
-            egui_ctx: egui::Context::default(),
+            egui_ctx,
             overlay: OverlayState::new(config_dir),
             metrics: MetricsSampler::new(),
             log_buffer,

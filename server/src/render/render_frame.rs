@@ -76,7 +76,7 @@ pub fn render_frame(
         });
         platform_output = Some(output.platform_output);
         let ppp = output.pixels_per_point;
-        let primitives = ui.egui_ctx.tessellate(output.shapes, ppp);
+        let primitives = egui_ctx.tessellate(output.shapes, ppp);
         egui_store = Some(EguiStore {
             textures_delta: output.textures_delta,
             primitives,

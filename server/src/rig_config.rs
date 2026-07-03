@@ -119,7 +119,7 @@ impl Default for VtlRigConfig {
 ///
 /// Note: wiring into DRM mode selection is not yet implemented — these fields
 /// are parsed and logged but not yet applied.  See Todo.md.
-#[derive(Debug, Clone, serde::Deserialize, Default)]
+#[derive(Debug, Clone, serde::Deserialize)]
 pub struct DisplayRigConfig {
     /// Preferred horizontal resolution (pixels).
     pub width: Option<u32>,
@@ -127,6 +127,28 @@ pub struct DisplayRigConfig {
     pub height: Option<u32>,
     /// Preferred refresh rate (Hz), e.g. `60.0` or `144.0`.
     pub refresh_hz: Option<f64>,
+    /// Scale factor applied to the egui overlay UI, independent of the OS/window
+    /// DPI scale. Useful on high-DPI displays (e.g. 4K) where the overlay text
+    /// and controls would otherwise be unreadably small — and required in DRM
+    /// mode, which has no OS-reported scale factor at all. Applies to both
+    /// desktop and DRM render targets. Overridable with `--overlay-scale`.
+    #[serde(default = "DisplayRigConfig::default_overlay_scale")]
+    pub overlay_scale: f32,
+}
+
+impl DisplayRigConfig {
+    fn default_overlay_scale() -> f32 { 1.0 }
+}
+
+impl Default for DisplayRigConfig {
+    fn default() -> Self {
+        Self {
+            width: None,
+            height: None,
+            refresh_hz: None,
+            overlay_scale: Self::default_overlay_scale(),
+        }
+    }
 }
 
 /// Thread scheduling options for vstimd.

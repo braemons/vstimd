@@ -78,7 +78,7 @@ impl WinitRenderLoopData {
         window_mode: WindowMode,
         log_buffer: LogBuffer,
     ) -> Self {
-        let BackendData { scene, vtl, host_info } = data;
+        let BackendData { scene, vtl, host_info, overlay_scale } = data;
         let ctx = super::winit_init::init(&window);
         // FIFO is set by build_context and never changed — the swapchain is
         // the screen clock.
@@ -110,7 +110,7 @@ impl WinitRenderLoopData {
             },
         };
 
-        let ui = UiRenderer::new(&ctx, config_dir, log_buffer);
+        let ui = UiRenderer::new(&ctx, config_dir, log_buffer, overlay_scale);
         // egui::Context is Arc-based; clone gives egui_winit a handle to the
         // same context so it can read/write egui state (e.g. zoom factor).
         let egui_ctx = ui.egui_ctx.clone();

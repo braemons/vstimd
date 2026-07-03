@@ -149,7 +149,10 @@ fn main() {
     // init which can take several seconds on DRM).
     install_signal_handlers();
 
-    let data = BackendData { scene, vtl, host_info };
+    let overlay_scale = args.overlay_scale.unwrap_or(rig.display.overlay_scale);
+    log::info!("vstimd: overlay scale: {overlay_scale}");
+
+    let data = BackendData { scene, vtl, host_info, overlay_scale };
     let zmq_port = args.zmq_port;
     let on_ready = move || {
         if wait_zmq_bound(&zmq_bound, zmq_port) {
@@ -200,6 +203,8 @@ struct Args {
     rig_config: String,
     config_file: Option<std::path::PathBuf>,
     config_dir: Option<std::path::PathBuf>,
+    /// `Some(s)` if `--overlay-scale` was passed; otherwise `None` (use rig-config).
+    overlay_scale: Option<f32>,
 }
 
 /// Automatically detect the best render target for the current platform.
@@ -240,6 +245,7 @@ fn parse_args() -> Args {
     let mut rig_config  = rig_config::DEFAULT_PATH.to_string();
     let mut config_file: Option<std::path::PathBuf> = None;
     let mut config_dir: Option<std::path::PathBuf> = None;
+    let mut overlay_scale: Option<f32> = None;
 
     let mut args = std::env::args().skip(1).peekable();
     while let Some(arg) = args.next() {
@@ -275,6 +281,17 @@ fn parse_args() -> Args {
                     eprintln!("vstimd: --zmq-port requires a numeric port argument");
                     std::process::exit(1);
                 });
+            }
+            "--overlay-scale" => {
+                let s = args.next().and_then(|s| s.parse::<f32>().ok()).unwrap_or_else(|| {
+                    eprintln!("vstimd: --overlay-scale requires a numeric argument (e.g. 1.5)");
+                    std::process::exit(1);
+                });
+                if !(s.is_finite() && s > 0.0) {
+                    eprintln!("vstimd: --overlay-scale must be a positive number");
+                    std::process::exit(1);
+                }
+                overlay_scale = Some(s);
             }
             "--no-web" => web_enabled = Some(false),
             "--web-port" => {
@@ -326,6 +343,7 @@ fn parse_args() -> Args {
         rig_config,
         config_file,
         config_dir,
+        overlay_scale,
     }
 }
 
@@ -419,6 +437,7 @@ fn print_usage() {
     eprintln!("      --zmq-port <N>        ZMQ REP server port (default: 5555)");
     eprintln!("      --no-web              Disable the embedded web control surface");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
+    eprintln!("      --overlay-scale <N>   Scale factor for the egui overlay UI (default: 1.0)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
     eprintln!("      --rig-config <path>   Rig config (default: {})", vstimd::rig_config::DEFAULT_PATH);
     eprintln!("      --config <path>       Load stim-config file at startup");

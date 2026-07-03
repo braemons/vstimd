@@ -120,7 +120,7 @@ fn check_device_permissions() {
 
 impl DrmRenderLoopData {
     fn new(data: BackendData, log_buffer: LogBuffer) -> Self {
-        let BackendData { scene, vtl, host_info } = data;
+        let BackendData { scene, vtl, host_info, overlay_scale } = data;
         check_device_permissions();
 
         // Snapshot display state first, while the current VT still has an
@@ -156,7 +156,7 @@ impl DrmRenderLoopData {
             ctx.set_debug_name(*img, &format!("swapchain[{i}]"));
         }
 
-        let ui = UiRenderer::new(&ctx, config_dir, log_buffer);
+        let ui = UiRenderer::new(&ctx, config_dir, log_buffer, overlay_scale);
 
         // Build vblank state before ctx moves into RenderState.
         let vk_vblank = ctx
