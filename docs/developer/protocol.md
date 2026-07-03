@@ -5,6 +5,22 @@ vstimd speaks **[Protocol Buffers](https://protobuf.dev/) (proto3) over
 one you write yourself — encodes the same messages, so the protocol is the real
 contract for talking to the server.
 
+## Why ZeroMQ and protobuf
+
+The transport is chosen for **timing**, not features:
+
+- **ZeroMQ** gives low-latency messaging with very little overhead. It is a thin,
+  brokerless layer over TCP with **no authentication or session negotiation** on the
+  hot path, so a command round-trip costs little more than the socket itself. (The
+  flip side: the server does no access control — keep it on a trusted rig network.)
+- **Binary messages.** Commands and responses are serialized to compact binary rather
+  than text (JSON/XML), keeping encode/decode time and wire size small — the point is
+  to spend the frame's millisecond budget on rendering, not parsing.
+- **Protocol Buffers** is the most widespread binary schema format, with mature code
+  generators for virtually every programming language. That means a client can be
+  written in Python, C#, C++, MATLAB, Go, Rust, … from the same `.proto` files, with
+  no bespoke parser to maintain.
+
 !!! tip "New to protobuf?"
     Protocol Buffers is Google's language- and platform-neutral serialization
     format. If you have not used it before, start here:
