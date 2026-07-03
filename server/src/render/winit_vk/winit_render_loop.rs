@@ -124,7 +124,7 @@ impl WinitRenderLoopData {
             Some(4096), // max texture side
         );
 
-        let hz = detect_refresh_hz(&window);
+        let hz = detect_refresh_hz(&window, event_loop);
 
         if ctx.present_wait.is_none() {
             if ctx.display_timing.is_some() {
@@ -462,10 +462,12 @@ impl ApplicationHandler for WinitEventHandler {
 ///    mode directly from the kernel. Skipped when a compositor is running.
 /// 2. winit `refresh_rate_millihertz()` — queries the active compositor mode.
 /// 3. winit `video_modes()` filtered by current window resolution — fallback.
+/// 4. `event_loop.available_monitors()` — fallback for the Wayland startup
+///    race (see comment below).
 ///
 /// Panics if the refresh rate cannot be determined. No silent fallback is
 /// allowed — an unknown rate would cause drop detection to produce garbage.
-fn detect_refresh_hz(window: &Window) -> f64 {
+fn detect_refresh_hz(window: &Window, event_loop: &ActiveEventLoop) -> f64 {
     // 1. DRM kernel interface (Linux only, bare-metal only).
     // Skip when a compositor is running: DRM iterates connectors in kernel
     // order and has no way to match one to the window's monitor. On a
@@ -499,6 +501,28 @@ fn detect_refresh_hz(window: &Window) -> f64 {
             .map(|mhz| mhz as f64 / 1000.0)
     }) {
         log::info!("vstimd: display clock (video_modes): {hz:.3} Hz");
+        return hz;
+    }
+
+    // 4. event_loop.available_monitors() — steps 2 and 3 above go through
+    // window.current_monitor(), which on Wayland only resolves once the
+    // compositor has sent a wl_surface.enter event for the window's surface.
+    // That event is asynchronous and hasn't necessarily arrived yet immediately
+    // after window creation, so this call can spuriously return None right at
+    // startup. available_monitors() instead comes from wl_output globals bound
+    // during EventLoop::new(), which are already available by this point.
+    // Picks the first reporting monitor — wrong on a multi-monitor Wayland
+    // setup if the window doesn't end up on that output, but this is a
+    // single-display stimulus rig, so log a warning rather than panicking.
+    if let Some(hz) = event_loop
+        .available_monitors()
+        .find_map(|m| m.refresh_rate_millihertz())
+        .map(|mhz| mhz as f64 / 1000.0)
+    {
+        log::warn!(
+            "vstimd: display clock (event-loop monitor list, startup-race fallback): {hz:.3} Hz \
+             — window.current_monitor() was not yet populated (expected on Wayland at startup)"
+        );
         return hz;
     }
 
