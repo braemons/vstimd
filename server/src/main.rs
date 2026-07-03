@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(target_os = "linux")]
 use vstimd::render::drm::DrmBackend;
-use vstimd::render::{BackendData, HostInfo, NullBackend, RenderTarget, WindowMode};
+use vstimd::render::{BackendData, DisplayModePref, HostInfo, NullBackend, RenderTarget, WindowMode};
 use vstimd::render::{query_hardware_model, query_hostname, query_local_ip};
 use vstimd::render::winit_vk::WinitBackend;
 use vstimd::rig_config;
@@ -32,23 +32,21 @@ fn main() {
     };
     log::info!("vstimd: hardware: {}", host_info.hardware_model);
 
-    // Load rig-config (hardware-specific settings). Non-fatal if absent.
-    let rig = match rig_config::load(&args.rig_config) {
-        Ok(r) => {
-            log::info!("vstimd: rig-config loaded from {}", args.rig_config);
-            if let Some(ref d) = r.display.width.map(|w| format!("{w}×{}@{}Hz",
-                r.display.height.unwrap_or(0),
-                r.display.refresh_hz.unwrap_or(0.0)))
-            {
-                log::info!("vstimd: rig display preference: {d} (not yet applied to DRM mode)");
-            }
-            r
-        }
-        Err(e) => {
-            log::error!("vstimd: {e}");
-            std::process::exit(1);
-        }
-    };
+    // Load rig-config (hardware-specific settings). Non-fatal if absent; logs
+    // whether it actually found+parsed a file at `args.rig_config` (which
+    // defaults to rig_config::DEFAULT_PATH, /etc/braemons/vstimd-rig-config.toml)
+    // or fell back to built-in defaults.
+    let rig = rig_config::load(&args.rig_config).unwrap_or_else(|e| {
+        log::error!("vstimd: {e}");
+        std::process::exit(1);
+    });
+    if let Some(w) = rig.display.width {
+        log::info!(
+            "vstimd: rig display preference: {w}×{}@{}Hz (DRM mode only)",
+            rig.display.height.unwrap_or(0),
+            rig.display.refresh_hz.unwrap_or(0.0),
+        );
+    }
 
     let config_dir = args
         .config_dir
@@ -152,7 +150,13 @@ fn main() {
     let overlay_scale = args.overlay_scale.unwrap_or(rig.display.overlay_scale);
     log::info!("vstimd: overlay scale: {overlay_scale}");
 
-    let data = BackendData { scene, vtl, host_info, overlay_scale };
+    let display_pref = DisplayModePref {
+        width: rig.display.width,
+        height: rig.display.height,
+        refresh_hz: rig.display.refresh_hz,
+    };
+
+    let data = BackendData { scene, vtl, host_info, overlay_scale, display_pref };
     let zmq_port = args.zmq_port;
     let on_ready = move || {
         if wait_zmq_bound(&zmq_bound, zmq_port) {

@@ -120,7 +120,7 @@ fn check_device_permissions() {
 
 impl DrmRenderLoopData {
     fn new(data: BackendData, log_buffer: LogBuffer) -> Self {
-        let BackendData { scene, vtl, host_info, overlay_scale } = data;
+        let BackendData { scene, vtl, host_info, overlay_scale, display_pref } = data;
         check_device_permissions();
 
         // Snapshot display state first, while the current VT still has an
@@ -140,7 +140,7 @@ impl DrmRenderLoopData {
         let vt_guard = DrmVtGuard::acquire();
 
         // Initialise Vulkan — VK_KHR_display acquires DRM master internally.
-        let (ctx, display_info, vk_display) = super::drm_init::init();
+        let (ctx, display_info, vk_display) = super::drm_init::init(display_pref);
 
         // Build scene + text sub-renderers first (before ctx moves).
         let config_dir = scene.read().unwrap().runtime.config_dir.clone();

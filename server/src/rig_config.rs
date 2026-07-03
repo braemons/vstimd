@@ -113,12 +113,12 @@ impl Default for VtlRigConfig {
 
 /// Preferred display mode for DRM/console output.
 ///
-/// All fields are optional.  Omit a field to let vstimd auto-select from the
-/// display's EDID-reported preferred mode.  Useful when the display's preferred
-/// mode differs from the experiment's target refresh rate.
-///
-/// Note: wiring into DRM mode selection is not yet implemented — these fields
-/// are parsed and logged but not yet applied.  See Todo.md.
+/// All fields are optional and independently filter the modes `VK_KHR_display`
+/// reports for the connected display; a field left `None` is not filtered on.
+/// If no reported mode matches, vstimd logs a warning and falls back to
+/// auto-select. Omit all fields to always auto-select (highest refresh rate,
+/// then highest resolution as a tie-break — Vulkan does not expose the
+/// display's EDID-preferred-mode flag).
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct DisplayRigConfig {
     /// Preferred horizontal resolution (pixels).
@@ -169,11 +169,12 @@ pub fn load(path: &str) -> anyhow::Result<RigConfig> {
         Ok(raw) => {
             let cfg: RigConfig = toml::from_str(&raw)
                 .map_err(|e| anyhow::anyhow!("rig-config {path}: {e}"))?;
+            log::info!("vstimd: rig-config loaded from {path}");
             Ok(cfg)
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             log::info!(
-                "rig-config not found at {path} — using built-in defaults. \
+                "vstimd: rig-config not found at {path} — using built-in defaults. \
                  Copy a board example from {EXAMPLES_DIR} to customise."
             );
             Ok(RigConfig::default())
