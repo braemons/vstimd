@@ -1,4 +1,4 @@
-# vstimd
+# ![vstimd](assets/vstimd-logo.svg#only-light){ width="240" }![vstimd](assets/vstimd-logo-dark.svg#only-dark){ width="240" }
 
 !!! danger "Alpha software — not ready for production"
     vstimd is in **early alpha**. The APIs, wire protocol, and behaviour can change at
