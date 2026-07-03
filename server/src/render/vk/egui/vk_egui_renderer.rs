@@ -264,8 +264,16 @@ impl VkEguiRenderer {
                 self.pipeline.pipeline,
             );
 
-            // Push constants: screen size
-            let screen_size = [screen_size_pixels.0 as f32, screen_size_pixels.1 as f32];
+            // Push constants: screen size in *points*, not physical pixels.
+            // Mesh vertex positions from egui::Context::tessellate() are always in
+            // logical points (see epaint::Vertex::pos docs) — only pixel-snapping and
+            // font-atlas resolution use pixels_per_point, not the vertex coordinates
+            // themselves. The vertex shader computes NDC as `pos / screen_size`, so
+            // the divisor must be in the same unit as `pos`: physical / ppp.
+            let screen_size = [
+                screen_size_pixels.0 as f32 / pixels_per_point,
+                screen_size_pixels.1 as f32 / pixels_per_point,
+            ];
             device.cmd_push_constants(
                 command_buffer,
                 self.pipeline.layout,

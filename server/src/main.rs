@@ -2,7 +2,9 @@ use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(target_os = "linux")]
 use vstimd::render::drm::DrmBackend;
-use vstimd::render::{BackendData, HostInfo, NullBackend, RenderTarget, WindowMode};
+use vstimd::render::{
+    BackendData, ClockSource, DisplayModePref, HostInfo, NullBackend, RenderTarget, WindowMode,
+};
 use vstimd::render::{query_hardware_model, query_hostname, query_local_ip};
 use vstimd::render::winit_vk::WinitBackend;
 use vstimd::rig_config;
@@ -32,23 +34,21 @@ fn main() {
     };
     log::info!("vstimd: hardware: {}", host_info.hardware_model);
 
-    // Load rig-config (hardware-specific settings). Non-fatal if absent.
-    let rig = match rig_config::load(&args.rig_config) {
-        Ok(r) => {
-            log::info!("vstimd: rig-config loaded from {}", args.rig_config);
-            if let Some(ref d) = r.display.width.map(|w| format!("{w}×{}@{}Hz",
-                r.display.height.unwrap_or(0),
-                r.display.refresh_hz.unwrap_or(0.0)))
-            {
-                log::info!("vstimd: rig display preference: {d} (not yet applied to DRM mode)");
-            }
-            r
-        }
-        Err(e) => {
-            log::error!("vstimd: {e}");
-            std::process::exit(1);
-        }
-    };
+    // Load rig-config (hardware-specific settings). Non-fatal if absent; logs
+    // whether it actually found+parsed a file at `args.rig_config` (which
+    // defaults to rig_config::DEFAULT_PATH, /etc/braemons/vstimd-rig-config.toml)
+    // or fell back to built-in defaults.
+    let rig = rig_config::load(&args.rig_config).unwrap_or_else(|e| {
+        log::error!("vstimd: {e}");
+        std::process::exit(1);
+    });
+    if let Some(w) = rig.display.width {
+        log::info!(
+            "vstimd: rig display preference: {w}×{}@{}Hz (DRM mode only)",
+            rig.display.height.unwrap_or(0),
+            rig.display.refresh_hz.unwrap_or(0.0),
+        );
+    }
 
     let config_dir = args
         .config_dir
@@ -149,7 +149,29 @@ fn main() {
     // init which can take several seconds on DRM).
     install_signal_handlers();
 
-    let data = BackendData { scene, vtl, host_info };
+    let overlay_scale = args.overlay_scale.unwrap_or(rig.display.overlay_scale);
+    log::info!("vstimd: overlay scale: {overlay_scale}");
+
+    let display_pref = DisplayModePref {
+        width: rig.display.width,
+        height: rig.display.height,
+        refresh_hz: rig.display.refresh_hz,
+    };
+    let clock_pref = args.preferred_clock_source.unwrap_or(rig.display.clock);
+    match clock_pref {
+        Some(clock) => log::info!("vstimd: forcing vblank clock: {}", clock.as_str()),
+        None => log::info!("vstimd: vblank clock: auto-detect"),
+    }
+
+    let data = BackendData {
+        scene,
+        vtl,
+        host_info,
+        overlay_scale,
+        display_pref,
+        clock_pref,
+        rig_config_path: args.rig_config.clone(),
+    };
     let zmq_port = args.zmq_port;
     let on_ready = move || {
         if wait_zmq_bound(&zmq_bound, zmq_port) {
@@ -183,6 +205,11 @@ fn main() {
     // and the shm segment is cleaned up before the process exits.
     drop(zmq_shutdown);
     zmq_thread.join().ok();
+
+    if let Some(reason) = vstimd::shutdown::fatal_reason() {
+        log::error!("vstimd: exiting after fatal error: {reason}");
+        std::process::exit(1);
+    }
 }
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
@@ -200,6 +227,12 @@ struct Args {
     rig_config: String,
     config_file: Option<std::path::PathBuf>,
     config_dir: Option<std::path::PathBuf>,
+    /// `Some(s)` if `--overlay-scale` was passed; otherwise `None` (use rig-config).
+    overlay_scale: Option<f32>,
+    /// `Some(pref)` if `--preferred-clock-source` was passed (overrides rig-config
+    /// entirely, including its own `auto` vs. forced choice); otherwise `None`
+    /// (use rig-config). The inner `Option<ClockSource>` is `None` for "auto".
+    preferred_clock_source: Option<Option<ClockSource>>,
 }
 
 /// Automatically detect the best render target for the current platform.
@@ -240,6 +273,8 @@ fn parse_args() -> Args {
     let mut rig_config  = rig_config::DEFAULT_PATH.to_string();
     let mut config_file: Option<std::path::PathBuf> = None;
     let mut config_dir: Option<std::path::PathBuf> = None;
+    let mut overlay_scale: Option<f32> = None;
+    let mut preferred_clock_source: Option<Option<ClockSource>> = None;
 
     let mut args = std::env::args().skip(1).peekable();
     while let Some(arg) = args.next() {
@@ -275,6 +310,30 @@ fn parse_args() -> Args {
                     eprintln!("vstimd: --zmq-port requires a numeric port argument");
                     std::process::exit(1);
                 });
+            }
+            "--overlay-scale" => {
+                let s = args.next().and_then(|s| s.parse::<f32>().ok()).unwrap_or_else(|| {
+                    eprintln!("vstimd: --overlay-scale requires a numeric argument (e.g. 1.5)");
+                    std::process::exit(1);
+                });
+                if !(s.is_finite() && s > 0.0) {
+                    eprintln!("vstimd: --overlay-scale must be a positive number");
+                    std::process::exit(1);
+                }
+                overlay_scale = Some(s);
+            }
+            "--preferred-clock-source" => {
+                let s = args.next().unwrap_or_else(|| {
+                    eprintln!(
+                        "vstimd: --preferred-clock-source requires a value (auto, drm_vblank, \
+                         vk_display_control, present_wait, gpu_completion)"
+                    );
+                    std::process::exit(1);
+                });
+                preferred_clock_source = Some(ClockSource::parse_pref(&s).unwrap_or_else(|e| {
+                    eprintln!("vstimd: --preferred-clock-source: {e}");
+                    std::process::exit(1);
+                }));
             }
             "--no-web" => web_enabled = Some(false),
             "--web-port" => {
@@ -326,6 +385,8 @@ fn parse_args() -> Args {
         rig_config,
         config_file,
         config_dir,
+        overlay_scale,
+        preferred_clock_source,
     }
 }
 
@@ -419,6 +480,11 @@ fn print_usage() {
     eprintln!("      --zmq-port <N>        ZMQ REP server port (default: 5555)");
     eprintln!("      --no-web              Disable the embedded web control surface");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
+    eprintln!("      --overlay-scale <N>   Scale factor for the egui overlay UI (default: 1.0)");
+    eprintln!("      --preferred-clock-source <S>");
+    eprintln!("                            Force a DRM/console vblank clock (auto, drm_vblank,");
+    eprintln!("                            vk_display_control, present_wait, gpu_completion);");
+    eprintln!("                            overrides rig-config's [display] clock (default: auto)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
     eprintln!("      --rig-config <path>   Rig config (default: {})", vstimd::rig_config::DEFAULT_PATH);
     eprintln!("      --config <path>       Load stim-config file at startup");

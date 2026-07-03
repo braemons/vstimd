@@ -18,12 +18,19 @@ impl ControlDevice for Card {}
 
 pub struct DrmVblank {
     card: Card,
+    path: String,
     crtc_pipe: u32,
 }
 
 impl DrmVblank {
     /// Iterate /dev/dri/card* and return a handle bound to the first CRTC that
     /// is actively driving a display (mode set). Returns `None` if none found.
+    ///
+    /// This only checks that a CRTC has a mode set — it does *not* confirm
+    /// `DRM_IOCTL_WAIT_VBLANK` actually works. Call `validate()` as late as
+    /// possible — after the rest of `DrmRenderLoopData::new()`'s setup has
+    /// run, right before the render loop starts — to confirm that (see
+    /// `validate` for why the check can't happen here).
     pub fn open() -> Option<Self> {
         for n in 0..8u8 {
             let path = format!("/dev/dri/card{n}");
@@ -53,16 +60,57 @@ impl DrmVblank {
                     continue;
                 };
                 if crtc.mode().is_some() {
-                    log::info!("vstimd: DRM vblank: {path} crtc[{pipe}]");
                     return Some(Self {
                         card,
+                        path,
                         crtc_pipe: pipe as u32,
                     });
                 }
             }
         }
-        log::warn!("vstimd: no active DRM CRTC found for vblank — using GPU-completion time");
+        log::warn!(
+            "vstimd: no active DRM CRTC found for vblank — using VK_EXT_display_control or GPU-completion time"
+        );
         None
+    }
+
+    /// Confirm the legacy vblank ioctl works right now, on this CRTC. Call
+    /// once, as late as possible — after the rest of
+    /// `DrmRenderLoopData::new()`'s setup has run, immediately before the
+    /// render loop starts.
+    ///
+    /// This is a best-effort check, not a guarantee. On AMD RENOIR (amdgpu
+    /// DC), `DRM_IOCTL_WAIT_VBLANK` has been observed to succeed when probed
+    /// and then fail with EINVAL on the very next call once the render loop
+    /// starts — the exact trigger in vstimd's own setup hasn't been pinned
+    /// down (an earlier theory blaming libinput's seat acquisition doesn't
+    /// hold up: the same code path runs fine on other machines), and it
+    /// correlates with a DMCUB (AMD Display Core firmware) fault confirmed
+    /// to independently and intermittently hit this same hardware outside of
+    /// vstimd too (it has also crashed GDM's own modeset) — i.e. this is
+    /// most likely external to vstimd's code. Validating as late as possible
+    /// only narrows the window between "checked" and "used"; it can't rule
+    /// out a fault landing in that remaining gap. A clock that still fails
+    /// mid-session despite passing this check is caught — and treated as
+    /// fatal — by `DrmVblankState::wait`.
+    ///
+    /// Consumes `self`; returns `None` (dropping the DRM fd) if the ioctl
+    /// doesn't work right now, so the caller falls through to
+    /// `VK_EXT_display_control` instead of committing to a clock that's
+    /// already broken.
+    pub fn validate(self) -> Option<Self> {
+        if self.wait().is_some() {
+            log::info!("vstimd: DRM vblank: {} crtc[{}]", self.path, self.crtc_pipe);
+            Some(self)
+        } else {
+            log::warn!(
+                "vstimd: DRM_IOCTL_WAIT_VBLANK on {} crtc[{}] failed right after setup — \
+                 falling back to VK_EXT_display_control",
+                self.path,
+                self.crtc_pipe
+            );
+            None
+        }
     }
 
     /// Block until the next vblank on the selected CRTC.
@@ -164,15 +212,13 @@ pub struct DrmVblankState {
     drm: Option<DrmVblank>,
     vk: Option<VkVblank>,
     /// Fence registered at end of previous frame; collected at start of next.
+    /// Only ever `Some` while `vk` is also `Some` (set in `register`).
     pending_fence: Option<ash::vk::Fence>,
-    /// Retained solely to destroy any orphaned fence if `vk` is disabled
-    /// between a register and the following collect.
-    device: ash::Device,
 }
 
 impl DrmVblankState {
-    pub fn new(device: ash::Device, drm: Option<DrmVblank>, vk: Option<VkVblank>) -> Self {
-        Self { device, drm, vk, pending_fence: None }
+    pub fn new(drm: Option<DrmVblank>, vk: Option<VkVblank>) -> Self {
+        Self { drm, vk, pending_fence: None }
     }
 
     pub fn clock_source(&self, has_present_wait: bool) -> ClockSource {
@@ -189,51 +235,67 @@ impl DrmVblankState {
 
     /// Block until the next vblank (DRM path) or collect the pending
     /// FIRST_PIXEL_OUT fence registered at the end of the previous frame
-    /// (VK path).  Returns `None` on frame 0 or when no clock is available.
-    pub fn wait(&mut self) -> Option<Instant> {
+    /// (VK path). Returns `Ok(None)` on frame 0, before a fence exists yet.
+    ///
+    /// The clock source is fixed once at startup — `DrmVblank::open()` only
+    /// selects a CRTC after confirming the ioctl actually works, so `self.drm`
+    /// being `Some` here means it was already verified. An `Err` therefore
+    /// means the previously-working clock just died at runtime: for a
+    /// stimulus-timing session that's not something to silently paper over
+    /// with a worse fallback, so the caller treats it as fatal.
+    pub fn wait(&mut self) -> Result<Option<Instant>, String> {
         if let Some(vblank) = self.drm.as_ref() {
-            match vblank.wait() {
-                Some(t) => return Some(t),
-                None => {
-                    log::warn!("vstimd: disabling DRM vblank clock after wait_vblank error");
-                    self.drm = None;
-                }
-            }
+            return match vblank.wait() {
+                Some(t) => Ok(Some(t)),
+                None => Err(format!(
+                    "DRM_IOCTL_WAIT_VBLANK failed on CRTC {} after previously succeeding",
+                    vblank.crtc_pipe
+                )),
+            };
         }
         // VK path: collect the fence registered at the end of the previous frame.
-        // On frame 0 there is no pending fence; we return None and render without
-        // a vblank timestamp (render_one_frame falls back to Instant::now()).
+        // On frame 0 (and frame 1, since register() skips frame 0) there is no
+        // pending fence yet; that's expected, not a failure.
         if let Some(fence) = self.pending_fence.take() {
-            if let Some(vblank) = self.vk.as_ref() {
-                match vblank.collect(fence) {
-                    Some(t) => return Some(t),
-                    None => {
-                        log::warn!("vstimd: disabling VK_EXT_display_control vblank after error");
-                        self.vk = None;
-                    }
-                }
-            } else {
-                // vk was disabled between register and collect; destroy the orphaned fence.
-                unsafe { self.device.destroy_fence(fence, None) };
-            }
+            let vblank = self
+                .vk
+                .as_ref()
+                .expect("pending_fence is only set while vk is Some");
+            return match vblank.collect(fence) {
+                Some(t) => Ok(Some(t)),
+                None => Err(
+                    "VK_EXT_display_control fence wait failed after previously succeeding"
+                        .to_string(),
+                ),
+            };
         }
-        None
+        Ok(None)
     }
 
     /// Register a FIRST_PIXEL_OUT fence for collection at the top of the next
     /// frame.  No-op on the DRM path (DRM uses a blocking ioctl instead) and
     /// on frame 0 (driver returns ERROR_UNKNOWN on Tegra before first present).
-    pub fn register(&mut self, frame_index: u64) {
+    pub fn register(&mut self, frame_index: u64) -> Result<(), String> {
         if self.drm.is_some() {
-            return;
+            return Ok(());
         }
         // vkRegisterDisplayEventEXT always returns ERROR_UNKNOWN on NVIDIA Tegra
         // before the first present.  Skip frame 0 to avoid a spurious warning.
         if frame_index == 0 {
-            return;
+            return Ok(());
         }
         if let Some(vblank) = self.vk.as_ref() {
-            self.pending_fence = vblank.register();
+            match vblank.register() {
+                Some(fence) => self.pending_fence = Some(fence),
+                None => {
+                    return Err(
+                        "vkRegisterDisplayEventEXT failed — VK_EXT_display_control vblank \
+                         clock is unavailable"
+                            .to_string(),
+                    );
+                }
+            }
         }
+        Ok(())
     }
 }

@@ -1,5 +1,5 @@
 pub mod backend;
-pub use backend::BackendData;
+pub use backend::{BackendData, DisplayModePref};
 
 pub mod null_backend;
 pub use null_backend::NullBackend;
@@ -17,7 +17,9 @@ pub mod render_target;
 pub use render_target::{RenderTarget, WindowMode};
 
 pub mod system_info;
-pub use system_info::{HostInfo, SystemInfo, query_hardware_model, query_hostname, query_local_ip};
+pub use system_info::{
+    ClockSource, HostInfo, SystemInfo, query_hardware_model, query_hostname, query_local_ip,
+};
 
 pub(crate) mod benchmark;
 pub(crate) mod system_metrics;

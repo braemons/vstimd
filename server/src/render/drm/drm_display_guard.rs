@@ -169,6 +169,41 @@ impl DrmDisplayGuard {
         );
         None
     }
+
+    /// Confirm every CRTC vstimd is driving still reports `expected`
+    /// (width, height). Returns `Err` on the first mismatch.
+    ///
+    /// Vulkan doesn't reliably surface this: an out-of-band modeset (observed
+    /// on AMD RENOIR — a DMCUB firmware fault mid-session reverting the CRTC
+    /// to its native resolution) can change what the CRTC actually scans out
+    /// without `vkQueuePresentKHR`/`vkAcquireNextImageKHR` ever returning
+    /// `ERROR_OUT_OF_DATE_KHR`. The swapchain keeps rendering at the old
+    /// size, so content silently ends up confined to a corner of the new,
+    /// larger physical resolution instead of the failure being visible
+    /// anywhere in the logs.
+    ///
+    /// `get_crtc` is a read-only ioctl and doesn't require DRM master, so
+    /// this works even though `acquire()` already released it.
+    pub fn check_mode(&self, expected: (u32, u32)) -> Result<(), String> {
+        for out in &self.saved {
+            let info = self
+                .card
+                .get_crtc(out.crtc_handle)
+                .map_err(|e| format!("failed to query CRTC {:?}: {e}", out.crtc_handle))?;
+            if let Some(mode) = info.mode() {
+                let actual = mode.size();
+                let actual = (actual.0 as u32, actual.1 as u32);
+                if actual != expected {
+                    return Err(format!(
+                        "CRTC {:?} is now scanning out at {}×{}, not the {}×{} vstimd set — \
+                         an out-of-band modeset happened outside vstimd's control",
+                        out.crtc_handle, actual.0, actual.1, expected.0, expected.1
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 // ── VRR suppression helpers ───────────────────────────────────────────────────

@@ -13,12 +13,14 @@
 ///
 /// If the file is absent vstimd falls back to built-in defaults and logs a
 /// notice — useful for development machines without a full rig setup.
+use crate::render::system_info::ClockSource;
 use crate::vtl_state::VtlBit;
 
 pub const DEFAULT_PATH: &str = "/etc/braemons/vstimd-rig-config.toml";
 const EXAMPLES_DIR: &str = "/usr/share/braemons/vstimd/";
 
 #[derive(Debug, Clone, serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 pub struct RigConfig {
     #[serde(default)]
     pub vtl: VtlRigConfig,
@@ -36,6 +38,7 @@ pub struct RigConfig {
 /// (on by default). When the feature is disabled these fields are ignored.
 /// CLI flags (`--no-web`, `--web-port`) override these values.
 #[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct WebRigConfig {
     /// Whether to start the web control surface. Default: true.
     #[serde(default = "WebRigConfig::default_enabled")]
@@ -57,6 +60,7 @@ impl Default for WebRigConfig {
 }
 
 #[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VtlRigConfig {
     /// POSIX shared-memory name for the VTL segment (must start with `/`).
     #[serde(default = "VtlRigConfig::default_shm_name")]
@@ -82,6 +86,7 @@ pub struct VtlRigConfig {
 
 /// A (bank, bit) address for the vblank output line in the rig config.
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct VblankBit {
     pub bank: usize,
     pub bit:  u8,
@@ -113,13 +118,14 @@ impl Default for VtlRigConfig {
 
 /// Preferred display mode for DRM/console output.
 ///
-/// All fields are optional.  Omit a field to let vstimd auto-select from the
-/// display's EDID-reported preferred mode.  Useful when the display's preferred
-/// mode differs from the experiment's target refresh rate.
-///
-/// Note: wiring into DRM mode selection is not yet implemented — these fields
-/// are parsed and logged but not yet applied.  See Todo.md.
-#[derive(Debug, Clone, serde::Deserialize, Default)]
+/// All fields are optional and independently filter the modes `VK_KHR_display`
+/// reports for the connected display; a field left `None` is not filtered on.
+/// If no reported mode matches, vstimd logs a warning and falls back to
+/// auto-select. Omit all fields to always auto-select (highest refresh rate,
+/// then highest resolution as a tie-break — Vulkan does not expose the
+/// display's EDID-preferred-mode flag).
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct DisplayRigConfig {
     /// Preferred horizontal resolution (pixels).
     pub width: Option<u32>,
@@ -127,12 +133,69 @@ pub struct DisplayRigConfig {
     pub height: Option<u32>,
     /// Preferred refresh rate (Hz), e.g. `60.0` or `144.0`.
     pub refresh_hz: Option<f64>,
+    /// Scale factor applied to the egui overlay UI, independent of the OS/window
+    /// DPI scale. Useful on high-DPI displays (e.g. 4K) where the overlay text
+    /// and controls would otherwise be unreadably small — and required in DRM
+    /// mode, which has no OS-reported scale factor at all. Applies to both
+    /// desktop and DRM render targets. Overridable with `--overlay-scale`.
+    #[serde(default = "DisplayRigConfig::default_overlay_scale")]
+    pub overlay_scale: f32,
+    /// Forces a specific vblank clock source for DRM/console mode, bypassing
+    /// auto-detection. `"auto"` (default — also used if the key is omitted)
+    /// tries `DRM_IOCTL_WAIT_VBLANK` first, falling back to
+    /// `VK_EXT_display_control`, then `VK_KHR_present_wait`, then
+    /// GPU-completion timestamps. Other values: `"drm_vblank"`,
+    /// `"vk_display_control"`, `"present_wait"`, `"gpu_completion"`.
+    ///
+    /// Auto-detection can't reliably predict every GPU/driver combination —
+    /// on some hardware a clock source that passes an initial check still
+    /// fails once the render loop is running. Set this to pin a specific
+    /// source instead of probing: vstimd will use exactly that source, or
+    /// fail loudly at startup with an actionable error if it isn't
+    /// available, rather than silently trying alternatives. `"display_timing"`
+    /// is not a valid choice here (it's not wired up as a selectable clock in
+    /// DRM mode) and is rejected at startup.
+    #[serde(default, deserialize_with = "deserialize_clock_pref")]
+    pub clock: Option<ClockSource>,
+}
+
+/// Deserializes the `[display] clock` key: the literal string `"auto"` maps
+/// to `None` (the auto-detecting path); any other value is parsed as a
+/// `ClockSource` variant name. Lets the TOML file say `clock = "auto"`
+/// explicitly rather than only supporting auto-detection via omitting the
+/// key entirely.
+fn deserialize_clock_pref<'de, D>(deserializer: D) -> Result<Option<ClockSource>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize as _;
+    use serde::de::Error as _;
+
+    let s = String::deserialize(deserializer)?;
+    ClockSource::parse_pref(&s).map_err(D::Error::custom)
+}
+
+impl DisplayRigConfig {
+    fn default_overlay_scale() -> f32 { 1.0 }
+}
+
+impl Default for DisplayRigConfig {
+    fn default() -> Self {
+        Self {
+            width: None,
+            height: None,
+            refresh_hz: None,
+            overlay_scale: Self::default_overlay_scale(),
+            clock: None,
+        }
+    }
 }
 
 /// Thread scheduling options for vstimd.
 ///
 /// All fields are parsed but not yet applied — CPU affinity wiring is planned.
 #[derive(Debug, Clone, serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
 #[allow(dead_code)]
 pub struct SchedulingRigConfig {
     /// CPU core to pin the render/vblank thread to.  Not yet applied.
@@ -147,11 +210,12 @@ pub fn load(path: &str) -> anyhow::Result<RigConfig> {
         Ok(raw) => {
             let cfg: RigConfig = toml::from_str(&raw)
                 .map_err(|e| anyhow::anyhow!("rig-config {path}: {e}"))?;
+            log::info!("vstimd: rig-config loaded from {path}");
             Ok(cfg)
         }
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             log::info!(
-                "rig-config not found at {path} — using built-in defaults. \
+                "vstimd: rig-config not found at {path} — using built-in defaults. \
                  Copy a board example from {EXAMPLES_DIR} to customise."
             );
             Ok(RigConfig::default())

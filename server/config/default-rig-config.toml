@@ -39,14 +39,32 @@
 # bank = 0
 # bit  = 63
 
-# ── Display (DRM/console mode only) ──────────────────────────────────────────
-# Preferred display mode.  Omit to accept the display's EDID preferred mode.
-# Not yet applied — wiring into DRM mode selection is a planned feature.
-#
+# ── Display ────────────────────────────────────────────────────────────────────
 # [display]
+#
+# Preferred display mode (DRM/console mode only).  Omit to accept the
+# display's EDID preferred mode.  Not yet applied — wiring into DRM mode
+# selection is a planned feature.
 # width      = 1920
 # height     = 1080
 # refresh_hz = 60.0
+#
+# Scale factor for the egui overlay UI (both desktop and DRM). Increase on
+# high-DPI displays (e.g. 4K) where the overlay text/controls are too small.
+# Overridable with --overlay-scale.
+# overlay_scale = 1.0
+#
+# Vblank clock source (DRM/console mode only). "auto" (default) tries
+# DRM_IOCTL_WAIT_VBLANK, then VK_EXT_display_control, then VK_KHR_present_wait,
+# then GPU-completion timestamps. Auto-detection can't predict every GPU/driver
+# combination — if a clock source that passes vstimd's own startup check still
+# fails once running, pin a specific source here instead: vstimd will use
+# exactly that source, or fail loudly at startup (with a clear error naming
+# this file) if it isn't available, rather than silently trying alternatives.
+# Overridable with --preferred-clock-source.
+# Valid values: "auto", "drm_vblank", "vk_display_control", "present_wait",
+# "gpu_completion".
+# clock = "auto"
 
 # ── Thread scheduling ─────────────────────────────────────────────────────────
 # CPU core affinity for vstimd's render/vblank thread.

@@ -33,6 +33,11 @@ bit  = 63
 # width      = 1920
 # height     = 1080
 # refresh_hz = 60.0
+#
+# Scale factor for the egui overlay UI (both desktop and DRM). Increase on
+# high-DPI displays (e.g. 4K) where the overlay text/controls are too small.
+# Overridable with --overlay-scale.
+# overlay_scale = 1.0
 
 # ── Thread scheduling ─────────────────────────────────────────────────────────
 # CPU core affinity for the render/vblank thread.  Not yet applied.
