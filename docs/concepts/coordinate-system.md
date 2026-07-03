@@ -9,13 +9,14 @@ All 2-D stimulus positions use a **pixel-space coordinate system**:
 - **Y** increases upward
 - **Units** are pixels
 
-```mermaid
-flowchart TB
-    o(("origin<br/>(0, 0)<br/>screen centre"))
-    o -->|increasing| yp["+Y — up"]
-    o -->|decreasing| ym["−Y — down"]
-    o -->|increasing| xp["+X — right"]
-    o -->|decreasing| xm["−X — left"]
+```
+                  +Y
+                   │
+                   │
+    ───────────────┼───────────────  X
+                   │
+                   │
+                  -Y
 ```
 
 A rectangle at `(x=0, y=0)` is centred on screen. A rectangle at `(x=200, y=0)` is 200 pixels
