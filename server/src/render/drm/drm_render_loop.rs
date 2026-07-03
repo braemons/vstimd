@@ -315,7 +315,13 @@ impl DrmRenderLoopData {
             // Periodically confirm the CRTC hasn't drifted away from the mode
             // vstimd set — cheap read-only ioctl, checked roughly once a
             // second rather than every frame to keep it off the hot path.
-            if self.rs.timing.frame_index.is_multiple_of(60)
+            // Skip frame 0: the CRTC modeset requested via
+            // vkCreateDisplayPlaneSurfaceKHR doesn't necessarily commit at
+            // surface-creation time — it was observed to only take effect
+            // once the first frame is actually presented, so checking before
+            // that happens is a false positive, not a real mismatch.
+            if self.rs.timing.frame_index != 0
+                && self.rs.timing.frame_index.is_multiple_of(60)
                 && let Some(guard) = &self.display_guard
             {
                 let expected = (self.rs.display_info.width_px, self.rs.display_info.height_px);
