@@ -95,7 +95,7 @@ a behaviour box, or a portable setup**.
 
 - **Home-cage training.** Put the device and a small panel on the cage. It boots
   straight into the stimulus server (`vstimd.target`, see
-  [Deployment](deploy.md)), runs unattended, and needs no monitor, keyboard, or
+  [Deployment](operations/deployment.md)), runs unattended, and needs no monitor, keyboard, or
   desktop session. Animals can self-train around the clock while the controlling
   logic runs elsewhere — or entirely on the device.
 - **Many rigs, one design.** Cheap identical boards make it affordable to build a

@@ -94,7 +94,7 @@ Whole scenes — stimuli, animations, background, **and** the VTL line map — c
 saved to and loaded from **versioned JSON config files** on the device (via the
 command API's `config` namespace, or the web UI). This lets a rig boot into a known
 stimulus configuration with no client connected at all. See
-[Scene serialization](../concepts/scene-serialization.md).
+[Saving & loading scenes](../concepts/saving-loading.md).
 
 ## Decision guide
 

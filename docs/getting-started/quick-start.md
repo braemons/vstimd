@@ -15,7 +15,9 @@ cargo run --release -- --windowed 1280x720
 cargo run --release -- --null
 ```
 
-Press **D** to spawn demo stimuli, **F1** to toggle the debug overlay, **Esc** to exit.
+Press **D** to spawn demo stimuli, **F1–F7** to show overlay panels (Stimuli, Log,
+Virtual Trigger, Animations, System, Config, Benchmarks; Shift+F–key hides), **Esc**
+to exit.
 
 ## 2. Send your first stimulus
 
@@ -93,4 +95,4 @@ Use deferred mode to make multiple changes visible on the exact same frame:
 - [Coordinate system](../concepts/coordinate-system.md) — pixel space, origin, Y-up
 - [Deferred mode](../concepts/deferred-mode.md) — atomic multi-stimulus frame flips
 - [The command API](../tutorial/command-api.md) — driving vstimd from Python step by step
-- [Bare-metal Linux](bare-metal.md) — running without a compositor on Jetson/Pi
+- [Bare-metal Linux](../operations/bare-metal.md) — running without a compositor on Jetson/Pi

@@ -1,6 +1,6 @@
 # Visual Stimulation Daemon - vstimd
 
-[![Build and Test](https://github.com/vstimd/vstimd/actions/workflows/ci.yml/badge.svg)](https://github.com/vstimd/vstimd/actions/workflows/ci.yml)
+[![Build and Test](https://github.com/braemons/vstimd/actions/workflows/ci.yml/badge.svg)](https://github.com/braemons/vstimd/actions/workflows/ci.yml)
 
 > **Status:** Pre-alpha — under active development, not yet suitable for production use.
 

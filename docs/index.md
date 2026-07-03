@@ -81,7 +81,7 @@ entirely inside the server**, staying synchronised to the display and to DAQ mar
 - **Bare-metal Linux rendering** — runs without a compositor (X11/Wayland) via KMS/DRM
 - **Deferred mode** — batch multiple stimulus changes into a single atomic frame flip
 - **Virtual Trigger Lines (VTL)** — hardware TTL / software triggers via shared memory drive frame-accurate, trigger-reactive animations with no DAQ code inside vstimd
-- **Live debug overlay** — frame timing, stimulus list, command log (toggle with F1)
+- **Live on-device overlay** — frame timing, stimulus list, animations, VTL state, and command log across F1–F7 panels
 
 ## Stimulus types
 
