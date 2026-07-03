@@ -27,9 +27,10 @@ impl DrmVblank {
     /// is actively driving a display (mode set). Returns `None` if none found.
     ///
     /// This only checks that a CRTC has a mode set — it does *not* confirm
-    /// `DRM_IOCTL_WAIT_VBLANK` actually works. Call `validate()` after VT
-    /// switch and Vulkan/`VK_KHR_display` init have both completed to confirm
-    /// that (see `validate` for why the check can't happen here).
+    /// `DRM_IOCTL_WAIT_VBLANK` actually works. Call `validate()` as late as
+    /// possible — after the rest of `DrmRenderLoopData::new()`'s setup has
+    /// run, right before the render loop starts — to confirm that (see
+    /// `validate` for why the check can't happen here).
     pub fn open() -> Option<Self> {
         for n in 0..8u8 {
             let path = format!("/dev/dri/card{n}");
@@ -74,21 +75,24 @@ impl DrmVblank {
     }
 
     /// Confirm the legacy vblank ioctl works right now, on this CRTC. Call
-    /// once, after both the VT switch and Vulkan/`VK_KHR_display` init have
-    /// completed (both can invalidate the CRTC state `open()` selected — see
-    /// `open`'s caller).
+    /// once, as late as possible — after the rest of
+    /// `DrmRenderLoopData::new()`'s setup has run, immediately before the
+    /// render loop starts.
     ///
-    /// This is a best-effort check, not a guarantee: on AMD RENOIR (amdgpu
-    /// DC) `DRM_IOCTL_WAIT_VBLANK` has been observed to fail with EINVAL
-    /// after having just succeeded moments earlier — sometimes after one
-    /// call, sometimes after several in a row — which lines up with a
-    /// DMCUB (AMD Display Core firmware) fault confirmed to intermittently
-    /// hit this hardware outside of vstimd too (it has also crashed GDM's
-    /// modeset on this machine). A stochastic firmware fault can't be ruled
-    /// out by probing harder, so this only filters the common case (ioctl
-    /// unsupported/broken from the start); a clock that fails mid-session
-    /// despite passing this check is still caught — and treated as fatal —
-    /// by `DrmVblankState::wait`.
+    /// This is a best-effort check, not a guarantee. On AMD RENOIR (amdgpu
+    /// DC), `DRM_IOCTL_WAIT_VBLANK` has been observed to succeed when probed
+    /// and then fail with EINVAL on the very next call once the render loop
+    /// starts — the exact trigger in vstimd's own setup hasn't been pinned
+    /// down (an earlier theory blaming libinput's seat acquisition doesn't
+    /// hold up: the same code path runs fine on other machines), and it
+    /// correlates with a DMCUB (AMD Display Core firmware) fault confirmed
+    /// to independently and intermittently hit this same hardware outside of
+    /// vstimd too (it has also crashed GDM's own modeset) — i.e. this is
+    /// most likely external to vstimd's code. Validating as late as possible
+    /// only narrows the window between "checked" and "used"; it can't rule
+    /// out a fault landing in that remaining gap. A clock that still fails
+    /// mid-session despite passing this check is caught — and treated as
+    /// fatal — by `DrmVblankState::wait`.
     ///
     /// Consumes `self`; returns `None` (dropping the DRM fd) if the ioctl
     /// doesn't work right now, so the caller falls through to

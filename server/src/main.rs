@@ -2,7 +2,9 @@ use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(target_os = "linux")]
 use vstimd::render::drm::DrmBackend;
-use vstimd::render::{BackendData, DisplayModePref, HostInfo, NullBackend, RenderTarget, WindowMode};
+use vstimd::render::{
+    BackendData, ClockSource, DisplayModePref, HostInfo, NullBackend, RenderTarget, WindowMode,
+};
 use vstimd::render::{query_hardware_model, query_hostname, query_local_ip};
 use vstimd::render::winit_vk::WinitBackend;
 use vstimd::rig_config;
@@ -155,8 +157,21 @@ fn main() {
         height: rig.display.height,
         refresh_hz: rig.display.refresh_hz,
     };
+    let clock_pref = args.preferred_clock_source.unwrap_or(rig.display.clock);
+    match clock_pref {
+        Some(clock) => log::info!("vstimd: forcing vblank clock: {}", clock.as_str()),
+        None => log::info!("vstimd: vblank clock: auto-detect"),
+    }
 
-    let data = BackendData { scene, vtl, host_info, overlay_scale, display_pref };
+    let data = BackendData {
+        scene,
+        vtl,
+        host_info,
+        overlay_scale,
+        display_pref,
+        clock_pref,
+        rig_config_path: args.rig_config.clone(),
+    };
     let zmq_port = args.zmq_port;
     let on_ready = move || {
         if wait_zmq_bound(&zmq_bound, zmq_port) {
@@ -214,6 +229,10 @@ struct Args {
     config_dir: Option<std::path::PathBuf>,
     /// `Some(s)` if `--overlay-scale` was passed; otherwise `None` (use rig-config).
     overlay_scale: Option<f32>,
+    /// `Some(pref)` if `--preferred-clock-source` was passed (overrides rig-config
+    /// entirely, including its own `auto` vs. forced choice); otherwise `None`
+    /// (use rig-config). The inner `Option<ClockSource>` is `None` for "auto".
+    preferred_clock_source: Option<Option<ClockSource>>,
 }
 
 /// Automatically detect the best render target for the current platform.
@@ -255,6 +274,7 @@ fn parse_args() -> Args {
     let mut config_file: Option<std::path::PathBuf> = None;
     let mut config_dir: Option<std::path::PathBuf> = None;
     let mut overlay_scale: Option<f32> = None;
+    let mut preferred_clock_source: Option<Option<ClockSource>> = None;
 
     let mut args = std::env::args().skip(1).peekable();
     while let Some(arg) = args.next() {
@@ -301,6 +321,19 @@ fn parse_args() -> Args {
                     std::process::exit(1);
                 }
                 overlay_scale = Some(s);
+            }
+            "--preferred-clock-source" => {
+                let s = args.next().unwrap_or_else(|| {
+                    eprintln!(
+                        "vstimd: --preferred-clock-source requires a value (auto, drm_vblank, \
+                         vk_display_control, present_wait, gpu_completion)"
+                    );
+                    std::process::exit(1);
+                });
+                preferred_clock_source = Some(ClockSource::parse_pref(&s).unwrap_or_else(|e| {
+                    eprintln!("vstimd: --preferred-clock-source: {e}");
+                    std::process::exit(1);
+                }));
             }
             "--no-web" => web_enabled = Some(false),
             "--web-port" => {
@@ -353,6 +386,7 @@ fn parse_args() -> Args {
         config_file,
         config_dir,
         overlay_scale,
+        preferred_clock_source,
     }
 }
 
@@ -447,6 +481,10 @@ fn print_usage() {
     eprintln!("      --no-web              Disable the embedded web control surface");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
     eprintln!("      --overlay-scale <N>   Scale factor for the egui overlay UI (default: 1.0)");
+    eprintln!("      --preferred-clock-source <S>");
+    eprintln!("                            Force a DRM/console vblank clock (auto, drm_vblank,");
+    eprintln!("                            vk_display_control, present_wait, gpu_completion);");
+    eprintln!("                            overrides rig-config's [display] clock (default: auto)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
     eprintln!("      --rig-config <path>   Rig config (default: {})", vstimd::rig_config::DEFAULT_PATH);
     eprintln!("      --config <path>       Load stim-config file at startup");

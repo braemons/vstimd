@@ -13,6 +13,7 @@
 ///
 /// If the file is absent vstimd falls back to built-in defaults and logs a
 /// notice — useful for development machines without a full rig setup.
+use crate::render::system_info::ClockSource;
 use crate::vtl_state::VtlBit;
 
 pub const DEFAULT_PATH: &str = "/etc/braemons/vstimd-rig-config.toml";
@@ -134,6 +135,39 @@ pub struct DisplayRigConfig {
     /// desktop and DRM render targets. Overridable with `--overlay-scale`.
     #[serde(default = "DisplayRigConfig::default_overlay_scale")]
     pub overlay_scale: f32,
+    /// Forces a specific vblank clock source for DRM/console mode, bypassing
+    /// auto-detection. `"auto"` (default — also used if the key is omitted)
+    /// tries `DRM_IOCTL_WAIT_VBLANK` first, falling back to
+    /// `VK_EXT_display_control`, then `VK_KHR_present_wait`, then
+    /// GPU-completion timestamps. Other values: `"drm_vblank"`,
+    /// `"vk_display_control"`, `"present_wait"`, `"gpu_completion"`.
+    ///
+    /// Auto-detection can't reliably predict every GPU/driver combination —
+    /// on some hardware a clock source that passes an initial check still
+    /// fails once the render loop is running. Set this to pin a specific
+    /// source instead of probing: vstimd will use exactly that source, or
+    /// fail loudly at startup with an actionable error if it isn't
+    /// available, rather than silently trying alternatives. `"display_timing"`
+    /// is not a valid choice here (it's not wired up as a selectable clock in
+    /// DRM mode) and is rejected at startup.
+    #[serde(default, deserialize_with = "deserialize_clock_pref")]
+    pub clock: Option<ClockSource>,
+}
+
+/// Deserializes the `[display] clock` key: the literal string `"auto"` maps
+/// to `None` (the auto-detecting path); any other value is parsed as a
+/// `ClockSource` variant name. Lets the TOML file say `clock = "auto"`
+/// explicitly rather than only supporting auto-detection via omitting the
+/// key entirely.
+fn deserialize_clock_pref<'de, D>(deserializer: D) -> Result<Option<ClockSource>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize as _;
+    use serde::de::Error as _;
+
+    let s = String::deserialize(deserializer)?;
+    ClockSource::parse_pref(&s).map_err(D::Error::custom)
 }
 
 impl DisplayRigConfig {
@@ -147,6 +181,7 @@ impl Default for DisplayRigConfig {
             height: None,
             refresh_hz: None,
             overlay_scale: Self::default_overlay_scale(),
+            clock: None,
         }
     }
 }

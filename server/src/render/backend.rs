@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex, RwLock};
 
-use crate::render::system_info::HostInfo;
+use crate::render::system_info::{ClockSource, HostInfo};
 use crate::scene::SceneState;
 use crate::vtl_state::VtlState;
 
@@ -15,6 +15,14 @@ pub struct BackendData {
     /// Preferred DRM display mode from rig-config. Ignored by the desktop and
     /// null backends — only `DrmBackend` selects a display mode.
     pub display_pref: DisplayModePref,
+    /// Forced vblank clock source (from rig-config or `--preferred-clock-source`),
+    /// bypassing auto-detection. Ignored by the desktop and null backends. See
+    /// `rig_config::DisplayRigConfig::clock`.
+    pub clock_pref: Option<ClockSource>,
+    /// Path of the rig-config file that was loaded (or would have been, if
+    /// absent) — included in error messages so the user knows where to
+    /// change a setting like `clock_pref`.
+    pub rig_config_path: String,
 }
 
 /// A rig-config display-mode preference, as loose match criteria against the

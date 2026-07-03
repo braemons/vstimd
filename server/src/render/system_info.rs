@@ -1,6 +1,7 @@
 use super::RenderTarget;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum ClockSource {
     /// DRM kernel scanout event (`drmWaitVBlank`) — most accurate.
     DrmVblank,
@@ -23,6 +24,29 @@ impl ClockSource {
             ClockSource::DisplayTiming => "VK_GOOGLE_display_timing",
             ClockSource::GpuCompletion => "GPU-completion (inaccurate)",
         }
+    }
+
+    /// Parses a clock-source preference, as used in rig-config's
+    /// `[display] clock` key and the `--preferred-clock-source` CLI flag.
+    /// `"auto"` (case-insensitive) means "auto-detect" (`None`); any other
+    /// value must name a variant in snake_case (e.g. `"drm_vblank"`,
+    /// `"vk_display_control"`, `"present_wait"`, `"gpu_completion"`).
+    pub fn parse_pref(s: &str) -> Result<Option<Self>, String> {
+        if s.eq_ignore_ascii_case("auto") {
+            return Ok(None);
+        }
+        use serde::Deserialize;
+        use serde::de::IntoDeserializer;
+        ClockSource::deserialize(IntoDeserializer::<serde::de::value::Error>::into_deserializer(
+            s,
+        ))
+        .map(Some)
+        .map_err(|e| {
+            format!(
+                "invalid clock source {s:?} ({e}) — expected \"auto\", \"drm_vblank\", \
+                 \"vk_display_control\", \"present_wait\", or \"gpu_completion\""
+            )
+        })
     }
 }
 

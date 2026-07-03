@@ -4,7 +4,8 @@ use crate::log_buffer::LogBuffer;
 use crate::render::AppKey;
 use crate::render::RenderState;
 use crate::render::backend::BackendData;
-use crate::render::system_info::SystemInfo;
+use crate::render::system_info::{ClockSource, SystemInfo};
+use crate::render::vk::VkContext;
 use crate::render::RenderTarget;
 use crate::render::{SceneRenderer, TextRenderer, UiRenderer};
 use crate::render::render_frame;
@@ -61,6 +62,12 @@ struct DrmRenderLoopData {
     vt_guard: DrmVtGuard,
     /// True while our VT is not the active one (we released the input grab).
     suspended: bool,
+    /// Set in `new()` if `clock_pref` forced a clock source that turned out
+    /// to be unavailable. Checked and consumed at the top of `run_loop`,
+    /// which fails the same way a runtime clock loss does — this lets
+    /// construction finish normally so `Self`'s Drop guards still restore
+    /// the VT/CRTC, instead of `process::exit`-ing mid-construction.
+    startup_clock_error: Option<String>,
 }
 
 fn check_device_permissions() {
@@ -120,7 +127,15 @@ fn check_device_permissions() {
 
 impl DrmRenderLoopData {
     fn new(data: BackendData, log_buffer: LogBuffer) -> Self {
-        let BackendData { scene, vtl, host_info, overlay_scale, display_pref } = data;
+        let BackendData {
+            scene,
+            vtl,
+            host_info,
+            overlay_scale,
+            display_pref,
+            clock_pref,
+            rig_config_path,
+        } = data;
         check_device_permissions();
 
         // Snapshot display state first, while the current VT still has an
@@ -142,13 +157,6 @@ impl DrmRenderLoopData {
         // Initialise Vulkan — VK_KHR_display acquires DRM master internally.
         let (ctx, display_info, vk_display) = super::drm_init::init(display_pref);
 
-        // Confirm the legacy vblank ioctl still works now that both
-        // invalidating events (VT switch, VK_KHR_display's master
-        // acquisition) have happened. On some hardware (observed: AMD RENOIR)
-        // the ioctl silently starts failing here even though it worked at
-        // `open()` time — see `DrmVblank::validate`.
-        let drm_vblank = drm_vblank.and_then(DrmVblank::validate);
-
         // Build scene + text sub-renderers first (before ctx moves).
         let config_dir = scene.read().unwrap().runtime.config_dir.clone();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
@@ -165,11 +173,61 @@ impl DrmRenderLoopData {
 
         let ui = UiRenderer::new(&ctx, config_dir, log_buffer, overlay_scale);
 
-        // Build vblank state before ctx moves into RenderState.
-        let vk_vblank = ctx
-            .display_control
-            .as_ref()
-            .map(|loader| VkVblank::new(ctx.device.clone(), loader.clone(), vk_display));
+        let input = InputState::new();
+
+        // Resolve which clock source(s) to actually try, checking as late as
+        // possible — right before the render loop starts, after all other
+        // setup above — since auto-detection can't reliably predict every
+        // GPU/driver combination (a clock that passes an earlier check can
+        // still fail once the loop is running). `clock_pref` lets rig-config
+        // or `--preferred-clock-source` pin a specific source instead of
+        // probing, at the cost of a hard failure if that source isn't
+        // available rather than a silent fallback.
+        let make_vk_vblank = |ctx: &VkContext| {
+            ctx.display_control
+                .as_ref()
+                .map(|loader| VkVblank::new(ctx.device.clone(), loader.clone(), vk_display))
+        };
+        let unavailable = |source: ClockSource| {
+            format!(
+                "clock source {:?} was requested but is not available on this hardware. \
+                 Change `[display] clock` in {rig_config_path} (or drop --preferred-clock-source) \
+                 to \"auto\" or a different source.",
+                source.as_str()
+            )
+        };
+        let (drm_vblank, vk_vblank, startup_clock_error) = match clock_pref {
+            None => (
+                drm_vblank.and_then(DrmVblank::validate),
+                make_vk_vblank(&ctx),
+                None,
+            ),
+            Some(ClockSource::DrmVblank) => match drm_vblank {
+                Some(v) => (Some(v), None, None),
+                None => (None, None, Some(unavailable(ClockSource::DrmVblank))),
+            },
+            Some(ClockSource::VkDisplayControl) => match make_vk_vblank(&ctx) {
+                Some(v) => (None, Some(v), None),
+                None => (None, None, Some(unavailable(ClockSource::VkDisplayControl))),
+            },
+            Some(ClockSource::PresentWait) => {
+                if ctx.present_wait.is_some() {
+                    (None, None, None)
+                } else {
+                    (None, None, Some(unavailable(ClockSource::PresentWait)))
+                }
+            }
+            Some(ClockSource::GpuCompletion) => (None, None, None),
+            Some(ClockSource::DisplayTiming) => (
+                None,
+                None,
+                Some(format!(
+                    "clock source \"display_timing\" is not implemented as a selectable clock \
+                     in DRM mode. Change `[display] clock` in {rig_config_path} (or drop \
+                     --preferred-clock-source) to \"auto\" or a different source."
+                )),
+            ),
+        };
         let vblank = DrmVblankState::new(drm_vblank, vk_vblank);
 
         let system_info = SystemInfo {
@@ -193,11 +251,12 @@ impl DrmRenderLoopData {
         Self {
             rs,
             vtl,
-            input: InputState::new(),
+            input,
             vblank,
             display_guard,
             vt_guard,
             suspended: false,
+            startup_clock_error,
         }
     }
 
@@ -223,22 +282,28 @@ impl DrmRenderLoopData {
         }
     }
 
-    /// The active vblank clock died at runtime (as opposed to never having
-    /// been available in the first place — `DrmVblank::open()` only selects a
-    /// source it has already confirmed works). For a stimulus-timing session,
-    /// silently degrading to a coarser fallback mid-run is worse than
-    /// stopping: it corrupts later timestamps without telling anyone. This
-    /// requests a shutdown with a non-zero exit code; the caller must still
-    /// `return` from `run_loop` so `self`'s Drop guards restore the VT/CRTC.
+    /// The vblank clock is unusable — either it died at runtime after
+    /// working (`DrmVblank::open()` only selects a source it has already
+    /// confirmed works), or `clock_pref` forced a source that turned out to
+    /// be unavailable at startup. For a stimulus-timing session, silently
+    /// degrading to a coarser fallback is worse than stopping: it corrupts
+    /// timestamps without telling anyone. This requests a shutdown with a
+    /// non-zero exit code; the caller must still `return` from `run_loop` so
+    /// `self`'s Drop guards restore the VT/CRTC.
     fn fatal_clock_loss(reason: String) {
         log::error!(
-            "vstimd: vblank clock lost — {reason}. Stimulus timing can no longer be \
+            "vstimd: vblank clock unavailable — {reason}. Stimulus timing can no longer be \
              guaranteed; shutting down."
         );
         crate::shutdown::request_fatal(reason);
     }
 
     fn run_loop(mut self) {
+        if let Some(reason) = self.startup_clock_error.take() {
+            Self::fatal_clock_loss(reason);
+            return;
+        }
+
         let mut clock_logged = false;
         loop {
             if crate::shutdown::is_requested() {
