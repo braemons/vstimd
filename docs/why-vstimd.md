@@ -107,7 +107,7 @@ a behaviour box, or a portable setup**.
 ## 3. Control it from (almost) anything
 
 The device is driven over the network with **protobuf messages over
-[ZeroMQ](https://en.wikipedia.org/wiki/ZeroMQ)**. The
+[ZeroMQ](https://zeromq.org/)**. The
 wire protocol is language- and platform-neutral, so the controlling client can be:
 
 - **Python / PsychoPy** on Linux, Windows, or macOS,

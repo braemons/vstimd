@@ -11,7 +11,7 @@ hardware and accepts commands from experiment scripts over the network, renderin
 precise, vsync-locked frame timing.
 
 vstimd is controlled along two complementary paths: **direct** commands from a software
-client over [ZMQ](https://en.wikipedia.org/wiki/ZeroMQ)/protobuf, and **trigger-driven** reactions via Virtual Trigger Lines (VTL)
+client over [ZMQ](https://zeromq.org/)/protobuf, and **trigger-driven** reactions via Virtual Trigger Lines (VTL)
 fed by hardware DAQ or a software simulator.
 
 !!! tip "New here? Start with these"
