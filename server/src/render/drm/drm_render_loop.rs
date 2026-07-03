@@ -282,17 +282,19 @@ impl DrmRenderLoopData {
         }
     }
 
-    /// The vblank clock is unusable — either it died at runtime after
-    /// working (`DrmVblank::open()` only selects a source it has already
-    /// confirmed works), or `clock_pref` forced a source that turned out to
-    /// be unavailable at startup. For a stimulus-timing session, silently
-    /// degrading to a coarser fallback is worse than stopping: it corrupts
-    /// timestamps without telling anyone. This requests a shutdown with a
-    /// non-zero exit code; the caller must still `return` from `run_loop` so
-    /// `self`'s Drop guards restore the VT/CRTC.
-    fn fatal_clock_loss(reason: String) {
+    /// The session's timing/display guarantees are broken — the vblank clock
+    /// died (or `clock_pref` forced a source unavailable at startup), or the
+    /// CRTC's actual mode drifted away from what vstimd set (observed: an
+    /// out-of-band modeset, e.g. from a DMCUB firmware fault, that Vulkan
+    /// doesn't reliably surface — see `DrmDisplayGuard::check_mode`). For a
+    /// stimulus-timing session, silently continuing on corrupted timing or a
+    /// wrong display resolution is worse than stopping: nothing else would
+    /// tell the experimenter or any data consumer. This requests a shutdown
+    /// with a non-zero exit code; the caller must still `return` from
+    /// `run_loop` so `self`'s Drop guards restore the VT/CRTC.
+    fn fatal_display_error(reason: String) {
         log::error!(
-            "vstimd: vblank clock unavailable — {reason}. Stimulus timing can no longer be \
+            "vstimd: fatal display error — {reason}. Stimulus timing/output can no longer be \
              guaranteed; shutting down."
         );
         crate::shutdown::request_fatal(reason);
@@ -300,7 +302,7 @@ impl DrmRenderLoopData {
 
     fn run_loop(mut self) {
         if let Some(reason) = self.startup_clock_error.take() {
-            Self::fatal_clock_loss(reason);
+            Self::fatal_display_error(reason);
             return;
         }
 
@@ -308,6 +310,19 @@ impl DrmRenderLoopData {
         loop {
             if crate::shutdown::is_requested() {
                 return;
+            }
+
+            // Periodically confirm the CRTC hasn't drifted away from the mode
+            // vstimd set — cheap read-only ioctl, checked roughly once a
+            // second rather than every frame to keep it off the hot path.
+            if self.rs.timing.frame_index.is_multiple_of(60)
+                && let Some(guard) = &self.display_guard
+            {
+                let expected = (self.rs.display_info.width_px, self.rs.display_info.height_px);
+                if let Err(reason) = guard.check_mode(expected) {
+                    Self::fatal_display_error(reason);
+                    return;
+                }
             }
 
             // Handle VT_PROCESS signals: release input grab when switching away,
@@ -382,7 +397,7 @@ impl DrmRenderLoopData {
             let screen_clock = match self.vblank.wait() {
                 Ok(t) => t,
                 Err(reason) => {
-                    Self::fatal_clock_loss(reason);
+                    Self::fatal_display_error(reason);
                     return;
                 }
             };
@@ -420,7 +435,7 @@ impl DrmRenderLoopData {
             // This two-phase register→collect pattern avoids double-blocking with
             // the FIFO vkAcquireNextImageKHR (which also syncs to the display).
             if let Err(reason) = self.vblank.register(self.rs.timing.frame_index as u64) {
-                Self::fatal_clock_loss(reason);
+                Self::fatal_display_error(reason);
                 return;
             }
 
