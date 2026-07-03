@@ -190,6 +190,11 @@ fn main() {
     // and the shm segment is cleaned up before the process exits.
     drop(zmq_shutdown);
     zmq_thread.join().ok();
+
+    if let Some(reason) = vstimd::shutdown::fatal_reason() {
+        log::error!("vstimd: exiting after fatal error: {reason}");
+        std::process::exit(1);
+    }
 }
 
 // ── Argument parsing ──────────────────────────────────────────────────────────

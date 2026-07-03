@@ -142,6 +142,13 @@ impl DrmRenderLoopData {
         // Initialise Vulkan — VK_KHR_display acquires DRM master internally.
         let (ctx, display_info, vk_display) = super::drm_init::init(display_pref);
 
+        // Confirm the legacy vblank ioctl still works now that both
+        // invalidating events (VT switch, VK_KHR_display's master
+        // acquisition) have happened. On some hardware (observed: AMD RENOIR)
+        // the ioctl silently starts failing here even though it worked at
+        // `open()` time — see `DrmVblank::validate`.
+        let drm_vblank = drm_vblank.and_then(DrmVblank::validate);
+
         // Build scene + text sub-renderers first (before ctx moves).
         let config_dir = scene.read().unwrap().runtime.config_dir.clone();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
@@ -163,7 +170,7 @@ impl DrmRenderLoopData {
             .display_control
             .as_ref()
             .map(|loader| VkVblank::new(ctx.device.clone(), loader.clone(), vk_display));
-        let vblank = DrmVblankState::new(ctx.device.clone(), drm_vblank, vk_vblank);
+        let vblank = DrmVblankState::new(drm_vblank, vk_vblank);
 
         let system_info = SystemInfo {
             host: host_info,
@@ -214,6 +221,21 @@ impl DrmRenderLoopData {
             events: nav_events,
             ..Default::default()
         }
+    }
+
+    /// The active vblank clock died at runtime (as opposed to never having
+    /// been available in the first place — `DrmVblank::open()` only selects a
+    /// source it has already confirmed works). For a stimulus-timing session,
+    /// silently degrading to a coarser fallback mid-run is worse than
+    /// stopping: it corrupts later timestamps without telling anyone. This
+    /// requests a shutdown with a non-zero exit code; the caller must still
+    /// `return` from `run_loop` so `self`'s Drop guards restore the VT/CRTC.
+    fn fatal_clock_loss(reason: String) {
+        log::error!(
+            "vstimd: vblank clock lost — {reason}. Stimulus timing can no longer be \
+             guaranteed; shutting down."
+        );
+        crate::shutdown::request_fatal(reason);
     }
 
     fn run_loop(mut self) {
@@ -292,7 +314,13 @@ impl DrmRenderLoopData {
             // 3. Block on vblank: DRM ioctl path blocks here directly; VK path
             //    collects the FIRST_PIXEL_OUT fence registered at end of last frame.
             //    When this returns, the previous frame is confirmed visible.
-            let screen_clock = self.vblank.wait();
+            let screen_clock = match self.vblank.wait() {
+                Ok(t) => t,
+                Err(reason) => {
+                    Self::fatal_clock_loss(reason);
+                    return;
+                }
+            };
 
             // Log the settled clock source once, after frame 1 (when the VK
             // fence has been collected for the first time).
@@ -326,7 +354,10 @@ impl DrmRenderLoopData {
             // present.  The fence is collected at the top of the next iteration.
             // This two-phase register→collect pattern avoids double-blocking with
             // the FIFO vkAcquireNextImageKHR (which also syncs to the display).
-            self.vblank.register(self.rs.timing.frame_index as u64);
+            if let Err(reason) = self.vblank.register(self.rs.timing.frame_index as u64) {
+                Self::fatal_clock_loss(reason);
+                return;
+            }
 
             // 4. Render: build overlay UI, tessellate scene, record Vulkan
             //    commands, submit to GPU, present to display.
