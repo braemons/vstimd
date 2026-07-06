@@ -87,19 +87,3 @@ The overlay has panels on **F1–F7** (Shift+F–key hides one). Two are timing-
 - **Benchmarks (F7)** — FPS and measured frame duration, per-frame sparkline (red bars
   = missed vblank), phase breakdown (tessellate / upload / fence / acquire / record /
   submit, in µs), drop count, and jitter.
-
-## Hardware timing test
-
-The `tools/timing_test` tool drives the server from Python and records photodiode responses
-with a DAQ to measure render-to-photon latency precisely:
-
-```sh
-cd tools/timing_test
-uv run python -m vstimd_timing_test --backend auto --hz 60 --duration 5 --out result.csv
-```
-
-| Metric | PASS | WARN | FAIL |
-|---|---|---|---|
-| Dropped frames (in 300) | 0 | 1–2 | ≥ 3 |
-| Jitter (std) | < 0.3 ms | 0.3–1.0 ms | > 1.0 ms |
-| Render-to-photon latency | < 10 ms | 10–20 ms | > 20 ms |
