@@ -3,6 +3,13 @@ Description=vstimd visual stimulus server
 # Wait for DRM and input device nodes to appear before starting.
 After=systemd-udev-settle.service network.target
 Wants=systemd-udev-settle.service
+# tty3 is reserved for vstimd's console. logind's default NAutoVTs=6 spawns
+# a getty there too; without this, agetty holds the tty open and vstimd's
+# own attempt to acquire it as its controlling terminal just blocks forever
+# (start times out). Conflicts+After makes starting vstimd stop the getty
+# via a normal SIGTERM first, so the tty is free by the time vstimd opens it.
+Conflicts=getty@tty3.service
+After=getty@tty3.service
 
 [Service]
 Type=notify
@@ -24,14 +31,17 @@ Environment=RUST_LOG=info
 # to use WSI instead of VK_KHR_display.
 UnsetEnvironment=DISPLAY WAYLAND_DISPLAY XDG_RUNTIME_DIR
 
-# VT / terminal — systemd restores KD_TEXT and hangs up the TTY on stop,
-# which avoids the black-screen-until-VT-switch issue on clean exit.
+# VT / terminal — systemd restores KD_TEXT on stop, avoiding the
+# black-screen-until-VT-switch issue on clean exit. TTYVHangup is
+# deliberately NOT set: since we already open TTYPath as our own stdin,
+# systemd performs vhangup() *after* we've acquired it as our controlling
+# terminal, so it hangs up ourselves (immediate SIGHUP, "Result: protocol").
+# The getty on tty3 is evicted instead via Conflicts= above.
 TTYPath=/dev/tty3
 StandardInput=tty
 StandardOutput=journal
 StandardError=journal
 TTYReset=yes
-TTYVHangup=yes
 
 # libinput reads /dev/input/event*  (needs 'input' group).
 # DRM/Vulkan opens /dev/dri/*       (needs 'video' or 'render' group).
