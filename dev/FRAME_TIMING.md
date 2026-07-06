@@ -3,8 +3,9 @@
 Precise frame timing is essential for neuroscience experiments — every skipped
 frame is a measurement error.  Unit tests cannot catch timing failures caused
 by OS jitter, GPU scheduling, or display misconfiguration.  This document
-describes three complementary layers of timing verification built into the
-`vstimd` project.
+describes the timing verification built into the `vstimd` project: two
+implemented layers (always-on Rust `FrameStats` and an egui HUD overlay), plus
+planned phases for higher-precision hardware-in-the-loop measurement.
 
 ---
 
@@ -116,120 +117,6 @@ egui-winit = { version = "0.33", optional = true }
 
 ---
 
-## Layer 3 — Python timing test tool (`tools/timing_test/`)
-
-A standalone hardware-in-the-loop test that drives flashes via the ZMQ
-command protocol and records the photodiode response with a DAQ.
-
-### Installation
-
-```bash
-# No hardware (CI / unit tests):
-uv pip install -e tools/timing_test
-
-# NI-DAQmx lab:
-uv pip install -e "tools/timing_test[ni]"
-
-# LabJack T4/T7 lab:
-uv pip install -e "tools/timing_test[t4]"
-
-# LabJack U3 lab:
-uv pip install -e "tools/timing_test[u3]"
-```
-
-### Usage
-
-```bash
-# Simulated (no hardware, no server):
-uv run python -m vstimd_timing_test --backend simulated --no-server --duration 5
-
-# With running server + auto-detected DAQ:
-uv run python -m vstimd_timing_test --backend auto --hz 60 --duration 5 --out result.csv
-
-# Unit tests (no hardware needed):
-uv run pytest tools/timing_test/tests/
-```
-
-### Physical setup
-
-```
-┌────────────────────┐          ┌─────────────┐
-│   vstimd PC  │          │  DAQ device │
-│                    │          │             │
-│  Monitor ──────────┼── light ─┼─► Photodiode│
-│  (ZMQ port 5555)   │          │  (analog in)│
-└────────────────────┘          └─────────────┘
-         │ ZMQ REQ                      │
-         │                              │
-         └──────── Python test tool ────┘
-                   (reads DAQ + drives flashes)
-```
-
-The photodiode is placed on the corner of the monitor where a white flash
-rectangle is displayed.  Its analog output is connected to the DAQ analog
-input.
-
-### Supported DAQ backends
-
-| Backend | Class | Sample rate | Notes |
-|---|---|---|---|
-| NI-DAQmx | `NIBackend` | 10 000 Hz | Requires `nidaqmx` package + NI hardware |
-| LabJack T4/T7 | `LabJackT4Backend` | 10 000 Hz | Hardware-buffered stream via LJM |
-| LabJack U3 | `LabJackU3Backend` | 1 000 Hz | Poll-based; busy-wait for < 100 µs jitter |
-| Simulated | `SimulatedBackend` | 10 000 Hz | Synthetic square wave; no hardware needed |
-| ESP32 | `ESP32Backend` | — | Stub — not yet implemented |
-
-Auto-detection probes in order: NI-DAQmx → LabJack T4 → LabJack U3 →
-SimulatedBackend.
-
-### PASS/WARN/FAIL thresholds
-
-| Metric | PASS | WARN | FAIL |
-|---|---|---|---|
-| `dropped_count` (in 300 flashes) | 0 | 1–2 | ≥ 3 |
-| `ipi_std_ms` (jitter) | < 0.3 ms | 0.3–1.0 ms | > 1.0 ms |
-| `ipi_max_ms / expected_ipi_ms` | < 1.2× | 1.2–1.8× | > 1.8× |
-| `render_to_photon_latency_ms` | < 10 ms | 10–20 ms | > 20 ms |
-| `frame_rate_measured_hz` drift | < 0.1 Hz | 0.1–0.5 Hz | > 0.5 Hz |
-
-Overall verdict: FAIL if any metric fails; WARN if any warn and none fail;
-PASS otherwise.
-
-The 10 ms render-to-photon threshold covers:
-- GPU pipeline drain after `present()`: 0–2 ms typical
-- Display signal processing + LCD response: 1–8 ms typical
-
-WARN at > 10 ms → display overdrive or post-processing enabled.
-FAIL at > 20 ms → second frame of processing or wrong signal path.
-
-### Output files
-
-`--out result.csv` writes two files:
-
-**`result.csv`** — one metric per row:
-```
-metric,value,unit
-verdict,PASS,
-dropped_count,0,count
-ipi_mean_ms,16.67,ms
-ipi_std_ms,0.08,ms
-render_to_photon_latency_ms,6.2,ms
-...
-```
-
-**`result.csv.json`** — full result + device metadata:
-```json
-{
-  "timestamp_utc": "2026-03-05T14:22:00Z",
-  "verdict": "PASS",
-  "failure_reasons": [],
-  "metrics": { ... },
-  "metadata": { "name": "NIBackend(Dev1/ai0)", ... }
-}
-```
-
----
-
 ## Phase 3 — ZMQ PUB frame events (planned)
 
 Requires the server to implement the `get_time` REQ/REP command and emit
@@ -263,8 +150,6 @@ clock_offset_ns = reply["server_ns"] - (t_before + t_after) // 2
 After applying the average offset, Python can compare `flip_timestamp_ns`
 from `FrameFlip` events directly against DAQ timestamps.
 
-Enable in the test tool with `--use-zmq-events`.
-
 ---
 
 ## Phase 4 — Hardware trigger output (planned, highest precision)
@@ -297,25 +182,3 @@ no clock synchronisation is required — both the trigger and the photodiode are
 recorded in the same DAQ hardware timebase.
 
 See `docs/INPUT_LATENCY.md` for the shared memory layout.
-
----
-
-## Running the complete verification workflow
-
-```bash
-# 1. Start the server (with overlay for visual confirmation)
-cd server
-cargo run --features overlay
-
-# 2. Run the timing test (hardware lab)
-uv run python -m vstimd_timing_test \
-    --backend auto \
-    --server tcp://localhost:5555 \
-    --hz 60 \
-    --duration 5 \
-    --out results/$(date +%Y%m%d_%H%M%S).csv
-
-# 3. Run CI/unit tests (no hardware)
-cd ..
-uv run pytest tools/timing_test/tests/ -v
-```

@@ -106,6 +106,6 @@ accumulate in one directory, as a nudge to clean up.
 
 ## See also
 
-- **[Choosing an API path](../tutorial/index.md)** — where config files fit among
-  the command and VTL paths.
+- **[How vstimd works](../tutorial/index.md)** — where config files fit as a setup
+  API alongside the command API, ahead of trigger-driven execution.
 - **[Deferred mode](deferred-mode.md)** — atomic frame flips for coordinated changes.
