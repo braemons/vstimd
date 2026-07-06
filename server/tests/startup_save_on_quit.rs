@@ -16,7 +16,9 @@ use std::time::{Duration, Instant};
 use prost::Message;
 use zeromq::{Socket, SocketRecv, SocketSend};
 
-use vstimd::io_config::{config_path, parse_config_json, LAST_SESSION_CONFIG};
+use vstimd::io_config::{
+    config_path, count_archive_configs, list_config_names, parse_config_json, LAST_SESSION_CONFIG,
+};
 use vstimd::proto;
 use vstimd::proto::request;
 
@@ -154,6 +156,14 @@ fn writes_last_session_on_quit_when_enabled() {
     let json = std::fs::read_to_string(&saved).unwrap();
     let (scene, _io) = parse_config_json(&json).expect("saved config should parse");
     assert_eq!(scene.stimuli.len(), 1, "saved scene should contain the created rect");
+
+    // …and a timestamped archive copy must also have been written.
+    assert_eq!(
+        count_archive_configs(dir.path()),
+        1,
+        "expected exactly one timestamped archive; got: {:?}",
+        list_config_names(dir.path()).unwrap()
+    );
 }
 
 #[test]

@@ -75,8 +75,8 @@ then have the device load it at startup via the rig-config `[startup]` section:
 # auto-saved last-session slot (see save_on_quit). Omit for an empty scene.
 load_config  = "center_target"
 
-# Save the current scene to the last-session slot on graceful shutdown, so the
-# next boot can restore it with load_config = "last".
+# On graceful shutdown, save the current scene: overwrite the last-session slot
+# AND write a timestamped archive for history (see below).
 save_on_quit = false
 ```
 
@@ -85,6 +85,24 @@ last-session slot on first boot is a no-op (the rig starts with an empty scene),
 an error. See the **Config** panel (F6) of the on-device overlay, or the web control
 UI, for loading configs interactively, and
 [Deployment](../operations/deployment.md) for the wider boot flow.
+
+### Where configs live, and save-on-quit archives
+
+Named configs are stored in `--config-dir`. On a deployed rig this defaults to
+`/var/lib/braemons/vstimd` (created by the packaged systemd unit's `StateDirectory`);
+if that directory is not writable — for example a non-root development run — vstimd
+falls back to `~/.local/braemons/vstimd`, then the current directory, logging which it
+chose.
+
+With `save_on_quit = true`, each graceful shutdown writes **two** files:
+
+- `vstimd__last_session.config.json` — overwritten every quit; restored by
+  `load_config = "last"`.
+- `vstimd_<YYYYMMDDTHHMMSSZ>.config.json` — a timestamped archive (UTC), so you keep
+  a history of what each session ended with.
+
+Archives are never pruned automatically; vstimd logs a warning once more than 500
+accumulate in one directory, as a nudge to clean up.
 
 ## See also
 

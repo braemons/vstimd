@@ -8,7 +8,10 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use uuid::Uuid;
-use vstimd::io_config::{config_path, is_not_found, LAST_SESSION_CONFIG};
+use vstimd::io_config::{
+    config_path, count_archive_configs, dir_is_writable, first_writable_dir, is_archive_name,
+    is_not_found, LAST_SESSION_CONFIG,
+};
 use vstimd::scene::{
     Deferred, RectStimulus, SceneState, ShapeAppearance, ShapeCommon, Stimulus, StimulusFlags,
     StimulusSceneEntry, Transform2D,
@@ -125,6 +128,44 @@ fn last_session_slot_roundtrips() {
         .load_named_config(LAST_SESSION_CONFIG, false, None)
         .expect("last-session slot should load");
     assert_eq!(restored.stimuli.len(), 1);
+}
+
+#[test]
+fn session_snapshot_writes_last_and_timestamped_archive() {
+    let dir = TempDir::new();
+    let scene = scene_with_rect(dir.path());
+
+    let archive = scene
+        .save_session_snapshot(None)
+        .expect("session snapshot should succeed");
+
+    // Both artifacts exist: the overwritable last-session slot and the archive.
+    assert!(config_path(dir.path(), LAST_SESSION_CONFIG).exists());
+    assert!(config_path(dir.path(), &archive).exists());
+    // The archive name is a recognisable timestamp, distinct from the slot.
+    assert!(is_archive_name(&archive), "archive name '{archive}' should be a timestamp");
+    assert_ne!(archive, LAST_SESSION_CONFIG);
+    // Exactly one archive so far; the last-session slot is not counted.
+    assert_eq!(count_archive_configs(dir.path()), 1);
+}
+
+#[test]
+fn dir_is_writable_detects_reachable_dir() {
+    let dir = TempDir::new();
+    // A fresh temp dir is writable; a nested path is created on demand.
+    assert!(dir_is_writable(dir.path()));
+    assert!(dir_is_writable(&dir.path().join("nested/child")));
+}
+
+#[test]
+fn first_writable_dir_skips_unwritable_candidates() {
+    let dir = TempDir::new();
+    let good = dir.path().join("good");
+    // A path under /proc cannot be created — stands in for a non-writable
+    // system dir like /var/lib on a non-root run.
+    let bad = std::path::PathBuf::from("/proc/vstimd_cannot_create_here");
+    let chosen = first_writable_dir(&[bad, good.clone()]);
+    assert_eq!(chosen, good);
 }
 
 #[test]

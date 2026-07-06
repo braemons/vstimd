@@ -19,8 +19,9 @@ use super::stimulus::{
 use super::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance, StimulusFlags, Transform2D};
 use crate::Color;
 use crate::io_config::{
-    config_path, is_format_error, is_not_found, list_config_names, load_config, parse_config_json,
-    retrieve_config_json, save_config,
+    archive_timestamp_name, config_path, count_archive_configs, is_format_error, is_not_found,
+    list_config_names, load_config, parse_config_json, retrieve_config_json, save_config,
+    ARCHIVE_WARN_THRESHOLD, LAST_SESSION_CONFIG,
 };
 use crate::ipc::{
     err, err_not_found, err_wrong_type, ok_ack, ok_body, ok_handle, ok_handle_with_id,
@@ -2200,14 +2201,32 @@ impl SceneState {
     }
 
     /// Save the current scene and VTL line names to a named config file in the
-    /// config directory, creating the directory if needed. Used by the
-    /// `[startup] save_on_quit` shutdown path.
+    /// config directory, creating the directory if needed.
     pub fn save_named_config(&self, name: &str, vtl: Option<&VtlState>) -> anyhow::Result<()> {
         std::fs::create_dir_all(&self.runtime.config_dir)?;
         let path = config_path(&self.runtime.config_dir, name);
         let default_vtl = VtlConfig::default();
         let vtl_cfg = vtl.map_or(&default_vtl, |v| &v.config);
         save_config(&self.config, vtl_cfg, &path)
+    }
+
+    /// Quit-time save (`[startup] save_on_quit`): overwrite the last-session
+    /// slot and write a timestamped archive so history is preserved. Returns
+    /// the archive's config name. Logs a warning once archives pile up past
+    /// [`ARCHIVE_WARN_THRESHOLD`] — they are never pruned automatically.
+    pub fn save_session_snapshot(&self, vtl: Option<&VtlState>) -> anyhow::Result<String> {
+        self.save_named_config(LAST_SESSION_CONFIG, vtl)?;
+        let archive = archive_timestamp_name();
+        self.save_named_config(&archive, vtl)?;
+
+        let n = count_archive_configs(&self.runtime.config_dir);
+        if n > ARCHIVE_WARN_THRESHOLD {
+            log::warn!(
+                "vstimd: {n} timestamped session archives in {:?} — consider pruning old ones",
+                self.runtime.config_dir
+            );
+        }
+        Ok(archive)
     }
 
     fn cmd_upload_config(
