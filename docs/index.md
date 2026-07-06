@@ -10,15 +10,20 @@
 hardware and accepts commands from experiment scripts over the network, rendering stimuli with
 precise, vsync-locked frame timing.
 
-vstimd is controlled along two complementary paths: **direct** commands from a software
-client over [ZMQ](https://zeromq.org/)/[protobuf](https://protobuf.dev/), and **trigger-driven** reactions via Virtual Trigger Lines (VTL)
-fed by hardware DAQ or a software simulator.
+vstimd is a **trigger-driven** stimulus engine. You *set up* a scene ahead of time —
+stimuli plus small on-device **animations** — using the **command API**
+([ZMQ](https://zeromq.org/)/[protobuf](https://protobuf.dev/), from Python or JavaScript)
+or by uploading a **config file**. The device then produces precisely-timed visual
+stimulation the moment a **Virtual Trigger Line (VTL)** fires, fed by a hardware DAQ or a
+software simulator — the whole timing-critical path stays on the device. This
+trigger-driven core, rather than a command-per-frame loop, is what sets vstimd apart from
+conventional command-based stimulus software.
 
 !!! tip "New here? Start with these"
     - **[Why vstimd?](why-vstimd.md)** — what a dedicated timing device buys you over
       PsychoPy / Psychtoolbox / MWorks, and how it fuses with ephys and imaging.
-    - **[Choosing an API path](tutorial/index.md)** — the two ways to drive vstimd and
-      when to use each, with hands-on tutorials.
+    - **[How vstimd works](tutorial/index.md)** — how setup (command / config APIs) and
+      trigger-driven execution fit together, with hands-on tutorials.
 
 ```mermaid
 flowchart TB
@@ -40,28 +45,36 @@ flowchart TB
     loop --> monitor([Monitor])
 ```
 
-## Two ways to control vstimd
+## Setup, then triggers
 
-Stimuli can be driven along two complementary paths. Most experiments use both: a
-software client sets the scene up, and hardware trigger lines drive the timing-critical
-reactions frame-by-frame.
+vstimd separates **setup** from **execution**. First you prepare the scene — stimuli and
+trigger-armed animations — with one of the **setup APIs**. Then the on-device **trigger
+framework** runs the timing-critical moment when a Virtual Trigger Line fires. Setup is a
+convenient, network-bound conversation; execution is frame-accurate and stays on the box.
 
-**Path 1 — Direct control (imperative).** A software client sends commands over
+**Setup — the command API (imperative).** A software client sends commands over
 ZMQ/protobuf that take effect on the next frame: create a stimulus, set its position,
-enable or disable it.
+create an animation armed on a trigger line. Reachable from any protobuf/ZMQ language;
+the maintained clients are Python and JavaScript (the web UI), with C# / Bonsai and a
+planned MATLAB client.
 
 ```mermaid
 flowchart TB
-    client["Software client<br/>Python · C# · MATLAB (planned)"] -->|"ZMQ / protobuf<br/>create rect · set enabled"| vstimd["vstimd<br/>scene state → render"]
+    client["Software client<br/>Python · JavaScript · C# · MATLAB (planned)"] -->|"ZMQ / protobuf<br/>create rect · arm animation"| vstimd["vstimd<br/>scene state → render"]
     vstimd --> monitor([Monitor])
 ```
 
-**Path 2 — VTL-driven animations (reactive).** *Virtual Trigger Lines* (VTL) are a bank
+**Setup — the config API (declarative).** Instead of scripting the scene, upload a
+**versioned JSON config file** (stimuli, animations, background, and the VTL line map).
+A rig can boot straight into a known configuration with no client connected. See
+[Saving & loading scenes](concepts/saving-loading.md).
+
+**Execution — VTL-driven animations (the core).** *Virtual Trigger Lines* (VTL) are a bank
 of trigger bits in POSIX shared memory. A hardware bridge (e.g. `daqd`) maps real TTL
 lines onto them — or a software client simulates lines over ZMQ. vstimd polls them once
-per frame with zero syscall overhead, and **animations** react to edges/levels to drive
-stimulus visibility, position, and output markers in hardware time — no round-trip back
-to the experiment PC.
+per frame with zero syscall overhead, and the **animations** you armed during setup react
+to edges/levels to drive stimulus visibility, position, and output markers in hardware
+time — no round-trip back to the experiment PC. This is what vstimd is *for*.
 
 ```mermaid
 flowchart TB

@@ -96,9 +96,9 @@ nav:
       - Installation: getting-started/installation.md
       - Quick start: getting-started/quick-start.md
   - Tutorials:
-      - Choosing an API path: tutorial/index.md
-      - The command API: tutorial/command-api.md
-      - Triggers & animations (VTL): tutorial/vtl-and-animations.md
+      - How vstimd works — setup & triggers: tutorial/index.md
+      - Setup — the command API: tutorial/command-api.md
+      - Execution — triggers & animations (VTL): tutorial/vtl-and-animations.md
       - Integrating recording systems: tutorial/recording-integration.md
   - Concepts:
       - Frame timing: concepts/frame-timing.md

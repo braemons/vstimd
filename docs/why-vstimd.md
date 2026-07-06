@@ -39,11 +39,24 @@ vstimd's shape is not new; it deliberately borrows from prior systems.
   Neuroscience), a **Windows-only** C++ stimulus server, and **MWorks**, whose
   MWServer draws stimuli while MWClient controls it — but MWorks is **macOS-only**,
   server *and* client.
-- **Trigger-driven logic.** Reacting to external events frame-by-frame is inherited
-  from StimServer — which used **named events** *and* **shared memory** — and
-  echoes Andreas Kreiter's **VStim**. vstimd generalises this into its
-  [Virtual Trigger Lines](tutorial/vtl-and-animations.md): a named, shared-memory
-  bank of trigger bits polled every frame.
+- **Trigger-driven logic.** This is vstimd's centre of gravity, and where it parts ways
+  with most stimulus software. PsychoPy, Psychtoolbox, MonkeyLogic, MWorks and StimServer
+  are ultimately **command-driven** — your code (or a client) issues the draw calls that
+  produce each frame. vstimd instead treats the **(virtual) trigger** as the thing that
+  drives stimulation: you arm behaviours ahead of time and the device reacts in hardware
+  time. Reacting to external events frame-by-frame is inherited from StimServer — which
+  used **named events** *and* **shared memory** — and echoes Andreas Kreiter's **VStim**.
+  vstimd generalises this into its
+  [Virtual Trigger Lines](tutorial/vtl-and-animations.md): a named, shared-memory bank of
+  trigger bits polled every frame.
+- **Reactive / dataflow stimulus control.** The nearest thing in spirit is
+  [**BonVision**](https://bonvision.github.io/) on
+  [**Bonsai**](https://bonsai-rx.org/), whose reactive, event-stream programming model
+  moves in the same trigger-first direction rather than a per-frame command loop. The key
+  difference is the *substrate*: Bonsai/BonVision run on **Windows / a full desktop OS**,
+  with the compositor and general-purpose scheduler in the timing path, whereas vstimd
+  reacts on **bare-metal Linux with direct vblank control** and nothing else contending
+  for the render core.
 
 What vstimd adds is the *substrate*. Where StimServer renders through the Windows
 desktop and MWorks through the macOS window server — both on general-purpose
@@ -118,7 +131,7 @@ wire protocol is language- and platform-neutral, so the controlling client can b
 
 Your analysis stack, your behavioural task engine, and your stimulus renderer no
 longer have to live in the same language or on the same machine. See
-[Choosing an API path](tutorial/index.md).
+[How vstimd works](tutorial/index.md).
 
 ## 4. Built to plug into ephys and imaging
 
@@ -178,8 +191,8 @@ simplified.
 
 ## Where to go next
 
-- **[Choosing an API path](tutorial/index.md)** — the two ways to drive vstimd and
-  when to use each.
+- **[How vstimd works](tutorial/index.md)** — how scene setup (command / config APIs)
+  and trigger-driven execution fit together.
 - **[Quick start](getting-started/quick-start.md)** — send your first stimulus in
   a few lines.
 - **[Frame timing](concepts/frame-timing.md)** — how the guarantee is achieved and

@@ -1,15 +1,28 @@
-# Choosing an API path
+# How vstimd works: setup, then triggers
 
 <span class="wip-badge">WIP</span>
 
-vstimd is driven along **two complementary paths**. They are not competing
-alternatives — most real experiments use both. Understanding *what each path is
-for* is the single most important thing to get right, so this page covers it
-before any code.
+Most stimulus systems are **command-driven**: your script issues a draw call and a
+frame appears, over and over, in lockstep with your code. vstimd is built the other
+way round. Its centre of gravity is a **trigger-driven execution model**: you load
+stimuli and small **animations** onto the device *ahead of time*, arm them against
+**Virtual Trigger Lines (VTL)**, and then the device itself produces precisely-timed
+visual stimulation the instant a trigger arrives — in hardware time, with no client
+in the loop.
+
+So there are two distinct activities, and the single most important thing to get right
+is keeping them apart:
+
+1. **Setup** — preparing the scene: the stimuli, and the trigger-armed animations that
+   will run. This is *not* timing-critical; it happens before the trial.
+2. **Execution** — the trigger-driven moment: a (virtual) trigger fires and an armed
+   animation drives the display frame-accurately. This *is* the timing-critical part,
+   and it runs entirely on the device.
 
 ```mermaid
 flowchart TB
-    cmd["Command API<br/>Py / MATLAB / C#"]
+    cmd["Command API<br/>Py / JS / MATLAB / C#"]
+    cfg["Config API<br/>upload config file"]
     daq["DAQ / Arduino /<br/>recording system"]
     subgraph DEV["Stimulus device (Linux, KMS/DRM)"]
         vin["VTL in"] --> anim["animations<br/>(on-device, frame-accurate)"]
@@ -18,96 +31,98 @@ flowchart TB
         anim --> vout["VTL out"]
         loop -->|pulses| vout
     end
-    cmd -->|ZMQ| scene
-    daq -->|TTL| vin
+    cmd -->|"ZMQ (setup)"| scene
+    cfg -->|"ZMQ (setup)"| scene
+    daq -->|"TTL (execution)"| vin
     loop --> mon([Monitor])
     vout -->|TTL| ephys([ephys / imaging])
 ```
 
-## Path 1 — The command API (imperative)
+## Setting up the scene
 
-A software client sends **commands** over ZMQ/protobuf. Each command maps to one
-scene change and takes effect on the next frame: *create a rectangle*, *set its
-position*, *enable it*, *set the background*, *query server info*.
+There are **two setup APIs**. They do the same job — populate the device with stimuli
+and trigger-armed animations — and you can mix them freely.
 
-This is the path you reach for to:
+### The command API (imperative)
 
-- **build and configure the scene** — create stimuli, set colours, sizes,
-  positions, gratings, text;
-- **run the high-level experiment structure** — trial loops, condition selection,
-  logging, anything driven by your own code;
-- **make coordinated changes atomic** — batch several updates so they appear on
-  the *same* frame ([deferred mode](../concepts/deferred-mode.md)).
+A software client sends **commands** over ZMQ/protobuf, each mapping to one scene
+change: *create a rectangle*, *set its position*, *create an animation armed on trigger
+line 3*. It is reachable from any language that speaks protobuf/ZMQ; the maintained
+clients are **Python** and **JavaScript** (the web control UI), with C# / Bonsai usable
+today and a MATLAB client planned.
 
-The command API is a **request/response** conversation: every call is a network
-round-trip. That is perfect for setup and for events whose timing is set by your
-task logic (which are typically many milliseconds apart anyway). It is *not* the
-right tool for reacting to an external signal within a single frame — that round
-trip through your OS and the network is exactly the jitter you want to avoid.
+The command API is a **request/response** conversation — every call is a network
+round-trip — which is exactly right for setup and for high-level trial structure (trial
+loops, condition selection, logging). Use [deferred mode](../concepts/deferred-mode.md)
+to make several changes appear on the *same* frame.
+
+It is *not* the tool for reacting to an external signal within a single frame — that
+round-trip through your OS and the network is exactly the jitter you want to avoid.
+That job belongs to the trigger framework below.
 
 👉 **[Tutorial: The command API](command-api.md)**
 
-## Path 2 — Triggers & animations via VTL (reactive)
+### The config API (declarative)
 
-For anything that must happen **in hardware time**, vstimd runs the logic *on the
-device itself*.
+A whole scene — stimuli, animations, background, **and** the VTL line map — can be saved
+to and loaded from a **versioned JSON config file** on the device (via the command API's
+`config` namespace, or the web UI). A rig can boot straight into a known stimulus
+configuration with **no client connected at all**. See
+[Saving & loading scenes](../concepts/saving-loading.md).
 
-- **Virtual Trigger Lines (VTL)** are a bank of trigger bits in shared memory. A
-  companion daemon maps real TTL lines onto them (or a client simulates them for
-  testing).
-- **Animations** are small declarative behaviours you upload ahead of time — *flash
-  for N frames*, *couple visibility to a line*, *move along a path*, *flicker* — each
-  with a rich vocabulary of start/final/cancel actions.
+Both setup paths leave the device in the same state: stimuli created, animations armed
+and waiting for their triggers.
 
-vstimd polls the input lines at the **start of every frame** and commits output
-lines at vblank. So an animation can wait for a rising edge on an input line, flash
-a stimulus for exactly 10 frames, and pulse an output marker on the frame the flash
-begins — all without a single network round-trip. Because vstimd reads *and* writes
-lines each frame, animations can even **chain each other entirely inside the
-server**.
+## The core: trigger-driven execution (VTL)
 
-Reach for this path when:
+This is what makes vstimd vstimd, and what sets it apart from purely command-driven
+stimulus systems. The setup above only *prepares* the scene; nothing timing-critical has
+happened yet. The precisely-timed visual stimulation is produced here, on the device, when
+a trigger arrives.
 
-- the reaction must be **frame-accurate and independent of network/OS latency**;
+- **Virtual Trigger Lines (VTL)** are a bank of trigger bits in shared memory. A companion
+  daemon maps real TTL lines onto them (or a client simulates them for testing).
+- **Animations** are the small declarative behaviours you armed during setup — *flash for
+  N frames*, *couple visibility to a line*, *move along a path*, *flicker* — each with a
+  rich vocabulary of start/final/cancel actions.
+
+vstimd polls the input lines at the **start of every frame** and commits output lines at
+vblank. So an armed animation can wait for a rising edge on an input line, flash a stimulus
+for exactly 10 frames, and pulse an output marker on the frame the flash begins — all
+without a single network round-trip. Because vstimd reads *and* writes lines each frame,
+animations can even **chain each other entirely inside the server**.
+
+Reach for this path — which is to say, the whole point of vstimd — when:
+
+- the stimulation must be **frame-accurate and independent of network/OS latency**;
 - you need to **emit stimulus-onset markers** to a recording system;
 - you want stimulus behaviour to **react to a TTL, photodiode, or lever** directly.
 
 👉 **[Tutorial: Triggers & animations](vtl-and-animations.md)**
 
-## How the two fit together
+## A trial, end to end
 
-A typical trial:
+1. **Setup (command or config API).** Create the stimuli and an animation *armed* to fire
+   on a trigger line.
+2. **Execution (VTL).** A TTL from the recording system fires. On that frame vstimd flashes
+   the stimulus and pulses an output marker — in hardware time.
+3. **Bookkeeping (command API).** Your script queries state, logs the trial, and sets up the
+   next one.
 
-1. **Command API (setup).** Your script creates the stimuli and an animation
-   *armed* to fire on a trigger line, then arms it.
-2. **VTL (execution).** A TTL from the recording system fires. On that frame vstimd
-   flashes the stimulus and pulses an output marker — in hardware time.
-3. **Command API (bookkeeping).** Your script queries state, logs the trial, and
-   sets up the next one.
-
-The slow, convenient path builds the scene; the fast, on-device path runs the
-timing-critical moment. See
-[Integrating recording systems](recording-integration.md) for how the output
-markers land in your ephys/imaging clock.
-
-## A third path: configuration files
-
-Whole scenes — stimuli, animations, background, **and** the VTL line map — can be
-saved to and loaded from **versioned JSON config files** on the device (via the
-command API's `config` namespace, or the web UI). This lets a rig boot into a known
-stimulus configuration with no client connected at all. See
-[Saving & loading scenes](../concepts/saving-loading.md).
+The setup APIs prepare the scene; the trigger framework runs the timing-critical moment. See
+[Integrating recording systems](recording-integration.md) for how the output markers land in
+your ephys/imaging clock.
 
 ## Decision guide
 
 | You want to… | Use |
 |---|---|
-| Create / modify / query stimuli from your script | **Command API** |
-| Run trial logic, condition selection, logging | **Command API** |
+| Create / modify / query stimuli from your script | **Command API** (setup) |
+| Run trial logic, condition selection, logging | **Command API** (setup) |
 | Make several changes appear on one frame | **Command API** + [deferred mode](../concepts/deferred-mode.md) |
-| Flash / move / flicker a stimulus with exact frame timing | **Animation** (VTL path) |
+| Boot a rig into a fixed scene with no client | **Config API** (config file) |
+| Flash / move / flicker a stimulus with exact frame timing | **Animation** (VTL execution) |
 | React to a TTL / photodiode / lever within a frame | **Animation armed on a VTL input line** |
 | Emit a stimulus-onset marker to ephys/imaging | **Animation with an output trigger-line action** |
 | Chain one reaction into another on-device | **Animations coupled via VTL output edges** |
-| Boot a rig into a fixed scene with no client | **Config file** |
 | Port existing PsychoPy code with minimal edits | **[PsychoPy-compatible layer](command-api.md#psychopy-compatibility)** |
