@@ -67,9 +67,24 @@ With `apply_now=True` the config is applied immediately after saving (honouring
 Because a config carries the whole scene *and* the VTL line map, a deployed rig can
 come up showing a known configuration with no experiment PC attached — useful for
 home-cage training or a self-contained demo. Save the scene once from any client,
-and have the device load it at startup. See [Deployment](../operations/deployment.md)
-for wiring this into the boot flow, and the **Config** panel (F6) of the on-device
-overlay, or the web control UI, for loading configs interactively.
+then have the device load it at startup via the rig-config `[startup]` section:
+
+```toml
+[startup]
+# Load a named config from the config dir at boot. The literal "last" loads the
+# auto-saved last-session slot (see save_on_quit). Omit for an empty scene.
+load_config  = "center_target"
+
+# Save the current scene to the last-session slot on graceful shutdown, so the
+# next boot can restore it with load_config = "last".
+save_on_quit = false
+```
+
+An explicit `--config <path>` CLI flag overrides `[startup] load_config`. A missing
+last-session slot on first boot is a no-op (the rig starts with an empty scene), not
+an error. See the **Config** panel (F6) of the on-device overlay, or the web control
+UI, for loading configs interactively, and
+[Deployment](../operations/deployment.md) for the wider boot flow.
 
 ## See also
 

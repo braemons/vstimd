@@ -1,4 +1,4 @@
-use vstimd::rig_config::{self, RigConfig};
+use vstimd::rig_config::{self, RigConfig, StartupLoad};
 
 fn parse(toml: &str) -> RigConfig {
     toml::from_str(toml).expect("parse rig-config")
@@ -49,6 +49,48 @@ refresh_hz = 60.0
     assert_eq!(cfg.display.width,      Some(1920));
     assert_eq!(cfg.display.height,     Some(1080));
     assert_eq!(cfg.display.refresh_hz, Some(60.0));
+}
+
+#[test]
+fn startup_defaults_to_no_load_and_no_save() {
+    let cfg = parse("");
+    assert!(cfg.startup.load_config.is_none());
+    assert!(!cfg.startup.save_on_quit);
+}
+
+#[test]
+fn startup_named_config_parsed() {
+    let cfg = parse(r#"
+[startup]
+load_config  = "center_target"
+save_on_quit = true
+"#);
+    assert_eq!(
+        cfg.startup.load_config,
+        Some(StartupLoad::Named("center_target".into()))
+    );
+    assert!(cfg.startup.save_on_quit);
+}
+
+#[test]
+fn startup_last_keyword_maps_to_last_session() {
+    // Case-insensitive so "last", "Last", "LAST" all work.
+    for kw in ["last", "Last", "LAST"] {
+        let cfg = parse(&format!("[startup]\nload_config = \"{kw}\"\n"));
+        assert_eq!(cfg.startup.load_config, Some(StartupLoad::LastSession));
+    }
+}
+
+#[test]
+fn startup_empty_load_config_is_none() {
+    let cfg = parse("[startup]\nload_config = \"\"\n");
+    assert!(cfg.startup.load_config.is_none());
+}
+
+#[test]
+fn startup_rejects_unknown_field() {
+    let err = toml::from_str::<RigConfig>("[startup]\nbogus = 1\n");
+    assert!(err.is_err(), "deny_unknown_fields should reject bogus keys");
 }
 
 #[test]

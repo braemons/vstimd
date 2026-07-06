@@ -30,6 +30,55 @@ pub struct RigConfig {
     pub scheduling: SchedulingRigConfig,
     #[serde(default)]
     pub web: WebRigConfig,
+    #[serde(default)]
+    pub startup: StartupRigConfig,
+}
+
+/// What (if anything) vstimd loads into the scene at startup, and whether it
+/// saves the scene back out on quit — so a rig can boot into a known
+/// configuration with no client attached.
+///
+/// Overridden by the `--config <path>` CLI flag: if that is given, it wins and
+/// `load_config` is ignored.
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct StartupRigConfig {
+    /// Named config (in the `--config-dir`) to load at boot. The literal
+    /// `"last"` resolves to the auto-saved last-session slot (see
+    /// `save_on_quit`). Omit — or set to the empty string — to start with an
+    /// empty scene.
+    #[serde(default, deserialize_with = "deserialize_startup_load")]
+    pub load_config: Option<StartupLoad>,
+    /// Save the current scene to the last-session slot on graceful shutdown, so
+    /// the next boot can restore it via `load_config = "last"`. Default: false.
+    #[serde(default)]
+    pub save_on_quit: bool,
+}
+
+/// The resolved target of `[startup] load_config`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum StartupLoad {
+    /// Load a specific named config from the config directory.
+    Named(String),
+    /// Load the auto-saved last-session config. Missing on a first boot (or
+    /// when `save_on_quit` has never run) — treated as a no-op, not an error.
+    LastSession,
+}
+
+/// Deserializes `[startup] load_config`. The literal `"last"` (any case) maps
+/// to [`StartupLoad::LastSession`]; the empty string maps to `None` (empty
+/// scene); anything else is a named config.
+fn deserialize_startup_load<'de, D>(deserializer: D) -> Result<Option<StartupLoad>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize as _;
+    let s = String::deserialize(deserializer)?;
+    Ok(match s.trim() {
+        "" => None,
+        last if last.eq_ignore_ascii_case("last") => Some(StartupLoad::LastSession),
+        name => Some(StartupLoad::Named(name.to_string())),
+    })
 }
 
 /// Embedded web control surface (HTTP + WebSocket) settings.

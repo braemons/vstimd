@@ -101,6 +101,9 @@ fn main() {
         );
     }
 
+    // Startup scene load. An explicit `--config <path>` wins; otherwise the
+    // rig-config `[startup] load_config` (a named config in the config dir, or
+    // "last" for the auto-saved last-session slot) is applied, if set.
     if let Some(ref path) = args.config_file {
         match vstimd::io_config::load_config(path) {
             Ok((scene_cfg, io)) => {
@@ -116,6 +119,29 @@ fn main() {
                 log::info!("vstimd: loaded config from {:?}", path);
             }
             Err(e) => log::error!("vstimd: failed to load config {:?}: {e}", path),
+        }
+    } else if let Some(load) = &rig.startup.load_config {
+        let name = match load {
+            rig_config::StartupLoad::Named(n) => n.as_str(),
+            rig_config::StartupLoad::LastSession => vstimd::io_config::LAST_SESSION_CONFIG,
+        };
+        // Runs before the ZMQ/web threads spawn, but keep scene-then-vtl lock
+        // order consistent with ipc.rs regardless.
+        let mut scene_guard = scene.write().unwrap();
+        let mut vtl_guard = vtl.as_ref().map(|v| v.lock().unwrap());
+        let result = scene_guard.load_named_config(name, false, vtl_guard.as_deref_mut());
+        match result {
+            Ok(()) => log::info!("vstimd: loaded startup config '{name}'"),
+            // A missing last-session slot on first boot is expected, not an error.
+            Err(e)
+                if matches!(load, rig_config::StartupLoad::LastSession)
+                    && vstimd::io_config::is_not_found(&e) =>
+            {
+                log::info!(
+                    "vstimd: no last-session config yet ('{name}') — starting with an empty scene"
+                );
+            }
+            Err(e) => log::error!("vstimd: failed to load startup config '{name}': {e}"),
         }
     }
 
@@ -163,6 +189,11 @@ fn main() {
         None => log::info!("vstimd: vblank clock: auto-detect"),
     }
 
+    // Keep Arc clones so the scene can be saved on quit after the render loop
+    // (which moves `scene`/`vtl` into BackendData) returns. Cheap Arc clones.
+    let scene_for_quit = scene.clone();
+    let vtl_for_quit = vtl.clone();
+
     let data = BackendData {
         scene,
         vtl,
@@ -191,6 +222,21 @@ fn main() {
             WinitBackend::new(data, window_mode, log_buffer).run(on_ready);
         }
         RenderTarget::Null => NullBackend::new(data).run(on_ready),
+    }
+
+    // Persist the scene for the next boot if the rig-config asks for it. Runs
+    // after the render loop returns (shutdown requested) while the scene Arc is
+    // still live, so `load_config = "last"` can restore it next time.
+    if rig.startup.save_on_quit {
+        // Lock scene-then-vtl to match the ZMQ thread's order (ipc.rs), which is
+        // still running here — the reverse order could deadlock mid-request.
+        let scene_guard = scene_for_quit.read().unwrap();
+        let vtl_guard = vtl_for_quit.as_ref().map(|v| v.lock().unwrap());
+        let name = vstimd::io_config::LAST_SESSION_CONFIG;
+        match scene_guard.save_named_config(name, vtl_guard.as_deref()) {
+            Ok(()) => log::info!("vstimd: saved last session to config '{name}'"),
+            Err(e) => log::error!("vstimd: failed to save last session on quit: {e}"),
+        }
     }
 
     // Signal the web thread to exit and wait for it to finish.

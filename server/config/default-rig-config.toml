@@ -66,6 +66,19 @@
 # "gpu_completion".
 # clock = "auto"
 
+# ── Startup scene ────────────────────────────────────────────────────────────
+# Load a scene at boot so the rig comes up in a known state with no client
+# attached.  Overridden by the --config <path> CLI flag.
+#
+# [startup]
+# # Named config (in --config-dir) to load at boot.  The literal "last" loads
+# # the auto-saved last-session slot (see save_on_quit).  Omit or "" = empty scene.
+# load_config = "center_target"
+#
+# # Save the current scene to the last-session slot on graceful shutdown, so the
+# # next boot can restore it via load_config = "last".
+# save_on_quit = false
+
 # ── Thread scheduling ─────────────────────────────────────────────────────────
 # CPU core affinity for vstimd's render/vblank thread.
 # Not yet applied — CPU affinity wiring is a planned feature.

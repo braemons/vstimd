@@ -19,8 +19,8 @@ use super::stimulus::{
 use super::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance, StimulusFlags, Transform2D};
 use crate::Color;
 use crate::io_config::{
-    is_format_error, is_not_found, list_config_names, load_config, parse_config_json,
-    retrieve_config_json,
+    config_path, is_format_error, is_not_found, list_config_names, load_config, parse_config_json,
+    retrieve_config_json, save_config,
 };
 use crate::ipc::{
     err, err_not_found, err_wrong_type, ok_ack, ok_body, ok_handle, ok_handle_with_id,
@@ -2166,28 +2166,48 @@ impl SceneState {
         cmd: proto::LoadConfigRequest,
         vtl: Option<&mut VtlState>,
     ) -> proto::Response {
-        let path = self
-            .runtime
-            .config_dir
-            .join(format!("vstimd_{}.config.json", cmd.name));
-        match load_config(&path) {
-            Ok((scene_cfg, io)) => {
-                if let Some(v) = vtl {
-                    v.config.names = io.vtl.names;
-                    v.sync_names_to_shm();
-                }
-                let mode = if cmd.additive {
-                    super::scene_config::LoadMode::Additive
-                } else {
-                    super::scene_config::LoadMode::Replace
-                };
-                self.load_snapshot(scene_cfg, mode);
-                ok_ack()
-            }
+        match self.load_named_config(&cmd.name, cmd.additive, vtl) {
+            Ok(()) => ok_ack(),
             Err(e) if is_not_found(&e) => err(proto::ErrorCode::FileNotFound, e.to_string()),
             Err(e) if is_format_error(&e) => err(proto::ErrorCode::FileFormat, e.to_string()),
             Err(e) => err(proto::ErrorCode::FileIo, e.to_string()),
         }
+    }
+
+    /// Load a named config from the config directory into the scene, replacing
+    /// (or, with `additive`, merging) the current scene and — if a VTL segment
+    /// is present — its line names. Shared by the `LoadConfig` command and the
+    /// `[startup] load_config` boot path.
+    pub fn load_named_config(
+        &mut self,
+        name: &str,
+        additive: bool,
+        vtl: Option<&mut VtlState>,
+    ) -> anyhow::Result<()> {
+        let path = config_path(&self.runtime.config_dir, name);
+        let (scene_cfg, io) = load_config(&path)?;
+        if let Some(v) = vtl {
+            v.config.names = io.vtl.names;
+            v.sync_names_to_shm();
+        }
+        let mode = if additive {
+            super::scene_config::LoadMode::Additive
+        } else {
+            super::scene_config::LoadMode::Replace
+        };
+        self.load_snapshot(scene_cfg, mode);
+        Ok(())
+    }
+
+    /// Save the current scene and VTL line names to a named config file in the
+    /// config directory, creating the directory if needed. Used by the
+    /// `[startup] save_on_quit` shutdown path.
+    pub fn save_named_config(&self, name: &str, vtl: Option<&VtlState>) -> anyhow::Result<()> {
+        std::fs::create_dir_all(&self.runtime.config_dir)?;
+        let path = config_path(&self.runtime.config_dir, name);
+        let default_vtl = VtlConfig::default();
+        let vtl_cfg = vtl.map_or(&default_vtl, |v| &v.config);
+        save_config(&self.config, vtl_cfg, &path)
     }
 
     fn cmd_upload_config(
@@ -2199,10 +2219,7 @@ impl SceneState {
             Ok(v) => v,
             Err(e) => return err(proto::ErrorCode::FileFormat, e.to_string()),
         };
-        let path = self
-            .runtime
-            .config_dir
-            .join(format!("vstimd_{}.config.json", cmd.name));
+        let path = config_path(&self.runtime.config_dir, &cmd.name);
         if path.exists() && !cmd.overwrite {
             return err(proto::ErrorCode::FileAlreadyExists, "config already exists");
         }

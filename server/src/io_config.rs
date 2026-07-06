@@ -3,6 +3,19 @@ use crate::vtl_state::VtlConfig;
 
 pub const CONFIG_VERSION: u32 = 2;
 
+/// Reserved config name for the auto-saved last-session slot. Written on quit
+/// when `[startup] save_on_quit` is set, and loaded at boot when
+/// `[startup] load_config = "last"`. Leading underscore keeps it distinct from
+/// user-chosen names.
+pub const LAST_SESSION_CONFIG: &str = "_last_session";
+
+/// Path to the file backing a named config inside `dir`. Named configs live at
+/// `<dir>/vstimd_<name>.config.json`; this is the one place that layout is
+/// defined.
+pub fn config_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    dir.join(format!("vstimd_{name}.config.json"))
+}
+
 /// Borrowed view of I/O config assembled at save time — never stored.
 #[derive(serde::Serialize)]
 pub struct IoConfigRef<'a> {
