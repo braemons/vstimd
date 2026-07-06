@@ -7,7 +7,11 @@ Wants=systemd-udev-settle.service
 [Service]
 Type=notify
 User=root
-ExecStart=/usr/bin/vstimd
+# Named stim-configs (and the save-on-quit slot) live here. StateDirectory=
+# makes systemd create /var/lib/braemons/vstimd (0755, owned by the service
+# user) on start, so it exists even on a first boot with no client attached.
+StateDirectory=braemons/vstimd
+ExecStart=/usr/bin/vstimd --config-dir /var/lib/braemons/vstimd
 Restart=on-failure
 RestartSec=2
 # Give Vulkan time to release the display on SIGTERM before SIGKILL.

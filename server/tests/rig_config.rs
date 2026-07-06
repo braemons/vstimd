@@ -1,4 +1,4 @@
-use vstimd::rig_config::{self, RigConfig};
+use vstimd::rig_config::{self, RigConfig, StartupLoad};
 
 fn parse(toml: &str) -> RigConfig {
     toml::from_str(toml).expect("parse rig-config")
@@ -52,23 +52,87 @@ refresh_hz = 60.0
 }
 
 #[test]
+fn startup_defaults_to_no_load_and_no_save() {
+    let cfg = parse("");
+    assert!(cfg.startup.load_config.is_none());
+    assert!(!cfg.startup.save_on_quit);
+}
+
+#[test]
+fn startup_named_config_parsed() {
+    let cfg = parse(r#"
+[startup]
+load_config  = "center_target"
+save_on_quit = true
+"#);
+    assert_eq!(
+        cfg.startup.load_config,
+        Some(StartupLoad::Named("center_target".into()))
+    );
+    assert!(cfg.startup.save_on_quit);
+}
+
+#[test]
+fn startup_last_keyword_maps_to_last_session() {
+    // Case-insensitive so "last", "Last", "LAST" all work.
+    for kw in ["last", "Last", "LAST"] {
+        let cfg = parse(&format!("[startup]\nload_config = \"{kw}\"\n"));
+        assert_eq!(cfg.startup.load_config, Some(StartupLoad::LastSession));
+    }
+}
+
+#[test]
+fn startup_empty_load_config_is_none() {
+    let cfg = parse("[startup]\nload_config = \"\"\n");
+    assert!(cfg.startup.load_config.is_none());
+}
+
+#[test]
+fn startup_rejects_unknown_field() {
+    let err = toml::from_str::<RigConfig>("[startup]\nbogus = 1\n");
+    assert!(err.is_err(), "deny_unknown_fields should reject bogus keys");
+}
+
+#[test]
 fn load_returns_default_when_absent() {
     let cfg = rig_config::load("/nonexistent/path/rig-config.toml")
         .expect("missing file should not be an error");
     assert_eq!(cfg.vtl.shm_name, "/vstimd_vtl");
 }
 
+/// Every bundled `.toml` under `config/` (the default plus each board example)
+/// must load cleanly through the real loader — this guards against a typo or a
+/// stale key (e.g. after a schema change) slipping into a shipped example.
+/// Globbing the directory means new examples are covered automatically.
 #[test]
 fn example_configs_parse_cleanly() {
-    let examples = [
-        "config/jetson-orin-nano.toml",
-        "config/raspberry-pi-5.toml",
-        "config/raspberry-pi-4.toml",
-    ];
-    for path in &examples {
-        let raw = std::fs::read_to_string(path)
-            .unwrap_or_else(|e| panic!("read {path}: {e}"));
-        let _cfg: RigConfig = toml::from_str(&raw)
-            .unwrap_or_else(|e| panic!("parse {path}: {e}"));
+    let dir = std::path::Path::new("config");
+    let mut checked = 0;
+    for entry in std::fs::read_dir(dir).expect("read config dir") {
+        let path = entry.unwrap().path();
+        if path.extension().and_then(|e| e.to_str()) != Some("toml") {
+            continue;
+        }
+        // `load` exercises the real startup path (read + parse + deny_unknown_fields).
+        rig_config::load(path.to_str().unwrap())
+            .unwrap_or_else(|e| panic!("load {path:?}: {e}"));
+        checked += 1;
+    }
+    assert!(
+        checked >= 4,
+        "expected at least the default + 3 board example configs, checked {checked}"
+    );
+}
+
+/// The board examples all keep `[startup]` commented out, so they parse to the
+/// no-load / no-save defaults — a rig using an example as-is won't unexpectedly
+/// load or overwrite a scene until the operator opts in.
+#[test]
+fn example_configs_default_startup_to_off() {
+    for name in ["jetson-orin-nano", "raspberry-pi-5", "raspberry-pi-4"] {
+        let cfg = rig_config::load(&format!("config/{name}.toml"))
+            .unwrap_or_else(|e| panic!("load {name}: {e}"));
+        assert!(cfg.startup.load_config.is_none(), "{name}: startup.load_config");
+        assert!(!cfg.startup.save_on_quit, "{name}: startup.save_on_quit");
     }
 }

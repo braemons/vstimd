@@ -8,3 +8,7 @@ packaging/*.ddeb
 packaging/*.rpm
 packaging/*.changes
 packaging/*.buildinfo
+
+# Stray saved stim-configs from running the server with --config-dir . in the
+# repo root (root-anchored so it never hides the server/tests/configs fixtures).
+/vstimd_*.config.json

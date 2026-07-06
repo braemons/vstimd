@@ -39,6 +39,17 @@ bit  = 63
 # Overridable with --overlay-scale.
 # overlay_scale = 1.0
 
+# ── Startup scene ─────────────────────────────────────────────────────────────
+# Load a scene at boot so the rig comes up ready with no experiment PC attached.
+# Configs live in --config-dir (default /var/lib/braemons/vstimd, or
+# ~/.local/braemons/vstimd if that is not writable).
+#
+# [startup]
+# # Named config to load at boot; "last" loads the auto-saved last session.
+# load_config  = "center_target"
+# # On quit, save the scene to the last-session slot AND a timestamped archive.
+# save_on_quit = false
+
 # ── Thread scheduling ─────────────────────────────────────────────────────────
 # CPU core affinity for the render/vblank thread.  Not yet applied.
 # RPi 4 has 4 Cortex-A72 cores (0–3), all equal.

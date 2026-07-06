@@ -66,6 +66,23 @@
 # "gpu_completion".
 # clock = "auto"
 
+# ── Startup scene ────────────────────────────────────────────────────────────
+# Load a scene at boot so the rig comes up in a known state with no client
+# attached.  Overridden by the --config <path> CLI flag.  Configs live in
+# --config-dir (default /var/lib/braemons/vstimd, or ~/.local/braemons/vstimd
+# if that is not writable).
+#
+# [startup]
+# # Named config (in --config-dir) to load at boot.  The literal "last" loads
+# # the auto-saved last-session slot (see save_on_quit).  Omit or "" = empty scene.
+# load_config = "center_target"
+#
+# # On graceful shutdown, save the current scene twice: overwrite the
+# # last-session slot (restored next boot via load_config = "last") AND write a
+# # timestamped archive vstimd_<YYYYMMDDTHHMMSSZ>.config.json for history.
+# # Archives are never pruned; vstimd logs a warning past 500 in one dir.
+# save_on_quit = false
+
 # ── Thread scheduling ─────────────────────────────────────────────────────────
 # CPU core affinity for vstimd's render/vblank thread.
 # Not yet applied — CPU affinity wiring is a planned feature.

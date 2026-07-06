@@ -67,9 +67,42 @@ With `apply_now=True` the config is applied immediately after saving (honouring
 Because a config carries the whole scene *and* the VTL line map, a deployed rig can
 come up showing a known configuration with no experiment PC attached — useful for
 home-cage training or a self-contained demo. Save the scene once from any client,
-and have the device load it at startup. See [Deployment](../operations/deployment.md)
-for wiring this into the boot flow, and the **Config** panel (F6) of the on-device
-overlay, or the web control UI, for loading configs interactively.
+then have the device load it at startup via the rig-config `[startup]` section:
+
+```toml
+[startup]
+# Load a named config from the config dir at boot. The literal "last" loads the
+# auto-saved last-session slot (see save_on_quit). Omit for an empty scene.
+load_config  = "center_target"
+
+# On graceful shutdown, save the current scene: overwrite the last-session slot
+# AND write a timestamped archive for history (see below).
+save_on_quit = false
+```
+
+An explicit `--config <path>` CLI flag overrides `[startup] load_config`. A missing
+last-session slot on first boot is a no-op (the rig starts with an empty scene), not
+an error. See the **Config** panel (F6) of the on-device overlay, or the web control
+UI, for loading configs interactively, and
+[Deployment](../operations/deployment.md) for the wider boot flow.
+
+### Where configs live, and save-on-quit archives
+
+Named configs are stored in `--config-dir`. On a deployed rig this defaults to
+`/var/lib/braemons/vstimd` (created by the packaged systemd unit's `StateDirectory`);
+if that directory is not writable — for example a non-root development run — vstimd
+falls back to `~/.local/braemons/vstimd`, then the current directory, logging which it
+chose.
+
+With `save_on_quit = true`, each graceful shutdown writes **two** files:
+
+- `vstimd__last_session.config.json` — overwritten every quit; restored by
+  `load_config = "last"`.
+- `vstimd_<YYYYMMDDTHHMMSSZ>.config.json` — a timestamped archive (UTC), so you keep
+  a history of what each session ended with.
+
+Archives are never pruned automatically; vstimd logs a warning once more than 500
+accumulate in one directory, as a nudge to clean up.
 
 ## See also
 
