@@ -469,7 +469,14 @@ class AnimationClient:
         cancel_action_mask: CancelAction = CancelAction(0),
         cancel_action_trigger_line: Optional[VtlHandle] = None,
     ) -> AnimationHandle:
-        """Read stimulus position from a POSIX shared memory float array each frame."""
+        """Read stimulus position from a POSIX shared memory float array each frame.
+
+        .. warning::
+
+            TODO(#84): unimplemented server-side. The animation is created and
+            reports ``Running``, but the server never reads the segment and the
+            stimulus does not move.
+        """
         req = self._make_req(
             stimuli, {
                 "external_position_2d": animations_pb2.ExternalPosition2D(

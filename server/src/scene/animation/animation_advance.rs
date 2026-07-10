@@ -283,6 +283,11 @@ pub(crate) fn advance_one(
                     frame_counter + 1 >= total_frames
                 }
             }
+            // TODO(#84): unimplemented. The shm segment is never opened and the stimulus
+            // never moves, yet CreateAnimation reports success. Implement the per-frame
+            // read (mapping the segment on the ZMQ thread, never here) or reject the
+            // command at create time.
+            //
             // External position is driven by an external process; never self-terminates.
             Animation::ExternalPosition2D { .. } => false,
         }
