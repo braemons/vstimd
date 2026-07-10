@@ -32,6 +32,8 @@ pub enum Animation {
         speed_px_per_sec: f32,
     },
     /// Read 2-D position from a POSIX shm float array each frame.
+    ///
+    /// TODO(#84): unimplemented — `animation_advance` never reads the segment.
     ExternalPosition2D {
         shm_name: String,
         x_offset: f32,
