@@ -1,22 +1,21 @@
-//! Hardware smoke test: find a connected evdi node, push one solid-color
-//! frame to it via raw KMS (dumb buffer + `set_crtc`), no compositor and no
-//! Vulkan. Confirms the KMS plumbing works before building the real
-//! Vulkan-backed render loop on top of it.
+//! Hardware smoke test: find a connected evdi node and present a few
+//! seconds of an animated pattern through `render::evdi::EvdiOutput`
+//! (double-buffered dumb buffers, `set_crtc` per frame) — no Vulkan, no
+//! compositor. Confirms the KMS presentation path before wiring in the
+//! real Vulkan render loop.
 //!
-//! `cargo run --release --example evdi_probe -- [seconds-to-hold]`
+//! `cargo run --release --example evdi_probe -- [seconds-to-hold] [fps]`
 
-use drm::buffer::{Buffer, DrmFourcc};
-use drm::control::Device as CtrlDevice;
+use vstimd::render::evdi::{EvdiOutput, find_connected_evdi};
 
 fn main() {
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
 
-    let hold_secs: u64 = std::env::args()
-        .nth(1)
-        .and_then(|s| s.parse().ok())
-        .unwrap_or(10);
+    let mut args = std::env::args().skip(1);
+    let hold_secs: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(10);
+    let fps: u64 = args.next().and_then(|s| s.parse().ok()).unwrap_or(15);
 
-    let node = match vstimd::render::evdi::find_connected_evdi() {
+    let node = match find_connected_evdi() {
         Some(n) => n,
         None => {
             eprintln!("no connected evdi node found");
@@ -25,69 +24,55 @@ fn main() {
     };
     println!("found connected evdi node: {} connector={:?}", node.path, node.connector);
 
-    let card = &node.card;
-
-    let conn = card
-        .get_connector(node.connector, false)
-        .expect("get_connector");
-    let mode = *conn.modes().first().expect("connector reports no modes");
-    let (width, height) = mode.size();
+    let mut out = EvdiOutput::new(node).expect("EvdiOutput::new");
     println!(
-        "using mode {:?} {}x{} @ {} (encoders: {})",
-        mode.name(),
-        width,
-        height,
-        mode.vrefresh(),
-        conn.encoders().len()
+        "output ready: {}x{} pitch={}",
+        out.width,
+        out.height,
+        out.pitch()
     );
 
-    let res = card.resource_handles().expect("resource_handles");
+    let pitch = out.pitch();
+    let (width, height) = (out.width as usize, out.height as usize);
+    let mut frame = vec![0u8; pitch * height];
 
-    // Prefer the connector's already-active encoder/CRTC if it has one;
-    // otherwise pick the first encoder and the first CRTC it allows.
-    let crtc_handle = conn
-        .current_encoder()
-        .and_then(|enc_h| card.get_encoder(enc_h).ok())
-        .and_then(|enc| enc.crtc())
-        .or_else(|| {
-            conn.encoders().iter().find_map(|&enc_h| {
-                let enc = card.get_encoder(enc_h).ok()?;
-                res.filter_crtcs(enc.possible_crtcs()).into_iter().next()
-            })
-        })
-        .expect("no usable CRTC found for this connector");
-    println!("using CRTC {crtc_handle:?}");
+    let frame_count = hold_secs * fps;
+    let frame_dur = std::time::Duration::from_millis(1000 / fps.max(1));
+    let start = std::time::Instant::now();
 
-    let mut dumb = card
-        .create_dumb_buffer((width as u32, height as u32), DrmFourcc::Xrgb8888, 32)
-        .expect("create_dumb_buffer");
-
-    {
-        let pitch = dumb.pitch() as usize;
-        let mut map = card.map_dumb_buffer(&mut dumb).expect("map_dumb_buffer");
-        // XRGB8888 little-endian in memory: B, G, R, X. Checkerboard of
-        // magenta/black in 64px squares so it's obvious on the physical
-        // screen and not mistaken for a stale/garbage framebuffer.
-        for y in 0..height as usize {
-            for x in 0..width as usize {
-                let i = (y * pitch) + x * 4;
-                let on = ((x / 64) + (y / 64)) % 2 == 0;
-                let (b, g, r) = if on { (255u8, 0u8, 255u8) } else { (0, 0, 0) };
-                map[i] = b;
-                map[i + 1] = g;
-                map[i + 2] = r;
-                map[i + 3] = 0;
+    for i in 0..frame_count {
+        // Scrolling vertical color bars, ~64px wide, offset by frame index
+        // — moving content makes it obvious each `present()` actually
+        // reached the screen rather than the first frame just sticking.
+        let shift = (i as usize * 8) % width.max(1);
+        for y in 0..height {
+            for x in 0..width {
+                let band = ((x + shift) / 64) % 3;
+                let (b, g, r) = match band {
+                    0 => (255u8, 0u8, 0u8),
+                    1 => (0, 255, 0),
+                    _ => (0, 0, 255),
+                };
+                let o = y * pitch + x * 4;
+                frame[o] = b;
+                frame[o + 1] = g;
+                frame[o + 2] = r;
+                frame[o + 3] = 0;
             }
+        }
+        out.present(&frame).expect("present");
+
+        let target = frame_dur * (i as u32 + 1);
+        let elapsed = start.elapsed();
+        if target > elapsed {
+            std::thread::sleep(target - elapsed);
         }
     }
 
-    let fb = card.add_framebuffer(&dumb, 24, 32).expect("add_framebuffer");
-
-    card.set_crtc(crtc_handle, Some(fb), (0, 0), &[node.connector], Some(mode))
-        .expect("set_crtc");
-
-    println!("set_crtc ok — holding for {hold_secs}s, check the physical screen");
-    std::thread::sleep(std::time::Duration::from_secs(hold_secs));
-
-    let _ = card.destroy_framebuffer(fb);
+    let elapsed = start.elapsed();
+    println!(
+        "presented {frame_count} frames in {:.2}s ({:.1} fps achieved)",
+        elapsed.as_secs_f64(),
+        frame_count as f64 / elapsed.as_secs_f64()
+    );
 }

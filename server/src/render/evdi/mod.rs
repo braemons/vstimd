@@ -6,5 +6,7 @@
 //! only.
 
 mod evdi_detect;
+mod evdi_kms;
 
 pub use evdi_detect::find_connected_evdi;
+pub use evdi_kms::EvdiOutput;
