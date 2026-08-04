@@ -168,8 +168,17 @@ impl EvdiOutput {
         let back = 1 - self.front;
         {
             let mut map = self.card.map_dumb_buffer(&mut self.buffers[back].dumb)?;
-            let n = src.len().min(map.len());
-            map[..n].copy_from_slice(&src[..n]);
+            if src.len() != map.len() {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    format!(
+                        "evdi frame buffer size mismatch: got {} bytes, dumb buffer is {} bytes",
+                        src.len(),
+                        map.len()
+                    ),
+                ));
+            }
+            map.copy_from_slice(src);
         }
 
         let fb = self.buffers[back].fb;
