@@ -48,4 +48,6 @@ pub(crate) use demo::spawn_demo_stimuli;
 
 #[cfg(target_os = "linux")]
 pub mod drm;
+#[cfg(target_os = "linux")]
+pub mod evdi;
 pub mod winit_vk;
