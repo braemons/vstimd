@@ -13,7 +13,24 @@ layout, vblank sources) see [Rendering & DRM internals](../developer/rendering.m
 |---|---|---|---|
 | NVIDIA Jetson Nano | Working | `VK_KHR_display` | Similar architecture to Orin |
 | NVIDIA Jetson Orin Nano | Working | `VK_KHR_display` | See setup below |
-| Raspberry Pi 5 | Planned | `VK_EXT_acquire_drm_display` (expected) | Hardware not yet in hand |
+| Raspberry Pi 5 | Working | `VK_EXT_acquire_drm_display` | See [Tested hardware](#tested-hardware) |
+
+---
+
+## Tested hardware
+
+| GPU / SoC | CPU | OS | Display backend(s) | Date tested |
+|---|---|---|---|---|
+| NVIDIA GeForce GTX 1650 | AMD Ryzen 7 5700G | Ubuntu 24.04 | DRM/KMS, X11 | 2026-08-04 |
+| NVIDIA Jetson Orin Nano | Orin (Cortex-A78AE) | JetPack 7 (Ubuntu 24.04) | DRM/KMS | 2026-08-04 |
+| Broadcom VideoCore VII (Raspberry Pi 5 Model B Rev 1.1, 8GB) | Cortex-A76 | Raspberry Pi OS (Debian 13 trixie) | DRM/KMS | 2026-08-04 |
+
+Tested displays:
+
+| Display | Resolution @ refresh |
+|---|---|
+| ASUS MB168B Portable USB | 1366×768 @ 60 Hz |
+| LG 27GR95QE-B | 2560×1440 @ 100 Hz |
 
 ---
 
@@ -121,10 +138,11 @@ echo 'options nvidia-modeset disable_hdmi_frl=1' | sudo tee /etc/modprobe.d/nvid
 
 ## Raspberry Pi 5
 
-> **Placeholder — hardware not yet available.**
->
-> Expected approach: standard `vc4`/`v3d` KMS drivers, `VK_EXT_acquire_drm_display`
-> via the Mesa v3dv ICD. Setup notes to follow once the device is in hand.
+Runs on the standard `vc4`/`v3d` KMS drivers, using `VK_EXT_acquire_drm_display` via
+the Mesa v3dv ICD — unlike the Jetsons, GPU and display controller share the same DRM
+node here, so the `VK_EXT_acquire_drm_display` path (unavailable on Jetson, see above)
+works directly. Detailed setup walkthrough to follow; see
+[Tested hardware](#tested-hardware) for the validated configuration.
 
 ---
 
