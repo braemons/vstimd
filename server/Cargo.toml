@@ -67,7 +67,7 @@ naga        = { version = "23", features = ["wgsl-in", "spv-out"] }
 name              = "braemons-vstimd"
 maintainer        = "Joscha Schmiedt <joscha@schmiedt.dev>"
 depends           = "$auto, libvulkan1, adduser"
-recommends        = "vulkan-tools"
+recommends        = "vulkan-tools, avahi-daemon"
 section           = "science"
 priority          = "optional"
 extended-description = """\

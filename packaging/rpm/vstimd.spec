@@ -7,6 +7,7 @@ License:        AGPL-3.0-or-later
 URL:            https://github.com/braemons/vstimd
 
 BuildRequires:  systemd-rpm-macros
+Recommends:     avahi
 
 # The binary is pre-built; this spec does not compile from source.
 # Build with: cargo build --release [--target <triple>]
