@@ -3,11 +3,15 @@ UNITDIR     ?= /lib/systemd/system
 SYSUSERSDIR ?= /usr/lib/sysusers.d
 CONFDIR     ?= /etc/braemons
 SHAREDIR    ?= /usr/share/braemons/vstimd
+AVAHIDIR    ?= /etc/avahi/services
 BINARY      := target/release/vstimd
 SERVICE     := packaging/systemd/vstimd.service
 TARGET_UNIT := packaging/systemd/vstimd.target
-BOOT_SCRIPT := packaging/scripts/vstimd-boot-entry
+HOSTNAME_UNIT   := packaging/systemd/vstimd-hostname.service
+BOOT_SCRIPT     := packaging/scripts/vstimd-boot-entry
+HOSTNAME_SCRIPT := packaging/scripts/vstimd-set-hostname
 SYSUSERS    := packaging/sysusers/vstimd.conf
+AVAHI_SERVICE   := packaging/avahi/vstimd.service
 RIG_CONFIG  := server/config/default-rig-config.toml
 EXAMPLES    := server/config/jetson-orin-nano.toml \
                server/config/raspberry-pi-5.toml \
@@ -66,11 +70,14 @@ build-server:
 install:
 	@test -x $(BINARY) || { echo "error: $(BINARY) not found — run 'make build' first (as your user, not via sudo)"; exit 1; }
 	@test -n "$(VSTIMD_ALLOW_NO_UI)" || grep -aq 'id="root"' $(BINARY) || { echo "error: $(BINARY) has no embedded web UI — a dev target (make dev/dev-null, cargo build/run) rebuilt it without the UI. Run 'make build' before installing, or set VSTIMD_ALLOW_NO_UI=1 to install a server-only binary."; exit 1; }
-	install -D -m 0755 $(BINARY)      $(DESTDIR)$(PREFIX)/bin/vstimd
-	install -D -m 0755 $(BOOT_SCRIPT) $(DESTDIR)$(PREFIX)/sbin/vstimd-boot-entry
-	install -D -m 0644 $(SERVICE)     $(DESTDIR)$(UNITDIR)/vstimd.service
-	install -D -m 0644 $(TARGET_UNIT) $(DESTDIR)$(UNITDIR)/vstimd.target
-	install -D -m 0644 $(SYSUSERS)    $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
+	install -D -m 0755 $(BINARY)          $(DESTDIR)$(PREFIX)/bin/vstimd
+	install -D -m 0755 $(BOOT_SCRIPT)     $(DESTDIR)$(PREFIX)/sbin/vstimd-boot-entry
+	install -D -m 0755 $(HOSTNAME_SCRIPT) $(DESTDIR)$(PREFIX)/sbin/vstimd-set-hostname
+	install -D -m 0644 $(SERVICE)         $(DESTDIR)$(UNITDIR)/vstimd.service
+	install -D -m 0644 $(TARGET_UNIT)     $(DESTDIR)$(UNITDIR)/vstimd.target
+	install -D -m 0644 $(HOSTNAME_UNIT)   $(DESTDIR)$(UNITDIR)/vstimd-hostname.service
+	install -D -m 0644 $(SYSUSERS)        $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
+	install -D -m 0644 $(AVAHI_SERVICE)   $(DESTDIR)$(AVAHIDIR)/vstimd.service
 	install -d -m 0755 $(DESTDIR)$(CONFDIR)
 	test -f $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml || \
 	  install -m 0644 $(RIG_CONFIG) $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml
@@ -79,12 +86,16 @@ install:
 
 uninstall:
 	systemctl disable --now vstimd 2>/dev/null || true
+	systemctl disable vstimd-hostname 2>/dev/null || true
 	vstimd-boot-entry --remove 2>/dev/null || true
 	rm -f $(DESTDIR)$(PREFIX)/bin/vstimd
 	rm -f $(DESTDIR)$(PREFIX)/sbin/vstimd-boot-entry
+	rm -f $(DESTDIR)$(PREFIX)/sbin/vstimd-set-hostname
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.service
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.target
+	rm -f $(DESTDIR)$(UNITDIR)/vstimd-hostname.service
 	rm -f $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
+	rm -f $(DESTDIR)$(AVAHIDIR)/vstimd.service
 	for f in $(EXAMPLES); do rm -f $(DESTDIR)$(SHAREDIR)/$$(basename $$f); done
 	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(SHAREDIR) $(DESTDIR)$(CONFDIR) 2>/dev/null || true
 	systemctl daemon-reload 2>/dev/null || true

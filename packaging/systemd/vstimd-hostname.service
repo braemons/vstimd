@@ -1,0 +1,16 @@
+[Unit]
+Description=Set vstimd hostname from primary interface MAC address
+Documentation=https://github.com/braemons/vstimd
+DefaultDependencies=no
+Conflicts=shutdown.target
+After=systemd-udevd.service local-fs.target
+Before=sysinit.target shutdown.target avahi-daemon.service smb.service nmb.service
+Wants=systemd-udevd.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/vstimd-set-hostname
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

@@ -1,0 +1,57 @@
+#!/bin/bash
+# vstimd-set-hostname — derive and set a unique hostname from the primary
+# network interface's MAC address.
+#
+# Naming scheme: vstimd-XXXXXX, where XXXXXX is the last 6 hex characters of
+# the MAC (13 chars total, fits Samba's 15-char NetBIOS limit). Stable across
+# reboots without needing persistent storage, and human-readable for
+# debugging/matching against shares.
+#
+# Both Avahi and Samba inherit the system hostname by default (no
+# host-name=/netbios name override needed), so setting it here is enough for
+# both to advertise a unique, collision-resistant name on the LAN.
+#
+# Must run before avahi-daemon, smbd, and nmbd start — see
+# vstimd-hostname.service, which orders this ahead of them. Safe to run
+# multiple times; idempotent if the hostname is already in vstimd-XXXXXX form.
+set -euo pipefail
+
+die() { echo "vstimd-set-hostname: error: $*" >&2; exit 1; }
+
+# Find the primary interface: prefer common wired-NIC names, else fall back
+# to the first non-loopback interface that has a MAC address.
+IFACE=""
+for candidate in eth0 end0 eno1; do
+    [ -e "/sys/class/net/$candidate/address" ] && IFACE="$candidate" && break
+done
+if [ -z "$IFACE" ]; then
+    for path in /sys/class/net/*/address; do
+        [ -e "$path" ] || continue
+        dev=$(basename "$(dirname "$path")")
+        [ "$dev" = "lo" ] && continue
+        IFACE="$dev"
+        break
+    done
+fi
+[ -n "$IFACE" ] || die "no network interface with a MAC address found"
+
+MAC=$(cat "/sys/class/net/$IFACE/address") || die "cannot read MAC for $IFACE"
+SUFFIX=$(printf '%s' "$MAC" | tr -d ':' | tr '[:upper:]' '[:lower:]' | tail -c 6)
+[ -n "$SUFFIX" ] || die "could not derive suffix from MAC '$MAC'"
+
+NEW_HOSTNAME="vstimd-${SUFFIX}"
+CURRENT_HOSTNAME=$(hostname)
+
+if [ "$CURRENT_HOSTNAME" = "$NEW_HOSTNAME" ]; then
+    echo "vstimd-set-hostname: hostname already set to $NEW_HOSTNAME — nothing to do"
+    exit 0
+fi
+
+echo "vstimd-set-hostname: setting hostname to $NEW_HOSTNAME (from $IFACE MAC $MAC)"
+
+if command -v hostnamectl >/dev/null 2>&1; then
+    hostnamectl set-hostname "$NEW_HOSTNAME"
+else
+    echo "$NEW_HOSTNAME" > /etc/hostname
+    hostname -F /etc/hostname
+fi

@@ -1,0 +1,24 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!--
+  vstimd mDNS/DNS-SD advertisement.
+
+  No host-name= override is needed in avahi-daemon.conf — Avahi inherits the
+  system hostname by default, and vstimd-set-hostname (see
+  packaging/systemd/vstimd-hostname.service) sets that to the unique
+  vstimd-XXXXXX name derived from the device's MAC address before
+  avahi-daemon starts.
+
+  %h expands to that hostname. Avahi may append " #2", " #3", etc. to the
+  <name> on collision, but the id=%h TXT record keeps the raw hostname
+  intact — clients should key off the TXT record, not the possibly-suffixed
+  display name, to reliably match a device across name collisions.
+-->
+<service-group>
+  <name replace-wildcards="yes">%h</name>
+  <service>
+    <type>_vstimd._tcp</type>
+    <port>5555</port>
+    <txt-record>id=%h</txt-record>
+  </service>
+</service-group>
