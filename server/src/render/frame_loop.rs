@@ -109,13 +109,12 @@ pub(crate) fn overlay_raw_input(
 /// the ZMQ thread behind the render thread's scene lock.
 pub(crate) fn advance_frame(vtl: Option<&Arc<Mutex<VtlState>>>, scene: &Arc<RwLock<SceneState>>) {
     let (input_edges, output_edges, mut staged) = vtl
-        .and_then(|v| {
-            v.lock().ok().map(|mut g| {
-                g.commit_staged();
-                let input_edges = g.poll();
-                let output_edges = g.output_edges();
-                (input_edges, output_edges, g.staged)
-            })
+        .map(|v| {
+            let mut g = v.lock().expect("vtl lock poisoned");
+            g.commit_staged();
+            let input_edges = g.poll();
+            let output_edges = g.output_edges();
+            (input_edges, output_edges, g.staged)
         })
         .unwrap_or_default();
 
