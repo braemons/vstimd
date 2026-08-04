@@ -686,6 +686,7 @@ pub fn render_frame(
             record_us,
             submit_us,
         },
+        image_index,
     };
     rs.timing.last_phases = tick.phases;
 

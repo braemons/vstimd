@@ -13,4 +13,8 @@ pub enum RenderTarget {
     Drm,
     Desktop(WindowMode),
     Null,
+    /// Direct KMS presentation on a DisplayLink (evdi) output, no
+    /// compositor. Not auto-detected — opt in with `--evdi`. See
+    /// `docs/developer/evdi-direct-presentation-plan.md`.
+    Evdi,
 }

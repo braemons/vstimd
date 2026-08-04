@@ -51,6 +51,11 @@ pub struct FrameTick {
     pub dropped_frames: u32,
     /// Per-phase breakdown for profiling (see `FramePhases`).
     pub phases: FramePhases,
+    /// Index into `VkContext::swapchain_images` that was just rendered into
+    /// and presented. The DRM/Winit backends have no use for this (the real
+    /// presentation engine already consumed it); the evdi backend uses it to
+    /// read the image back for KMS presentation on a non-WSI display.
+    pub image_index: u32,
 }
 
 pub struct FrameSummary {

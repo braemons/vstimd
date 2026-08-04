@@ -1,7 +1,18 @@
 # Plan: driving a DisplayLink (evdi) screen directly, without a compositor
 
-Status: draft, implementation starting. Not timing-sensitive — this backend is
+Status: **Phase 1 implemented and validated on hardware** (this rig, 2026-08-04).
+`--evdi` renders real vstimd scene content and presents it on the DisplayLink
+screen with no compositor running. Not timing-sensitive — this backend is
 explicitly **not** for stimulus presentation. See "Non-goals".
+
+The actual implementation ended up simpler than the original plan below in
+one respect (it reuses `render_frame()`/`VkContext` via a headless swapchain
+instead of duplicating the Vulkan pipeline — see "What actually got built")
+and required one extra piece of investigation the original plan didn't
+anticipate (evdi has no vblank clock at all; `page_flip` backpressure was
+needed instead — see "evdi has no real vsync" below). The rest of this
+document is left as originally written, as the design record; the deltas are
+called out inline.
 
 ## Motivation
 
@@ -152,7 +163,88 @@ import the dma-buf fd into evdi via `drmPrimeFDToHandle` +
 attempted until Phase 1 is working and its overhead is actually measured
 and found to matter.
 
-## Module layout
+## What actually got built (supersedes "Module layout" below)
+
+`vulkaninfo` turned up `VK_EXT_headless_surface` as available on this rig's
+V3D/Mesa driver — a real `VkSwapchainKHR` that isn't tied to any window
+system or physical display (Mesa's headless WSI backs it with plain images).
+That changes the "why `render_frame.rs` can't be reused" conclusion above:
+instead of duplicating the Vulkan pipeline, `evdi_init.rs` creates a headless
+surface and calls the *existing* `build_context()` (shared with DRM/Winit)
+unchanged, producing a normal `VkContext` with a real swapchain. This means
+`render_frame()`, `SceneRenderer`, tessellation, and the egui overlay are
+reused **completely as-is** — the only genuinely new Vulkan code is reading
+the rendered image back afterward.
+
+The one shared-code touch needed: `FrameTick` gained an `image_index: u32`
+field (`server/src/timing.rs`) so the evdi backend knows which swapchain
+image `render_frame()` just rendered into and left in `PRESENT_SRC_KHR`
+layout — a single additive struct field, not a behavior change for the
+existing DRM/Winit callers.
+
+Final module layout, `server/src/render/evdi/`:
+
+```
+evdi/
+  mod.rs
+  evdi_detect.rs        find /dev/dri/cardN where get_driver().name() ==
+                        "evdi", pick the first with a connected connector
+  evdi_kms.rs           mode/CRTC/encoder selection, two double-buffered
+                        XRGB8888 dumb buffers, EvdiOutput::present() —
+                        page_flip + block on the completion event (see
+                        "evdi has no real vsync" above)
+  evdi_init.rs          VK_EXT_headless_surface + build_context() — a real
+                        VkContext, no swapchain/render_frame.rs changes needed
+  evdi_render_loop.rs   EvdiBackend: builds RenderState (ui: None, no VT/
+                        input/vblank-clock machinery — none of it applies),
+                        calls render_frame() with screen_clock =
+                        Some(Instant::now()) every iteration, then Readback
+                        (vkCmdCopyImageToBuffer into a persistent host-
+                        visible staging buffer sized to evdi's row pitch,
+                        blocking on a fence) hands the bytes to
+                        EvdiOutput::present()
+```
+
+Wired into `main.rs` as planned: `RenderTarget::Evdi`, `--evdi` flag,
+`EvdiBackend::new(data, log_buffer).run(on_ready)`.
+
+Validated on hardware in two stages:
+
+1. `examples/evdi_scene_probe.rs` (constructs a `SceneState` with real rects
+   via `handle_request`, same pattern the crate's own integration tests use,
+   and drives a real `EvdiBackend` directly — no ZMQ client was available on
+   this box at that point) — ~900 frames over 15s, naturally paced to ~60fps
+   by `page_flip` backpressure, correctly positioned colored rectangles
+   confirmed by direct visual check.
+2. The full `client/python` e2e suite (`make test-e2e`, after installing
+   `uv`, which wasn't present on this box either) run against a real
+   `vstimd --evdi` process over the network/ZMQ path: **126 passed, 6
+   xfailed** (pre-existing known-unimplemented features — polygons,
+   draw-order reordering — not evdi-related), ~10,500 frames over ~2 minutes,
+   no panics or fatal errors. Exercised rects, circles, ellipses, gratings,
+   text, animations, and VTL-triggered stimuli, all visibly rendered on the
+   physical DisplayLink screen. The e2e fixture's `has_display` skip check
+   only knows about `DISPLAY`/`WAYLAND_DISPLAY` and doesn't know about
+   `--evdi` as a third way to get real visible rendering — worked around by
+   setting a dummy `DISPLAY` value for this run (the fixture then found the
+   already-running server immediately and never used the spawn/no-display
+   fallback path); a real fix would teach that fixture about `--evdi`.
+
+### Known limitation: dropped-frame log spam
+
+`render_frame()`'s dropped-frame accounting (`FrameStats::on_present` in
+`timing.rs`) compares inter-frame intervals against an `expected_frame_ns`
+derived from `refresh_hz` — meaningful for the DRM/Winit backends, which are
+genuinely paced to a display refresh rate. The evdi backend has no such
+clock (see above) and is paced by `page_flip` backpressure instead, so its
+frame-to-frame interval is irregular by design. This makes every frame look
+like a "dropped frame" to that accounting, producing constant `WARN`-level
+log spam. Cosmetic only — not fixed here to avoid adding evdi-specific
+branches to shared timing code for a log-noise issue; worth a follow-up if
+`--evdi` sees real use (e.g. a `dropped_frames` opt-out on `FrameStats`, or
+routing evdi through `log::debug!` instead of `warn!` at the call site).
+
+## Module layout (original plan, superseded above)
 
 New `server/src/render/evdi/` (mirrors the existing `drm/` module):
 
@@ -176,8 +268,9 @@ evdi/
                          DrmBackend/WinitBackend
 ```
 
-No changes to `render_frame.rs` or `vk_context.rs` — see "Why `render_frame.rs`
-can't be reused as-is" above.
+This was the plan before `VK_EXT_headless_surface` was discovered to be
+available — see "What actually got built" above for what was actually
+implemented instead.
 
 ## Wiring into `main.rs`
 
@@ -222,7 +315,17 @@ backend is proven, not before. `RenderTarget` gets a new `Evdi` variant,
 
 ## Follow-up
 
-Once Phase 1 is working and measured, update `platform-notes.md` to replace
-the current "DisplayLink is unusable" note with the actual result (works via
-a dedicated readback backend, achieved frame rate X, still not
-timing-suitable for stimuli — use for auxiliary output only).
+- [x] `platform-notes.md` updated with the actual result: works via a
+  dedicated backend, ~60fps achieved (backpressure-paced, not a fixed
+  clock), still not timing-suitable for stimuli — auxiliary output only.
+- [ ] Dropped-frame log spam (see above) — cosmetic, worth fixing if
+  `--evdi` sees real use.
+- [ ] Phase 2 (dma-buf zero-copy) — not attempted; Phase 1's readback cost
+  wasn't measured in isolation (no perf regression observed at ~60fps on a
+  Pi 5, and that's already backpressure-capped by DisplayLinkManager, so
+  there was no throughput ceiling to hit). Revisit only if a future use case
+  needs a higher frame rate than backpressure currently allows.
+- [ ] `client/python/tests/e2e/conftest.py`'s `has_display` check (only
+  looks at `DISPLAY`/`WAYLAND_DISPLAY`) doesn't know `--evdi` is a third way
+  to get real visible rendering — worth teaching it that, so e2e runs
+  against an evdi rig don't need the `DISPLAY=:0` workaround used above.

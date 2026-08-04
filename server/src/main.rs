@@ -220,6 +220,15 @@ fn main() {
             WinitBackend::new(data, window_mode, log_buffer).run(on_ready);
         }
         RenderTarget::Null => NullBackend::new(data).run(on_ready),
+        #[cfg(target_os = "linux")]
+        RenderTarget::Evdi => {
+            vstimd::render::evdi::EvdiBackend::new(data, log_buffer).run(on_ready);
+        }
+        #[cfg(not(target_os = "linux"))]
+        RenderTarget::Evdi => {
+            log::error!("--evdi is only available on Linux");
+            std::process::exit(1);
+        }
     }
 
     // Persist the scene for the next boot if the rig-config asks for it. Runs
@@ -329,6 +338,7 @@ fn parse_args() -> Args {
     let mut explicit_windowed = false;
     let mut verbose = false;
     let mut null = false;
+    let mut evdi = false;
     let mut zmq_port = vstimd::ipc::DEFAULT_ZMQ_PORT;
     let mut web_enabled: Option<bool> = None;
     let mut web_port: Option<u16> = None;
@@ -343,6 +353,7 @@ fn parse_args() -> Args {
         match arg.as_str() {
             "--verbose" | "-v" => verbose = true,
             "--null" => null = true,
+            "--evdi" => evdi = true,
             "--windowed" | "-w" => {
                 let size = args.next().and_then(|s| {
                     let (w, h) = s.split_once('x')?;
@@ -423,6 +434,8 @@ fn parse_args() -> Args {
 
     let render_target = if null || std::env::var("VSTIMD_NULL").is_ok() {
         RenderTarget::Null
+    } else if evdi {
+        RenderTarget::Evdi
     } else {
         detect_render_target(window_mode)
     };
@@ -539,6 +552,8 @@ fn print_usage() {
     eprintln!("Options:");
     eprintln!("  -w, --windowed <WxH>      Start in windowed mode with size WxH (desktop only)");
     eprintln!("      --null                No rendering; ZMQ server only (also: VSTIMD_NULL=1)");
+    eprintln!("      --evdi                Render on a DisplayLink (evdi) output directly, no compositor.");
+    eprintln!("                            Auxiliary/status display only -- not for stimulus timing.");
     eprintln!("      --zmq-port <N>        ZMQ REP server port (default: 5555)");
     eprintln!("      --no-web              Disable the embedded web control surface");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
