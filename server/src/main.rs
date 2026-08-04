@@ -547,6 +547,11 @@ fn parse_args() -> Args {
         }
     }
 
+    if null && evdi {
+        eprintln!("vstimd: --null and --evdi are mutually exclusive");
+        std::process::exit(1);
+    }
+
     // Only `--null`/`--evdi` (or VSTIMD_NULL) force a target here; the
     // rig-config-vs-auto-detect fallback happens in `main()`, after
     // rig-config is loaded — see the `Args::render_target` doc comment.
