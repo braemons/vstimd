@@ -23,9 +23,33 @@
 use drm::buffer::{Buffer, DrmFourcc};
 use drm::control::Device as CtrlDevice;
 use drm::control::dumbbuffer::DumbBuffer;
-use drm::control::{Event, Mode, PageFlipFlags, PageFlipTarget, connector, crtc, framebuffer};
+use drm::control::{
+    Event, Mode, ModeTypeFlags, PageFlipFlags, PageFlipTarget, connector, crtc, framebuffer,
+};
 
 use super::evdi_detect::{Card, EvdiNode};
+
+/// Picks the connector's native mode: the one its EDID marks
+/// `DRM_MODE_TYPE_PREFERRED`. Confirmed on hardware (ASUS MB168B) that evdi
+/// does report this correctly. **Not** simply `modes().first()`: the list's
+/// order/cache is not reliable — an early or stale probe (e.g. before the
+/// EDID is fully read) can leave `modes()` returning fewer entries in a
+/// different order, silently picking a lower resolution (1024×768 observed
+/// in the field on a monitor whose native mode is 1366×768). Falls back to
+/// the largest-area mode if — some EDIDs are incomplete — none is marked
+/// preferred.
+fn pick_native_mode(modes: &[Mode]) -> Option<Mode> {
+    modes
+        .iter()
+        .find(|m| m.mode_type().contains(ModeTypeFlags::PREFERRED))
+        .or_else(|| {
+            modes.iter().max_by_key(|m| {
+                let (w, h) = m.size();
+                w as u64 * h as u64
+            })
+        })
+        .copied()
+}
 
 struct OutputBuffer {
     dumb: DumbBuffer,
@@ -49,8 +73,8 @@ pub struct EvdiOutput {
 }
 
 impl EvdiOutput {
-    /// Picks the connector's first reported mode, finds a usable CRTC (the
-    /// current encoder's if the connector already has one active,
+    /// Picks the connector's native (EDID-preferred) mode, finds a usable
+    /// CRTC (the current encoder's if the connector already has one active,
     /// otherwise the first encoder whose `possible_crtcs` is non-empty),
     /// allocates two XRGB8888 dumb buffers sized to that mode, and sets the
     /// initial mode via `set_crtc` (`page_flip` needs an already-active
@@ -58,10 +82,13 @@ impl EvdiOutput {
     pub fn new(node: EvdiNode) -> std::io::Result<Self> {
         let card = node.card;
 
-        let conn = card.get_connector(node.connector, false)?;
-        let mode = *conn.modes().first().ok_or_else(|| {
-            std::io::Error::other("evdi connector reports no modes")
-        })?;
+        // force=true: a fresh reprobe, not whatever the DRM subsystem last
+        // cached for this connector (which — see pick_native_mode — is
+        // exactly the situation that produced a wrong/stale mode list in
+        // the field).
+        let conn = card.get_connector(node.connector, true)?;
+        let mode = pick_native_mode(conn.modes())
+            .ok_or_else(|| std::io::Error::other("evdi connector reports no modes"))?;
         let (width, height) = mode.size();
         let (width, height) = (width as u32, height as u32);
 
