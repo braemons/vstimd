@@ -3,7 +3,6 @@ UNITDIR     ?= /lib/systemd/system
 SYSUSERSDIR ?= /usr/lib/sysusers.d
 CONFDIR     ?= /etc/braemons
 SHAREDIR    ?= /usr/share/braemons/vstimd
-AVAHIDIR    ?= /etc/avahi/services
 BINARY      := target/release/vstimd
 SERVICE     := packaging/systemd/vstimd.service
 TARGET_UNIT := packaging/systemd/vstimd.target
@@ -11,7 +10,7 @@ HOSTNAME_UNIT   := packaging/systemd/vstimd-hostname.service
 BOOT_SCRIPT     := packaging/scripts/vstimd-boot-entry
 HOSTNAME_SCRIPT := packaging/scripts/vstimd-set-hostname
 SYSUSERS    := packaging/sysusers/vstimd.conf
-AVAHI_SERVICE   := packaging/avahi/vstimd.service
+AVAHI_TEMPLATE  := packaging/avahi/vstimd.service.tmpl
 RIG_CONFIG  := server/config/default-rig-config.toml
 EXAMPLES    := server/config/jetson-orin-nano.toml \
                server/config/raspberry-pi-5.toml \
@@ -77,12 +76,12 @@ install:
 	install -D -m 0644 $(TARGET_UNIT)     $(DESTDIR)$(UNITDIR)/vstimd.target
 	install -D -m 0644 $(HOSTNAME_UNIT)   $(DESTDIR)$(UNITDIR)/vstimd-hostname.service
 	install -D -m 0644 $(SYSUSERS)        $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
-	install -D -m 0644 $(AVAHI_SERVICE)   $(DESTDIR)$(AVAHIDIR)/vstimd.service
 	install -d -m 0755 $(DESTDIR)$(CONFDIR)
 	test -f $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml || \
 	  install -m 0644 $(RIG_CONFIG) $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml
 	install -d -m 0755 $(DESTDIR)$(SHAREDIR)
 	for f in $(EXAMPLES); do install -m 0644 $$f $(DESTDIR)$(SHAREDIR)/; done
+	install -D -m 0644 $(AVAHI_TEMPLATE)  $(DESTDIR)$(SHAREDIR)/vstimd.service.avahi.tmpl
 
 uninstall:
 	systemctl disable --now vstimd 2>/dev/null || true
@@ -95,7 +94,8 @@ uninstall:
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.target
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd-hostname.service
 	rm -f $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
-	rm -f $(DESTDIR)$(AVAHIDIR)/vstimd.service
+	rm -f $(DESTDIR)$(SHAREDIR)/vstimd.service.avahi.tmpl
+	rm -f /etc/avahi/services/vstimd.service
 	for f in $(EXAMPLES); do rm -f $(DESTDIR)$(SHAREDIR)/$$(basename $$f); done
 	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(SHAREDIR) $(DESTDIR)$(CONFDIR) 2>/dev/null || true
 	systemctl daemon-reload 2>/dev/null || true

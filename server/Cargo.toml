@@ -81,7 +81,7 @@ assets = [
     ["../packaging/rsyslog/vstimd.conf",          "etc/rsyslog.d/10-vstimd.conf",                              "644"],
     ["../packaging/logrotate/vstimd",             "etc/logrotate.d/vstimd",                                    "644"],
     ["../packaging/scripts/vstimd-set-hostname",  "usr/sbin/vstimd-set-hostname",                              "755"],
-    ["../packaging/avahi/vstimd.service",         "etc/avahi/services/vstimd.service",                         "644"],
+    ["../packaging/avahi/vstimd.service.tmpl",    "usr/share/braemons/vstimd/vstimd.service.avahi.tmpl",       "644"],
     ["config/default-rig-config.toml",           "etc/braemons/vstimd-rig-config.toml",                       "644"],
     ["config/jetson-orin-nano.toml",             "usr/share/braemons/vstimd/jetson-orin-nano.toml",           "644"],
     ["config/raspberry-pi-5.toml",               "usr/share/braemons/vstimd/raspberry-pi-5.toml",             "644"],

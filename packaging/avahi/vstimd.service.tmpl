@@ -1,0 +1,29 @@
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<!--
+  vstimd mDNS/DNS-SD advertisement — template.
+
+  Rendered to /etc/avahi/services/vstimd.service by vstimd-set-hostname at
+  boot, with @HOSTNAME@ replaced by the actual generated vstimd-XXXXXX
+  hostname. This is a literal substitution done by the script, not by Avahi:
+  Avahi's %h wildcard only works inside <name> (per avahi-service.dtd,
+  replace-wildcards is not a valid attribute on <txt-record>), so it cannot
+  be used to get the hostname into a TXT record.
+
+  Avahi may append " #2", " #3", etc. to the <name> on collision, but the
+  id=@HOSTNAME@ TXT record — a plain literal by the time Avahi loads this
+  file — is unaffected. Clients should key off the TXT record, not the
+  possibly-suffixed display name, to reliably match a device across name
+  collisions.
+
+  Generated file — do not edit /etc/avahi/services/vstimd.service by hand,
+  changes are overwritten on the next boot / hostname change.
+-->
+<service-group>
+  <name replace-wildcards="yes">%h</name>
+  <service>
+    <type>_vstimd._tcp</type>
+    <port>5555</port>
+    <txt-record>id=@HOSTNAME@</txt-record>
+  </service>
+</service-group>

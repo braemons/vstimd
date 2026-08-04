@@ -6,6 +6,13 @@ if [ "$1" = "remove" ] || [ "$1" = "purge" ]; then
     if command -v vstimd-boot-entry >/dev/null 2>&1; then
         vstimd-boot-entry --remove 2>&1 | sed 's/^/vstimd: /' || true
     fi
+
+    # vstimd-set-hostname renders this from a template at boot; dpkg never
+    # tracked it, so it has to be cleaned up here explicitly.
+    rm -f /etc/avahi/services/vstimd.service
+    if systemctl is-active --quiet avahi-daemon.service 2>/dev/null; then
+        systemctl reload avahi-daemon.service || true
+    fi
 fi
 
 if [ "$1" = "purge" ]; then

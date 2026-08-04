@@ -33,7 +33,7 @@ install -D -m 0644 %{_builddir}/packaging/systemd/vstimd-hostname.service %{buil
 install -D -m 0644 %{_builddir}/packaging/sysusers/vstimd.conf           %{buildroot}%{_sysusersdir}/vstimd.conf
 install -D -m 0644 %{_builddir}/packaging/rsyslog/vstimd.conf             %{buildroot}%{_sysconfdir}/rsyslog.d/10-vstimd.conf
 install -D -m 0644 %{_builddir}/packaging/logrotate/vstimd                %{buildroot}%{_sysconfdir}/logrotate.d/vstimd
-install -D -m 0644 %{_builddir}/packaging/avahi/vstimd.service            %{buildroot}%{_sysconfdir}/avahi/services/vstimd.service
+install -D -m 0644 %{_builddir}/packaging/avahi/vstimd.service.tmpl       %{buildroot}%{_datadir}/braemons/vstimd/vstimd.service.avahi.tmpl
 
 %post
 %sysusers_create_package vstimd %{_sysusersdir}/vstimd.conf
@@ -59,6 +59,14 @@ fi
 %postun
 %systemd_postun_with_restart vstimd.service
 %systemd_postun_with_restart vstimd-hostname.service
+# vstimd-set-hostname renders this from a template at boot; rpm never
+# tracked it, so it has to be cleaned up here explicitly on full removal.
+if [ $1 -eq 0 ]; then
+    rm -f /etc/avahi/services/vstimd.service
+    if systemctl is-active --quiet avahi-daemon.service 2>/dev/null; then
+        systemctl reload avahi-daemon.service || true
+    fi
+fi
 
 %files
 %{_bindir}/vstimd
@@ -70,5 +78,5 @@ fi
 %{_sysusersdir}/vstimd.conf
 %config(noreplace) %{_sysconfdir}/rsyslog.d/10-vstimd.conf
 %config(noreplace) %{_sysconfdir}/logrotate.d/vstimd
-%config(noreplace) %{_sysconfdir}/avahi/services/vstimd.service
+%{_datadir}/braemons/vstimd/vstimd.service.avahi.tmpl
 %dir /var/log/vstimd
