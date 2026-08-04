@@ -55,13 +55,13 @@ fn main() {
     // otherwise rig-config's [display] backend; otherwise DISPLAY-env
     // auto-detection. Deferred to here (rather than parse_args()) because
     // rig-config isn't loaded yet when arguments are parsed.
-    let render_target = args.render_target.unwrap_or_else(|| match rig.display.backend {
-        Some(RenderTargetPref::Drm) => RenderTarget::Drm,
-        Some(RenderTargetPref::Desktop) => RenderTarget::Desktop(args.window_mode),
-        Some(RenderTargetPref::Null) => RenderTarget::Null,
-        Some(RenderTargetPref::Evdi) => RenderTarget::Evdi,
-        None => detect_render_target(args.window_mode),
-    });
+    let has_display = std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
+    let render_target = resolve_render_target(
+        args.render_target,
+        rig.display.backend,
+        args.window_mode,
+        has_display,
+    );
     if args.explicit_windowed && render_target == RenderTarget::Drm {
         eprintln!(
             "vstimd: --windowed requires a desktop session \
@@ -340,29 +340,111 @@ fn resolve_config_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBu
 }
 
 /// Automatically detect the best render target for the current platform.
+/// `has_display` is passed in — rather than read from the environment here —
+/// so the decision itself is a pure, unit-testable function; see
+/// `resolve_render_target`'s tests below for the actual `DISPLAY`/
+/// `WAYLAND_DISPLAY` read.
 ///
 /// Detection logic:
 /// - **Windows/macOS:** Always desktop (winit)
 /// - **Linux with DISPLAY or WAYLAND_DISPLAY:** Desktop session → winit
 /// - **Linux without display env vars:** Bare console → DRM
-fn detect_render_target(window_mode: WindowMode) -> RenderTarget {
-    #[cfg(not(target_os = "linux"))]
-    {
+fn detect_render_target(window_mode: WindowMode, has_display: bool) -> RenderTarget {
+    if cfg!(not(target_os = "linux")) {
+        return RenderTarget::Desktop(window_mode);
+    }
+    if has_display {
+        log::info!("vstimd: detected desktop session (DISPLAY or WAYLAND_DISPLAY set)");
         RenderTarget::Desktop(window_mode)
+    } else {
+        log::info!("vstimd: detected console environment (no display server)");
+        RenderTarget::Drm
+    }
+}
+
+/// Resolve the render target from every source, highest priority first:
+/// 1. `cli_forced` — an explicit `--null`/`--evdi` flag.
+/// 2. `rig_backend` — rig-config's `[display] backend`.
+/// 3. `detect_render_target` — `DISPLAY`/`WAYLAND_DISPLAY` auto-detection.
+///
+/// Pure (no env/global reads) so the precedence chain is unit-testable
+/// independent of `detect_render_target`'s own env-var read.
+fn resolve_render_target(
+    cli_forced: Option<RenderTarget>,
+    rig_backend: Option<RenderTargetPref>,
+    window_mode: WindowMode,
+    has_display: bool,
+) -> RenderTarget {
+    cli_forced.unwrap_or_else(|| match rig_backend {
+        Some(RenderTargetPref::Drm) => RenderTarget::Drm,
+        Some(RenderTargetPref::Desktop) => RenderTarget::Desktop(window_mode),
+        Some(RenderTargetPref::Null) => RenderTarget::Null,
+        Some(RenderTargetPref::Evdi) => RenderTarget::Evdi,
+        None => detect_render_target(window_mode, has_display),
+    })
+}
+
+#[cfg(test)]
+mod render_target_resolution_tests {
+    use super::*;
+
+    fn windowed() -> WindowMode {
+        WindowMode::Windowed { width: 800, height: 600 }
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        let has_display =
-            std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
+    #[test]
+    fn cli_flag_wins_over_rig_config_and_display_env() {
+        // --evdi was passed; rig-config says "drm" and a display is even
+        // present — the CLI flag still wins outright.
+        let target = resolve_render_target(
+            Some(RenderTarget::Evdi),
+            Some(RenderTargetPref::Drm),
+            WindowMode::default(),
+            true,
+        );
+        assert_eq!(target, RenderTarget::Evdi);
+    }
 
-        if has_display {
-            log::info!("vstimd: detected desktop session (DISPLAY or WAYLAND_DISPLAY set)");
-            RenderTarget::Desktop(window_mode)
-        } else {
-            log::info!("vstimd: detected console environment (no display server)");
-            RenderTarget::Drm
-        }
+    #[test]
+    fn rig_config_wins_over_auto_detect_when_no_cli_flag() {
+        // No CLI flag; rig-config says "evdi" — used regardless of whether
+        // a display session is present. This is the boot-via-systemd case.
+        let target = resolve_render_target(None, Some(RenderTargetPref::Evdi), WindowMode::default(), true);
+        assert_eq!(target, RenderTarget::Evdi);
+
+        let target = resolve_render_target(None, Some(RenderTargetPref::Evdi), WindowMode::default(), false);
+        assert_eq!(target, RenderTarget::Evdi);
+    }
+
+    #[test]
+    fn rig_config_drm_resolves_to_drm() {
+        let target = resolve_render_target(None, Some(RenderTargetPref::Drm), WindowMode::default(), true);
+        assert_eq!(target, RenderTarget::Drm);
+    }
+
+    #[test]
+    fn rig_config_null_resolves_to_null() {
+        let target = resolve_render_target(None, Some(RenderTargetPref::Null), WindowMode::default(), false);
+        assert_eq!(target, RenderTarget::Null);
+    }
+
+    #[test]
+    fn rig_config_desktop_carries_window_mode_through() {
+        let target = resolve_render_target(None, Some(RenderTargetPref::Desktop), windowed(), false);
+        assert_eq!(target, RenderTarget::Desktop(windowed()));
+    }
+
+    #[test]
+    fn no_cli_flag_no_rig_config_falls_back_to_auto_detect() {
+        let target = resolve_render_target(None, None, WindowMode::default(), true);
+        assert_eq!(target, RenderTarget::Desktop(WindowMode::default()));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn auto_detect_without_display_picks_drm_on_linux() {
+        let target = resolve_render_target(None, None, WindowMode::default(), false);
+        assert_eq!(target, RenderTarget::Drm);
     }
 }
 
