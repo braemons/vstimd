@@ -1,3 +1,15 @@
+//! Keyboard input for the bare-console (no compositor) backends.
+//!
+//! Shared by `render::drm` and `render::evdi`: both grab the physical
+//! keyboard through libinput and translate evdev key codes into app-level
+//! actions plus egui events. Nothing here is DRM- or evdi-specific.
+//!
+//! Also home to the low-level VT primitives (`open_vt`, `active_vt`,
+//! `vt_number_from_env`, `activate_vt`) that the tty guard needs;
+//! `drm::drm_virtual_terminal` builds its full VT/KD_GRAPHICS guard on top
+//! of these rather than the other way round, so this module stays free of
+//! any backend dependency.
+
 use input::event::keyboard::KeyboardEventTrait as _;
 use std::os::fd::OwnedFd;
 use std::path::Path;
@@ -7,15 +19,20 @@ use crate::render::overlay_ui::OverlayGroup;
 
 // ── TTY keyboard suppression guard ───────────────────────────────────────────
 
-/// Disables echo and canonical processing on the target VT (tty3 by default,
-/// `VSTIMD_TTY` override) for the lifetime of DRM mode. Flushes any buffered
-/// input on drop so characters typed during the session don't appear once
-/// the VT returns to text mode.
+/// Disables echo and canonical processing on a VT for the lifetime of a
+/// bare-console session. Flushes any buffered input on drop so characters
+/// typed during the session don't appear once the VT returns to text mode.
+///
+/// Which VT to target differs per backend, hence the argument: the DRM
+/// backend *activates* its own VT (tty3 by default, `VSTIMD_TTY` override)
+/// and guards that one; the evdi backend activates none and must guard
+/// whichever VT happens to be active, since that is where stray keystrokes
+/// would land.
 ///
 /// Deliberately opens the target VT device directly rather than `/dev/tty`
 /// (the calling process's controlling terminal) — same reasoning as
-/// [`super::drm_virtual_terminal::DrmVtGuard`]. Over SSH (no `DISPLAY` →
-/// DRM auto-detected), `/dev/tty` is the SSH pty, not the console VT; tweaking
+/// [`crate::render::drm`]'s VT guard. Over SSH (no `DISPLAY` → DRM
+/// auto-detected), `/dev/tty` is the SSH pty, not the console VT; tweaking
 /// its termios would affect the SSH session itself and had previously
 /// swallowed Ctrl+C there.
 ///
@@ -28,9 +45,8 @@ struct TtyKbdGuard {
 }
 
 impl TtyKbdGuard {
-    fn acquire() -> Option<Self> {
-        let target_vt = super::drm_virtual_terminal::vt_number_from_env();
-        let fd = super::drm_virtual_terminal::open_vt(target_vt);
+    fn acquire(target_vt: u16) -> Option<Self> {
+        let fd = open_vt(target_vt);
         if fd < 0 {
             log::warn!("vstimd: could not open /dev/tty{target_vt} — keys may echo to terminal");
             return None;
@@ -100,8 +116,11 @@ pub struct InputState {
 }
 
 impl InputState {
-    pub fn new() -> Self {
-        let tty_kbd_guard = TtyKbdGuard::acquire();
+    /// `tty_guard_vt` is the VT whose echo/canonical mode gets suppressed for
+    /// the session — see [`TtyKbdGuard`]. Use [`vt_number_from_env`] when the
+    /// backend activates its own VT, [`active_vt`] when it does not.
+    pub fn new(tty_guard_vt: u16) -> Self {
+        let tty_kbd_guard = TtyKbdGuard::acquire(tty_guard_vt);
         let mut ctx = input::Libinput::new_with_udev(Interface);
         match ctx.udev_assign_seat("seat0") {
             Ok(()) => Self {
@@ -223,6 +242,61 @@ impl InputState {
 
         (app_keys, egui_events)
     }
+}
+
+// ── VT primitives ────────────────────────────────────────────────────────────
+
+/// Open the TTY device for `target_vt`.
+///
+/// When systemd has already opened the device via `TTYPath=` + `StandardInput=tty`,
+/// stdin (fd 0) *is* `/dev/tty{target_vt}`. Dup-ing it avoids needing the
+/// vstimd user to have direct open permission on the device node (which is
+/// `crw-------` / root-only when no login session owns it).
+pub(crate) fn open_vt(target_vt: u16) -> libc::c_int {
+    let expected = format!("/dev/tty{target_vt}");
+    if ttyname_of(0).as_deref() == Some(&expected) {
+        let fd = unsafe { libc::fcntl(0, libc::F_DUPFD_CLOEXEC, 0) };
+        if fd >= 0 {
+            return fd;
+        }
+    }
+    // Fall back to a direct open (works when run with sufficient permissions,
+    // e.g. during development or with a udev rule granting group access).
+    let path = format!("{expected}\0");
+    unsafe {
+        libc::open(
+            path.as_ptr() as *const libc::c_char,
+            libc::O_WRONLY | libc::O_CLOEXEC,
+        )
+    }
+}
+
+fn ttyname_of(fd: libc::c_int) -> Option<String> {
+    let mut buf = [0u8; 64];
+    let ret = unsafe { libc::ttyname_r(fd, buf.as_mut_ptr() as *mut libc::c_char, buf.len()) };
+    if ret != 0 {
+        return None;
+    }
+    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    Some(String::from_utf8_lossy(&buf[..end]).into_owned())
+}
+
+pub(crate) fn vt_number_from_env() -> u16 {
+    match std::env::var("VSTIMD_TTY") {
+        Ok(s) => match s.trim().parse::<u16>() {
+            Ok(n) if n >= 1 => n,
+            _ => {
+                log::warn!("vstimd: VSTIMD_TTY={s:?} is not a valid VT number, using 3");
+                3
+            }
+        },
+        Err(_) => 3,
+    }
+}
+
+pub(crate) fn active_vt() -> Option<u16> {
+    let s = std::fs::read_to_string("/sys/class/tty/tty0/active").ok()?;
+    s.trim().strip_prefix("tty")?.parse().ok()
 }
 
 /// Map evdev key codes to characters for text entry (US QWERTY layout).

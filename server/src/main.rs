@@ -3,7 +3,8 @@ use std::sync::{Arc, Mutex, RwLock};
 #[cfg(target_os = "linux")]
 use vstimd::render::drm::DrmBackend;
 use vstimd::render::{
-    BackendData, ClockSource, DisplayModePref, HostInfo, NullBackend, RenderTarget, WindowMode,
+    BackendData, ClockSource, DisplayModePref, HostInfo, NullBackend, RenderTarget,
+    RenderTargetPref, WindowMode,
 };
 use vstimd::render::{query_hardware_model, query_hostname, query_local_ip};
 use vstimd::render::winit_vk::WinitBackend;
@@ -49,6 +50,28 @@ fn main() {
             rig.display.refresh_hz.unwrap_or(0.0),
         );
     }
+
+    // Resolve the render target: an explicit --null/--evdi CLI flag wins;
+    // otherwise rig-config's [display] backend; otherwise DISPLAY-env
+    // auto-detection. Deferred to here (rather than parse_args()) because
+    // rig-config isn't loaded yet when arguments are parsed.
+    let has_display = std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
+    let render_target = resolve_render_target(
+        args.render_target,
+        rig.display.backend,
+        args.window_mode,
+        has_display,
+    );
+    if args.explicit_windowed && render_target == RenderTarget::Drm {
+        eprintln!(
+            "vstimd: --windowed requires a desktop session \
+             (DISPLAY or WAYLAND_DISPLAY must be set, or rig-config's \
+             [display] backend must not be \"drm\"). \
+             DRM/console mode does not support windowed output."
+        );
+        std::process::exit(1);
+    }
+    log::info!("vstimd: render target: {:?}", render_target);
 
     let config_dir = resolve_config_dir(args.config_dir.clone());
     log::info!("vstimd: config dir: {}", config_dir.display());
@@ -208,7 +231,7 @@ fn main() {
         }
     };
 
-    match args.render_target {
+    match render_target {
         #[cfg(target_os = "linux")]
         RenderTarget::Drm => DrmBackend::new(data, log_buffer).run(on_ready),
         #[cfg(not(target_os = "linux"))]
@@ -220,6 +243,15 @@ fn main() {
             WinitBackend::new(data, window_mode, log_buffer).run(on_ready);
         }
         RenderTarget::Null => NullBackend::new(data).run(on_ready),
+        #[cfg(target_os = "linux")]
+        RenderTarget::Evdi => {
+            vstimd::render::evdi::EvdiBackend::new(data, log_buffer).run(on_ready);
+        }
+        #[cfg(not(target_os = "linux"))]
+        RenderTarget::Evdi => {
+            log::error!("--evdi is only available on Linux");
+            std::process::exit(1);
+        }
     }
 
     // Persist the scene for the next boot if the rig-config asks for it. Runs
@@ -260,7 +292,17 @@ fn main() {
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
 struct Args {
-    render_target: RenderTarget,
+    /// `Some(_)` if `--null` or `--evdi` forced a specific target on the
+    /// command line — takes priority over rig-config. `None` means "resolve
+    /// later": rig-config's `[display] backend`, then DISPLAY-env
+    /// auto-detection (see `main()`, which loads rig-config after
+    /// `parse_args()` returns).
+    render_target: Option<RenderTarget>,
+    window_mode: WindowMode,
+    /// True if `--windowed` was passed — used to validate against the
+    /// eventually-resolved render target once rig-config is loaded (DRM mode
+    /// doesn't support windowed output).
+    explicit_windowed: bool,
     verbose: bool,
     zmq_port: u16,
     /// `Some(false)` if `--no-web` was passed; otherwise `None` (use rig-config).
@@ -298,29 +340,111 @@ fn resolve_config_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBu
 }
 
 /// Automatically detect the best render target for the current platform.
+/// `has_display` is passed in — rather than read from the environment here —
+/// so the decision itself is a pure, unit-testable function; see
+/// `resolve_render_target`'s tests below for the actual `DISPLAY`/
+/// `WAYLAND_DISPLAY` read.
 ///
 /// Detection logic:
 /// - **Windows/macOS:** Always desktop (winit)
 /// - **Linux with DISPLAY or WAYLAND_DISPLAY:** Desktop session → winit
 /// - **Linux without display env vars:** Bare console → DRM
-fn detect_render_target(window_mode: WindowMode) -> RenderTarget {
-    #[cfg(not(target_os = "linux"))]
-    {
+fn detect_render_target(window_mode: WindowMode, has_display: bool) -> RenderTarget {
+    if cfg!(not(target_os = "linux")) {
+        return RenderTarget::Desktop(window_mode);
+    }
+    if has_display {
+        log::info!("vstimd: detected desktop session (DISPLAY or WAYLAND_DISPLAY set)");
         RenderTarget::Desktop(window_mode)
+    } else {
+        log::info!("vstimd: detected console environment (no display server)");
+        RenderTarget::Drm
+    }
+}
+
+/// Resolve the render target from every source, highest priority first:
+/// 1. `cli_forced` — an explicit `--null`/`--evdi` flag.
+/// 2. `rig_backend` — rig-config's `[display] backend`.
+/// 3. `detect_render_target` — `DISPLAY`/`WAYLAND_DISPLAY` auto-detection.
+///
+/// Pure (no env/global reads) so the precedence chain is unit-testable
+/// independent of `detect_render_target`'s own env-var read.
+fn resolve_render_target(
+    cli_forced: Option<RenderTarget>,
+    rig_backend: Option<RenderTargetPref>,
+    window_mode: WindowMode,
+    has_display: bool,
+) -> RenderTarget {
+    cli_forced.unwrap_or_else(|| match rig_backend {
+        Some(RenderTargetPref::Drm) => RenderTarget::Drm,
+        Some(RenderTargetPref::Desktop) => RenderTarget::Desktop(window_mode),
+        Some(RenderTargetPref::Null) => RenderTarget::Null,
+        Some(RenderTargetPref::Evdi) => RenderTarget::Evdi,
+        None => detect_render_target(window_mode, has_display),
+    })
+}
+
+#[cfg(test)]
+mod render_target_resolution_tests {
+    use super::*;
+
+    fn windowed() -> WindowMode {
+        WindowMode::Windowed { width: 800, height: 600 }
     }
 
-    #[cfg(target_os = "linux")]
-    {
-        let has_display =
-            std::env::var("DISPLAY").is_ok() || std::env::var("WAYLAND_DISPLAY").is_ok();
+    #[test]
+    fn cli_flag_wins_over_rig_config_and_display_env() {
+        // --evdi was passed; rig-config says "drm" and a display is even
+        // present — the CLI flag still wins outright.
+        let target = resolve_render_target(
+            Some(RenderTarget::Evdi),
+            Some(RenderTargetPref::Drm),
+            WindowMode::default(),
+            true,
+        );
+        assert_eq!(target, RenderTarget::Evdi);
+    }
 
-        if has_display {
-            log::info!("vstimd: detected desktop session (DISPLAY or WAYLAND_DISPLAY set)");
-            RenderTarget::Desktop(window_mode)
-        } else {
-            log::info!("vstimd: detected console environment (no display server)");
-            RenderTarget::Drm
-        }
+    #[test]
+    fn rig_config_wins_over_auto_detect_when_no_cli_flag() {
+        // No CLI flag; rig-config says "evdi" — used regardless of whether
+        // a display session is present. This is the boot-via-systemd case.
+        let target = resolve_render_target(None, Some(RenderTargetPref::Evdi), WindowMode::default(), true);
+        assert_eq!(target, RenderTarget::Evdi);
+
+        let target = resolve_render_target(None, Some(RenderTargetPref::Evdi), WindowMode::default(), false);
+        assert_eq!(target, RenderTarget::Evdi);
+    }
+
+    #[test]
+    fn rig_config_drm_resolves_to_drm() {
+        let target = resolve_render_target(None, Some(RenderTargetPref::Drm), WindowMode::default(), true);
+        assert_eq!(target, RenderTarget::Drm);
+    }
+
+    #[test]
+    fn rig_config_null_resolves_to_null() {
+        let target = resolve_render_target(None, Some(RenderTargetPref::Null), WindowMode::default(), false);
+        assert_eq!(target, RenderTarget::Null);
+    }
+
+    #[test]
+    fn rig_config_desktop_carries_window_mode_through() {
+        let target = resolve_render_target(None, Some(RenderTargetPref::Desktop), windowed(), false);
+        assert_eq!(target, RenderTarget::Desktop(windowed()));
+    }
+
+    #[test]
+    fn no_cli_flag_no_rig_config_falls_back_to_auto_detect() {
+        let target = resolve_render_target(None, None, WindowMode::default(), true);
+        assert_eq!(target, RenderTarget::Desktop(WindowMode::default()));
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn auto_detect_without_display_picks_drm_on_linux() {
+        let target = resolve_render_target(None, None, WindowMode::default(), false);
+        assert_eq!(target, RenderTarget::Drm);
     }
 }
 
@@ -329,6 +453,7 @@ fn parse_args() -> Args {
     let mut explicit_windowed = false;
     let mut verbose = false;
     let mut null = false;
+    let mut evdi = false;
     let mut zmq_port = vstimd::ipc::DEFAULT_ZMQ_PORT;
     let mut web_enabled: Option<bool> = None;
     let mut web_port: Option<u16> = None;
@@ -343,6 +468,7 @@ fn parse_args() -> Args {
         match arg.as_str() {
             "--verbose" | "-v" => verbose = true,
             "--null" => null = true,
+            "--evdi" => evdi = true,
             "--windowed" | "-w" => {
                 let size = args.next().and_then(|s| {
                     let (w, h) = s.split_once('x')?;
@@ -421,25 +547,26 @@ fn parse_args() -> Args {
         }
     }
 
-    let render_target = if null || std::env::var("VSTIMD_NULL").is_ok() {
-        RenderTarget::Null
-    } else {
-        detect_render_target(window_mode)
-    };
-
-    if explicit_windowed && render_target == RenderTarget::Drm {
-        eprintln!(
-            "vstimd: --windowed requires a desktop session \
-             (DISPLAY or WAYLAND_DISPLAY must be set). \
-             DRM/console mode does not support windowed output."
-        );
+    if null && evdi {
+        eprintln!("vstimd: --null and --evdi are mutually exclusive");
         std::process::exit(1);
     }
 
-    log::info!("vstimd: render target: {:?}", render_target);
+    // Only `--null`/`--evdi` (or VSTIMD_NULL) force a target here; the
+    // rig-config-vs-auto-detect fallback happens in `main()`, after
+    // rig-config is loaded — see the `Args::render_target` doc comment.
+    let render_target = if null || std::env::var("VSTIMD_NULL").is_ok() {
+        Some(RenderTarget::Null)
+    } else if evdi {
+        Some(RenderTarget::Evdi)
+    } else {
+        None
+    };
 
     Args {
         render_target,
+        window_mode,
+        explicit_windowed,
         verbose,
         zmq_port,
         web_enabled,
@@ -539,6 +666,8 @@ fn print_usage() {
     eprintln!("Options:");
     eprintln!("  -w, --windowed <WxH>      Start in windowed mode with size WxH (desktop only)");
     eprintln!("      --null                No rendering; ZMQ server only (also: VSTIMD_NULL=1)");
+    eprintln!("      --evdi                Render on a DisplayLink (evdi) output directly, no compositor.");
+    eprintln!("                            Auxiliary/status display only -- not for stimulus timing.");
     eprintln!("      --zmq-port <N>        ZMQ REP server port (default: 5555)");
     eprintln!("      --no-web              Disable the embedded web control surface");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
@@ -557,8 +686,9 @@ fn print_usage() {
     eprintln!("  -V, --version             Show version and build info (features, target, date)");
     eprintln!("  -h, --help                Show this help message");
     eprintln!();
-    eprintln!("Render target is automatically detected:");
-    eprintln!("  - Windows/macOS: desktop (winit)");
-    eprintln!("  - Linux with DISPLAY or WAYLAND_DISPLAY: desktop (winit)");
-    eprintln!("  - Linux without display server: console (DRM/KMS)");
+    eprintln!("Render target resolution (highest priority first):");
+    eprintln!("  1. --null / --evdi on the command line");
+    eprintln!("  2. rig-config's [display] backend (\"drm\", \"desktop\", \"null\", \"evdi\")");
+    eprintln!("  3. auto-detect: Windows/macOS or DISPLAY/WAYLAND_DISPLAY set -> desktop (winit);");
+    eprintln!("     otherwise -> console (DRM/KMS)");
 }

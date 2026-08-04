@@ -13,6 +13,7 @@
 ///
 /// If the file is absent vstimd falls back to built-in defaults and logs a
 /// notice — useful for development machines without a full rig setup.
+use crate::render::RenderTargetPref;
 use crate::render::system_info::ClockSource;
 use crate::vtl_state::VtlBit;
 
@@ -176,6 +177,19 @@ impl Default for VtlRigConfig {
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DisplayRigConfig {
+    /// Forces a specific render backend, bypassing the `DISPLAY`/
+    /// `WAYLAND_DISPLAY`-based auto-detection. `"auto"` (default — also used
+    /// if the key is omitted) auto-detects: desktop session → winit,
+    /// bare console → DRM. Other values: `"drm"`, `"desktop"`, `"null"`,
+    /// `"evdi"`.
+    ///
+    /// Lets a headless rig (e.g. booted via the `vstimd.target` systemd
+    /// unit, with no `--evdi`/`--null` flag in `ExecStart=`) pick a
+    /// non-default backend — most usefully `"evdi"`, so a DisplayLink
+    /// output is used without editing the systemd unit. The `--null` and
+    /// `--evdi` CLI flags still take priority over this when given.
+    #[serde(default, deserialize_with = "deserialize_backend_pref")]
+    pub backend: Option<RenderTargetPref>,
     /// Preferred horizontal resolution (pixels).
     pub width: Option<u32>,
     /// Preferred vertical resolution (pixels).
@@ -224,6 +238,19 @@ where
     ClockSource::parse_pref(&s).map_err(D::Error::custom)
 }
 
+/// Deserializes the `[display] backend` key — same `"auto"` → `None`
+/// convention as `deserialize_clock_pref` above.
+fn deserialize_backend_pref<'de, D>(deserializer: D) -> Result<Option<RenderTargetPref>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::Deserialize as _;
+    use serde::de::Error as _;
+
+    let s = String::deserialize(deserializer)?;
+    RenderTargetPref::parse_pref(&s).map_err(D::Error::custom)
+}
+
 impl DisplayRigConfig {
     fn default_overlay_scale() -> f32 { 1.0 }
 }
@@ -231,6 +258,7 @@ impl DisplayRigConfig {
 impl Default for DisplayRigConfig {
     fn default() -> Self {
         Self {
+            backend: None,
             width: None,
             height: None,
             refresh_hz: None,

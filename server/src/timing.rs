@@ -18,6 +18,16 @@ impl FrameTiming {
             frame_index: 0,
         }
     }
+
+    /// For a backend paced by a downstream consumer that holds the target
+    /// rate on average but delivers irregularly. See [`Pacing::AveragedRate`].
+    pub fn new_rate_averaged(refresh_hz: f64) -> Self {
+        Self {
+            stats: FrameStats::new_rate_averaged(refresh_hz),
+            last_phases: FramePhases::default(),
+            frame_index: 0,
+        }
+    }
 }
 
 /// Timing information for one successfully presented frame.
@@ -74,6 +84,28 @@ pub struct FramePhases {
     pub submit_us: u32,     // queue_submit + queue_present
 }
 
+/// How a backend's frames are paced, which decides what "dropped" can even
+/// mean for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pacing {
+    /// Frames are locked to a hardware vblank. Every interval should be one
+    /// period, so an interval longer than that identifies a *specific*
+    /// missed vblank — the stimulus was on screen an extra refresh, which is
+    /// exactly what an experiment needs flagged.
+    Vblank,
+    /// Frames are paced by a downstream consumer that averages the target
+    /// rate but delivers in bursts (evdi: DisplayLinkManager drains frames
+    /// over USB at the mode's rate, but individual intervals measured on a
+    /// Pi 5 range 8–34 ms around a 16.6 ms mean).
+    ///
+    /// Testing each interval against the period reports a drop on every long
+    /// one even though nothing was lost, so loss is instead measured as a
+    /// cumulative deficit: frames that *should* have been presented by now
+    /// at the target rate, minus those actually presented. Jitter cancels
+    /// out; a genuine sustained shortfall accumulates and is still reported.
+    AveragedRate,
+}
+
 pub struct FrameStats {
     frame_index: u64,
     last_present: Option<std::time::Instant>,
@@ -82,10 +114,29 @@ pub struct FrameStats {
     valid_count: usize,
     drop_count: u64,
     expected_frame_ns: u64,
+    pacing: Pacing,
+    /// `AveragedRate` only: when the first frame was presented, and the
+    /// deficit already accounted for, so each shortfall is reported once.
+    first_present: Option<std::time::Instant>,
+    reported_deficit: u64,
 }
 
 impl FrameStats {
     pub fn new(target_hz: f64) -> Self {
+        Self::with_pacing(target_hz, Pacing::Vblank)
+    }
+
+    /// See [`Pacing::AveragedRate`].
+    pub fn new_rate_averaged(target_hz: f64) -> Self {
+        Self::with_pacing(target_hz, Pacing::AveragedRate)
+    }
+
+    fn with_pacing(target_hz: f64, pacing: Pacing) -> Self {
+        let expected_frame_ns = if target_hz.is_finite() && target_hz > 0.0 {
+            (1_000_000_000.0 / target_hz) as u64
+        } else {
+            0
+        };
         Self {
             frame_index: 0,
             last_present: None,
@@ -93,7 +144,10 @@ impl FrameStats {
             ring_head: 0,
             valid_count: 0,
             drop_count: 0,
-            expected_frame_ns: (1_000_000_000.0 / target_hz) as u64,
+            expected_frame_ns,
+            pacing,
+            first_present: None,
+            reported_deficit: 0,
         }
     }
 
@@ -115,18 +169,11 @@ impl FrameStats {
     pub fn on_present(&mut self, vblank_time: std::time::Instant) -> u32 {
         let dropped = if let Some(last) = self.last_present {
             let dur_ns = vblank_time.duration_since(last).as_nanos() as u64;
-            // 5/4 threshold: trigger if the interval exceeds 1.25× the expected period.
-            // Using round-to-nearest division avoids the truncation bug where
-            // 2 × period computes as 1.999× and floors to 1 → sub(1) = 0.
-            let threshold = self.expected_frame_ns * 5 / 4;
-            let d = if dur_ns > threshold && self.expected_frame_ns > 0 {
-                let n = ((dur_ns + self.expected_frame_ns / 2) / self.expected_frame_ns)
-                    .saturating_sub(1) as u32;
-                self.drop_count += n as u64;
-                n
-            } else {
-                0
+            let d = match self.pacing {
+                Pacing::Vblank => self.count_missed_vblanks(dur_ns),
+                Pacing::AveragedRate => self.count_rate_deficit(vblank_time),
             };
+            self.drop_count += d as u64;
             self.durations_ns[self.ring_head] = dur_ns;
             self.ring_head = (self.ring_head + 1) % FRAME_HISTORY_SIZE;
             if self.valid_count < FRAME_HISTORY_SIZE {
@@ -134,11 +181,44 @@ impl FrameStats {
             }
             d
         } else {
+            self.first_present = Some(vblank_time);
             0
         };
         self.last_present = Some(vblank_time);
         self.frame_index += 1;
         dropped
+    }
+
+    /// One interval against one period — see [`Pacing::Vblank`].
+    fn count_missed_vblanks(&self, dur_ns: u64) -> u32 {
+        // 5/4 threshold: trigger if the interval exceeds 1.25× the expected period.
+        // Using round-to-nearest division avoids the truncation bug where
+        // 2 × period computes as 1.999× and floors to 1 → sub(1) = 0.
+        let threshold = self.expected_frame_ns.saturating_mul(5) / 4;
+        if self.expected_frame_ns == 0 || dur_ns <= threshold {
+            return 0;
+        }
+        ((dur_ns + self.expected_frame_ns / 2) / self.expected_frame_ns).saturating_sub(1) as u32
+    }
+
+    /// Frames owed against frames delivered — see [`Pacing::AveragedRate`].
+    ///
+    /// Floor division on the elapsed time deliberately under-counts by up to
+    /// one frame, so ordinary jitter can never manufacture a drop; only a
+    /// shortfall that persists long enough to cost a whole frame is reported.
+    fn count_rate_deficit(&mut self, now: std::time::Instant) -> u32 {
+        let (Some(start), true) = (self.first_present, self.expected_frame_ns > 0) else {
+            return 0;
+        };
+        let elapsed_ns = now.duration_since(start).as_nanos() as u64;
+        let owed = elapsed_ns / self.expected_frame_ns;
+        let deficit = owed.saturating_sub(self.frame_index);
+        // Report only the growth since last time. Recovering (deficit
+        // shrinking) resets the baseline so a later shortfall is caught
+        // again, but never retroactively un-counts a reported drop.
+        let new = deficit.saturating_sub(self.reported_deficit);
+        self.reported_deficit = deficit;
+        new as u32
     }
 
     /// Frame durations in chronological order (oldest first).
@@ -192,6 +272,105 @@ impl FrameStats {
             max_ms: *durations.iter().max().unwrap() as f64 / 1_000_000.0,
             drop_count: self.drop_count,
             frame_index: self.frame_index,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    const HZ: f64 = 60.0;
+    const PERIOD: Duration = Duration::from_nanos(16_666_666);
+
+    /// Feed `intervals` into `stats` and return the total drops reported.
+    fn replay(stats: &mut FrameStats, intervals: &[Duration]) -> u32 {
+        let mut t = Instant::now();
+        stats.on_present(t);
+        let mut total = 0;
+        for d in intervals {
+            t += *d;
+            total += stats.on_present(t);
+        }
+        total
+    }
+
+    #[test]
+    fn vblank_pacing_flags_a_missed_refresh() {
+        let mut s = FrameStats::new(HZ);
+        // One interval of two periods = one vblank missed.
+        let drops = replay(&mut s, &[PERIOD, PERIOD * 2, PERIOD]);
+        assert_eq!(drops, 1);
+    }
+
+    #[test]
+    fn rate_averaged_ignores_jitter_that_keeps_up() {
+        // Alternating 8/25 ms — the shape actually measured on evdi. Mean is
+        // one period, so nothing has been lost and nothing should be reported,
+        // even though half the intervals exceed the 1.25x vblank threshold.
+        let short = Duration::from_micros(8_333);
+        let long = Duration::from_micros(25_000);
+        let intervals: Vec<Duration> = (0..600)
+            .map(|i| if i % 2 == 0 { short } else { long })
+            .collect();
+
+        let mut averaged = FrameStats::new_rate_averaged(HZ);
+        assert_eq!(
+            replay(&mut averaged, &intervals),
+            0,
+            "bursty delivery at the target rate is not frame loss"
+        );
+
+        // The same input under vblank pacing is a storm of false positives —
+        // this is the behaviour that made the evdi logs unreadable.
+        let mut vblank = FrameStats::new(HZ);
+        assert!(
+            replay(&mut vblank, &intervals) > 100,
+            "per-interval detection is what misreports bursty delivery"
+        );
+    }
+
+    #[test]
+    fn rate_averaged_still_reports_a_real_shortfall() {
+        // A sustained half-rate link: 600 intervals of 2 periods is 300
+        // frames' worth of loss over the same wall-clock.
+        let intervals = vec![PERIOD * 2; 600];
+        let mut s = FrameStats::new_rate_averaged(HZ);
+        let drops = replay(&mut s, &intervals);
+        assert!(
+            (595..=600).contains(&drops),
+            "half-rate delivery must be reported, got {drops}"
+        );
+    }
+
+    #[test]
+    fn rate_averaged_reports_a_stall_then_stops_once_recovered() {
+        let mut s = FrameStats::new_rate_averaged(HZ);
+        // Steady, then one 10-period stall, then steady again.
+        let mut intervals = vec![PERIOD; 60];
+        intervals.push(PERIOD * 10);
+        let during = replay(&mut s, &intervals);
+        assert!(during >= 8, "a real stall must be reported, got {during}");
+
+        // Continuing at the target rate reports nothing further: the deficit
+        // is already accounted for and must not be re-reported every frame.
+        let mut t = Instant::now();
+        let mut after = 0;
+        for _ in 0..120 {
+            t += PERIOD;
+            after += s.on_present(t);
+        }
+        assert_eq!(after, 0, "an already-reported deficit must not repeat");
+    }
+
+    #[test]
+    fn zero_or_invalid_refresh_never_panics() {
+        for hz in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let mut s = FrameStats::new(hz);
+            assert_eq!(replay(&mut s, &[PERIOD, PERIOD * 4]), 0);
+            let mut s = FrameStats::new_rate_averaged(hz);
+            assert_eq!(replay(&mut s, &[PERIOD, PERIOD * 4]), 0);
         }
     }
 }

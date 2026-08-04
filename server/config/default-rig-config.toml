@@ -42,6 +42,16 @@
 # ── Display ────────────────────────────────────────────────────────────────────
 # [display]
 #
+# Force a specific render backend, bypassing DISPLAY/WAYLAND_DISPLAY-based
+# auto-detection — useful when vstimd is launched by systemd with no
+# --evdi/--null flag in ExecStart=. "auto" (default) picks desktop (winit) on
+# a desktop session, DRM/console otherwise. Other values: "drm", "desktop",
+# "null", "evdi" (direct-KMS DisplayLink presentation, no compositor —
+# auxiliary/status display only, not for stimulus timing; see
+# docs/developer/platform-notes.md). --null and --evdi on the command line
+# still override this.
+# backend = "auto"
+#
 # Preferred display mode (DRM/console mode only).  Omit to accept the
 # display's EDID preferred mode.  Not yet applied — wiring into DRM mode
 # selection is a planned feature.

@@ -1,9 +1,10 @@
 use std::sync::{Arc, Mutex};
 
 use crate::log_buffer::LogBuffer;
-use crate::render::AppKey;
 use crate::render::RenderState;
 use crate::render::backend::BackendData;
+use crate::render::console_input::{InputState, vt_number_from_env};
+use crate::render::frame_loop::{self, KeyOutcome};
 use crate::render::system_info::{ClockSource, SystemInfo};
 use crate::render::vk::VkContext;
 use crate::render::RenderTarget;
@@ -14,7 +15,6 @@ use crate::vtl_state::VtlState;
 extern crate vtl;
 
 use super::drm_display_guard::DrmDisplayGuard;
-use super::drm_keyboard_input::InputState;
 use super::drm_vblank::{DrmVblank, DrmVblankState, VkVblank};
 use super::drm_virtual_terminal::DrmVtGuard;
 
@@ -173,7 +173,7 @@ impl DrmRenderLoopData {
 
         let ui = UiRenderer::new(&ctx, config_dir, log_buffer, overlay_scale);
 
-        let input = InputState::new();
+        let input = InputState::new(vt_number_from_env());
 
         // Resolve which clock source(s) to actually try, checking as late as
         // possible — right before the render loop starts, after all other
@@ -260,28 +260,6 @@ impl DrmRenderLoopData {
         }
     }
 
-    fn build_egui_raw_input(&self, nav_events: Vec<egui::Event>) -> egui::RawInput {
-        egui::RawInput {
-            screen_rect: Some(egui::Rect::from_min_size(
-                egui::Pos2::ZERO,
-                egui::vec2(
-                    self.rs.ctx.extent.width as f32,
-                    self.rs.ctx.extent.height as f32,
-                ),
-            )),
-            viewports: std::iter::once((
-                egui::ViewportId::ROOT,
-                egui::ViewportInfo {
-                    native_pixels_per_point: Some(1.0), // TODO: compute from EDID DPI or make configurable
-                    ..Default::default()
-                },
-            ))
-            .collect(),
-            events: nav_events,
-            ..Default::default()
-        }
-    }
-
     /// The session's timing/display guarantees are broken — the vblank clock
     /// died (or `clock_pref` forced a source unavailable at startup), or the
     /// CRTC's actual mode drifted away from what vstimd set (observed: an
@@ -353,49 +331,15 @@ impl DrmRenderLoopData {
             // 1. Poll keyboard input (non-blocking libinput drain).
             let (app_keys, nav_events) = self.input.poll();
             for key in app_keys {
-                match key {
-                    AppKey::Quit => {
-                        crate::shutdown::request();
-                    }
-                    // Esc never quits — it closes a dialog or hides the overlay.
-                    // (Quit via Ctrl+Q, SIGINT, or Ctrl+Alt+Fn to another VT then kill.)
-                    AppKey::Escape => {
-                        if let Some(ui) = &mut self.rs.ui {
-                            ui.overlay.handle_escape();
-                        }
-                    }
-                    AppKey::ToggleOverlay => {
-                        if let Some(ui) = &mut self.rs.ui {
-                            ui.overlay.toggle_master();
-                        }
-                    }
-                    AppKey::ShowGroup(group) => {
-                        if let Some(ui) = &mut self.rs.ui {
-                            ui.overlay.show_group(group);
-                        }
-                    }
-                    AppKey::HideGroup(group) => {
-                        if let Some(ui) = &mut self.rs.ui {
-                            ui.overlay.hide_group(group);
-                        }
-                    }
-                    AppKey::SwitchVt(n) => self.vt_guard.switch_to(n),
-                    // Demo spawn only when the overlay is hidden, so 'd' types
-                    // into dialog fields while the overlay is up.
-                    AppKey::D => {
-                        let overlay_up = self.rs.ui.as_ref().is_some_and(|ui| ui.overlay.master_visible);
-                        if !overlay_up {
-                            crate::render::spawn_demo_stimuli(&self.rs.scene_renderer.scene);
-                        }
-                    }
+                // The VT guard holds the VT in VT_PROCESS mode, so a switch
+                // has to go through it for the release handshake.
+                if let KeyOutcome::SwitchVt(n) = frame_loop::apply_app_key(key, &mut self.rs) {
+                    self.vt_guard.switch_to(n);
                 }
             }
 
-            // 2. Build egui raw input (DRM: screen rect + libinput nav keys).
-            let egui_raw_input = self.rs.ui
-                .as_ref()
-                .filter(|ui| ui.overlay.master_visible)
-                .map(|_| self.build_egui_raw_input(nav_events));
+            // 2. Build egui raw input (screen rect + libinput nav keys).
+            let egui_raw_input = frame_loop::overlay_raw_input(&self.rs, nav_events);
 
             // 3. Block on vblank: DRM ioctl path blocks here directly; VK path
             //    collects the FIRST_PIXEL_OUT fence registered at end of last frame.
@@ -419,22 +363,7 @@ impl DrmRenderLoopData {
             }
 
             // [A] Commit staged outputs; poll inputs; advance animations.
-            if let Some(vtl) = &self.vtl {
-                let (input_edges, output_edges, mut staged) = {
-                    let mut v = vtl.lock().unwrap();
-                    v.commit_staged();
-                    let input_edges = v.poll();
-                    let output_edges = v.output_edges();
-                    let staged = v.staged;
-                    (input_edges, output_edges, staged)
-                };
-                self.rs.scene_renderer.scene.write().unwrap().advance_animations(
-                    &input_edges,
-                    &output_edges,
-                    &mut staged,
-                );
-                vtl.lock().unwrap().staged = staged;
-            }
+            frame_loop::advance_frame(self.vtl.as_ref(), &self.rs.scene_renderer.scene);
 
             // Register the FIRST_PIXEL_OUT fence for the frame we are about to
             // present.  The fence is collected at the top of the next iteration.
@@ -453,6 +382,7 @@ impl DrmRenderLoopData {
                 screen_clock,
                 egui_raw_input,
                 self.vtl.as_deref(),
+                None,
             );
 
         }

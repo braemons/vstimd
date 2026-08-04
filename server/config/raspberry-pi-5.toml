@@ -27,12 +27,19 @@ bit  = 63
 # ── Display ───────────────────────────────────────────────────────────────────
 # Preferred DRM display mode.  RPi 5 supports up to 4Kp60 via HDMI.
 # Omit to accept the display's EDID preferred mode.
-# Not yet applied — wiring into DRM mode selection is a planned feature.
 #
 # [display]
 # width      = 1920
 # height     = 1080
 # refresh_hz = 60.0
+#
+# Force a specific render backend at boot, so the systemd unit (which passes
+# no --evdi/--null flag) picks it up with no ExecStart= edits. Default is
+# "auto" (desktop session -> winit, bare console -> DRM). Set to "evdi" to
+# boot straight into a DisplayLink output -- auxiliary/status display only,
+# not for stimulus timing (see docs/developer/platform-notes.md). --null and
+# --evdi on the command line still override this.
+# backend = "evdi"
 #
 # Scale factor for the egui overlay UI (both desktop and DRM). Increase on
 # high-DPI displays (e.g. 4K) where the overlay text/controls are too small.

@@ -12,8 +12,8 @@ pub struct BackendData {
     /// egui overlay UI scale factor (independent of OS/window DPI). See
     /// `rig_config::DisplayRigConfig::overlay_scale`.
     pub overlay_scale: f32,
-    /// Preferred DRM display mode from rig-config. Ignored by the desktop and
-    /// null backends — only `DrmBackend` selects a display mode.
+    /// Preferred DRM display mode from rig-config. Ignored by the desktop,
+    /// null, and evdi backends — only `DrmBackend` selects a display mode.
     pub display_pref: DisplayModePref,
     /// Forced vblank clock source (from rig-config or `--preferred-clock-source`),
     /// bypassing auto-detection. Ignored by the desktop and null backends. See
