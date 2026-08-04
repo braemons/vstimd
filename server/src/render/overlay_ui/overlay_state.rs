@@ -101,6 +101,16 @@ impl OverlayState {
 
     pub fn toggle_master(&mut self) {
         self.master_visible = !self.master_visible;
+        // Revealing the master with every group hidden would show an empty
+        // overlay, which `build_overlay_ui` then immediately takes as "all
+        // groups were closed via the x button" and hides again — making the
+        // toggle a silent no-op from a cold start (nothing is visible until
+        // an F-key has been pressed at least once). Reveal the focused group
+        // so the toggle always produces something on screen.
+        if self.master_visible && !self.visible.iter().any(|&v| v) {
+            self.visible[self.focused.index()] = true;
+            self.pending_focus = true;
+        }
     }
 
     /// Show a group (make visible), reveal the overlay, and give it focus.
@@ -161,5 +171,57 @@ impl OverlayState {
         } else if self.master_visible {
             self.master_visible = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn state() -> OverlayState {
+        OverlayState::new(PathBuf::from("/tmp"))
+    }
+
+    /// `build_overlay_ui` hides the master whenever no group is visible, so a
+    /// toggle that reveals the master without revealing a group is a silent
+    /// no-op on the very next frame.
+    #[test]
+    fn toggle_master_from_cold_start_reveals_a_group() {
+        let mut s = state();
+        assert!(!s.master_visible);
+        assert!(!s.visible.iter().any(|&v| v), "groups start hidden");
+
+        s.toggle_master();
+
+        assert!(s.master_visible);
+        assert!(
+            s.visible.iter().any(|&v| v),
+            "toggling the overlay on must reveal a group, else it is hidden again next frame"
+        );
+        assert!(s.visible[s.focused.index()], "the focused group is the one revealed");
+    }
+
+    #[test]
+    fn toggle_master_off_leaves_group_selection_alone() {
+        let mut s = state();
+        s.show_group(OverlayGroup::System);
+        s.toggle_master();
+        assert!(!s.master_visible);
+        assert!(s.visible[OverlayGroup::System.index()], "hiding keeps the group selected");
+
+        // Toggling back on must not disturb the existing selection.
+        s.toggle_master();
+        assert!(s.master_visible);
+        assert!(s.visible[OverlayGroup::System.index()]);
+        assert_eq!(s.focused, OverlayGroup::System);
+    }
+
+    #[test]
+    fn hide_last_group_hides_master() {
+        let mut s = state();
+        s.show_group(OverlayGroup::Stimuli);
+        assert!(s.master_visible);
+        s.hide_group(OverlayGroup::Stimuli);
+        assert!(!s.master_visible);
     }
 }
