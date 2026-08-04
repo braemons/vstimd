@@ -1,19 +1,29 @@
 //! evdi KMS output: mode/CRTC selection, double-buffered dumb buffers, and
-//! frame presentation. The selection logic here is exactly what
+//! frame presentation. The mode/CRTC selection here is exactly what
 //! `examples/evdi_probe.rs` proved works against real hardware (a Pi 5 with
 //! a DisplayLink dongle on `/dev/dri/card2`) before being folded in.
 //!
-//! Presentation uses `set_crtc` every frame rather than `page_flip`.
-//! `page_flip` needs vblank-event bookkeeping to avoid `EBUSY` on a still-
-//! pending flip; `set_crtc` is synchronous and already proven. Since this
-//! backend has no timing goals — DisplayLink relays over USB with no GPU
-//! vsync regardless — the heavier per-frame modeset costs nothing that
-//! matters here.
+//! evdi has no periodic vblank timer (`evdi_enable_vblank()` in the kernel
+//! driver is a stub returning `1`; confirmed on hardware too —
+//! `DRM_IOCTL_WAIT_VBLANK` against evdi returns in under 2µs every time with
+//! a frozen frame counter). What it does have: every atomic commit marks the
+//! frame dirty, and if that commit was a `page_flip` submitted with
+//! `DRM_MODE_PAGE_FLIP_EVENT`, the kernel driver
+//! (`evdi_painter_set_vblank`/`evdi_painter_send_update_ready_if_needed` in
+//! `evdi_painter.c`) only completes the flip event once DisplayLinkManager
+//! has actually drained the *previous* frame's dirty rects through its
+//! `GRABPIX` ioctl — otherwise completion is deferred until it does.
+//! Confirmed on hardware: flip-to-event latency was irregular (1.5–19ms),
+//! not periodic — real flow control paced to actual consumption, not a
+//! synthetic clock. `present()` therefore uses `page_flip` + blocks on the
+//! completion event, giving proper backpressure instead of the unthrottled
+//! write race a plain `set_crtc`-every-frame loop has (which is what an
+//! earlier version of this module did, and which visibly teared).
 
 use drm::buffer::{Buffer, DrmFourcc};
 use drm::control::Device as CtrlDevice;
 use drm::control::dumbbuffer::DumbBuffer;
-use drm::control::{Mode, connector, crtc, framebuffer};
+use drm::control::{Event, Mode, PageFlipFlags, PageFlipTarget, connector, crtc, framebuffer};
 
 use super::evdi_detect::{Card, EvdiNode};
 
@@ -42,7 +52,9 @@ impl EvdiOutput {
     /// Picks the connector's first reported mode, finds a usable CRTC (the
     /// current encoder's if the connector already has one active,
     /// otherwise the first encoder whose `possible_crtcs` is non-empty),
-    /// and allocates two XRGB8888 dumb buffers sized to that mode.
+    /// allocates two XRGB8888 dumb buffers sized to that mode, and sets the
+    /// initial mode via `set_crtc` (`page_flip` needs an already-active
+    /// CRTC to flip from).
     pub fn new(node: EvdiNode) -> std::io::Result<Self> {
         let card = node.card;
 
@@ -82,7 +94,7 @@ impl EvdiOutput {
             crtc
         );
 
-        Ok(Self {
+        let out = Self {
             card,
             connector: node.connector,
             crtc,
@@ -91,7 +103,17 @@ impl EvdiOutput {
             height,
             buffers,
             front: 0,
-        })
+        };
+
+        out.card.set_crtc(
+            out.crtc,
+            Some(out.buffers[0].fb),
+            (0, 0),
+            &[out.connector],
+            Some(out.mode),
+        )?;
+
+        Ok(out)
     }
 
     /// Row pitch of the framebuffers, in bytes. Callers writing into
@@ -102,7 +124,9 @@ impl EvdiOutput {
     }
 
     /// Copies `src` (XRGB8888, `pitch()` bytes per row, `height` rows) into
-    /// the back buffer and presents it.
+    /// the back buffer, flips to it, and blocks until evdi confirms the
+    /// flip landed (see module docs — this is real backpressure, not a
+    /// fixed-rate wait).
     pub fn present(&mut self, src: &[u8]) -> std::io::Result<()> {
         let back = 1 - self.front;
         {
@@ -113,10 +137,20 @@ impl EvdiOutput {
 
         let fb = self.buffers[back].fb;
         self.card
-            .set_crtc(self.crtc, Some(fb), (0, 0), &[self.connector], Some(self.mode))?;
-
+            .page_flip(self.crtc, fb, PageFlipFlags::EVENT, None::<PageFlipTarget>)?;
         self.front = back;
-        Ok(())
+
+        self.wait_for_flip_event()
+    }
+
+    fn wait_for_flip_event(&self) -> std::io::Result<()> {
+        loop {
+            for ev in self.card.receive_events()? {
+                if let Event::PageFlip(_) = ev {
+                    return Ok(());
+                }
+            }
+        }
     }
 }
 

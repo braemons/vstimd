@@ -90,6 +90,36 @@ free functions that already take raw handles rather than `&VkContext`
 `vk::RenderPass` directly, not `&VkContext`). This duplicates a small amount
 of setup code but touches nothing the DRM/Winit backends depend on.
 
+### evdi has no real vsync — but `page_flip` gives real backpressure
+
+Checked against the actual kernel driver source
+(`DisplayLink/evdi` `module/evdi_modeset.c` / `evdi_painter.c`) and confirmed
+on hardware: evdi has **no periodic vblank timer** —
+`evdi_enable_vblank()` is a stub returning `1`, and
+`DRM_IOCTL_WAIT_VBLANK` against `card2` returns in under 2µs every time with
+the frame counter frozen, i.e. it's a no-op here, not a clock.
+
+What evdi *does* have: every atomic commit (`set_crtc`, `page_flip`, and
+`dirtyfb` all funnel through the same `drm_atomic_helper_*` path) marks the
+frame dirty via `evdi_plane_atomic_update`. If a `page_flip` was submitted
+with `DRM_MODE_PAGE_FLIP_EVENT`, `evdi_painter_set_vblank()` only completes
+that event once `DisplayLinkManager` (the consumer) has actually drained the
+*previous* frame's dirty rects through its `GRABPIX` ioctl — otherwise
+completion is deferred until it does. Confirmed empirically: `page_flip` +
+waiting for the completion event on `card2` took 1.5–19ms per call,
+irregular — not a periodic clock, but real flow control paced to actual
+USB/encode consumption.
+
+Plain `set_crtc` with no event requested (what the KMS smoke test used) has
+none of this — nothing ever gates it, so a naive per-frame loop overwrites a
+buffer DisplayLinkManager may still be mid-read on. That's the almost
+certain cause of the tearing/stuttering observed in the animated smoke
+test. **`EvdiOutput::present()` uses `page_flip` with an event and blocks on
+its completion before returning**, giving proper backpressure — still not
+frame-accurate vsync (there's no clock to be accurate to), but presentation
+paced to what the consumer can actually keep up with instead of an
+unthrottled write race.
+
 ### Phase 1 (MVP): CPU-readback presenter, no dma-buf
 
 Simplest correct thing that could work, and the right starting point given
