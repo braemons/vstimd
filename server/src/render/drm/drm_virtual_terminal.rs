@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::render::console_input::{active_vt, open_vt, vt_number_from_env};
+
 /// Guard that activates a specific virtual terminal, switches it to
 /// `KD_GRAPHICS` mode, and restores everything on drop.
 ///
@@ -228,57 +230,6 @@ impl Drop for DrmVtGuard {
     }
 }
 
-/// Open the TTY device for `target_vt`.
-///
-/// When systemd has already opened the device via `TTYPath=` + `StandardInput=tty`,
-/// stdin (fd 0) *is* `/dev/tty{target_vt}`. Dup-ing it avoids needing the
-/// vstimd user to have direct open permission on the device node (which is
-/// `crw-------` / root-only when no login session owns it).
-pub(crate) fn open_vt(target_vt: u16) -> libc::c_int {
-    let expected = format!("/dev/tty{target_vt}");
-    if ttyname_of(0).as_deref() == Some(&expected) {
-        let fd = unsafe { libc::fcntl(0, libc::F_DUPFD_CLOEXEC, 0) };
-        if fd >= 0 {
-            return fd;
-        }
-    }
-    // Fall back to a direct open (works when run with sufficient permissions,
-    // e.g. during development or with a udev rule granting group access).
-    let path = format!("{expected}\0");
-    unsafe {
-        libc::open(
-            path.as_ptr() as *const libc::c_char,
-            libc::O_WRONLY | libc::O_CLOEXEC,
-        )
-    }
-}
-
-fn ttyname_of(fd: libc::c_int) -> Option<String> {
-    let mut buf = [0u8; 64];
-    let ret = unsafe {
-        libc::ttyname_r(fd, buf.as_mut_ptr() as *mut libc::c_char, buf.len())
-    };
-    if ret != 0 {
-        return None;
-    }
-    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
-    Some(String::from_utf8_lossy(&buf[..end]).into_owned())
-}
-
-pub(crate) fn vt_number_from_env() -> u16 {
-    match std::env::var("VSTIMD_TTY") {
-        Ok(s) => match s.trim().parse::<u16>() {
-            Ok(n) if n >= 1 => n,
-            _ => {
-                log::warn!("vstimd: VSTIMD_TTY={s:?} is not a valid VT number, using 3");
-                3
-            }
-        },
-        Err(_) => 3,
-    }
-}
-
-fn active_vt() -> Option<u16> {
-    let s = std::fs::read_to_string("/sys/class/tty/tty0/active").ok()?;
-    s.trim().strip_prefix("tty")?.parse().ok()
-}
+// `open_vt`, `vt_number_from_env`, and `active_vt` live in
+// `render::console_input` — shared with the evdi backend, which needs them
+// for its tty guard but has no VT guard of its own.

@@ -2,21 +2,33 @@
 //! headless swapchain image (see `evdi_init.rs`), reads that image back to
 //! the CPU, and presents it on the evdi KMS output (`evdi_kms.rs`).
 //!
-//! No vblank clock, no VT switching, no egui overlay — none of those apply
-//! to an auxiliary, non-timing-critical output. `render_frame()` is called
-//! with `screen_clock = Some(Instant::now())` so it never tries to touch
-//! `VK_KHR_present_wait` machinery that has no meaning on a headless
-//! swapchain.
+//! No vblank clock and no VT handling — neither applies here.
+//! `render_frame()` is called with `screen_clock = Some(Instant::now())` so
+//! it never tries to touch `VK_KHR_present_wait` machinery that has no
+//! meaning on a headless swapchain.
+//!
+//! Unlike the DRM backend this owns no VT. The kernel console framebuffer
+//! lives on the *real* display controller (vc4 on a Pi 5), a different DRM
+//! device from evdi's, so switching VTs cannot change what is on the
+//! DisplayLink panel — vstimd holds evdi's master and nothing else draws to
+//! it. Ctrl+Alt+Fn is therefore left to the kernel rather than forwarded,
+//! and the only VT interaction is suppressing echo on the *active* VT so
+//! keystrokes meant for the overlay don't queue up in a getty.
+//!
+//! Keyboard handling and the egui overlay are otherwise exactly the DRM
+//! backend's, via the shared helpers in `render::frame_loop`.
 
 use ash::vk;
 
 use crate::log_buffer::LogBuffer;
 use crate::render::backend::BackendData;
+use crate::render::console_input::{InputState, active_vt};
+use crate::render::frame_loop::{self, KeyOutcome};
 use crate::render::render_frame;
 use crate::render::render_state::RenderState;
 use crate::render::system_info::{ClockSource, SystemInfo};
 use crate::render::vk::VkContext;
-use crate::render::{RenderTarget, SceneRenderer, StimulusDisplayInfo, TextRenderer};
+use crate::render::{RenderTarget, SceneRenderer, StimulusDisplayInfo, TextRenderer, UiRenderer};
 use crate::timing::FrameTiming;
 
 use super::evdi_detect::find_connected_evdi;
@@ -25,15 +37,22 @@ use super::evdi_kms::EvdiOutput;
 
 pub struct EvdiBackend {
     data: BackendData,
+    log_buffer: LogBuffer,
 }
 
 impl EvdiBackend {
-    pub fn new(data: BackendData, _log_buffer: LogBuffer) -> Self {
-        Self { data }
+    pub fn new(data: BackendData, log_buffer: LogBuffer) -> Self {
+        Self { data, log_buffer }
     }
 
     pub fn run(self, on_ready: impl FnOnce()) {
-        let BackendData { scene, vtl, host_info, .. } = self.data;
+        let BackendData {
+            scene,
+            vtl,
+            host_info,
+            overlay_scale,
+            ..
+        } = self.data;
 
         let node = find_connected_evdi().unwrap_or_else(|| {
             eprintln!("vstimd: no connected evdi (DisplayLink) output found");
@@ -46,8 +65,15 @@ impl EvdiBackend {
 
         let ctx = evdi_init::init(output.width, output.height);
 
+        let config_dir = scene.read().expect("scene lock poisoned").runtime.config_dir.clone();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
         let text = TextRenderer::new(&ctx);
+        let ui = UiRenderer::new(&ctx, config_dir, self.log_buffer, overlay_scale);
+
+        // Guard the VT that is currently active: unlike the DRM backend we
+        // never activate one of our own, so that is where stray keystrokes
+        // would otherwise land.
+        let mut input = InputState::new(active_vt().unwrap_or(1));
 
         let display_info = StimulusDisplayInfo {
             width_px: output.width,
@@ -68,8 +94,12 @@ impl EvdiBackend {
         let mut rs = RenderState {
             scene_renderer,
             text,
-            ui: None,
-            timing: FrameTiming::new(display_info.refresh_hz),
+            ui: Some(ui),
+            // DisplayLink holds the mode's rate on average but delivers in
+            // bursts, so loss is measured cumulatively rather than per
+            // interval (see `Pacing::AveragedRate`) — a real shortfall is
+            // still reported, ordinary jitter is not.
+            timing: FrameTiming::new_rate_averaged(display_info.refresh_hz),
             system_info,
             display_info,
             ctx,
@@ -91,42 +121,67 @@ impl EvdiBackend {
                 break;
             }
 
-            let (input_edges, output_edges, mut staged) = vtl
-                .as_ref()
-                .and_then(|v| {
-                    v.lock().ok().map(|mut g| {
-                        g.commit_staged();
-                        let input_edges = g.poll();
-                        let output_edges = g.output_edges();
-                        let staged = g.staged;
-                        (input_edges, output_edges, staged)
-                    })
-                })
-                .unwrap_or_default();
-            rs.scene_renderer
-                .scene
-                .write()
-                .expect("scene lock poisoned")
-                .advance_animations(&input_edges, &output_edges, &mut staged);
-            if let Some(v) = vtl.as_ref() {
-                v.lock().expect("vtl lock poisoned").staged = staged;
+            // Poll keyboard input (non-blocking libinput drain). A VT switch
+            // is a no-op here: we hold no VT, and evdi is a different DRM
+            // device from the console framebuffer, so the kernel handles
+            // Ctrl+Alt+Fn on its own.
+            let (app_keys, nav_events) = input.poll();
+            for key in app_keys {
+                if let KeyOutcome::SwitchVt(n) = frame_loop::apply_app_key(key, &mut rs) {
+                    log::debug!("vstimd: ignoring VT switch to tty{n} — evdi output is unaffected");
+                }
             }
+            let egui_raw_input = frame_loop::overlay_raw_input(&rs, nav_events);
 
+            frame_loop::advance_frame(vtl.as_ref(), &rs.scene_renderer.scene);
+
+            let t_render = std::time::Instant::now();
             let (tick, _platform_output) = render_frame(
                 &mut rs,
                 Some(std::time::Instant::now()),
-                None,
+                egui_raw_input,
                 vtl.as_deref(),
             );
+            let render_us = t_render.elapsed().as_micros() as u32;
             // Headless swapchains don't hit ERROR_OUT_OF_DATE_KHR (no real
             // presentation engine, no resize) — this is defensive, not
             // expected to trigger.
             let Some(tick) = tick else { continue };
 
+            let t_readback = std::time::Instant::now();
             let frame_bytes = readback.copy_frame(&rs.ctx, tick.image_index);
-            if let Err(e) = output.present(frame_bytes) {
+            let readback_us = t_readback.elapsed().as_micros() as u32;
+
+            // Collect the *previous* frame's flip event here, not right after
+            // submitting it: everything above (render + readback of this
+            // frame) then overlaps with DisplayLink draining the last one.
+            let t_flip_wait = std::time::Instant::now();
+            if let Err(e) = output.wait_flip() {
+                log::error!("vstimd: evdi flip wait failed: {e} — stopping");
+                break;
+            }
+            let flip_wait_us = t_flip_wait.elapsed().as_micros() as u32;
+
+            let t_submit = std::time::Instant::now();
+            if let Err(e) = output.submit(frame_bytes) {
                 log::error!("vstimd: evdi present failed: {e} — stopping");
                 break;
+            }
+            let submit_us = t_submit.elapsed().as_micros() as u32;
+
+            // evdi has no vblank to miss, so `render_frame`'s drop counter is
+            // meaningless here (see FrameTiming::new_unpaced below) and stays
+            // silent. Log the stage breakdown periodically instead — it is
+            // the only visibility into where a frame's time actually goes.
+            if tick.frame.is_multiple_of(600) {
+                log::debug!(
+                    "vstimd: evdi frame {} [render={}µs readback={}µs flip_wait={}µs present={}µs]",
+                    tick.frame,
+                    render_us,
+                    readback_us,
+                    flip_wait_us,
+                    submit_us
+                );
             }
         }
     }

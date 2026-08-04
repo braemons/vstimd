@@ -633,7 +633,13 @@ fn frame_timing(ui: &mut egui::Ui, frame_stats: &mut FrameStats, last_phases: Fr
     let durations: Vec<f64> = frame_stats.durations_recent_ns().map(|d| d as f64 / 1_000_000.0).collect();
     if !durations.is_empty() {
         let expected_ms = frame_stats.expected_ns() as f64 / 1_000_000.0;
-        let max_ms = durations.iter().cloned().fold(0.0_f64, f64::max).max(expected_ms * 2.5);
+        // Guard a 0/invalid refresh rate so the graph still scales.
+        let max_ms = durations
+            .iter()
+            .cloned()
+            .fold(0.0_f64, f64::max)
+            .max(expected_ms * 2.5)
+            .max(f64::MIN_POSITIVE);
         let desired = egui::vec2(ui.available_width(), 64.0);
         let (resp, painter) = ui.allocate_painter(desired, egui::Sense::hover());
         let r = resp.rect;
@@ -642,7 +648,7 @@ fn frame_timing(ui: &mut egui::Ui, frame_stats: &mut FrameStats, last_phases: Fr
         let bar_w = r.width() / n as f32;
         for (i, &ms) in durations.iter().enumerate() {
             let frac = (ms / max_ms).min(1.0) as f32;
-            let color = if ms > expected_ms * 1.25 {
+            let color = if expected_ms > 0.0 && ms > expected_ms * 1.25 {
                 egui::Color32::RED
             } else {
                 egui::Color32::from_rgb(80, 200, 80)
@@ -653,11 +659,13 @@ fn frame_timing(ui: &mut egui::Ui, frame_stats: &mut FrameStats, last_phases: Fr
             let y0 = y1 - frac * r.height();
             painter.rect_filled(egui::Rect::from_min_max(egui::pos2(x0, y0), egui::pos2(x1, y1)), 0.0, color);
         }
-        let exp_y = r.bottom() - (expected_ms / max_ms).min(1.0) as f32 * r.height();
-        painter.line_segment(
-            [egui::pos2(r.left(), exp_y), egui::pos2(r.right(), exp_y)],
-            egui::Stroke::new(1.0, egui::Color32::YELLOW),
-        );
+        if expected_ms > 0.0 {
+            let exp_y = r.bottom() - (expected_ms / max_ms).min(1.0) as f32 * r.height();
+            painter.line_segment(
+                [egui::pos2(r.left(), exp_y), egui::pos2(r.right(), exp_y)],
+                egui::Stroke::new(1.0_f32, egui::Color32::YELLOW),
+            );
+        }
     }
 }
 

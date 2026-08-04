@@ -67,9 +67,11 @@ pub struct EvdiOutput {
     pub width: u32,
     pub height: u32,
     buffers: [OutputBuffer; 2],
-    /// Index into `buffers` of the frame currently on screen. `present`
+    /// Index into `buffers` of the frame currently on screen. `submit`
     /// writes into the other one and flips to it.
     front: usize,
+    /// True between a `submit` and the `wait_flip` that collects its event.
+    flip_pending: bool,
 }
 
 impl EvdiOutput {
@@ -130,6 +132,7 @@ impl EvdiOutput {
             height,
             buffers,
             front: 0,
+            flip_pending: false,
         };
 
         out.card.set_crtc(
@@ -151,10 +154,17 @@ impl EvdiOutput {
     }
 
     /// Copies `src` (XRGB8888, `pitch()` bytes per row, `height` rows) into
-    /// the back buffer, flips to it, and blocks until evdi confirms the
-    /// flip landed (see module docs — this is real backpressure, not a
-    /// fixed-rate wait).
-    pub fn present(&mut self, src: &[u8]) -> std::io::Result<()> {
+    /// the back buffer and flips to it, **without** waiting for the flip to
+    /// complete. Call [`wait_flip`](Self::wait_flip) before the next
+    /// `submit` — the back buffer is only free to overwrite once the
+    /// outstanding flip has landed.
+    ///
+    /// Split from the wait so the caller can render and read back the *next*
+    /// frame while DisplayLink is still draining this one. The flip event is
+    /// paced by actual consumption (see module docs), so it is the longest
+    /// single stall in the loop; overlapping it with GPU work is most of the
+    /// difference between a serial and a pipelined presenter.
+    pub fn submit(&mut self, src: &[u8]) -> std::io::Result<()> {
         let back = 1 - self.front;
         {
             let mut map = self.card.map_dumb_buffer(&mut self.buffers[back].dumb)?;
@@ -166,14 +176,22 @@ impl EvdiOutput {
         self.card
             .page_flip(self.crtc, fb, PageFlipFlags::EVENT, None::<PageFlipTarget>)?;
         self.front = back;
+        self.flip_pending = true;
 
-        self.wait_for_flip_event()
+        Ok(())
     }
 
-    fn wait_for_flip_event(&self) -> std::io::Result<()> {
+    /// Blocks until evdi confirms the outstanding flip landed (see module
+    /// docs — this is real backpressure, not a fixed-rate wait). No-op if no
+    /// flip is outstanding.
+    pub fn wait_flip(&mut self) -> std::io::Result<()> {
+        if !self.flip_pending {
+            return Ok(());
+        }
         loop {
             for ev in self.card.receive_events()? {
                 if let Event::PageFlip(_) = ev {
+                    self.flip_pending = false;
                     return Ok(());
                 }
             }

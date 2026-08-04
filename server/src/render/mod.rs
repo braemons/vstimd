@@ -7,6 +7,11 @@ pub use null_backend::NullBackend;
 pub mod app_keys;
 pub use app_keys::AppKey;
 
+/// libinput keyboard handling shared by the bare-console backends
+/// (`drm` and `evdi`).
+#[cfg(target_os = "linux")]
+pub(crate) mod console_input;
+
 pub mod vertex;
 pub use vertex::Vertex;
 
@@ -42,6 +47,9 @@ pub use render_state::RenderState;
 
 pub mod render_frame;
 pub use render_frame::render_frame;
+
+/// Render-loop steps shared by all backends (keys, overlay input, VTL).
+pub(crate) mod frame_loop;
 
 pub(crate) mod demo;
 pub(crate) use demo::spawn_demo_stimuli;

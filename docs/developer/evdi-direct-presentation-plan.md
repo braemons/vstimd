@@ -230,19 +230,100 @@ Validated on hardware in two stages:
    already-running server immediately and never used the spawn/no-display
    fallback path); a real fix would teach that fixture about `--evdi`.
 
-### Known limitation: dropped-frame log spam
+### Resolved: dropped-frame log spam
 
 `render_frame()`'s dropped-frame accounting (`FrameStats::on_present` in
 `timing.rs`) compares inter-frame intervals against an `expected_frame_ns`
 derived from `refresh_hz` — meaningful for the DRM/Winit backends, which are
 genuinely paced to a display refresh rate. The evdi backend has no such
 clock (see above) and is paced by `page_flip` backpressure instead, so its
-frame-to-frame interval is irregular by design. This makes every frame look
-like a "dropped frame" to that accounting, producing constant `WARN`-level
-log spam. Cosmetic only — not fixed here to avoid adding evdi-specific
-branches to shared timing code for a log-noise issue; worth a follow-up if
-`--evdi` sees real use (e.g. a `dropped_frames` opt-out on `FrameStats`, or
-routing evdi through `log::debug!` instead of `warn!` at the call site).
+frame-to-frame interval is irregular by design. Every long interval was
+counted as a dropped frame, producing constant `WARN`-level log spam.
+
+The fix is **not** to stop counting drops — a link that genuinely degraded
+(USB contention halving the delivery rate, say) has to stay visible, and
+silencing the detector would make that indistinguishable from healthy
+operation. The defect was narrower: the target rate was right all along
+(the measured mean period is 16.62 ms = 1/60.06 s), but the *statistic* was
+wrong. Comparing each individual interval against 1.25× the period is
+correct only when frames are vblank-locked, where a long interval identifies
+one specific missed refresh. DisplayLink delivers in bursts, so that test
+fires on jitter that costs no frames at all.
+
+`FrameStats` therefore grew a `Pacing` mode:
+
+- `Pacing::Vblank` (DRM/Winit, unchanged) — per-interval, as before.
+- `Pacing::AveragedRate` (evdi) — loss measured as a *cumulative deficit*:
+  frames that should have been presented by now at the target rate, minus
+  those actually presented. Jitter cancels out; a sustained shortfall
+  accumulates and is still reported, once each.
+
+Unit tests in `timing.rs` pin all three behaviours against the interval
+distribution actually measured here: the recorded 8/25 ms alternation
+reports 0 drops under `AveragedRate` but >100 under `Vblank`, while a
+sustained half-rate link reports ~600 either way.
+
+### Measured frame budget (Pi 5, ASUS MB168B @ 1366×768)
+
+Per-stage means over 500 consecutive frames, and again over a 40 s run with
+the egui overlay open:
+
+| stage | overlay hidden | overlay visible |
+|-------|---------------:|----------------:|
+| `render_frame` | 0.29 ms | 0.32–0.49 ms |
+| readback (`vkCmdCopyImageToBuffer` + fence) | 2.57 ms | 2.6–4.3 ms |
+| `wait_flip` (idle, waiting on DisplayLink) | 10.0 ms | — |
+| `submit` (memcpy into dumb buffer + `page_flip`) | 3.74 ms | 4.0 ms |
+| **work per frame** | **~6.6 ms** | **~7.2 ms** |
+| **sustained rate** | **60.0 fps** | **60.0 fps** |
+
+The decisive number is the rate: exactly 600 frames per 10 s wall-clock, in
+every interval measured, unchanged by opening the overlay. DisplayLinkManager
+paces its `GRABPIX` drain to the mode's 60 Hz — the period mean of 16.62 ms
+is 1/60.06 s, not an arbitrary bandwidth-limited figure. **The backend is
+already at the panel's ceiling**, using ~43% of the frame budget and leaving
+~9.4 ms idle in `wait_flip`.
+
+So the warnings were misreported jitter, not lost frames, and there is no
+throughput headroom to win — only CPU headroom. Real loss, if it ever
+happens, is still reported (see the pacing fix above). Optimisation
+strategies, in descending value, should a future use case need that headroom:
+
+1. **Zero-copy present (removes ~3.7 ms/frame).** `submit`'s cost is almost
+   entirely a 4.2 MB `memcpy` out of the readback staging buffer, which on
+   V3D is necessarily *uncached*: that physical device reports exactly one
+   memory type, `DEVICE_LOCAL|HOST_VISIBLE|HOST_COHERENT`, with no
+   `HOST_CACHED` bit, and reads from uncached memory are roughly an order of
+   magnitude slower than cached. The fix is to stop round-tripping through
+   the CPU at all — import evdi's dumb buffer into Vulkan and have
+   `vkCmdCopyImageToBuffer` write straight into it. `VK_EXT_external_memory_dma_buf`,
+   `VK_KHR_external_memory_fd`, and `VK_EXT_external_memory_host` are all
+   available on this Mesa/V3D stack. `VK_EXT_external_memory_host` (import
+   the mmap'd, page-aligned dumb buffer via `vkGetMemoryHostPointerPropertiesEXT`)
+   is the likelier of the two to work, since the dma-buf path needs a
+   cross-device import from evdi's DRM node into V3D. This also subsumes the
+   old "Phase 2" item below.
+2. **Overlap the readback with `wait_flip` (hides ~2.6 ms/frame).** The
+   readback currently blocks on its own fence before `wait_flip` is reached.
+   Double-buffering the staging buffer would let frame N's GPU copy run
+   inside the ~10 ms the loop already spends idle. Only worth doing if (1)
+   is not enough.
+3. **Skip identical frames.** For a static scene — the common case for an
+   auxiliary status display — the flip could be skipped entirely when the
+   frame is unchanged, dropping USB traffic to near zero. Safe here
+   precisely because evdi is explicitly not a stimulus-timing output.
+
+None of these are implemented: at 43% duty cycle they would buy CPU time
+nobody is currently short of.
+
+### Known limitation: libinput dispatch lag warning
+
+libinput logs `client bug: event processing lagging behind by NNms, your
+system is too slow` when a key is pressed. It is drained once per frame, and
+the frame period is ~16.6 ms, so libinput's internal threshold is crossed by
+construction. Harmless — no keystrokes are lost (verified by driving the
+backend with a synthetic uinput keyboard) — but it would disappear if input
+were polled on its own thread or via epoll rather than once per frame.
 
 ## Module layout (original plan, superseded above)
 
@@ -318,13 +399,22 @@ backend is proven, not before. `RenderTarget` gets a new `Evdi` variant,
 - [x] `platform-notes.md` updated with the actual result: works via a
   dedicated backend, ~60fps achieved (backpressure-paced, not a fixed
   clock), still not timing-suitable for stimuli — auxiliary output only.
-- [ ] Dropped-frame log spam (see above) — cosmetic, worth fixing if
-  `--evdi` sees real use.
-- [ ] Phase 2 (dma-buf zero-copy) — not attempted; Phase 1's readback cost
-  wasn't measured in isolation (no perf regression observed at ~60fps on a
-  Pi 5, and that's already backpressure-capped by DisplayLinkManager, so
-  there was no throughput ceiling to hit). Revisit only if a future use case
-  needs a higher frame rate than backpressure currently allows.
+- [x] Dropped-frame log spam — fixed by measuring loss as a cumulative rate
+  deficit (`Pacing::AveragedRate`) rather than per-interval. Real loss is
+  still reported; the warnings that were appearing were misreported jitter.
+- [x] Keyboard input and the egui overlay — the evdi backend now has full
+  parity with the DRM backend's overlay (F1–F7 groups, grave toggle,
+  wireframe, demo spawn, dialogs). The shared parts of the two render loops
+  live in `render::frame_loop`, and libinput handling moved from
+  `drm::drm_keyboard_input` to `render::console_input`. No VT handling: evdi
+  is a different DRM device from the console framebuffer, so Ctrl+Alt+Fn is
+  left to the kernel; the only VT interaction is suppressing echo on the
+  *active* VT.
+- [ ] Phase 2 (zero-copy present) — now measured rather than guessed: worth
+  ~3.7 ms/frame of CPU, but buys no frame rate, since DisplayLink already
+  paces at exactly 60 Hz and the loop uses only 43% of that budget. See
+  "Measured frame budget" above for the concrete approach
+  (`VK_EXT_external_memory_host`). Revisit only if that CPU time is needed.
 - [ ] `client/python/tests/e2e/conftest.py`'s `has_display` check (only
   looks at `DISPLAY`/`WAYLAND_DISPLAY`) doesn't know `--evdi` is a third way
   to get real visible rendering — worth teaching it that, so e2e runs

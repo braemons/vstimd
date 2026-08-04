@@ -60,7 +60,10 @@ fn main() {
                 frame[o + 3] = 0;
             }
         }
-        out.present(&frame).expect("present");
+        // Collect the previous flip, then queue this one — same pipelined
+        // order the real backend uses.
+        out.wait_flip().expect("wait_flip");
+        out.submit(&frame).expect("submit");
 
         let target = frame_dur * (i as u32 + 1);
         let elapsed = start.elapsed();
