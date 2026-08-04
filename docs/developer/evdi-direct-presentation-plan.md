@@ -69,11 +69,26 @@ without a compositor. So evdi needs an **offscreen** render target: a plain
 `VkImage` the render pass draws into, with no `VkSwapchainKHR` involved at
 all.
 
-Rather than duplicate all the tessellation/draw/overlay logic in
-`render_frame.rs`, the acquire/present boundary needs to become pluggable so
-the DRM and Winit backends keep using the real swapchain unchanged, and the
-new evdi backend supplies its own image + its own "present" step. This is a
-mechanical extraction, not a rewrite of the render pass itself.
+`VkContext` itself is unavoidably swapchain-shaped too: `swapchain`,
+`swapchain_loader`, `surface`, `surface_loader`, `present_mode`,
+`present_wait` are all non-`Option` fields, and its `Drop` impl
+unconditionally destroys them — there's no way to hand `render_frame.rs` a
+"headless" `VkContext` without either faking swapchain/surface handles (unsound)
+or splitting `VkContext` into a core-vs-swapchain-specific structure that
+every caller (`SceneRenderer`, `TextRenderer`, `UiRenderer`, `render_frame`,
+the egui renderer) would need updating for. That's a real refactor of code
+shared by the precision-critical `DrmBackend`/`WinitBackend` paths, and it's
+disproportionate risk for a backend that explicitly doesn't need any of the
+precision machinery those types exist to support.
+
+Decision: **don't refactor `VkContext`/`render_frame.rs` at all.** The evdi
+backend builds its own minimal, separate Vulkan setup — instance, device,
+render pass, command pool, framebuffer-backed-by-a-plain-image — reusing the
+free functions that already take raw handles rather than `&VkContext`
+(`create_vk_instance`, `create_render_pass`, `create_framebuffers`,
+`VkPipeline::new`, `VkGratingPipeline::new` all take `&ash::Device` /
+`vk::RenderPass` directly, not `&VkContext`). This duplicates a small amount
+of setup code but touches nothing the DRM/Winit backends depend on.
 
 ### Phase 1 (MVP): CPU-readback presenter, no dma-buf
 
@@ -114,17 +129,25 @@ New `server/src/render/evdi/` (mirrors the existing `drm/` module):
 ```
 evdi/
   mod.rs
-  evdi_detect.rs        find /dev/dri/cardN where get_driver().name() == "evdi",
-                         pick the first with a connected connector
-  evdi_init.rs           become DRM master, enumerate connector/encoder/CRTC,
-                         pick a mode (reuses DisplayModePref)
-  evdi_framebuffers.rs   allocate + map 2 dumb buffers, AddFB
-  evdi_render_loop.rs    per-frame: render offscreen → readback → memcpy →
-                         page_flip; mirrors drm_render_loop.rs's structure
+  evdi_detect.rs         done — find /dev/dri/cardN where get_driver().name()
+                         == "evdi", pick the first with a connected connector
+  evdi_kms.rs            mode/CRTC/encoder selection + dumb buffer alloc/map/
+                         AddFB (the logic proven in examples/evdi_probe.rs)
+  evdi_vk.rs             standalone headless Vulkan setup: instance, device,
+                         render pass, command pool, one device-local color
+                         image + one host-visible readback buffer per
+                         in-flight frame — no swapchain, no VkContext
+  evdi_render_loop.rs    per-frame: tessellate → draw into the offscreen
+                         image → vkCmdCopyImageToBuffer → memcpy into the
+                         current dumb buffer → page_flip; mirrors
+                         drm_render_loop.rs's overall shape but with its own
+                         Vulkan objects, not VkContext
+  mod.rs                 EvdiBackend, same run(on_ready) shape as
+                         DrmBackend/WinitBackend
 ```
 
-Plus the small extraction in `render_frame.rs` / `vk_context.rs` to separate
-"acquire target image" and "present target image" from the shared draw logic.
+No changes to `render_frame.rs` or `vk_context.rs` — see "Why `render_frame.rs`
+can't be reused as-is" above.
 
 ## Wiring into `main.rs`
 
