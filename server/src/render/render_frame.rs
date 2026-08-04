@@ -21,6 +21,17 @@ struct EguiStore {
     pixels_per_point: f32,
 }
 
+/// A host-visible buffer to copy the rendered swapchain image into, recorded
+/// into the same command buffer as the render — and thus completed — before
+/// the image is handed to `queue_present`. Reading `ctx.swapchain_images`
+/// after present is undefined behavior (the presentation engine owns the
+/// image until the next `acquire_next_image`), so this is the only place
+/// the evdi backend may read the image back to the CPU.
+pub struct ReadbackTarget {
+    pub buffer: vk::Buffer,
+    pub row_length_texels: u32,
+}
+
 /// Build the egui overlay (if visible) then tessellate, record, submit, and
 /// present one GPU frame.
 ///
@@ -34,6 +45,7 @@ pub fn render_frame(
     screen_clock: Option<std::time::Instant>,
     egui_raw_input: Option<egui::RawInput>,
     vtl: Option<&Mutex<VtlState>>,
+    readback: Option<&ReadbackTarget>,
 ) -> (Option<FrameTick>, Option<egui::PlatformOutput>) {
     // ── 1. Build egui overlay ─────────────────────────────────────────────────
     let mut egui_store: Option<EguiStore> = None;
@@ -591,6 +603,83 @@ pub fn render_frame(
             ctx.device.cmd_end_render_pass(cb);
         }
 
+        // ── Optional CPU readback ─────────────────────────────────────────────
+        // Recorded here, while the image is still ours (both render passes'
+        // `finalLayout` leaves it in `PRESENT_SRC_KHR`) and before it is
+        // handed to `queue_present` below. See `ReadbackTarget`'s doc comment.
+        if let Some(rb) = readback {
+            let image = ctx.swapchain_images[image_index as usize];
+            let subresource_range = vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            };
+            let to_transfer_src = vk::ImageMemoryBarrier::default()
+                .old_layout(vk::ImageLayout::PRESENT_SRC_KHR)
+                .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(image)
+                .subresource_range(subresource_range)
+                .src_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
+                .dst_access_mask(vk::AccessFlags::TRANSFER_READ);
+            ctx.device.cmd_pipeline_barrier(
+                cb,
+                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[to_transfer_src],
+            );
+
+            let region = vk::BufferImageCopy::default()
+                .buffer_offset(0)
+                .buffer_row_length(rb.row_length_texels)
+                .buffer_image_height(ctx.extent.height)
+                .image_subresource(vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: 0,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                })
+                .image_offset(vk::Offset3D::default())
+                .image_extent(vk::Extent3D {
+                    width: ctx.extent.width,
+                    height: ctx.extent.height,
+                    depth: 1,
+                });
+            ctx.device.cmd_copy_image_to_buffer(
+                cb,
+                image,
+                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                rb.buffer,
+                &[region],
+            );
+
+            // Present expects the image back in `PRESENT_SRC_KHR`.
+            let back_to_present = vk::ImageMemoryBarrier::default()
+                .old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
+                .new_layout(vk::ImageLayout::PRESENT_SRC_KHR)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .image(image)
+                .subresource_range(subresource_range)
+                .src_access_mask(vk::AccessFlags::TRANSFER_READ)
+                .dst_access_mask(vk::AccessFlags::empty());
+            ctx.device.cmd_pipeline_barrier(
+                cb,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[back_to_present],
+            );
+        }
+
         ctx.device
             .end_command_buffer(cb)
             .expect("end_command_buffer");
@@ -628,6 +717,17 @@ pub fn render_frame(
                 record_us
             );
             std::process::exit(1);
+        }
+    }
+
+    // If a readback was recorded above, its destination buffer must be fully
+    // written before we return `Some(FrameTick)` to the caller, so wait for
+    // this submission's fence now rather than at the top of the next call.
+    if readback.is_some() {
+        unsafe {
+            ctx.device
+                .wait_for_fences(&[frame.in_flight], true, u64::MAX)
+                .expect("wait for evdi readback fence");
         }
     }
 
@@ -686,7 +786,6 @@ pub fn render_frame(
             record_us,
             submit_us,
         },
-        image_index,
     };
     rs.timing.last_phases = tick.phases;
 

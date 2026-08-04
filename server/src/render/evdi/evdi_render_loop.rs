@@ -28,7 +28,9 @@ use crate::render::render_frame;
 use crate::render::render_state::RenderState;
 use crate::render::system_info::{ClockSource, SystemInfo};
 use crate::render::vk::VkContext;
-use crate::render::{RenderTarget, SceneRenderer, StimulusDisplayInfo, TextRenderer, UiRenderer};
+use crate::render::{
+    ReadbackTarget, RenderTarget, SceneRenderer, StimulusDisplayInfo, TextRenderer, UiRenderer,
+};
 use crate::timing::FrameTiming;
 
 use super::evdi_detect::find_connected_evdi;
@@ -107,7 +109,7 @@ impl EvdiBackend {
 
         // Dropped before `rs` (declared after it) so the readback's Vulkan
         // objects are destroyed while `rs.ctx.device` is still alive.
-        let mut readback = Readback::new(&rs.ctx, output.pitch(), output.height);
+        let readback = Readback::new(&rs.ctx, output.pitch(), output.height);
 
         log::info!(
             "vstimd: evdi backend running, {}×{}",
@@ -141,7 +143,11 @@ impl EvdiBackend {
                 Some(std::time::Instant::now()),
                 egui_raw_input,
                 vtl.as_deref(),
+                Some(&readback.target),
             );
+            // The copy above ran inside render_frame's own command buffer,
+            // before it presented — render_frame already waited for it to
+            // land, so the staging buffer is ready to read now.
             let render_us = t_render.elapsed().as_micros() as u32;
             // Headless swapchains don't hit ERROR_OUT_OF_DATE_KHR (no real
             // presentation engine, no resize) — this is defensive, not
@@ -149,7 +155,7 @@ impl EvdiBackend {
             let Some(tick) = tick else { continue };
 
             let t_readback = std::time::Instant::now();
-            let frame_bytes = readback.copy_frame(&rs.ctx, tick.image_index);
+            let frame_bytes = readback.frame();
             let readback_us = t_readback.elapsed().as_micros() as u32;
 
             // Collect the *previous* frame's flip event here, not right after
@@ -189,19 +195,16 @@ impl EvdiBackend {
 
 // ── Readback ─────────────────────────────────────────────────────────────────
 
-/// A persistent host-visible staging buffer + one-shot command buffer used
-/// to copy a rendered swapchain image back to the CPU every frame. Sized
-/// with `evdi`'s row pitch (not a tightly-packed `width * 4`) so the result
-/// can be handed to `EvdiOutput::present` unmodified.
+/// A persistent host-visible staging buffer that `render_frame` copies the
+/// rendered swapchain image into (see `ReadbackTarget`), before it presents.
+/// Sized with `evdi`'s row pitch (not a tightly-packed `width * 4`) so the
+/// result can be handed to `EvdiOutput::present` unmodified.
 struct Readback {
     device: ash::Device,
-    buffer: vk::Buffer,
     memory: vk::DeviceMemory,
     mapped: *mut u8,
     size: usize,
-    row_length_texels: u32,
-    cmd: vk::CommandBuffer,
-    fence: vk::Fence,
+    target: ReadbackTarget,
 }
 
 impl Readback {
@@ -250,128 +253,30 @@ impl Readback {
                 .expect("failed to map evdi readback memory") as *mut u8
         };
 
-        let cmd = unsafe {
-            device
-                .allocate_command_buffers(
-                    &vk::CommandBufferAllocateInfo::default()
-                        .command_pool(ctx.command_pool)
-                        .level(vk::CommandBufferLevel::PRIMARY)
-                        .command_buffer_count(1),
-                )
-                .expect("failed to allocate evdi readback command buffer")[0]
-        };
-        let fence = unsafe {
-            device
-                .create_fence(&vk::FenceCreateInfo::default(), None)
-                .expect("failed to create evdi readback fence")
-        };
-
         Self {
             device,
-            buffer,
             memory,
             mapped,
             size,
-            row_length_texels: (pitch / 4) as u32,
-            cmd,
-            fence,
+            target: ReadbackTarget {
+                buffer,
+                row_length_texels: (pitch / 4) as u32,
+            },
         }
     }
 
-    /// Copies `ctx.swapchain_images[image_index]` (left in `PRESENT_SRC_KHR`
-    /// by `render_frame`) into the staging buffer and returns a view of it.
-    /// Blocks until the GPU copy completes — simple and correct; Phase 1
-    /// has no throughput target to optimize against (see the plan doc).
-    fn copy_frame(&mut self, ctx: &VkContext, image_index: u32) -> &[u8] {
-        let device = &self.device;
-        let image = ctx.swapchain_images[image_index as usize];
-        unsafe {
-            device.reset_fences(&[self.fence]).expect("reset readback fence");
-            device
-                .reset_command_buffer(self.cmd, vk::CommandBufferResetFlags::empty())
-                .expect("reset readback command buffer");
-            device
-                .begin_command_buffer(
-                    self.cmd,
-                    &vk::CommandBufferBeginInfo::default()
-                        .flags(vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT),
-                )
-                .expect("begin readback command buffer");
-
-            let barrier = vk::ImageMemoryBarrier::default()
-                .old_layout(vk::ImageLayout::PRESENT_SRC_KHR)
-                .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
-                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
-                .image(image)
-                .subresource_range(vk::ImageSubresourceRange {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    base_mip_level: 0,
-                    level_count: 1,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                })
-                .src_access_mask(vk::AccessFlags::COLOR_ATTACHMENT_WRITE)
-                .dst_access_mask(vk::AccessFlags::TRANSFER_READ);
-            device.cmd_pipeline_barrier(
-                self.cmd,
-                vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT,
-                vk::PipelineStageFlags::TRANSFER,
-                vk::DependencyFlags::empty(),
-                &[],
-                &[],
-                &[barrier],
-            );
-
-            let region = vk::BufferImageCopy::default()
-                .buffer_offset(0)
-                .buffer_row_length(self.row_length_texels)
-                .buffer_image_height(ctx.extent.height)
-                .image_subresource(vk::ImageSubresourceLayers {
-                    aspect_mask: vk::ImageAspectFlags::COLOR,
-                    mip_level: 0,
-                    base_array_layer: 0,
-                    layer_count: 1,
-                })
-                .image_offset(vk::Offset3D::default())
-                .image_extent(vk::Extent3D {
-                    width: ctx.extent.width,
-                    height: ctx.extent.height,
-                    depth: 1,
-                });
-            device.cmd_copy_image_to_buffer(
-                self.cmd,
-                image,
-                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-                self.buffer,
-                &[region],
-            );
-
-            device.end_command_buffer(self.cmd).expect("end readback command buffer");
-            device
-                .queue_submit(
-                    ctx.graphics_queue,
-                    &[vk::SubmitInfo::default().command_buffers(std::slice::from_ref(&self.cmd))],
-                    self.fence,
-                )
-                .expect("submit evdi readback copy");
-            device
-                .wait_for_fences(&[self.fence], true, u64::MAX)
-                .expect("wait for evdi readback fence");
-
-            std::slice::from_raw_parts(self.mapped, self.size)
-        }
+    /// A view of the staging buffer as of the last `render_frame` call that
+    /// was given `Some(&self.target)`. `render_frame` waits for its copy to
+    /// land on the GPU before returning, so this is always current.
+    fn frame(&self) -> &[u8] {
+        unsafe { std::slice::from_raw_parts(self.mapped, self.size) }
     }
 }
 
 impl Drop for Readback {
     fn drop(&mut self) {
-        // `self.cmd` is not freed here — it belongs to `ctx.command_pool`,
-        // destroyed later when `RenderState`/`VkContext` drops (after this,
-        // since `Readback` is declared after `rs` in `EvdiBackend::run`).
         unsafe {
-            self.device.destroy_fence(self.fence, None);
-            self.device.destroy_buffer(self.buffer, None);
+            self.device.destroy_buffer(self.target.buffer, None);
             self.device.free_memory(self.memory, None);
         }
     }

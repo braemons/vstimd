@@ -46,7 +46,7 @@ pub mod render_state;
 pub use render_state::RenderState;
 
 pub mod render_frame;
-pub use render_frame::render_frame;
+pub use render_frame::{ReadbackTarget, render_frame};
 
 /// Render-loop steps shared by all backends (keys, overlay input, VTL).
 pub(crate) mod frame_loop;
