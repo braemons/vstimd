@@ -1,3 +1,4 @@
+use vstimd::render::RenderTargetPref;
 use vstimd::rig_config::{self, RigConfig, StartupLoad};
 
 fn parse(toml: &str) -> RigConfig {
@@ -49,6 +50,41 @@ refresh_hz = 60.0
     assert_eq!(cfg.display.width,      Some(1920));
     assert_eq!(cfg.display.height,     Some(1080));
     assert_eq!(cfg.display.refresh_hz, Some(60.0));
+}
+
+#[test]
+fn backend_defaults_to_auto() {
+    let cfg = parse("");
+    assert!(cfg.display.backend.is_none());
+}
+
+#[test]
+fn backend_evdi_parsed() {
+    let cfg = parse(r#"
+[display]
+backend = "evdi"
+"#);
+    assert_eq!(cfg.display.backend, Some(RenderTargetPref::Evdi));
+}
+
+#[test]
+fn backend_auto_keyword_is_none() {
+    let cfg = parse(r#"
+[display]
+backend = "auto"
+"#);
+    assert!(cfg.display.backend.is_none());
+}
+
+#[test]
+fn backend_invalid_value_rejected() {
+    let result: Result<RigConfig, _> = toml::from_str(
+        r#"
+[display]
+backend = "not_a_backend"
+"#,
+    );
+    assert!(result.is_err());
 }
 
 #[test]

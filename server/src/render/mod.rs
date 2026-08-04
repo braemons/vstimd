@@ -14,7 +14,7 @@ pub mod display_info;
 pub use display_info::StimulusDisplayInfo;
 
 pub mod render_target;
-pub use render_target::{RenderTarget, WindowMode};
+pub use render_target::{RenderTarget, RenderTargetPref, WindowMode};
 
 pub mod system_info;
 pub use system_info::{
