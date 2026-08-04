@@ -68,6 +68,37 @@ to control it — no client install needed.
   (`--no-web`, `--web-port <N>`).
 - If the device runs a firewall, open the port: e.g. `sudo ufw allow 8080/tcp`.
 
+### Network discovery
+
+Multiple rigs on the same LAN need distinct, collision-free names. Packages install
+`vstimd-hostname.service`, which runs `vstimd-set-hostname` at boot to derive a stable
+hostname from the primary interface's MAC address: `vstimd-XXXXXX`, where `XXXXXX` is
+the MAC's last 6 hex characters (13 chars total, within Samba's 15-char NetBIOS
+limit). The unit orders itself before `avahi-daemon`, `smbd`, and `nmbd`, so both
+inherit the generated hostname automatically — neither needs a `host-name=` override
+in `avahi-daemon.conf` nor a `netbios name` override in `smb.conf`. The script also
+keeps the `127.0.1.1` line in `/etc/hosts` in sync (`hostnamectl`/`hostname -F` never
+touch it, so without this, local hostname lookups — including the ones `sudo` does —
+break right after the rename) and, belt-and-braces for a rename on an already-running
+system, `try-restart`s `avahi-daemon`/`smbd`/`nmbd` if they're active.
+
+If Avahi is installed, the package also ships an mDNS service template
+(`/usr/share/braemons/vstimd/vstimd.service.avahi.tmpl`) that `vstimd-set-hostname`
+renders to `/etc/avahi/services/vstimd.service` at boot, advertising `_vstimd._tcp` on
+port 5555 — discoverable with `avahi-browse -r _vstimd._tcp`. The rendered file's
+`id=vstimd-XXXXXX` TXT record is a literal written by the script, not an Avahi `%h`
+substitution — Avahi's `avahi-service.dtd` only allows `replace-wildcards` on `<name>`,
+not `<txt-record>`, so `%h` can't be used inside a TXT value. The TXT record carries
+the raw hostname even if Avahi appends `#2`, `#3`, etc. to the advertised `<name>` on
+collision — key off the TXT record, not the display name, when matching a specific
+device programmatically.
+
+From source (`make install`), enable the unit alongside `vstimd`:
+
+```bash
+sudo systemctl enable --now vstimd-hostname
+```
+
 ---
 
 ## Common setup (all platforms)

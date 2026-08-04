@@ -1,0 +1,100 @@
+#!/bin/bash
+# vstimd-set-hostname — derive and set a unique hostname from the primary
+# network interface's MAC address.
+#
+# Naming scheme: vstimd-XXXXXX, where XXXXXX is the last 6 hex characters of
+# the MAC (13 chars total, fits Samba's 15-char NetBIOS limit). Stable across
+# reboots without needing persistent storage, and human-readable for
+# debugging/matching against shares.
+#
+# Both Avahi and Samba inherit the system hostname by default (no
+# host-name=/netbios name override needed), so setting it here is enough for
+# both to advertise a unique, collision-resistant name on the LAN.
+#
+# Also renders the Avahi service template (see below) with the computed
+# hostname baked in as a literal: Avahi's %h wildcard only works inside
+# <name>, not <txt-record> (not a valid attribute there per
+# avahi-service.dtd), so the stable id=... TXT record can't be produced by
+# Avahi's own substitution and has to be written here instead.
+#
+# Must run before avahi-daemon, smbd, and nmbd start — see
+# vstimd-hostname.service, which orders this ahead of them. Safe to run
+# multiple times; idempotent if the hostname is already in vstimd-XXXXXX form.
+set -euo pipefail
+
+AVAHI_TEMPLATE="/usr/share/braemons/vstimd/vstimd.service.avahi.tmpl"
+AVAHI_SERVICES_DIR="/etc/avahi/services"
+
+die() { echo "vstimd-set-hostname: error: $*" >&2; exit 1; }
+
+# Render the Avahi service file from the template if Avahi is installed
+# (its services directory exists) and we ship the template. No-op otherwise.
+render_avahi_service() {
+    [ -f "$AVAHI_TEMPLATE" ] || return 0
+    [ -d "$AVAHI_SERVICES_DIR" ] || return 0
+    sed "s/@HOSTNAME@/${NEW_HOSTNAME}/" "$AVAHI_TEMPLATE" > "${AVAHI_SERVICES_DIR}/vstimd.service"
+    echo "vstimd-set-hostname: rendered ${AVAHI_SERVICES_DIR}/vstimd.service (id=${NEW_HOSTNAME})"
+}
+
+# Keep the Debian-style "127.0.1.1 <hostname>" line in /etc/hosts in sync.
+# hostnamectl/hostname -F only change the live kernel hostname and
+# /etc/hostname — they never touch /etc/hosts — so without this, anything
+# that resolves the local hostname via /etc/hosts (sudo, some getaddrinfo
+# paths) starts failing right after the rename.
+update_etc_hosts() {
+    if grep -q '^127\.0\.1\.1[[:space:]]' /etc/hosts; then
+        sed -i "s/^127\.0\.1\.1[[:space:]].*/127.0.1.1\t${NEW_HOSTNAME}/" /etc/hosts
+    else
+        printf '127.0.1.1\t%s\n' "$NEW_HOSTNAME" >> /etc/hosts
+    fi
+}
+
+# Find the primary interface: prefer common wired-NIC names, else fall back
+# to the first non-loopback interface that has a MAC address.
+IFACE=""
+for candidate in eth0 end0 eno1; do
+    [ -e "/sys/class/net/$candidate/address" ] && IFACE="$candidate" && break
+done
+if [ -z "$IFACE" ]; then
+    for path in /sys/class/net/*/address; do
+        [ -e "$path" ] || continue
+        dev=$(basename "$(dirname "$path")")
+        [ "$dev" = "lo" ] && continue
+        IFACE="$dev"
+        break
+    done
+fi
+[ -n "$IFACE" ] || die "no network interface with a MAC address found"
+
+MAC=$(cat "/sys/class/net/$IFACE/address") || die "cannot read MAC for $IFACE"
+SUFFIX=$(printf '%s' "$MAC" | tr -d ':' | tr '[:upper:]' '[:lower:]' | tail -c 6)
+[ -n "$SUFFIX" ] || die "could not derive suffix from MAC '$MAC'"
+
+NEW_HOSTNAME="vstimd-${SUFFIX}"
+CURRENT_HOSTNAME=$(hostname)
+
+if [ "$CURRENT_HOSTNAME" = "$NEW_HOSTNAME" ]; then
+    echo "vstimd-set-hostname: hostname already set to $NEW_HOSTNAME — nothing to do"
+else
+    echo "vstimd-set-hostname: setting hostname to $NEW_HOSTNAME (from $IFACE MAC $MAC)"
+
+    if command -v hostnamectl >/dev/null 2>&1; then
+        hostnamectl set-hostname "$NEW_HOSTNAME"
+    else
+        echo "$NEW_HOSTNAME" > /etc/hostname
+        hostname -F /etc/hostname
+    fi
+
+    update_etc_hosts
+
+    # Belt-and-braces for the case this runs against an already-running
+    # avahi-daemon/smbd/nmbd (manual re-run, NIC swap on a live system) —
+    # on a normal boot these aren't started yet (see vstimd-hostname.service
+    # ordering) so this is a no-op there. try-restart only acts on units
+    # that are already active.
+    systemctl try-restart avahi-daemon.service smb.service nmb.service 2>/dev/null || true
+fi
+
+# Always (re)render — covers first boot after Avahi is installed later, or
+# after a package upgrade changes the template.
+render_avahi_service
