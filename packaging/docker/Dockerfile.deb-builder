@@ -105,6 +105,20 @@ COPY client/web/ client/web/
 # the npm work. NPM_INSTALL="npm ci" for a lockfile-exact, reproducible install.
 RUN make web NPM_INSTALL="npm ci"
 
+# The build context has no .git, so the version cannot be derived in here: the
+# Makefile computes it on the host and passes it down, and `make` below picks it
+# up from the environment. No default on purpose — an unset value makes the
+# Makefile abort rather than invent a version.
+#
+# Declared *here* rather than beside the other ARGs at the top, because an ARG
+# invalidates its own layer and every layer after it. The version changes with
+# every commit (git describe appends a distance suffix), so declaring it early
+# would re-run apt, rustup, cargo-deb and npm on every single build. Everything
+# above this line is version-independent and stays cached; `make web` runs
+# before it because the web bundle embeds no version.
+ARG VSTIMD_VERSION
+ENV VSTIMD_VERSION=${VSTIMD_VERSION}
+
 # `make deb-assemble` = build (web + cargo build --features embed-ui) then
 # cargo deb for both crates. Defined in the root Makefile so this file does not
 # carry a second copy of how vstimd is built; see the "run inside the packaging

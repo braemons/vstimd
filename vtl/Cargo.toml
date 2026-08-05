@@ -1,6 +1,8 @@
 [package]
 name    = "vtl"
-version = "0.1.0"
+# Sentinel inherited from the workspace; the shipped version comes from the git
+# tag. See [workspace.package] in the root Cargo.toml.
+version.workspace = true
 edition = "2024"
 description = "Virtual Trigger Line shared-memory interface for vstimd"
 license = "AGPL-3.0-only"

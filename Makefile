@@ -27,23 +27,51 @@ RPM_BUILDER_IMAGE   ?= vstimd-rpm-builder
 IMAGE_BUILDER_IMAGE ?= vstimd-image-builder
 IMAGE_CACHE_DIR     ?= packaging/image/.cache
 
-# Tolerate the aligned `version     = "..."` spacing some of the manifests use —
-# a strict `version = ` match silently yields the whole line as the "version".
-version_of = $(shell grep -m1 '^version' $(1) | sed -E 's/^version[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/')
+# The version of every artifact, from the one place it is defined: the git tag.
+# The Cargo manifests carry a 0.0.0 sentinel because Cargo cannot derive a
+# version from the repo (no setuptools-scm equivalent) — see the root
+# Cargo.toml. Both crates ship in lockstep, so both get this same version.
+#
+# Override to build outside a tagged checkout; the packaging containers do
+# exactly that, since a Docker build context has no .git:
+#   make deb-arm64 VSTIMD_VERSION=0.1.0
+#
+# An explicit value short-circuits the script rather than being handed to it:
+# the rpm builder's compile stage has no packaging/ dir to run it from.
+#
+# The outer $(strip) is load-bearing: the line continuation below puts a space
+# into the else-branch, which then lands inside `--build-arg VSTIMD_VERSION=`
+# and breaks the docker invocation. `echo` hides it, so print-version looks fine.
+VSTIMD_VERSION ?=
+RESOLVED_VERSION := $(strip $(if $(strip $(VSTIMD_VERSION)),$(strip $(VSTIMD_VERSION)),\
+                      $(shell packaging/scripts/git-version.sh 2>/dev/null)))
 
-VERSION  := $(call version_of,server/Cargo.toml)
-GPIOCHIP_VERSION := $(call version_of,gpiochip-daqd/Cargo.toml)
+# Missing version = hard stop, never a default: every path below bakes VERSION
+# into a filename and into package metadata, so continuing with an invented one
+# would produce artifacts that lie about what they are.
+#
+# Recursive (`=`, not `:=`) so the error fires where VERSION is *used* rather
+# than when this file is parsed. $(or) does not evaluate later arguments once
+# one is non-empty, so the error is inert whenever a version is available. That
+# keeps version-free targets — `web`, `clean`, `docs` — working in a checkout
+# with no tags, which is what lets the packaging containers build the web bundle
+# before the version is introduced (see Dockerfile.deb-builder).
+VERSION = $(or $(RESOLVED_VERSION),$(error Cannot determine the version. Run \
+packaging/scripts/git-version.sh to see why, or pass VSTIMD_VERSION=<version>))
+
 REVISION ?= 1
 
 # Must match [package.metadata.deb] name in server/Cargo.toml / gpiochip-daqd/Cargo.toml
 DEB_NAME      := braemons-vstimd
 GPIOCHIP_DEB_NAME := braemons-gpiochip-daqd
 
-DEB_AMD64 := $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_amd64.deb
-DEB_ARM64 := $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_arm64.deb
-GPIOCHIP_DEB_ARM64 := $(DIST_DIR)/$(GPIOCHIP_DEB_NAME)_$(GPIOCHIP_VERSION)-$(REVISION)_arm64.deb
-RPM_AMD64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).x86_64.rpm
-RPM_ARM64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).aarch64.rpm
+# Recursive (`=`) so they do not expand VERSION — and so do not trip its error —
+# until a target that actually names one of these paths runs.
+DEB_AMD64 = $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_amd64.deb
+DEB_ARM64 = $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_arm64.deb
+GPIOCHIP_DEB_ARM64 = $(DIST_DIR)/$(GPIOCHIP_DEB_NAME)_$(VERSION)-$(REVISION)_arm64.deb
+RPM_AMD64 = $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).x86_64.rpm
+RPM_ARM64 = $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).aarch64.rpm
 
 # Login user/password baked into `make image`'s SD card image (SSH + Samba).
 # A known default, so a freshly flashed card is reachable without hunting for
@@ -54,9 +82,9 @@ RPM_ARM64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).aarch64.rpm
 VSTIMD_IMAGE_USER     ?= vstimd-admin
 VSTIMD_IMAGE_PASSWORD ?= vstimd
 
-# Version string in the image filename. Empty = build-sd-image.sh falls back to
-# today's date; CI sets it to the release tag so assets are self-describing.
-IMAGE_VERSION ?=
+# Version string in the SD image filename. Defaults to the same git-derived
+# version as the packages, so a downloaded .img.xz says which release it is.
+IMAGE_VERSION ?= $(VERSION)
 
 RUST_SRCS     := Cargo.toml Cargo.lock $(shell find server/src vtl/src proto -type f 2>/dev/null)
 # 2>/dev/null to match RUST_SRCS: the Makefile is now also evaluated inside the
@@ -86,12 +114,12 @@ web: $(WEB_DIST)
 # http://<device>:8080 so any machine on the LAN can control vstimd. Requires
 # Node/npm to build the frontend first. Use `build-server` for a UI-less build.
 build: web
-	cargo build --release --features embed-ui $(CARGO_TARGET_ARG)
+	VSTIMD_VERSION=$(VERSION) cargo build --release --features embed-ui $(CARGO_TARGET_ARG)
 
 # Server-only binary (no embedded UI, no Node/npm needed). The web control
 # surface still runs, but `/` serves a placeholder instead of the React app.
 build-server:
-	cargo build --release
+	VSTIMD_VERSION=$(VERSION) cargo build --release
 
 # Install a pre-built binary. Kept separate from `build` so the usual flow is
 # `make build` (as your user, with cargo) then `sudo make install` (as root,
@@ -149,6 +177,7 @@ deb-amd64:
 	DOCKER_BUILDKIT=1 docker build \
 	  -f packaging/docker/Dockerfile.deb-builder \
 	  --build-arg REVISION=$(REVISION) \
+	  --build-arg VSTIMD_VERSION=$(VERSION) \
 	  -t $(DEB_BUILDER_IMAGE)-amd64 .
 	mkdir -p $(DIST_DIR)
 	docker run --rm -v $(abspath $(DIST_DIR)):/output $(DEB_BUILDER_IMAGE)-amd64
@@ -159,6 +188,7 @@ deb-arm64:
 	  --build-arg RUST_TARGET=aarch64-unknown-linux-gnu \
 	  --build-arg DEB_HOST_ARCH=arm64 \
 	  --build-arg REVISION=$(REVISION) \
+	  --build-arg VSTIMD_VERSION=$(VERSION) \
 	  -t $(DEB_BUILDER_IMAGE)-arm64 .
 	mkdir -p $(DIST_DIR)
 	docker run --rm -v $(abspath $(DIST_DIR)):/output $(DEB_BUILDER_IMAGE)-arm64
@@ -175,13 +205,25 @@ deb: deb-amd64 deb-arm64
 # unlike deb-amd64/deb-arm64 above, do no Docker work themselves.
 
 # Both .debs, left in target/<triple>/debian/ for the caller to collect.
+#
+# --deb-version (rather than --deb-revision) because the manifests' 0.0.0 is a
+# sentinel: cargo-deb would otherwise happily emit braemons-vstimd_0.0.0-1.deb.
+#
+# Sweep out .debs from earlier builds first. In the packaging containers the
+# cargo target dir is a persistent cache mount, so a previous build's packages
+# survive there — and the caller collects with `find target -name '*.deb'`.
+# That was harmless while the version was a constant in Cargo.toml (each build
+# overwrote the same filename); now that every commit produces a new version,
+# stale packages would accumulate and ride along into a release.
 deb-assemble: build
-	cargo deb -p vstimd        --no-build $(CARGO_TARGET_ARG) --deb-revision $(REVISION)
-	cargo deb -p gpiochip-daqd --no-build $(CARGO_TARGET_ARG) --deb-revision $(REVISION)
+	rm -f target/debian/*.deb target/*/debian/*.deb
+	cargo deb -p vstimd        --no-build $(CARGO_TARGET_ARG) --deb-version $(VERSION)-$(REVISION)
+	cargo deb -p gpiochip-daqd --no-build $(CARGO_TARGET_ARG) --deb-version $(VERSION)-$(REVISION)
 
 # Single source of truth for these two, so container scripts do not re-derive
-# them (the rpm builder used to re-implement the version parse, with the same
-# whitespace bug this Makefile's version_of already fixes).
+# them. The rpm builder used to re-implement the version parse by grepping
+# Cargo.toml — which now holds a 0.0.0 sentinel, so that shortcut would produce
+# a package claiming to be version 0.0.0.
 print-version:
 	@echo $(VERSION)
 
@@ -191,6 +233,7 @@ print-binary:
 rpm-amd64:
 	DOCKER_BUILDKIT=1 docker build \
 	  -f packaging/docker/Dockerfile.rpm-builder \
+	  --build-arg VSTIMD_VERSION=$(VERSION) \
 	  -t $(RPM_BUILDER_IMAGE)-amd64 .
 	mkdir -p $(DIST_DIR)
 	docker run --rm -v $(abspath $(DIST_DIR)):/output $(RPM_BUILDER_IMAGE)-amd64
@@ -200,6 +243,7 @@ rpm-arm64:
 	  -f packaging/docker/Dockerfile.rpm-builder \
 	  --build-arg RUST_TARGET=aarch64-unknown-linux-gnu \
 	  --build-arg RPM_ARCH=aarch64 \
+	  --build-arg VSTIMD_VERSION=$(VERSION) \
 	  -t $(RPM_BUILDER_IMAGE)-arm64 .
 	mkdir -p $(DIST_DIR)
 	docker run --rm -v $(abspath $(DIST_DIR)):/output $(RPM_BUILDER_IMAGE)-arm64

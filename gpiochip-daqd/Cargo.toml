@@ -1,6 +1,8 @@
 [package]
 name        = "gpiochip-daqd"
-version     = "0.1.0"
+# Sentinel inherited from the workspace; the shipped version comes from the git
+# tag. See [workspace.package] in the root Cargo.toml.
+version.workspace = true
 edition     = "2024"
 description = "Linux gpiochip ↔ VTL trigger-line bridge daemon"
 license     = "AGPL-3.0-only"
@@ -20,7 +22,8 @@ path = "src/main.rs"
 hw-tests = []
 
 [dependencies]
-vtl        = { path = "../vtl", version = "0.1.0" }
+# No `version` requirement: see the note in server/Cargo.toml.
+vtl        = { path = "../vtl" }
 gpio-cdev  = "0.6"
 anyhow     = "1"
 log        = "0.4"

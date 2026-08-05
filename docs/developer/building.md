@@ -5,6 +5,48 @@ UI, `.deb`/`.rpm` packages, and the Docker-based builders and integration test. 
 *install and run* a finished package on a rig, see
 [Deployment](../operations/deployment.md).
 
+## Versioning
+
+**The git tag is the only place the version is defined.** There is no number to
+bump in `Cargo.toml`: all three crates inherit a deliberately invalid `0.0.0`
+sentinel from `[workspace.package]`, and the real version is stamped at build
+time by [`packaging/scripts/git-version.sh`](https://github.com/braemons/vstimd/blob/main/packaging/scripts/git-version.sh).
+
+Cargo has no equivalent of Python's `setuptools-scm`: `package.version` must be a
+literal, and a build script cannot change it because the version is resolved into
+the dependency graph before build scripts run. So rather than keep a hand-edited
+number that would drift out of step with the tag, the manifests admit they do not
+know. `vstimd --version` reports a value injected by `server/build.rs`, and the
+package versions come from the `Makefile`.
+
+Releasing is therefore just tagging:
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The tag is normalised for dpkg and rpm, neither of which allows `-` inside a
+version:
+
+| Git tag | Package version | Notes |
+| --- | --- | --- |
+| `v0.2.0` | `0.2.0` | |
+| `v0.2.0-alpha1` | `0.2.0~alpha1` | `~` sorts *before* `0.2.0`, so the release supersedes the alpha |
+| 2 commits past `v0.2.0-alpha1` | `0.2.0~alpha1+2.gabc1234` | `+` sorts *after* the bare tag |
+| …with uncommitted changes | `…+dirty` | |
+
+Nothing falls back to a default. A build with no reachable tag and no explicit
+version **fails**, because a package that quietly claims a made-up version is
+worse than a package that failed to build. Building outside a tagged checkout —
+which is what the packaging containers do, since a Docker build context has no
+`.git` — means saying so:
+
+```bash
+make deb-arm64 VSTIMD_VERSION=0.2.0
+```
+
+If you ever see an artifact versioned `0.0.0`, the stamping was bypassed.
+
 ## Build a deployable binary
 
 The repo ships a `Makefile` whose `install` target is `DESTDIR`-aware — the same

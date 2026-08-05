@@ -1,6 +1,9 @@
 Name:           vstimd
-# Pass version at build time: rpmbuild -bb --define "pkg_version X.Y.Z" ...
-Version:        %{?pkg_version}%{!?pkg_version:0.0.0}
+# Passed in at build time; the version is defined by the git tag and stamped by
+# the Makefile (see packaging/scripts/git-version.sh). Fatal when missing rather
+# than defaulting: an .rpm quietly claiming to be 0.0.0 is worse than no .rpm.
+%{!?pkg_version:%{error:pkg_version is not defined — build via 'make rpm-amd64' / 'make rpm-arm64', or pass --define "pkg_version X.Y.Z"}}
+Version:        %{pkg_version}
 Release:        1%{?dist}
 Summary:        Visual stimulus display server for neuroscience experiments
 License:        AGPL-3.0-or-later
@@ -14,7 +17,7 @@ Recommends:     avahi
 # Docker: packaging/docker/Dockerfile.rpm-builder handles compilation and packaging.
 # Manual: rpmbuild -bb packaging/rpm/vstimd.spec \
 #             --define "_builddir $(pwd)" \
-#             --define "pkg_version $(grep '^version' server/Cargo.toml | head -1 | sed 's/version = \"\(.*\)\"/\1/')"
+#             --define "pkg_version $(make -s print-version)"
 
 %description
 vstimd drives a display directly via VK_KHR_display without a compositor,
