@@ -100,7 +100,7 @@ WEB_SRCS := $(shell find $(WEB_DIR)/src -type f 2>/dev/null) \
         docs docs-build \
         deb-amd64 deb-arm64 deb \
         rpm-amd64 rpm-arm64 rpm \
-        packages image \
+        packages image apt-repo \
         deb-assemble print-version print-binary
 
 # Build the React bundle that gets baked into the binary (requires Node/npm).
@@ -251,6 +251,38 @@ rpm-arm64:
 rpm: rpm-amd64 rpm-arm64
 
 packages: deb rpm
+
+# ── apt repository ────────────────────────────────────────────────────────────
+#
+# Turn $(DIST_DIR)/*.deb into a signed apt repo under $(APT_REPO_DIR). The
+# output is a plain static tree: publish it to GitHub Pages, drop it in an nginx
+# docroot, or rsync it to a lab server for rigs with no internet — same bytes
+# either way.
+#
+# Runs in a Debian container so apt-ftparchive matches what the rigs consume,
+# and so this works on a host without apt-utils.
+#
+# Pre-releases go to a separate suite: a rig tracking 'stable' must not be
+# upgraded onto an alpha just because one was published more recently.
+APT_REPO_DIR ?= $(DIST_DIR)/apt-repo
+APT_SUITE    ?= $(if $(findstring ~,$(VERSION)),testing,stable)
+APT_IMAGE    ?= debian:trixie-slim
+
+apt-repo:
+	@test -n "$$(ls $(DIST_DIR)/*.deb 2>/dev/null)" || \
+	  { echo "error: no .debs in $(DIST_DIR) — run 'make deb' first"; exit 1; }
+	mkdir -p $(APT_REPO_DIR)
+	docker run --rm \
+	  -v $(abspath $(DIST_DIR)):/debs:ro \
+	  -v $(abspath $(APT_REPO_DIR)):/out \
+	  -v $(abspath packaging/apt):/scripts:ro \
+	  -e SUITE=$(APT_SUITE) \
+	  -e APT_SIGNING_KEY \
+	  $(APT_IMAGE) \
+	  sh -c 'apt-get update -qq && \
+	         apt-get install -y -qq --no-install-recommends apt-utils gnupg >/dev/null && \
+	         /scripts/build-repo.sh /debs /out && \
+	         chown -R $(shell id -u):$(shell id -g) /out'
 
 # ── SD card image (Raspberry Pi) ──────────────────────────────────────────
 #

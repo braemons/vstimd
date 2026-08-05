@@ -161,6 +161,26 @@ cp /etc/resolv.conf "$MNT/etc/resolv.conf"
 mkdir -p "$MNT/root/debs"
 cp "$VSTIMD_DEB" "$GPIOCHIP_DEB" "$MNT/root/debs/"
 
+# Archive signing key for in-place updates. Optional: until a key has been
+# generated (packaging/apt/README.md), the image simply ships without an update
+# source and rigs are updated by re-flashing.
+APT_KEYRING="${APT_KEYRING:-packaging/apt/braemons-archive-keyring.asc}"
+APT_REPO_URL="${APT_REPO_URL:-https://braemons.github.io/vstimd/apt}"
+# Pre-release images track the 'testing' suite so a rig flashed from an alpha
+# keeps getting alphas, and a 'stable' rig is never upgraded onto one.
+case "$IMAGE_VERSION" in
+    *~*|*alpha*|*beta*|*rc*) APT_SUITE="${APT_SUITE:-testing}" ;;
+    *)                       APT_SUITE="${APT_SUITE:-stable}"  ;;
+esac
+
+if [ -f "$APT_KEYRING" ]; then
+    cp "$APT_KEYRING" "$MNT/root/braemons-archive-keyring.asc"
+    echo "apt updates: enabled ($APT_REPO_URL, suite $APT_SUITE)"
+else
+    echo "apt updates: DISABLED — $APT_KEYRING not found."
+    echo "             The image will have no update source; see packaging/apt/README.md."
+fi
+
 cat > "$MNT/root/setup.sh" <<CHROOT_EOF
 #!/bin/bash
 set -euo pipefail
@@ -272,6 +292,43 @@ rm -f /usr/sbin/uname
 # creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
 dpkg -i /root/debs/*.deb || true
 apt-get install -y -f
+
+# ── In-place updates ─────────────────────────────────────────────────────────
+# Point apt at the vstimd archive so a deployed rig upgrades with
+# 'apt update && apt upgrade' instead of being re-flashed. Re-flashing discards
+# /etc/braemons (the rig config and any saved stimulus configs) and
+# /var/lib/braemons, which is exactly what an upgrade must preserve:
+# vstimd-rig-config.toml is a dpkg conffile, so local edits survive.
+if [ -f /root/braemons-archive-keyring.asc ]; then
+    # Kept ASCII-armored as .asc, which apt reads directly — dearmoring would
+    # need gpg(1), which is not guaranteed present on a Lite image.
+    install -D -m 0644 /root/braemons-archive-keyring.asc \
+        /etc/apt/keyrings/braemons.asc
+    rm -f /root/braemons-archive-keyring.asc
+
+    # deb822 format: trust is scoped to this one archive via Signed-By rather
+    # than added to the global keyring.
+    cat > /etc/apt/sources.list.d/braemons.sources <<APT_SOURCES
+Types: deb
+URIs: ${APT_REPO_URL}
+Suites: ${APT_SUITE}
+Components: main
+Architectures: arm64
+Signed-By: /etc/apt/keyrings/braemons.asc
+APT_SOURCES
+
+    # A conffile prompt on a headless rig hangs the upgrade indefinitely —
+    # there is no one at a terminal to answer it. Keep the installed file and
+    # drop the package's version alongside as .dpkg-dist to diff later.
+    # Deliberately global rather than scoped to vstimd: any package can prompt,
+    # and the rig is equally unattended for all of them.
+    cat > /etc/apt/apt.conf.d/90braemons-unattended <<'APT_CONF'
+Dpkg::Options {
+   "--force-confdef";
+   "--force-confold";
+};
+APT_CONF
+fi
 
 # Admin login for SSH + Samba. Forced password change on first login: a
 # publicly downloadable image shouldn't leave a known password valid

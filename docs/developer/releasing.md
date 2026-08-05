@@ -96,6 +96,16 @@ release:
 A tag containing a hyphen (`v0.2.0-alpha1`) is published as a **pre-release**, so
 GitHub does not badge an alpha as the project's latest version.
 
+The same `.debs` are also published to the signed apt archive on `gh-pages`, so
+deployed rigs pick the release up with `apt upgrade` rather than being
+re-flashed. Pre-releases go to the `testing` suite and plain releases to
+`stable`, which is why the `~` ordering above matters: it is what stops a rig
+tracking `stable` from being offered an alpha. See
+[`packaging/apt/README.md`](https://github.com/braemons/vstimd/blob/main/packaging/apt/README.md)
+for the one-time signing key setup, and
+[Deployment](../operations/deployment.md#updating-a-deployed-rig) for the rig
+side.
+
 Re-running the workflow for an existing tag updates that release's assets rather
 than failing. `workflow_dispatch` runs the same builds without cutting a release,
 which is the way to exercise the pipeline before tagging.
