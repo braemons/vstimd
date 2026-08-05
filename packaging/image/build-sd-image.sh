@@ -123,6 +123,17 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y --no-install-recommends openssh-server samba avahi-daemon
 
+# evdi 1.15.0 (from the Synaptics repo bundled with Raspberry Pi OS) fails to
+# build its DKMS module on current RPi kernels. Pin it to 1.14.16 which is
+# known-good. The preference file also prevents apt from upgrading to 1.15.x
+# on future `apt-get upgrade` runs on the appliance.
+cat > /etc/apt/preferences.d/evdi-pin <<APT_PREF
+Package: evdi
+Pin: version 1.14.16*
+Pin-Priority: 1001
+APT_PREF
+apt-get install -y --no-install-recommends evdi
+
 # vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
 # creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
 dpkg -i /root/debs/*.deb || true
