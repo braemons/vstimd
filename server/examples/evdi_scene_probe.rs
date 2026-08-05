@@ -56,6 +56,7 @@ fn main() {
             hostname: "localhost".to_string(),
             local_ip: "127.0.0.1".to_string(),
             zmq_port: 0,
+            sched: Default::default(),
         },
         overlay_scale: 1.0,
         display_pref: DisplayModePref::default(),

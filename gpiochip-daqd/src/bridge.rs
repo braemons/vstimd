@@ -6,7 +6,7 @@ use gpio_cdev::{Chip, EventRequestFlags, EventType, LineRequestFlags};
 use log::{debug, info, warn};
 use vtl::{VtlClient, VtlSegment};
 
-use crate::config::{Edge, InputLine, OutputLine};
+use crate::config::{Edge, InputLine, OutputLine, SchedulingConfig};
 
 const CONSUMER: &str = "gpiochip-daqd";
 
@@ -38,6 +38,42 @@ pub fn set_thread_realtime(priority: i32) {
 #[cfg(not(target_os = "linux"))]
 pub fn set_thread_realtime(_priority: i32) {}
 
+/// Pin the calling thread to `core`.
+///
+/// `sched_setaffinity` with pid 0 means "this thread", so each input watcher
+/// pins itself rather than the whole process.  Warns and continues on failure
+/// — a wrong core number should not take the daemon down.
+#[cfg(target_os = "linux")]
+pub fn set_thread_affinity(core: usize) {
+    let online = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) };
+    if online > 0 && core >= online as usize {
+        warn!(
+            "cpu_core = {core} is out of range (system has {online} online CPUs, \
+             0-{}) — leaving affinity alone",
+            online - 1
+        );
+        return;
+    }
+
+    let mut set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+    unsafe {
+        libc::CPU_ZERO(&mut set);
+        libc::CPU_SET(core, &mut set);
+    }
+    let ret = unsafe { libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &set) };
+    if ret != 0 {
+        warn!(
+            "sched_setaffinity(core {core}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    } else {
+        info!("thread pinned to CPU core {core}");
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn set_thread_affinity(_core: usize) {}
+
 /// Drives GPIO output pins from VTL `output_state`, waking on each
 /// `signal_output` posted by vstimd instead of sleeping on a fixed interval.
 ///
@@ -47,8 +83,12 @@ pub fn run_output_loop(
     chip_path: &str,
     outputs: &[OutputLine],
     vtl: &VtlSegment,
+    sched: &SchedulingConfig,
 ) -> Result<()> {
-    set_thread_realtime(PRIO_OUTPUT);
+    if let Some(core) = sched.output_cpu_core {
+        set_thread_affinity(core);
+    }
+    set_thread_realtime(sched.output_rt_prio.unwrap_or(PRIO_OUTPUT));
 
     if outputs.is_empty() {
         info!("no output lines configured, output loop idle");
@@ -109,17 +149,22 @@ pub fn spawn_input_watcher(
     chip_path: String,
     inp: InputLine,
     vtl: VtlClient,
+    sched: &SchedulingConfig,
 ) -> thread::JoinHandle<Result<()>> {
+    // Read the config out here; the thread applies it to itself, since
+    // affinity and policy are per-thread and must be set from inside.
+    let prio = sched.input_rt_prio.unwrap_or(PRIO_INPUT);
+    let core = sched.input_cpu_core;
     thread::Builder::new()
         .name(format!("vtl-in:{}", inp.name))
-        .spawn(move || run_input_loop(&chip_path, &inp, &vtl))
+        .spawn(move || run_input_loop(&chip_path, &inp, &vtl, prio, core))
         .expect("spawn input watcher thread")
 }
 
 /// Public re-export of the input loop for integration tests.
 #[allow(dead_code)]
 pub fn run_input_loop_pub(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) -> Result<()> {
-    run_input_loop(chip_path, inp, vtl)
+    run_input_loop(chip_path, inp, vtl, PRIO_INPUT, None)
 }
 
 /// Drive all output pins exactly once from the current VTL `output_state`.
@@ -146,8 +191,17 @@ pub fn poll_outputs_once(chip_path: &str, outputs: &[OutputLine], vtl: &VtlSegme
     Ok(())
 }
 
-fn run_input_loop(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) -> Result<()> {
-    set_thread_realtime(PRIO_INPUT);
+fn run_input_loop(
+    chip_path: &str,
+    inp: &InputLine,
+    vtl: &VtlSegment,
+    prio: i32,
+    core: Option<usize>,
+) -> Result<()> {
+    if let Some(core) = core {
+        set_thread_affinity(core);
+    }
+    set_thread_realtime(prio);
 
     let mut chip = Chip::new(chip_path)
         .with_context(|| format!("open GPIO chip {chip_path}"))?;

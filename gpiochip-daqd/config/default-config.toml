@@ -39,11 +39,11 @@ chip = "/dev/gpiochip0"
 # # Default: 50.
 # input_rt_prio = 50
 #
-# # CPU core to pin the output thread to.  Not yet applied.
+# # CPU core to pin the output thread to.
 # # Omit to let the OS schedule on any core.
 # output_cpu_core = 2
 #
-# # CPU core to pin input watcher threads to.  Not yet applied.
+# # CPU core to pin input watcher threads to (all watchers share it).
 # input_cpu_core = 2
 
 # ── Output lines (VTL → GPIO) ─────────────────────────────────────────────────

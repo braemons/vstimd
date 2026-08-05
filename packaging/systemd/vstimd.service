@@ -13,6 +13,11 @@ After=getty@tty3.service
 
 [Service]
 Type=notify
+# root also supplies CAP_SYS_NICE, which the render thread needs to promote
+# itself to SCHED_FIFO ([scheduling] render_rt_prio, on by default). If this
+# ever moves to an unprivileged user, add AmbientCapabilities=CAP_SYS_NICE —
+# without it vstimd still runs, but frame delivery loses its priority and the
+# overlay's System panel shows the promotion as FAILED.
 User=root
 # Named stim-configs (and the save-on-quit slot) live here. StateDirectory=
 # makes systemd create /var/lib/braemons/vstimd (0755, owned by the service

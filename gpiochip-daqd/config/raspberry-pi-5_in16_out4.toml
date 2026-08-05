@@ -49,7 +49,6 @@ chip = "/dev/gpiochip0"
 # Pi 5 has 4 symmetric Cortex-A76 cores (no efficiency/performance split),
 # so core pinning is mainly about isolating the output thread from
 # everything else, not picking a "fast" core.
-# CPU affinity is not yet applied; uncomment once implemented.
 #
 # [scheduling]
 # output_rt_prio  = 60

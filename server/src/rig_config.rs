@@ -270,13 +270,18 @@ impl Default for DisplayRigConfig {
 
 /// Thread scheduling options for vstimd.
 ///
-/// All fields are parsed but not yet applied — CPU affinity wiring is planned.
+/// Both are opt-in and applied to the render/vblank thread only — see
+/// [`crate::sched`].
 #[derive(Debug, Clone, serde::Deserialize, Default)]
 #[serde(deny_unknown_fields)]
-#[allow(dead_code)]
 pub struct SchedulingRigConfig {
-    /// CPU core to pin the render/vblank thread to.  Not yet applied.
+    /// CPU core to pin the render/vblank thread to.  Unpinned by default —
+    /// pinning is a rig-specific decision, so it is never applied implicitly.
     pub render_cpu_core: Option<usize>,
+    /// `SCHED_FIFO` priority (1–99) for the render/vblank thread.  Defaults to
+    /// [`crate::sched::DEFAULT_RENDER_RT_PRIO`] when omitted; set `0` to stay
+    /// on `SCHED_OTHER`.  Needs `CAP_SYS_NICE`; warns and continues without it.
+    pub render_rt_prio: Option<i32>,
 }
 
 /// Load a rig-config from `path`.  Returns `Ok(RigConfig::default())` if the
