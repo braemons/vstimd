@@ -1,3 +1,4 @@
+use crate::render::system_info::ClockSource;
 /// Machine-specific configuration loaded at startup from `rig-config.toml`.
 ///
 /// Unlike `stim-config` (scene + named VTL lines, changed per experiment),
@@ -14,7 +15,6 @@
 /// If the file is absent vstimd falls back to built-in defaults and logs a
 /// notice — useful for development machines without a full rig setup.
 use crate::render::RenderTargetPref;
-use crate::render::system_info::ClockSource;
 use crate::vtl_state::VtlBit;
 
 pub const DEFAULT_PATH: &str = "/etc/braemons/vstimd-rig-config.toml";
@@ -99,13 +99,20 @@ pub struct WebRigConfig {
 }
 
 impl WebRigConfig {
-    fn default_enabled() -> bool { true }
-    fn default_port() -> u16 { 8080 }
+    fn default_enabled() -> bool {
+        true
+    }
+    fn default_port() -> u16 {
+        8080
+    }
 }
 
 impl Default for WebRigConfig {
     fn default() -> Self {
-        Self { enabled: Self::default_enabled(), port: Self::default_port() }
+        Self {
+            enabled: Self::default_enabled(),
+            port: Self::default_port(),
+        }
     }
 }
 
@@ -139,29 +146,39 @@ pub struct VtlRigConfig {
 #[serde(deny_unknown_fields)]
 pub struct VblankBit {
     pub bank: usize,
-    pub bit:  u8,
+    pub bit: u8,
 }
 
 impl VblankBit {
     /// The resolved output-directed [`VtlBit`].
     pub fn to_vtl_bit(self) -> VtlBit {
-        VtlBit { bank: self.bank, bit: self.bit, kind: vtl::VtlKind::Output }
+        VtlBit {
+            bank: self.bank,
+            bit: self.bit,
+            kind: vtl::VtlKind::Output,
+        }
     }
 }
 
 impl VtlRigConfig {
-    fn default_shm_name() -> String  { "/vstimd_vtl".into() }
-    fn default_input_banks() -> u32  { 1 }
-    fn default_output_banks() -> u32 { 1 }
+    fn default_shm_name() -> String {
+        "/vstimd_vtl".into()
+    }
+    fn default_input_banks() -> u32 {
+        1
+    }
+    fn default_output_banks() -> u32 {
+        1
+    }
 }
 
 impl Default for VtlRigConfig {
     fn default() -> Self {
         Self {
-            shm_name:         Self::default_shm_name(),
-            num_input_banks:  Self::default_input_banks(),
+            shm_name: Self::default_shm_name(),
+            num_input_banks: Self::default_input_banks(),
             num_output_banks: Self::default_output_banks(),
-            vblank:           None,
+            vblank: None,
         }
     }
 }
@@ -231,8 +248,8 @@ fn deserialize_clock_pref<'de, D>(deserializer: D) -> Result<Option<ClockSource>
 where
     D: serde::Deserializer<'de>,
 {
-    use serde::Deserialize as _;
     use serde::de::Error as _;
+    use serde::Deserialize as _;
 
     let s = String::deserialize(deserializer)?;
     ClockSource::parse_pref(&s).map_err(D::Error::custom)
@@ -244,15 +261,17 @@ fn deserialize_backend_pref<'de, D>(deserializer: D) -> Result<Option<RenderTarg
 where
     D: serde::Deserializer<'de>,
 {
-    use serde::Deserialize as _;
     use serde::de::Error as _;
+    use serde::Deserialize as _;
 
     let s = String::deserialize(deserializer)?;
     RenderTargetPref::parse_pref(&s).map_err(D::Error::custom)
 }
 
 impl DisplayRigConfig {
-    fn default_overlay_scale() -> f32 { 1.0 }
+    fn default_overlay_scale() -> f32 {
+        1.0
+    }
 }
 
 impl Default for DisplayRigConfig {
@@ -270,8 +289,10 @@ impl Default for DisplayRigConfig {
 
 /// Thread scheduling options for vstimd.
 ///
-/// Both are opt-in and applied to the render/vblank thread only — see
-/// [`crate::sched`].
+/// Applied to the render/vblank thread only — see [`crate::sched`].
+/// CPU affinity is opt-in; real-time priority is on by default (omitting
+/// `render_rt_prio` uses [`crate::sched::DEFAULT_RENDER_RT_PRIO`]; set `0` to
+/// opt out).
 #[derive(Debug, Clone, serde::Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct SchedulingRigConfig {
@@ -290,8 +311,8 @@ pub struct SchedulingRigConfig {
 pub fn load(path: &str) -> anyhow::Result<RigConfig> {
     match std::fs::read_to_string(path) {
         Ok(raw) => {
-            let cfg: RigConfig = toml::from_str(&raw)
-                .map_err(|e| anyhow::anyhow!("rig-config {path}: {e}"))?;
+            let cfg: RigConfig =
+                toml::from_str(&raw).map_err(|e| anyhow::anyhow!("rig-config {path}: {e}"))?;
             log::info!("vstimd: rig-config loaded from {path}");
             Ok(cfg)
         }

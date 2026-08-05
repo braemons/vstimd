@@ -22,7 +22,16 @@ pub const PRIO_INPUT: i32 = 50;
 /// systemd unit, which grants `CAP_SYS_NICE` via `CapabilityBoundingSet`.
 #[cfg(target_os = "linux")]
 pub fn set_thread_realtime(priority: i32) {
-    let param = libc::sched_param { sched_priority: priority };
+    if !(1..=99).contains(&priority) {
+        warn!(
+            "sched_setscheduler: priority {priority} is out of range (1-99) \
+             — leaving scheduling policy alone"
+        );
+        return;
+    }
+    let param = libc::sched_param {
+        sched_priority: priority,
+    };
     let ret = unsafe { libc::sched_setscheduler(0, libc::SCHED_FIFO, &param) };
     if ret != 0 {
         warn!(
@@ -97,8 +106,7 @@ pub fn run_output_loop(
         }
     }
 
-    let mut chip = Chip::new(chip_path)
-        .with_context(|| format!("open GPIO chip {chip_path}"))?;
+    let mut chip = Chip::new(chip_path).with_context(|| format!("open GPIO chip {chip_path}"))?;
 
     let handles: Vec<_> = outputs
         .iter()
@@ -108,7 +116,9 @@ pub fn run_output_loop(
                 .with_context(|| format!("get GPIO line {} for '{}'", o.gpio_line, o.name))?;
             let h = line
                 .request(LineRequestFlags::OUTPUT, 0, CONSUMER)
-                .with_context(|| format!("request output GPIO line {} ('{}')", o.gpio_line, o.name))?;
+                .with_context(|| {
+                    format!("request output GPIO line {} ('{}')", o.gpio_line, o.name)
+                })?;
             info!(
                 "output '{}': VTL bank={} bit={} → GPIO line {}",
                 o.name, o.vtl_bank, o.vtl_bit, o.gpio_line
@@ -134,7 +144,9 @@ pub fn run_output_loop(
                 prev[i] = level;
                 debug!(
                     "out  {:>3} '{}' → {}",
-                    out.gpio_line, out.name, if level == 1 { "HIGH" } else { "LOW" }
+                    out.gpio_line,
+                    out.name,
+                    if level == 1 { "HIGH" } else { "LOW" }
                 );
             }
         }
@@ -176,16 +188,17 @@ pub fn poll_outputs_once(chip_path: &str, outputs: &[OutputLine], vtl: &VtlSegme
     if outputs.is_empty() {
         return Ok(());
     }
-    let mut chip = Chip::new(chip_path)
-        .with_context(|| format!("open GPIO chip {chip_path}"))?;
+    let mut chip = Chip::new(chip_path).with_context(|| format!("open GPIO chip {chip_path}"))?;
     for out in outputs {
-        let line = chip.get_line(out.gpio_line)
+        let line = chip
+            .get_line(out.gpio_line)
             .with_context(|| format!("get GPIO line {}", out.gpio_line))?;
         let handle = line
             .request(LineRequestFlags::OUTPUT, 0, CONSUMER)
             .with_context(|| format!("request GPIO line {}", out.gpio_line))?;
         let level = ((vtl.output_state(out.vtl_bank as usize) >> out.vtl_bit) & 1) as u8;
-        handle.set_value(level)
+        handle
+            .set_value(level)
             .with_context(|| format!("set GPIO line {}", out.gpio_line))?;
     }
     Ok(())
@@ -203,13 +216,12 @@ fn run_input_loop(
     }
     set_thread_realtime(prio);
 
-    let mut chip = Chip::new(chip_path)
-        .with_context(|| format!("open GPIO chip {chip_path}"))?;
+    let mut chip = Chip::new(chip_path).with_context(|| format!("open GPIO chip {chip_path}"))?;
 
     let event_flags = match inp.edge {
-        Edge::Rising  => EventRequestFlags::RISING_EDGE,
+        Edge::Rising => EventRequestFlags::RISING_EDGE,
         Edge::Falling => EventRequestFlags::FALLING_EDGE,
-        Edge::Both    => EventRequestFlags::BOTH_EDGES,
+        Edge::Both => EventRequestFlags::BOTH_EDGES,
     };
 
     let line = chip
@@ -218,7 +230,12 @@ fn run_input_loop(
 
     let events = line
         .events(LineRequestFlags::INPUT, event_flags, CONSUMER)
-        .with_context(|| format!("request events on GPIO line {} ('{}')", inp.gpio_line, inp.name))?;
+        .with_context(|| {
+            format!(
+                "request events on GPIO line {} ('{}')",
+                inp.gpio_line, inp.name
+            )
+        })?;
 
     info!(
         "input '{}': GPIO line {} → VTL bank={} bit={} edge={:?}",
