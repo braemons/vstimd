@@ -166,9 +166,14 @@ jobs:
           vstimd on rigs that drive GPIO trigger lines.
           EOF
           )
+          # A hyphen is semver's pre-release marker (v0.1.0-alpha1). Without
+          # this, GitHub would badge an alpha as the project's Latest release.
+          PRERELEASE=
+          case "$TAG" in *-*) PRERELEASE=--prerelease ;; esac
+
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" release/* --clobber
           else
             gh release create "$TAG" release/* \
-              --title "$TAG" --notes "$NOTES" --verify-tag
+              --title "$TAG" --notes "$NOTES" --verify-tag $PRERELEASE
           fi
