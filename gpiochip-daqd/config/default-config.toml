@@ -5,10 +5,11 @@
 #
 # Board-specific examples (with GPIO line numbers pre-filled) are in:
 #   /usr/share/braemons/gpiochip-daqd/
-#     jetson-orin-nano.toml
+#     jetson-orin-nano_in16_out4.toml
+#     raspberry-pi-5_in16_out4.toml
 #
 # To start with a board example:
-#   cp /usr/share/braemons/gpiochip-daqd/jetson-orin-nano.toml \
+#   cp /usr/share/braemons/gpiochip-daqd/raspberry-pi-5_in16_out4.toml \
 #      /etc/braemons/gpiochip-daqd-config.toml
 
 # ── VTL shared memory ─────────────────────────────────────────────────────────

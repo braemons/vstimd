@@ -5,7 +5,8 @@ SHAREDIR    ?= /usr/share/braemons/gpiochip-daqd
 BINARY      := ../target/release/gpiochip-daqd
 SERVICE     := packaging/systemd/gpiochip-daqd.service
 CONFIG      := config/default-config.toml
-EXAMPLES    := config/jetson-orin-nano_in16_out4.toml
+EXAMPLES    := config/jetson-orin-nano_in16_out4.toml \
+               config/raspberry-pi-5_in16_out4.toml
 
 .PHONY: build install uninstall
 

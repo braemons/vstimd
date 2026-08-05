@@ -1,0 +1,200 @@
+# gpiochip-daqd — Raspberry Pi 5, 16 inputs / 4 outputs
+#
+# Install to: /etc/braemons/gpiochip-daqd-config.toml
+#
+# VTL bit numbering convention:
+#
+#   vtl_bit  ==  40-pin header pin number
+#
+# Inputs (bank 0) and outputs (bank 0) are independent VTL arrays;
+# the same bit number can appear in both without conflict.
+#
+# GPIO is handled by the RP1 south-bridge, exposed as one gpiochip with
+# line offset == BCM GPIO number (unlike Jetson's Tegra pinctrl, there is
+# no separate line-offset table to look up).
+#
+#   gpiodetect on this machine reports the RP1 controller as gpiochip0:
+#     gpiochip0 [pinctrl-rp1] (54 lines)
+#   NOTE: on some kernel versions RP1 enumerates as gpiochip4 instead
+#   (see default-config.toml). Always confirm with `gpiodetect` /
+#   `gpioinfo` before deploying — do not assume the device name.
+#
+# 40-pin header pin → BCM GPIO → gpiochip0 line offset:
+#
+#   pin  7 → GPIO4  → line  4    pin 19 → GPIO10 → line 10    pin 31 → GPIO6  → line  6
+#   pin 11 → GPIO17 → line 17    pin 21 → GPIO9  → line  9    pin 33 → GPIO13 → line 13
+#   pin 12 → GPIO18 → line 18    pin 22 → GPIO25 → line 25    pin 36 → GPIO16 → line 16
+#   pin 13 → GPIO27 → line 27    pin 23 → GPIO11 → line 11    pin 37 → GPIO26 → line 26
+#   pin 15 → GPIO22 → line 22    pin 24 → GPIO8  → line  8    pin 38 → GPIO20 → line 20
+#   pin 16 → GPIO23 → line 23    pin 26 → GPIO7  → line  7    pin 40 → GPIO21 → line 21
+#   pin 18 → GPIO24 → line 24    pin 29 → GPIO5  → line  5
+#
+# Reserved / not used here (left free for their usual purpose):
+#   pin  3 → GPIO2  (I2C1 SDA)      pin  5 → GPIO3  (I2C1 SCL)
+#   pin  8 → GPIO14 (UART TXD)      pin 10 → GPIO15 (UART RXD)
+#   pin 27 → GPIO0  (ID_SD, HAT EEPROM)   pin 28 → GPIO1 (ID_SC, HAT EEPROM)
+#   pin 32 → GPIO12 (spare)
+#
+# Outputs: header pins 36–40 (last 4 GPIO pins before end-of-header),
+# mirroring the Jetson Orin Nano layout.
+# Inputs:  remaining GPIO pins in the 7–33 range.
+
+[vtl]
+shm_name = "/vstimd_vtl"
+
+[gpio]
+chip = "/dev/gpiochip0"
+
+# ── Thread scheduling ─────────────────────────────────────────────────────────
+# Pi 5 has 4 symmetric Cortex-A76 cores (no efficiency/performance split),
+# so core pinning is mainly about isolating the output thread from
+# everything else, not picking a "fast" core.
+# CPU affinity is not yet applied; uncomment once implemented.
+#
+# [scheduling]
+# output_rt_prio  = 60
+# output_cpu_core = 3
+# input_rt_prio   = 50
+# input_cpu_core  = 3
+
+# ── Output lines (vtl_bit = header pin number) ────────────────────────────────
+# vstimd writes output_state; this daemon drives these pins to match.
+
+[[outputs]]
+name      = "out_pin36"
+vtl_bank  = 0
+vtl_bit   = 36
+gpio_line = 16          # header pin 36, GPIO16
+
+[[outputs]]
+name      = "out_pin37"
+vtl_bank  = 0
+vtl_bit   = 37
+gpio_line = 26          # header pin 37, GPIO26
+
+[[outputs]]
+name      = "out_pin38"
+vtl_bank  = 0
+vtl_bit   = 38
+gpio_line = 20          # header pin 38, GPIO20
+
+[[outputs]]
+name      = "out_pin40"
+vtl_bank  = 0
+vtl_bit   = 40
+gpio_line = 21          # header pin 40, GPIO21
+
+# ── Input lines (vtl_bit = header pin number) ─────────────────────────────────
+# Kernel edge-event blocking — no busy-wait.
+
+[[inputs]]
+name      = "in_pin7"
+vtl_bank  = 0
+vtl_bit   = 7
+gpio_line = 4           # header pin 7,  GPIO4
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin11"
+vtl_bank  = 0
+vtl_bit   = 11
+gpio_line = 17          # header pin 11, GPIO17
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin12"
+vtl_bank  = 0
+vtl_bit   = 12
+gpio_line = 18          # header pin 12, GPIO18
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin13"
+vtl_bank  = 0
+vtl_bit   = 13
+gpio_line = 27          # header pin 13, GPIO27
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin15"
+vtl_bank  = 0
+vtl_bit   = 15
+gpio_line = 22          # header pin 15, GPIO22
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin16"
+vtl_bank  = 0
+vtl_bit   = 16
+gpio_line = 23          # header pin 16, GPIO23
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin18"
+vtl_bank  = 0
+vtl_bit   = 18
+gpio_line = 24          # header pin 18, GPIO24
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin19"
+vtl_bank  = 0
+vtl_bit   = 19
+gpio_line = 10          # header pin 19, GPIO10
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin21"
+vtl_bank  = 0
+vtl_bit   = 21
+gpio_line = 9           # header pin 21, GPIO9
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin22"
+vtl_bank  = 0
+vtl_bit   = 22
+gpio_line = 25          # header pin 22, GPIO25
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin23"
+vtl_bank  = 0
+vtl_bit   = 23
+gpio_line = 11          # header pin 23, GPIO11
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin24"
+vtl_bank  = 0
+vtl_bit   = 24
+gpio_line = 8           # header pin 24, GPIO8
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin26"
+vtl_bank  = 0
+vtl_bit   = 26
+gpio_line = 7           # header pin 26, GPIO7
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin29"
+vtl_bank  = 0
+vtl_bit   = 29
+gpio_line = 5           # header pin 29, GPIO5
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin31"
+vtl_bank  = 0
+vtl_bit   = 31
+gpio_line = 6           # header pin 31, GPIO6
+edge      = "both"
+
+[[inputs]]
+name      = "in_pin33"
+vtl_bank  = 0
+vtl_bit   = 33
+gpio_line = 13          # header pin 33, GPIO13
+edge      = "both"
