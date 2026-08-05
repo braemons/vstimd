@@ -12,8 +12,12 @@ UI_HOST ?= 0.0.0.0
 .PHONY: install gen dev dev-null build typecheck test-e2e test-ui test clean
 
 # Install node deps if missing.
+# Overridable so the packaging containers can ask for a lockfile-exact
+# install (NPM_INSTALL="npm ci") without restating the build steps.
+NPM_INSTALL ?= npm install
+
 node_modules:
-	npm install
+	$(NPM_INSTALL)
 
 install:
 	npm install

@@ -67,6 +67,9 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - \
 WORKDIR /src
 
 COPY Cargo.toml Cargo.lock ./
+# The build recipes live here (see `make build` / `make print-version` below)
+# rather than being restated in this Dockerfile.
+COPY Makefile ./
 COPY server/ server/
 COPY vtl/ vtl/
 # A workspace member: cargo refuses to load the workspace without it, even
@@ -76,18 +79,21 @@ COPY proto/ proto/
 COPY client/web/ client/web/
 
 # Build the React UI first so `--features embed-ui` can bake client/web/dist
-# into the binary. `npm run gen` regenerates the protobuf-es client from proto/.
-RUN cd client/web \
-    && npm ci \
-    && npm run gen \
-    && npm run build
+# into the binary. Kept as its own layer so a Rust-only change does not redo
+# the npm work. NPM_INSTALL="npm ci" for a lockfile-exact, reproducible install.
+RUN make web NPM_INSTALL="npm ci"
 
+# `make build` = web + cargo build --features embed-ui, and print-binary /
+# print-version come from the same Makefile variables the .deb path uses — so
+# the binary path and the crate version are not re-derived here. (This file
+# used to re-implement the version parse with a stricter regex than the
+# Makefile's, which silently breaks on an aligned `version = "..."`.)
 RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry \
     --mount=type=cache,target=/usr/local/cargo/git,id=cargo-git \
     --mount=type=cache,target=/src/target,id=cargo-target-${RUST_TARGET} \
-    cargo build --release --features embed-ui --target ${RUST_TARGET} && \
-    cp target/${RUST_TARGET}/release/vstimd /vstimd && \
-    grep '^version' server/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/' > /version
+    make build RUST_TARGET=${RUST_TARGET} && \
+    cp "$(make -s print-binary RUST_TARGET=${RUST_TARGET})" /vstimd && \
+    make -s print-version > /version
 
 # ── Stage 2: package ──────────────────────────────────────────────────────────
 FROM ${PACK_IMAGE} AS packager

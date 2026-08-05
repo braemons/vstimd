@@ -3,7 +3,12 @@ UNITDIR     ?= /lib/systemd/system
 SYSUSERSDIR ?= /usr/lib/sysusers.d
 CONFDIR     ?= /etc/braemons
 SHAREDIR    ?= /usr/share/braemons/vstimd
-BINARY      := target/release/vstimd
+# Cross-compile target. Empty = build for the host, which is what a developer
+# running `make build` wants. The packaging containers set it so they can reuse
+# these targets instead of restating the cargo invocations.
+RUST_TARGET ?=
+CARGO_TARGET_ARG := $(if $(RUST_TARGET),--target $(RUST_TARGET),)
+BINARY      := target/$(if $(RUST_TARGET),$(RUST_TARGET)/,)release/vstimd
 SERVICE     := packaging/systemd/vstimd.service
 TARGET_UNIT := packaging/systemd/vstimd.target
 HOSTNAME_UNIT   := packaging/systemd/vstimd-hostname.service
@@ -54,7 +59,9 @@ VSTIMD_IMAGE_PASSWORD ?= vstimd
 IMAGE_VERSION ?=
 
 RUST_SRCS     := Cargo.toml Cargo.lock $(shell find server/src vtl/src proto -type f 2>/dev/null)
-PKG_SRCS      := $(shell find packaging -type f)
+# 2>/dev/null to match RUST_SRCS: the Makefile is now also evaluated inside the
+# packaging containers, and the rpm builder's first stage has no packaging/.
+PKG_SRCS      := $(shell find packaging -type f 2>/dev/null)
 
 WEB_DIR  := client/web
 WEB_DIST := $(WEB_DIR)/dist/index.html
@@ -65,7 +72,8 @@ WEB_SRCS := $(shell find $(WEB_DIR)/src -type f 2>/dev/null) \
         docs docs-build \
         deb-amd64 deb-arm64 deb \
         rpm-amd64 rpm-arm64 rpm \
-        packages image
+        packages image \
+        deb-assemble print-version print-binary
 
 # Build the React bundle that gets baked into the binary (requires Node/npm).
 # File target so it only rebuilds when the web sources change.
@@ -78,7 +86,7 @@ web: $(WEB_DIST)
 # http://<device>:8080 so any machine on the LAN can control vstimd. Requires
 # Node/npm to build the frontend first. Use `build-server` for a UI-less build.
 build: web
-	cargo build --release --features embed-ui
+	cargo build --release --features embed-ui $(CARGO_TARGET_ARG)
 
 # Server-only binary (no embedded UI, no Node/npm needed). The web control
 # surface still runs, but `/` serves a placeholder instead of the React app.
@@ -156,6 +164,29 @@ deb-arm64:
 	docker run --rm -v $(abspath $(DIST_DIR)):/output $(DEB_BUILDER_IMAGE)-arm64
 
 deb: deb-amd64 deb-arm64
+
+# ── Targets run *inside* the packaging containers ────────────────────────────
+# packaging/docker/Dockerfile.{deb,rpm}-builder call these instead of restating
+# the build commands, so there is one definition of how vstimd is built. They
+# pass RUST_TARGET (and REVISION) on the command line, which make forwards to
+# the client/web sub-make automatically.
+#
+# Not for direct use on a dev box: they assume the container's toolchain and,
+# unlike deb-amd64/deb-arm64 above, do no Docker work themselves.
+
+# Both .debs, left in target/<triple>/debian/ for the caller to collect.
+deb-assemble: build
+	cargo deb -p vstimd        --no-build $(CARGO_TARGET_ARG) --deb-revision $(REVISION)
+	cargo deb -p gpiochip-daqd --no-build $(CARGO_TARGET_ARG) --deb-revision $(REVISION)
+
+# Single source of truth for these two, so container scripts do not re-derive
+# them (the rpm builder used to re-implement the version parse, with the same
+# whitespace bug this Makefile's version_of already fixes).
+print-version:
+	@echo $(VERSION)
+
+print-binary:
+	@echo $(BINARY)
 
 rpm-amd64:
 	DOCKER_BUILDKIT=1 docker build \
