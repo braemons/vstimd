@@ -93,6 +93,21 @@ class SystemClient:
         )
         return ServerResponse._from_proto(self._send(req))
 
+    # ── Lifecycle ─────────────────────────────────────────────────────────────
+
+    def shutdown(self) -> ServerResponse:
+        """Ask the server to exit cleanly.
+
+        The server acknowledges first, then finishes the current frame, tears
+        down Vulkan and the VT, and exits — equivalent to sending it SIGTERM.
+        Subsequent requests on this connection will not be answered.
+        """
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            shutdown=system_pb2.ShutdownRequest(),
+        )
+        return ServerResponse._from_proto(self._send(req))
+
     # ── Timing ───────────────────────────────────────────────────────────────
 
     def wait_for_frames(self, count: int) -> ServerResponse:
