@@ -1,0 +1,25 @@
+# Toolchain for packaging/image/build-sd-image.sh: turns a stock Raspberry
+# Pi OS Lite (arm64) image into a ready-to-flash vstimd appliance image.
+#
+# Needs loop devices + mount + chroot, so the container must run with
+# --privileged (see `make image`). qemu-user-static provides the arm64
+# binfmt handler so `chroot` into the arm64 rootfs works on an amd64 host —
+# the handler is registered against the host kernel's binfmt_misc, which is
+# normally already set up on Linux CI runners/dev hosts that have
+# qemu-user-static installed; if not, run this once on the host:
+#   docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+#
+# Usage: see `make image`.
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ca-certificates curl openssl xz-utils util-linux \
+        qemu-user-static \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY packaging/image/build-sd-image.sh packaging/image/build-sd-image.sh
+
+ENTRYPOINT ["packaging/image/build-sd-image.sh"]

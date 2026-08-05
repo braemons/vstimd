@@ -90,8 +90,9 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry \
 WORKDIR /src
 
 COPY Cargo.toml Cargo.lock ./
-COPY server/     server/
-COPY vtl/        vtl/
+COPY server/         server/
+COPY vtl/            vtl/
+COPY gpiochip-daqd/  gpiochip-daqd/
 COPY proto/      proto/
 COPY packaging/  packaging/
 COPY client/web/ client/web/
@@ -108,7 +109,8 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry,id=cargo-registry \
     --mount=type=cache,target=/src/target,id=cargo-target-${RUST_TARGET} \
     cargo build --release --features embed-ui --target ${RUST_TARGET} && \
     cargo deb -p vstimd --no-build --target ${RUST_TARGET} --deb-revision ${REVISION} && \
+    cargo deb -p gpiochip-daqd --no-build --target ${RUST_TARGET} --deb-revision ${REVISION} && \
     mkdir -p /out && \
-    find target -name 'vstimd_*.deb' -not -name '*dbgsym*' -exec cp {} /out/ \;
+    find target -name '*.deb' -not -name '*dbgsym*' -exec cp {} /out/ \;
 
 CMD ["bash", "-c", "cp /out/*.deb /output/ && echo 'deb copied to /output/'"]

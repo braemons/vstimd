@@ -16,20 +16,31 @@ EXAMPLES    := server/config/jetson-orin-nano.toml \
                server/config/raspberry-pi-5.toml \
                server/config/raspberry-pi-4.toml
 
-DIST_DIR          ?= dist
-DEB_BUILDER_IMAGE ?= vstimd-deb-builder
-RPM_BUILDER_IMAGE ?= vstimd-rpm-builder
+DIST_DIR            ?= dist
+DEB_BUILDER_IMAGE   ?= vstimd-deb-builder
+RPM_BUILDER_IMAGE   ?= vstimd-rpm-builder
+IMAGE_BUILDER_IMAGE ?= vstimd-image-builder
+IMAGE_CACHE_DIR     ?= packaging/image/.cache
 
 VERSION  := $(shell grep '^version' server/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+GPIOCHIP_VERSION := $(shell grep '^version' gpiochip-daqd/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
 REVISION ?= 1
 
-# Must match [package.metadata.deb] name in server/Cargo.toml
-DEB_NAME  := braemons-vstimd
+# Must match [package.metadata.deb] name in server/Cargo.toml / gpiochip-daqd/Cargo.toml
+DEB_NAME      := braemons-vstimd
+GPIOCHIP_DEB_NAME := braemons-gpiochip-daqd
 
 DEB_AMD64 := $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_amd64.deb
 DEB_ARM64 := $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_arm64.deb
+GPIOCHIP_DEB_ARM64 := $(DIST_DIR)/$(GPIOCHIP_DEB_NAME)_$(GPIOCHIP_VERSION)-$(REVISION)_arm64.deb
 RPM_AMD64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).x86_64.rpm
 RPM_ARM64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).aarch64.rpm
+
+# Login user/password baked into `make image`'s SD card image (SSH + Samba).
+# Leave VSTIMD_IMAGE_PASSWORD unset to auto-generate one per build — see
+# packaging/image/build-sd-image.sh.
+VSTIMD_IMAGE_USER     ?= vstimd-admin
+VSTIMD_IMAGE_PASSWORD ?=
 
 RUST_SRCS     := Cargo.toml Cargo.lock $(shell find server/src vtl/src proto -type f 2>/dev/null)
 PKG_SRCS      := $(shell find packaging -type f)
@@ -43,7 +54,7 @@ WEB_SRCS := $(shell find $(WEB_DIR)/src -type f 2>/dev/null) \
         docs docs-build \
         deb-amd64 deb-arm64 deb \
         rpm-amd64 rpm-arm64 rpm \
-        packages
+        packages image
 
 # Build the React bundle that gets baked into the binary (requires Node/npm).
 # File target so it only rebuilds when the web sources change.
@@ -154,3 +165,23 @@ rpm-arm64:
 rpm: rpm-amd64 rpm-arm64
 
 packages: deb rpm
+
+# ── SD card image (Raspberry Pi) ──────────────────────────────────────────
+#
+# Ready-to-flash Raspberry Pi OS Lite (arm64) image with vstimd and
+# gpiochip-daqd preinstalled, sshd + an admin user, and a Samba share for
+# /etc/braemons. Needs --privileged (loop devices, chroot) — see
+# packaging/image/build-sd-image.sh and Dockerfile.image-builder.
+image: deb-arm64
+	DOCKER_BUILDKIT=1 docker build \
+	  -f packaging/docker/Dockerfile.image-builder \
+	  -t $(IMAGE_BUILDER_IMAGE) .
+	mkdir -p $(DIST_DIR) $(IMAGE_CACHE_DIR)
+	docker run --rm --privileged \
+	  -v $(abspath $(DIST_DIR)):/src/$(DIST_DIR) \
+	  -v $(abspath $(IMAGE_CACHE_DIR)):/src/$(IMAGE_CACHE_DIR) \
+	  -e VSTIMD_IMAGE_USER=$(VSTIMD_IMAGE_USER) \
+	  -e VSTIMD_IMAGE_PASSWORD=$(VSTIMD_IMAGE_PASSWORD) \
+	  -e DIST_DIR=$(DIST_DIR) \
+	  -e CACHE_DIR=$(IMAGE_CACHE_DIR) \
+	  $(IMAGE_BUILDER_IMAGE) $(DEB_ARM64) $(GPIOCHIP_DEB_ARM64)
