@@ -1,9 +1,11 @@
 //! Direct-KMS presentation on a DisplayLink (`evdi`) output — no compositor.
 //!
 //! See `docs/developer/evdi-direct-presentation-plan.md` for the full design.
-//! Not for stimulus timing: DisplayLink relays frames over USB with no GPU
-//! vsync regardless of who drives the KMS device. Auxiliary/status output
-//! only.
+//! Not for stimulus *timing*: DisplayLink relays frames over USB with no GPU
+//! vsync regardless of who drives the KMS device, so stimulus onset cannot be
+//! trusted to the frame. Suitable for auxiliary/status output and for
+//! behavioral-training stimulus, where no onset timestamp is being measured;
+//! use the DRM backend for recording sessions.
 
 mod evdi_detect;
 mod evdi_init;
