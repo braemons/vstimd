@@ -49,6 +49,10 @@ RPM_ARM64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).aarch64.rpm
 VSTIMD_IMAGE_USER     ?= vstimd-admin
 VSTIMD_IMAGE_PASSWORD ?= vstimd
 
+# Version string in the image filename. Empty = build-sd-image.sh falls back to
+# today's date; CI sets it to the release tag so assets are self-describing.
+IMAGE_VERSION ?=
+
 RUST_SRCS     := Cargo.toml Cargo.lock $(shell find server/src vtl/src proto -type f 2>/dev/null)
 PKG_SRCS      := $(shell find packaging -type f)
 
@@ -188,6 +192,7 @@ image: deb-arm64
 	  -v $(abspath $(DIST_DIR)):/src/$(DIST_DIR) \
 	  -v $(abspath $(IMAGE_CACHE_DIR)):/src/$(IMAGE_CACHE_DIR) \
 	  -e VSTIMD_IMAGE_USER=$(VSTIMD_IMAGE_USER) \
+	  -e IMAGE_VERSION=$(IMAGE_VERSION) \
 	  -e VSTIMD_IMAGE_PASSWORD=$(VSTIMD_IMAGE_PASSWORD) \
 	  -e DIST_DIR=$(DIST_DIR) \
 	  -e CACHE_DIR=$(IMAGE_CACHE_DIR) \
