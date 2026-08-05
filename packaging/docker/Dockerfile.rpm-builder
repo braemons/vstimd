@@ -69,6 +69,9 @@ WORKDIR /src
 COPY Cargo.toml Cargo.lock ./
 COPY server/ server/
 COPY vtl/ vtl/
+# A workspace member: cargo refuses to load the workspace without it, even
+# though this image only packages vstimd itself.
+COPY gpiochip-daqd/ gpiochip-daqd/
 COPY proto/ proto/
 COPY client/web/ client/web/
 
@@ -97,8 +100,10 @@ RUN dnf install -y rpm-build systemd-rpm-macros \
 # /build acts as %{_builddir} so %install paths resolve correctly.
 WORKDIR /build
 
-COPY packaging/systemd/  packaging/systemd/
-COPY packaging/sysusers/ packaging/sysusers/
+# The whole tree, not a hand-picked subset: %install also reaches for
+# packaging/scripts, packaging/rsyslog, packaging/logrotate and
+# packaging/avahi, and a missing one only shows up as an rpmbuild failure.
+COPY packaging/ packaging/
 COPY packaging/rpm/vstimd.spec /root/rpmbuild/SPECS/vstimd.spec
 
 COPY --from=builder /vstimd  target/release/vstimd

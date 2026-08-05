@@ -34,9 +34,14 @@ install -D -m 0644 %{_builddir}/packaging/sysusers/vstimd.conf           %{build
 install -D -m 0644 %{_builddir}/packaging/rsyslog/vstimd.conf             %{buildroot}%{_sysconfdir}/rsyslog.d/10-vstimd.conf
 install -D -m 0644 %{_builddir}/packaging/logrotate/vstimd                %{buildroot}%{_sysconfdir}/logrotate.d/vstimd
 install -D -m 0644 %{_builddir}/packaging/avahi/vstimd.service.tmpl       %{buildroot}%{_datadir}/braemons/vstimd/vstimd.service.avahi.tmpl
+# %files declares this with %dir, so it has to exist in the buildroot even
+# though rsyslog only writes to it at runtime.
+install -d -m 0755 %{buildroot}/var/log/vstimd
 
 %post
-%sysusers_create_package vstimd %{_sysusersdir}/vstimd.conf
+# Build-time path, not %{_sysusersdir}: this macro inlines the file's contents
+# into the scriptlet while rpmbuild runs, before anything is installed.
+%sysusers_create_package vstimd %{_builddir}/packaging/sysusers/vstimd.conf
 %systemd_post vstimd.service
 %systemd_post vstimd-hostname.service
 # Create log directory (rsyslog writes here as root).
