@@ -3,6 +3,12 @@ target
 
 # MkDocs build output
 /site/
+# Build artefacts from `make deb/rpm/image`. The image build also writes a
+# plaintext *-credentials.txt here with the generated SSH/Samba password —
+# this must never be committable.
+/dist/
+packaging/image/.cache/
+
 packaging/*.deb
 packaging/*.ddeb
 packaging/*.rpm

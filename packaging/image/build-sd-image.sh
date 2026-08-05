@@ -2,7 +2,9 @@
 # build-sd-image.sh — turn a stock Raspberry Pi OS Lite (arm64) image into a
 # ready-to-flash vstimd appliance image: vstimd + gpiochip-daqd installed
 # from locally-built .debs, sshd + an admin user, and a Samba share for
-# /etc/braemons (the vstimd/gpiochip-daqd config directory).
+# /etc/braemons (the vstimd/gpiochip-daqd config directory). Also bakes in
+# the DisplayLink/evdi driver (auxiliary screens only), an Energy-Efficient
+# Ethernet workaround, and a few interactive tools.
 #
 # Runs a stock RPi OS image through a loop-mounted chroot rather than a
 # from-scratch build (pi-gen) — cheaper to build/iterate since it reuses the
@@ -50,6 +52,8 @@ fi
 
 MNT=""
 LOOP_DEV=""
+BOOT_PART=""
+ROOT_PART=""
 WORK_IMG=""
 cleanup() {
     set +e
@@ -60,7 +64,9 @@ cleanup() {
     [ -n "$MNT" ] && mountpoint -q "$MNT/boot" && umount "$MNT/boot"
     [ -n "$MNT" ] && mountpoint -q "$MNT" && umount "$MNT"
     [ -n "$MNT" ] && rmdir "$MNT" 2>/dev/null
-    [ -n "$LOOP_DEV" ] && losetup -d "$LOOP_DEV" 2>/dev/null
+    for dev in "$BOOT_PART" "$ROOT_PART" "$LOOP_DEV"; do
+        [ -n "$dev" ] && losetup -d "$dev" 2>/dev/null
+    done
     [ -n "$WORK_IMG" ] && rm -f "$WORK_IMG"
 }
 trap cleanup EXIT
@@ -80,12 +86,48 @@ WORK_IMG="$CACHE_DIR/work.img"
 echo "==> decompressing to working copy"
 xz -dc "$BASE_XZ" > "$WORK_IMG"
 
-# ── 2. Loop-mount boot + root partitions ─────────────────────────────────────
+# ── 2. Grow the rootfs, then loop-mount boot + root partitions ──────────────
+#
+# Stock RPi OS Lite leaves only a few hundred MB free in the root partition —
+# nowhere near enough for build-essential + kernel headers + the DKMS evdi
+# build below. Grow the image file and the root partition before chrooting.
+# (The Pi expands the rootfs to fill the card on first boot anyway, so this
+# only affects the shipped .img size, which xz squeezes back down.)
 
-echo "==> attaching loop device"
-LOOP_DEV=$(losetup -fP --show "$WORK_IMG")
-BOOT_PART="${LOOP_DEV}p1"
-ROOT_PART="${LOOP_DEV}p2"
+# --privileged gives the container a *snapshot* of the host's /dev taken at
+# container start, not a live view of devtmpfs. Loop device nodes the kernel
+# creates afterwards therefore never show up in here, and losetup fails with
+# ENOENT on the very device it just allocated. Pre-create the whole pool of
+# nodes (major 7) so whichever index losetup picks already exists.
+echo "==> pre-creating loop device nodes"
+for i in $(seq 0 "${LOOP_POOL:-63}"); do
+    [ -e "/dev/loop$i" ] || mknod "/dev/loop$i" b 7 "$i"
+done
+
+echo "==> growing image by ${GROW_SIZE:-4G}"
+truncate -s "+${GROW_SIZE:-4G}" "$WORK_IMG"
+
+# Whole-disk loop, only to rewrite the partition table.
+LOOP_DEV=$(losetup -f --show "$WORK_IMG")
+parted -s "$LOOP_DEV" resizepart 2 100%
+
+# `losetup -P` partition devices (/dev/loopNp2) are created in the host's
+# devtmpfs, which a container's private /dev never sees — so map each
+# partition with its own offset/sizelimit loop device instead. partx reads
+# the table straight off the whole-disk loop, no partition nodes needed.
+read -r BOOT_START BOOT_SECTORS <<<"$(partx -g -o START,SECTORS -n 1 "$LOOP_DEV")"
+read -r ROOT_START ROOT_SECTORS <<<"$(partx -g -o START,SECTORS -n 2 "$LOOP_DEV")"
+
+# Deliberately keep the whole-disk loop attached until teardown: detaching it
+# here and immediately calling `losetup -f` races the kernel's asynchronous
+# teardown, which hands back the device still being torn down and then fails
+# to set it up.
+BOOT_PART=$(losetup -f --show --offset $((BOOT_START * 512)) --sizelimit $((BOOT_SECTORS * 512)) "$WORK_IMG")
+ROOT_PART=$(losetup -f --show --offset $((ROOT_START * 512)) --sizelimit $((ROOT_SECTORS * 512)) "$WORK_IMG")
+
+echo "==> resizing root filesystem"
+e2fsck -fy "$ROOT_PART" || true   # e2fsck exits 1 when it fixed something
+resize2fs "$ROOT_PART"
 
 MNT=$(mktemp -d)
 mount "$ROOT_PART" "$MNT"
@@ -121,7 +163,92 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y --no-install-recommends openssh-server samba avahi-daemon
+apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool
+
+# Convenience tools for anyone who SSHes into the appliance to poke at it.
+apt-get install -y --no-install-recommends btop vim tmux
+
+# Energy-Efficient Ethernet makes the Pi 5's NIC drop connections (see
+# docs/developer/platform-notes.md). A udev rule rather than a oneshot unit so
+# it applies whenever a wired NIC appears, including USB adapters and
+# re-enumeration, with no ordering against network.target to get wrong.
+# ethtool exits non-zero on NICs that don't implement EEE at all; that's
+# expected on some adapters, so don't let it fail the rule.
+cat > /etc/udev/rules.d/80-disable-eee.rules <<'UDEV_EOF'
+ACTION=="add", SUBSYSTEM=="net", KERNEL=="eth*", \
+  RUN+="/bin/sh -c '/usr/sbin/ethtool --set-eee %k eee off || true'"
+UDEV_EOF
+
+# ── DisplayLink / evdi ──────────────────────────────────────────────────────
+# Drives a USB screen via vstimd's --evdi backend: auxiliary/status displays,
+# and stimulus output for behavioral-training setups. Not for recording
+# sessions — DisplayLink has no GPU vsync, so stimulus onset cannot be trusted
+# to the frame (see docs/developer/platform-notes.md).
+#
+# Synaptics' displaylink-driver package builds evdi through DKMS, and DKMS
+# targets \$(uname -r) — which inside this chroot is the amd64 build host's
+# kernel, not the image's. Left alone, evdi's postinst fails ("kernel headers
+# for kernel <host> cannot be found"), displaylink-driver is left unconfigured
+# on its dependency, and any later dpkg --configure -a fails the same way.
+# So shim uname -r to the image's kernel for the duration of the install and
+# let the package's own machinery build against the right target.
+apt-get install -y --no-install-recommends \
+    dkms build-essential libdrm-dev libusb-1.0-0-dev pkg-config unzip
+
+# Kernel headers for the image's kernels: Pi 5 (2712) and Pi 4/older (v8).
+apt-get install -y linux-headers-rpi-2712 linux-headers-rpi-v8
+
+# Prefer the Pi 5 kernel; the loop further down covers the rest.
+TARGET_KVER=\$(ls /lib/modules | grep -- '2712' | sort -V | tail -1)
+[ -n "\$TARGET_KVER" ] || TARGET_KVER=\$(ls /lib/modules | sort -V | tail -1)
+echo "==> shimming uname -r to \$TARGET_KVER for the DisplayLink install"
+
+cat > /usr/sbin/uname <<UNAME_EOF
+#!/bin/sh
+# Build-time shim (removed before the image is packed): report the image's
+# kernel so DKMS builds for it instead of the build host's kernel.
+for a in "\\\$@"; do
+    case "\\\$a" in -r|--kernel-release) echo "\$TARGET_KVER"; exit 0;; esac
+done
+exec /bin/uname "\\\$@"
+UNAME_EOF
+chmod +x /usr/sbin/uname
+
+curl -fL -o /root/synaptics-repository-keyring.deb \
+    https://www.synaptics.com/sites/default/files/Ubuntu/pool/stable/main/all/synaptics-repository-keyring.deb
+dpkg -i /root/synaptics-repository-keyring.deb
+rm -f /root/synaptics-repository-keyring.deb
+apt-get update
+apt-get install -y displaylink-driver
+
+# Cover the image's other kernels (Pi 4/v8) too — the postinst above only
+# built for TARGET_KVER.
+EVDI_SRC=\$(ls -d /usr/src/evdi-* 2>/dev/null | sort -V | tail -1)
+if [ -n "\$EVDI_SRC" ]; then
+    EVDI_VER=\${EVDI_SRC##*/evdi-}
+    BUILT=0
+    for KVER in \$(ls /lib/modules); do
+        [ -d "/lib/modules/\$KVER/build" ] || continue
+        echo "==> building evdi \$EVDI_VER for kernel \$KVER"
+        if dkms install "evdi/\$EVDI_VER" -k "\$KVER" --force; then
+            BUILT=\$((BUILT + 1))
+        else
+            echo "warning: evdi build failed for \$KVER" >&2
+        fi
+    done
+    [ "\$BUILT" -gt 0 ] || { echo "error: evdi built for no kernel at all" >&2; exit 1; }
+else
+    echo "error: displaylink-driver did not provide evdi DKMS sources" >&2
+    exit 1
+fi
+
+rm -f /usr/sbin/uname
+
+# Deliberately NOT 'systemctl enable displaylink-driver': the unit ships with
+# no [Install] section, so enabling it is a silent no-op (systemctl warns and
+# exits 0). It is started on demand by /lib/udev/rules.d/99-displaylink.rules
+# -> /opt/displaylink/udev.sh -> 'systemctl start --no-block displaylink-driver'
+# when a DisplayLink device (vendor 17e9) appears, including at boot coldplug.
 
 # vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
 # creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
@@ -137,8 +264,34 @@ chage -d 0 "${IMAGE_USER}"
 systemctl enable ssh
 
 # Samba share for the vstimd/gpiochip-daqd config directory.
+#
+# Samba keeps its own credential in passdb.tdb, which the 'chage -d 0' above
+# does NOT govern — that only gates Unix/SSH logins. Left alone, the default
+# password would keep working over SMB forever, including after the user
+# dutifully changed it at first SSH login. Two things close that gap:
+#
+#   - pdbedit --pwd-must-change-now, so the baked-in default cannot persist
+#     on the SMB side either;
+#   - unix password sync, so changing the SMB password (smbpasswd, or a
+#     client that prompts) drives /usr/bin/passwd too and the two stay one
+#     credential rather than drifting apart.
+#
+# Trade-off: a client that cannot prompt for a password change (mount.cifs,
+# notably) gets NT_STATUS_PASSWORD_MUST_CHANGE until the password is set once
+# — over SSH, `smbpasswd` does it. Drop the pdbedit line if that is the wrong
+# call for your rigs.
 printf '%s\n%s\n' "${IMAGE_PASSWORD}" "${IMAGE_PASSWORD}" | smbpasswd -s -a "${IMAGE_USER}"
+pdbedit -u "${IMAGE_USER}" --pwd-must-change-now
+
+# A repeated [global] is legal and merges into the first one, which keeps this
+# an append rather than an edit of the stock smb.conf.
 cat >> /etc/samba/smb.conf <<SMB_EOF
+
+[global]
+   unix password sync = yes
+   pam password change = yes
+   passwd program = /usr/bin/passwd %u
+   passwd chat = *password:* %n\n *password:* %n\n *successfully*
 
 [${SAMBA_SHARE}]
    path = /etc/braemons
@@ -149,6 +302,7 @@ cat >> /etc/samba/smb.conf <<SMB_EOF
    create mask = 0644
    directory mask = 0755
 SMB_EOF
+testparm -s >/dev/null
 systemctl enable smbd nmbd avahi-daemon
 
 systemctl enable vstimd vstimd-hostname gpiochip-daqd
@@ -171,7 +325,9 @@ umount -R "$MNT/dev"
 umount "$BOOT_MOUNT"
 umount "$MNT"
 rmdir "$MNT"; MNT=""
-losetup -d "$LOOP_DEV"; LOOP_DEV=""
+losetup -d "$ROOT_PART"; ROOT_PART=""
+losetup -d "$BOOT_PART"; BOOT_PART=""
+losetup -d "$LOOP_DEV";  LOOP_DEV=""
 
 echo "==> compressing image"
 OUT_IMG="$DIST_DIR/${OUT_BASENAME}.img.xz"

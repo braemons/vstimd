@@ -16,6 +16,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates curl openssl xz-utils util-linux \
+        parted e2fsprogs dosfstools \
         qemu-user-static \
     && rm -rf /var/lib/apt/lists/*
 

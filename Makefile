@@ -22,8 +22,12 @@ RPM_BUILDER_IMAGE   ?= vstimd-rpm-builder
 IMAGE_BUILDER_IMAGE ?= vstimd-image-builder
 IMAGE_CACHE_DIR     ?= packaging/image/.cache
 
-VERSION  := $(shell grep '^version' server/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
-GPIOCHIP_VERSION := $(shell grep '^version' gpiochip-daqd/Cargo.toml | head -1 | sed 's/version = "\(.*\)"/\1/')
+# Tolerate the aligned `version     = "..."` spacing some of the manifests use —
+# a strict `version = ` match silently yields the whole line as the "version".
+version_of = $(shell grep -m1 '^version' $(1) | sed -E 's/^version[[:space:]]*=[[:space:]]*"([^"]*)".*/\1/')
+
+VERSION  := $(call version_of,server/Cargo.toml)
+GPIOCHIP_VERSION := $(call version_of,gpiochip-daqd/Cargo.toml)
 REVISION ?= 1
 
 # Must match [package.metadata.deb] name in server/Cargo.toml / gpiochip-daqd/Cargo.toml
@@ -37,10 +41,13 @@ RPM_AMD64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).x86_64.rpm
 RPM_ARM64 := $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).aarch64.rpm
 
 # Login user/password baked into `make image`'s SD card image (SSH + Samba).
-# Leave VSTIMD_IMAGE_PASSWORD unset to auto-generate one per build — see
-# packaging/image/build-sd-image.sh.
+# A known default, so a freshly flashed card is reachable without hunting for
+# a build log. The image still forces a password change at first login
+# (`chage -d 0`), which is what keeps it from staying valid in the field.
+# Set VSTIMD_IMAGE_PASSWORD="" to auto-generate a random one per build
+# instead — see packaging/image/build-sd-image.sh.
 VSTIMD_IMAGE_USER     ?= vstimd-admin
-VSTIMD_IMAGE_PASSWORD ?=
+VSTIMD_IMAGE_PASSWORD ?= vstimd
 
 RUST_SRCS     := Cargo.toml Cargo.lock $(shell find server/src vtl/src proto -type f 2>/dev/null)
 PKG_SRCS      := $(shell find packaging -type f)

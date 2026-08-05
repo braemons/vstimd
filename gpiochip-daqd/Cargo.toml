@@ -47,6 +47,7 @@ assets = [
     ["target/release/gpiochip-daqd",            "usr/bin/gpiochip-daqd",                                      "755"],
     ["config/default-config.toml",              "etc/braemons/gpiochip-daqd-config.toml",                     "644"],
     ["config/jetson-orin-nano_in16_out4.toml",  "usr/share/braemons/gpiochip-daqd/jetson-orin-nano_in16_out4.toml", "644"],
+    ["config/raspberry-pi-5_in16_out4.toml",    "usr/share/braemons/gpiochip-daqd/raspberry-pi-5_in16_out4.toml",   "644"],
 ]
 maintainer-scripts = "../packaging/debian/"
 
