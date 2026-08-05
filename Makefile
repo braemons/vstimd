@@ -119,7 +119,7 @@ build: web
 # Server-only binary (no embedded UI, no Node/npm needed). The web control
 # surface still runs, but `/` serves a placeholder instead of the React app.
 build-server:
-	VSTIMD_VERSION=$(VERSION) cargo build --release
+	VSTIMD_VERSION=$(VERSION) cargo build --release $(CARGO_TARGET_ARG)
 
 # Install a pre-built binary. Kept separate from `build` so the usual flow is
 # `make build` (as your user, with cargo) then `sudo make install` (as root,

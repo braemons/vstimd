@@ -2154,8 +2154,10 @@ fn parse_version() -> proto::Version {
 
 fn parse_version_str(s: &str) -> proto::Version {
     let mut parts = s.splitn(3, '.').map(|p| {
-        let digits = p.trim_start_matches(|c: char| !c.is_ascii_digit());
-        let digits: String = digits.chars().take_while(char::is_ascii_digit).collect();
+        // Leading digits only. Skipping over non-digits first would make
+        // "0.1.~alpha4" report patch 4, dressing a malformed version up as a
+        // plausible one — the opposite of what the 0.0.0 sentinel is for.
+        let digits: String = p.chars().take_while(char::is_ascii_digit).collect();
         digits.parse::<u32>().unwrap_or(0)
     });
     proto::Version {
@@ -2330,5 +2332,15 @@ mod version_tests {
         assert_eq!(triple(""), (0, 0, 0));
         assert_eq!(triple("nonsense"), (0, 0, 0));
         assert_eq!(triple("1.2"), (1, 2, 0));
+    }
+
+    /// A field that does not *start* with a digit reads as 0 rather than
+    /// scanning forward for one. Otherwise "0.1.~alpha4" would report patch 4
+    /// and a malformed version would look well-formed to a client.
+    #[test]
+    fn digits_after_junk_are_not_harvested() {
+        assert_eq!(triple("0.1.~alpha4"), (0, 1, 0));
+        assert_eq!(triple("~alpha4.1.2"), (0, 1, 2));
+        assert_eq!(triple("0.1.abc9"), (0, 1, 0));
     }
 }
