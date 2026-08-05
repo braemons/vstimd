@@ -1,8 +1,8 @@
 #!/bin/bash
 # build-sd-image.sh — turn a stock Raspberry Pi OS Lite (arm64) image into a
 # ready-to-flash vstimd appliance image: vstimd + gpiochip-daqd installed
-# from locally-built .debs, sshd + an admin user, and a Samba share for
-# /etc/braemons (the vstimd/gpiochip-daqd config directory). Also bakes in
+# from locally-built .debs, sshd + an admin user, and Samba shares for
+# /etc/braemons (settings) and /var/lib/braemons (saved stim-configs). Also bakes in
 # the DisplayLink/evdi driver (auxiliary screens only), an Energy-Efficient
 # Ethernet workaround, and a few interactive tools.
 #
@@ -37,6 +37,10 @@ IMAGE_USER="${VSTIMD_IMAGE_USER:-vstimd-admin}"
 [ "$IMAGE_USER" != "vstimd" ] || { echo "error: VSTIMD_IMAGE_USER must not be 'vstimd' — that's the service account" >&2; exit 1; }
 IMAGE_PASSWORD="${VSTIMD_IMAGE_PASSWORD:-}"
 SAMBA_SHARE="${SAMBA_SHARE_NAME:-vstimd-config}"
+# Second share for the runtime state dir: saved stim-configs and the
+# save-on-quit slot live in /var/lib/braemons/vstimd (the unit's
+# StateDirectory=), which is what people actually want to copy off a rig.
+SAMBA_DATA_SHARE="${SAMBA_DATA_SHARE_NAME:-vstimd-data}"
 
 mkdir -p "$CACHE_DIR" "$DIST_DIR"
 
@@ -219,6 +223,20 @@ curl -fL -o /root/synaptics-repository-keyring.deb \
 dpkg -i /root/synaptics-repository-keyring.deb
 rm -f /root/synaptics-repository-keyring.deb
 apt-get update
+
+# evdi 1.15.0 (what the Synaptics repo serves) fails to build its DKMS module
+# on current RPi kernels; 1.14.16 is known-good. This MUST be pinned before
+# displaylink-driver is installed: apt pulls evdi in to satisfy that
+# dependency, and an unpinned 1.15.0 fails in its own postinst (exit 10),
+# which aborts this script under set -e long before any later pin applies.
+# Priority 1001 also keeps a later 'apt-get upgrade' on the appliance from
+# pulling 1.15.x back in.
+cat > /etc/apt/preferences.d/evdi-pin <<APT_PREF
+Package: evdi
+Pin: version 1.14.16*
+Pin-Priority: 1001
+APT_PREF
+
 apt-get install -y displaylink-driver
 
 # Cover the image's other kernels (Pi 4/v8) too — the postinst above only
@@ -250,17 +268,6 @@ rm -f /usr/sbin/uname
 # -> /opt/displaylink/udev.sh -> 'systemctl start --no-block displaylink-driver'
 # when a DisplayLink device (vendor 17e9) appears, including at boot coldplug.
 
-# evdi 1.15.0 (from the Synaptics repo bundled with Raspberry Pi OS) fails to
-# build its DKMS module on current RPi kernels. Pin it to 1.14.16 which is
-# known-good. The preference file also prevents apt from upgrading to 1.15.x
-# on future `apt-get upgrade` runs on the appliance.
-cat > /etc/apt/preferences.d/evdi-pin <<APT_PREF
-Package: evdi
-Pin: version 1.14.16*
-Pin-Priority: 1001
-APT_PREF
-apt-get install -y --no-install-recommends evdi
-
 # vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
 # creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
 dpkg -i /root/debs/*.deb || true
@@ -277,25 +284,25 @@ systemctl enable ssh
 # Samba share for the vstimd/gpiochip-daqd config directory.
 #
 # Samba keeps its own credential in passdb.tdb, which the 'chage -d 0' above
-# does NOT govern — that only gates Unix/SSH logins. Left alone, the default
-# password would keep working over SMB forever, including after the user
-# dutifully changed it at first SSH login. Two things close that gap:
+# does NOT govern — that only gates Unix/SSH logins. So the factory password
+# keeps working over SMB even after the user changes it at first SSH login.
 #
-#   - pdbedit --pwd-must-change-now, so the baked-in default cannot persist
-#     on the SMB side either;
-#   - unix password sync, so changing the SMB password (smbpasswd, or a
-#     client that prompts) drives /usr/bin/passwd too and the two stay one
-#     credential rather than drifting apart.
-#
-# Trade-off: a client that cannot prompt for a password change (mount.cifs,
-# notably) gets NT_STATUS_PASSWORD_MUST_CHANGE until the password is set once
-# -- over SSH, smbpasswd does it. Drop the pdbedit line if that is the wrong
-# call for your rigs.
+# Samba cannot force a one-time change the way chage does: pdbedit in Samba
+# 4.22 (trixie) has no per-user "must change" option, only account policies
+# and control flags, and expiring by policy would re-expire on every rotation.
+# ('pdbedit --pwd-must-change-now' fails with "unknown option" and, under
+# set -e, kills the build.) So close the gap from the other side instead:
+# unix password sync makes one smbpasswd run set BOTH credentials, and the
+# MOTD below tells whoever logs in to do exactly that.
 #
 # NB: this heredoc is unquoted (it interpolates IMAGE_USER etc.), so backticks
 # and $ in here run on the BUILD HOST. Keep both out of comments.
 printf '%s\n%s\n' "${IMAGE_PASSWORD}" "${IMAGE_PASSWORD}" | smbpasswd -s -a "${IMAGE_USER}"
-pdbedit -u "${IMAGE_USER}" --pwd-must-change-now
+
+# systemd creates /var/lib/braemons/vstimd on first start via StateDirectory=,
+# but Samba refuses to export a path that does not exist yet — so the share
+# would be dead on a freshly flashed card until vstimd had run once.
+install -d -m 0755 /var/lib/braemons
 
 # A repeated [global] is legal and merges into the first one, which keeps this
 # an append rather than an edit of the stock smb.conf.
@@ -315,8 +322,37 @@ cat >> /etc/samba/smb.conf <<SMB_EOF
    valid users = ${IMAGE_USER}
    create mask = 0644
    directory mask = 0755
+
+[${SAMBA_DATA_SHARE}]
+   path = /var/lib/braemons
+   browseable = yes
+   read only = no
+   guest ok = no
+   valid users = ${IMAGE_USER}
+   create mask = 0644
+   directory mask = 0755
+   # vstimd.service runs as root with StateDirectory=braemons/vstimd, so
+   # systemd (re)asserts root ownership of that subtree on every start —
+   # without this, the share would be read-only in practice no matter what
+   # the masks say. The only valid user here is already in sudo, so writing
+   # as root over SMB grants nothing they do not already have.
+   force user = root
 SMB_EOF
 testparm -s >/dev/null
+
+# SSH forces the login password to change; nothing forces the Samba one, so
+# say so where it cannot be missed. No backticks/\$ here — see the note above.
+cat >> /etc/motd <<'MOTD_EOF'
+
+vstimd appliance
+  Samba shares: vstimd-config -> /etc/braemons (settings)
+                vstimd-data   -> /var/lib/braemons (saved stim-configs)
+  Their password is separate from your login and is still the factory
+  default. Run  smbpasswd  to change it — "unix password sync" is on, so
+  that updates this account's login password at the same time.
+
+MOTD_EOF
+
 systemctl enable smbd nmbd avahi-daemon
 
 systemctl enable vstimd vstimd-hostname gpiochip-daqd
