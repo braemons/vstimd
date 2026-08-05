@@ -278,8 +278,11 @@ systemctl enable ssh
 #
 # Trade-off: a client that cannot prompt for a password change (mount.cifs,
 # notably) gets NT_STATUS_PASSWORD_MUST_CHANGE until the password is set once
-# — over SSH, `smbpasswd` does it. Drop the pdbedit line if that is the wrong
+# -- over SSH, smbpasswd does it. Drop the pdbedit line if that is the wrong
 # call for your rigs.
+#
+# NB: this heredoc is unquoted (it interpolates IMAGE_USER etc.), so backticks
+# and $ in here run on the BUILD HOST. Keep both out of comments.
 printf '%s\n%s\n' "${IMAGE_PASSWORD}" "${IMAGE_PASSWORD}" | smbpasswd -s -a "${IMAGE_USER}"
 pdbedit -u "${IMAGE_USER}" --pwd-must-change-now
 
