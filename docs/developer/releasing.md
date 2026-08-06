@@ -96,13 +96,16 @@ release:
 A tag containing a hyphen (`v0.2.0-alpha1`) is published as a **pre-release**, so
 GitHub does not badge an alpha as the project's latest version.
 
-The same `.debs` are also published to the signed apt archive on `gh-pages`, so
-deployed rigs pick the release up with `apt upgrade` rather than being
-re-flashed. Pre-releases go to the `testing` suite and plain releases to
+Those same `.debs` are then picked up by the shared apt archive at
+[braemons/packages](https://github.com/braemons/packages), which pulls new
+releases on a schedule and republishes a signed archive — so deployed rigs get
+the release with `apt upgrade` rather than being re-flashed. **This repo
+publishes nothing and holds no signing key**; tagging is the whole job. To skip
+the wait, run `gh workflow run publish.yml --repo braemons/packages`.
+
+Pre-releases land in that archive's `testing` suite and plain releases in
 `stable`, which is why the `~` ordering above matters: it is what stops a rig
 tracking `stable` from being offered an alpha. See
-[`packaging/apt/README.md`](https://github.com/braemons/vstimd/blob/main/packaging/apt/README.md)
-for the one-time signing key setup, and
 [Deployment](../operations/deployment.md#updating-a-deployed-rig) for the rig
 side.
 

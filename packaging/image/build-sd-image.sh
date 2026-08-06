@@ -165,7 +165,7 @@ cp "$VSTIMD_DEB" "$GPIOCHIP_DEB" "$MNT/root/debs/"
 # generated (packaging/apt/README.md), the image simply ships without an update
 # source and rigs are updated by re-flashing.
 APT_KEYRING="${APT_KEYRING:-packaging/apt/braemons-archive-keyring.asc}"
-APT_REPO_URL="${APT_REPO_URL:-https://braemons.github.io/vstimd/apt}"
+APT_REPO_URL="${APT_REPO_URL:-https://braemons.github.io/packages}"
 # Pre-release images track the 'testing' suite so a rig flashed from an alpha
 # keeps getting alphas, and a 'stable' rig is never upgraded onto one.
 case "$IMAGE_VERSION" in

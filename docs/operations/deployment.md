@@ -129,11 +129,13 @@ vstimd --version
 apt policy braemons-vstimd
 ```
 
-Rigs on a closed lab network can point at an `rsync`'d mirror of the archive
-instead; signatures still verify, because they cover the archive contents rather
-than where it was fetched from. Setup for both cases — and the one-time signing
-key steps — is in
-[`packaging/apt/README.md`](https://github.com/braemons/vstimd/blob/main/packaging/apt/README.md).
+Packages come from the shared braemons archive at
+<https://braemons.github.io/packages/>, which serves every braemons daemon — one
+source entry and one key per rig, however many daemons it runs. Rigs on a closed
+lab network can point at an `rsync`'d mirror instead; signatures still verify,
+because they cover the archive contents rather than where it was fetched from.
+Setup for both cases is in the
+[archive README](https://github.com/braemons/packages#using-it).
 
 Reserve re-flashing for provisioning a new rig or recovering a failed card.
 
