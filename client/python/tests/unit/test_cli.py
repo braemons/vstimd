@@ -8,7 +8,7 @@ import pytest
 
 from vstimd.cli import discovery
 from vstimd.cli.discovery import DiscoveredServer, parse_avahi_browse
-from vstimd.cli.main import build_parser, main, resolve_address
+from vstimd.cli.main import build_parser, cmd_shutdown, main, resolve_address
 
 AVAHI_OUTPUT = """\
 +;eth0;IPv4;vstimd-a1b2c3;_vstimd._tcp;local
@@ -165,3 +165,22 @@ def test_every_subcommand_has_a_handler():
 def test_command_requires_a_subcommand():
     with pytest.raises(SystemExit):
         main([])
+
+
+def test_shutdown_requires_yes_when_stdin_is_non_interactive(monkeypatch, capsys):
+    class _DummySystem:
+        called = False
+
+        def shutdown(self):
+            self.called = True
+
+    class _DummyConn:
+        address = "tcp://localhost:5555"
+        system = _DummySystem()
+
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    args = argparse.Namespace(yes=False, as_json=False)
+
+    assert cmd_shutdown(_DummyConn(), args) == 1
+    assert _DummyConn.system.called is False
+    assert "use --yes" in capsys.readouterr().err

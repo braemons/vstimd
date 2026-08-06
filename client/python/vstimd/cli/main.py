@@ -255,7 +255,13 @@ def cmd_wait_ready(conn: Connection, args: argparse.Namespace) -> int:
 
 
 def cmd_shutdown(conn: Connection, args: argparse.Namespace) -> int:
-    if not args.yes and sys.stdin.isatty():
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print(
+                "vstimd-client: refusing to prompt on non-interactive stdin; use --yes",
+                file=sys.stderr,
+            )
+            return 1
         answer = input(f"Shut down the vstimd server at {conn.address}? [y/N] ")
         if answer.strip().lower() not in ("y", "yes"):
             print("aborted", file=sys.stderr)
