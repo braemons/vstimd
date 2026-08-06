@@ -117,3 +117,4 @@ nav:
       - Wire protocol: developer/protocol.md
       - Server API: developer/server-api.md
       - Building & packaging: developer/building.md
+      - Versioning & releasing: developer/releasing.md

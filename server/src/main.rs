@@ -24,7 +24,7 @@ fn main() {
 
     log::info!(
         "vstimd v{} (built {})",
-        env!("CARGO_PKG_VERSION"),
+        env!("VSTIMD_VERSION"),
         env!("VSTIMD_BUILD_DATE"),
     );
     let host_info = HostInfo {
@@ -643,7 +643,7 @@ fn print_version() {
         features.join(", ")
     };
 
-    println!("vstimd {}", env!("CARGO_PKG_VERSION"));
+    println!("vstimd {}", env!("VSTIMD_VERSION"));
     println!("  commit:   {}", env!("VSTIMD_GIT_HASH"));
     println!("  built:    {}", env!("VSTIMD_BUILD_DATE"));
     println!("  target:   {}", env!("VSTIMD_TARGET"));

@@ -1,3 +1,14 @@
 [workspace]
 members = ["server", "vtl", "gpiochip-daqd"]
 resolver = "2"
+
+# NOT the version of anything shipped — a deliberately invalid sentinel.
+#
+# The real version comes from the git tag (packaging/scripts/git-version.sh).
+# Cargo cannot compute a package version the way setuptools-scm does, so rather
+# than keep a hand-edited number here that would drift out of step with the tag,
+# the manifests admit they do not know: `vstimd --version` reports the build
+# script's VSTIMD_VERSION, and the .deb/.rpm versions are stamped by the
+# Makefile. A 0.0.0 artifact means the stamping was bypassed.
+[workspace.package]
+version = "0.0.0"

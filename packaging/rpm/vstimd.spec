@@ -1,6 +1,9 @@
 Name:           vstimd
-# Pass version at build time: rpmbuild -bb --define "pkg_version X.Y.Z" ...
-Version:        %{?pkg_version}%{!?pkg_version:0.0.0}
+# Passed in at build time; the version is defined by the git tag and stamped by
+# the Makefile (see packaging/scripts/git-version.sh). Fatal when missing rather
+# than defaulting: an .rpm quietly claiming to be 0.0.0 is worse than no .rpm.
+%{!?pkg_version:%{error:pkg_version is not defined — build via 'make rpm-amd64' / 'make rpm-arm64', or pass --define "pkg_version X.Y.Z"}}
+Version:        %{pkg_version}
 Release:        1%{?dist}
 Summary:        Visual stimulus display server for neuroscience experiments
 License:        AGPL-3.0-or-later
@@ -14,7 +17,7 @@ Recommends:     avahi
 # Docker: packaging/docker/Dockerfile.rpm-builder handles compilation and packaging.
 # Manual: rpmbuild -bb packaging/rpm/vstimd.spec \
 #             --define "_builddir $(pwd)" \
-#             --define "pkg_version $(grep '^version' server/Cargo.toml | head -1 | sed 's/version = \"\(.*\)\"/\1/')"
+#             --define "pkg_version $(make -s print-version)"
 
 %description
 vstimd drives a display directly via VK_KHR_display without a compositor,
@@ -34,9 +37,14 @@ install -D -m 0644 %{_builddir}/packaging/sysusers/vstimd.conf           %{build
 install -D -m 0644 %{_builddir}/packaging/rsyslog/vstimd.conf             %{buildroot}%{_sysconfdir}/rsyslog.d/10-vstimd.conf
 install -D -m 0644 %{_builddir}/packaging/logrotate/vstimd                %{buildroot}%{_sysconfdir}/logrotate.d/vstimd
 install -D -m 0644 %{_builddir}/packaging/avahi/vstimd.service.tmpl       %{buildroot}%{_datadir}/braemons/vstimd/vstimd.service.avahi.tmpl
+# %files declares this with %dir, so it has to exist in the buildroot even
+# though rsyslog only writes to it at runtime.
+install -d -m 0755 %{buildroot}/var/log/vstimd
 
 %post
-%sysusers_create_package vstimd %{_sysusersdir}/vstimd.conf
+# Build-time path, not %{_sysusersdir}: this macro inlines the file's contents
+# into the scriptlet while rpmbuild runs, before anything is installed.
+%sysusers_create_package vstimd %{_builddir}/packaging/sysusers/vstimd.conf
 %systemd_post vstimd.service
 %systemd_post vstimd-hostname.service
 # Create log directory (rsyslog writes here as root).

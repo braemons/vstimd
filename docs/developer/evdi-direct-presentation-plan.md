@@ -2,8 +2,8 @@
 
 Status: **Phase 1 implemented and validated on hardware** (this rig, 2026-08-04).
 `--evdi` renders real vstimd scene content and presents it on the DisplayLink
-screen with no compositor running. Not timing-sensitive — this backend is
-explicitly **not** for stimulus presentation. See "Non-goals".
+screen with no compositor running. Not timing-accurate — usable for stimulus
+in behavioral-training setups, but not for recording sessions. See "Non-goals".
 
 The actual implementation ended up simpler than the original plan below in
 one respect (it reuses `render_frame()`/`VkContext` via a headless swapchain
@@ -27,15 +27,17 @@ compositor package installed.
 
 Precision/timing is explicitly out of scope here (DisplayLink relays frames
 over USB via software encode with no GPU vsync — that limitation doesn't go
-away just because vstimd drives the KMS device directly). The use case is a
-secondary/auxiliary screen (status output, monitoring, a second low-rate
-view) that doesn't need frame-accurate timing, not stimulus presentation.
+away just because vstimd drives the KMS device directly). The use cases are a
+secondary/auxiliary screen (status output, monitoring, a second low-rate view)
+and stimulus output for behavioral training — anywhere frame-accurate onset is
+not being measured. Recording sessions need the DRM backend.
 
 ## Non-goals
 
 - No sub-millisecond or vsync-accurate presentation on the DisplayLink output.
   This stays true regardless of who drives the KMS device.
-- Not a replacement for `VK_KHR_display` on the primary stimulus screen.
+- Not a replacement for `VK_KHR_display` on the primary stimulus screen of a
+  recording rig. (Behavioral-training rigs are a supported use of `--evdi`.)
 - Not (yet) zero-copy / dma-buf export from the GPU. See "Phase 2" below —
   deferred until Phase 1 proves too slow to be useful.
 
@@ -311,7 +313,9 @@ strategies, in descending value, should a future use case need that headroom:
 3. **Skip identical frames.** For a static scene — the common case for an
    auxiliary status display — the flip could be skipped entirely when the
    frame is unchanged, dropping USB traffic to near zero. Safe here
-   precisely because evdi is explicitly not a stimulus-timing output.
+   precisely because evdi is explicitly not a stimulus-*timing* output — but
+   it would need gating on scene content actually being static, now that
+   behavioral-training stimulus is a supported use.
 
 None of these are implemented: at 43% duty cycle they would buy CPU time
 nobody is currently short of.

@@ -1,4 +1,8 @@
 fn main() {
+    println!("cargo:rustc-env=VSTIMD_VERSION={}", resolve_version());
+    println!("cargo:rerun-if-env-changed=VSTIMD_VERSION");
+    println!("cargo:rerun-if-changed=../packaging/scripts/git-version.sh");
+
     let build_date = std::process::Command::new("date")
         .arg("+%Y-%m-%d %H:%M")
         .output()
@@ -81,6 +85,49 @@ fn main() {
     compile_shader("shaders/grating.wgsl", "grating.spv");
     compile_shader("shaders/text.wgsl", "text.spv");
     compile_shader("shaders/egui.wgsl", "egui.spv");
+}
+
+/// The version reported by `vstimd --version` and over the wire, resolved at
+/// compile time from the git tag.
+///
+/// `CARGO_PKG_VERSION` is deliberately unused: the manifests hold the sentinel
+/// 0.0.0 (see the root Cargo.toml) because Cargo cannot derive a package
+/// version from the repository the way setuptools-scm does. Injecting it here
+/// is the one place where the version *can* be computed, so it is.
+///
+/// Panics rather than guessing. A binary that quietly reports a made-up version
+/// is the failure mode this whole arrangement exists to prevent.
+fn resolve_version() -> String {
+    // Set by `make build` and by the packaging containers, which have no .git.
+    if let Ok(v) = std::env::var("VSTIMD_VERSION")
+        && !v.trim().is_empty()
+    {
+        return v.trim().to_string();
+    }
+
+    // A plain `cargo build` in a checkout: ask the same script the Makefile
+    // uses, so the normalisation rules live in exactly one implementation.
+    let script = "../packaging/scripts/git-version.sh";
+    let out = std::process::Command::new("sh").arg(script).output();
+
+    match out {
+        Ok(o) if o.status.success() => {
+            let v = String::from_utf8_lossy(&o.stdout).trim().to_string();
+            if !v.is_empty() {
+                return v;
+            }
+            panic!("{script} produced no version");
+        }
+        Ok(o) => panic!(
+            "cannot determine the vstimd version.\n{}\n\
+             Set VSTIMD_VERSION=<version> to build outside a tagged checkout.",
+            String::from_utf8_lossy(&o.stderr).trim()
+        ),
+        Err(e) => panic!(
+            "cannot determine the vstimd version: failed to run {script}: {e}\n\
+             Set VSTIMD_VERSION=<version> to build outside a git checkout."
+        ),
+    }
 }
 
 fn compile_shader(wgsl_path: &str, output_name: &str) {

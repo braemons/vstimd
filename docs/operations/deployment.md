@@ -101,6 +101,44 @@ sudo systemctl enable --now vstimd-hostname
 
 ---
 
+## Updating a deployed rig
+
+**Upgrade in place — do not re-flash.** Re-flashing wipes `/etc/braemons` (the
+rig config and every saved stimulus config) and `/var/lib/braemons`.
+
+```bash
+sudo apt update && sudo apt upgrade
+```
+
+Images ship pointing at the vstimd archive, so this works out of the box. The
+rig config `/etc/braemons/vstimd-rig-config.toml` is a dpkg **conffile**: your
+local edits survive the upgrade, and if a release changes the shipped default,
+the new version is written alongside as `.dpkg-dist` for you to diff. Configs
+saved through the API aren't owned by the package at all, so upgrades never
+touch them.
+
+Images built from a pre-release track the `testing` suite and keep receiving
+pre-releases; images from a plain release track `stable` and are never upgraded
+onto an alpha. To move a rig between them, edit `Suites:` in
+`/etc/apt/sources.list.d/braemons.sources`.
+
+To check what a rig is running and what it would move to:
+
+```bash
+vstimd --version
+apt policy braemons-vstimd
+```
+
+Rigs on a closed lab network can point at an `rsync`'d mirror of the archive
+instead; signatures still verify, because they cover the archive contents rather
+than where it was fetched from. Setup for both cases — and the one-time signing
+key steps — is in
+[`packaging/apt/README.md`](https://github.com/braemons/vstimd/blob/main/packaging/apt/README.md).
+
+Reserve re-flashing for provisioning a new rig or recovering a failed card.
+
+---
+
 ## Common setup (all platforms)
 
 ### 1. Display manager

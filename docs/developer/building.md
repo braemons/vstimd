@@ -5,6 +5,11 @@ UI, `.deb`/`.rpm` packages, and the Docker-based builders and integration test. 
 *install and run* a finished package on a rig, see
 [Deployment](../operations/deployment.md).
 
+!!! info "Where does the version come from?"
+    The git tag, and nothing else — there is no number to bump in `Cargo.toml`,
+    which carries a `0.0.0` sentinel. See
+    [Versioning & releasing](releasing.md) before you go looking for it.
+
 ## Build a deployable binary
 
 The repo ships a `Makefile` whose `install` target is `DESTDIR`-aware — the same

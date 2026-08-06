@@ -1,0 +1,137 @@
+# Versioning & releasing
+
+Cutting a release is one command — everything else follows from the tag:
+
+```bash
+git tag -a v0.2.0 -m "vstimd v0.2.0" && git push origin v0.2.0
+```
+
+That triggers [`.github/workflows/release.yml`](https://github.com/braemons/vstimd/blob/main/.github/workflows/release.yml),
+which builds every artifact and publishes them on a GitHub Release.
+
+## The git tag is the only definition of the version
+
+**There is no version number to bump anywhere.** All three crates inherit a
+deliberately invalid `0.0.0` sentinel from `[workspace.package]` in the root
+`Cargo.toml`, and the real version is stamped at build time from the most recent
+`v*` tag by
+[`packaging/scripts/git-version.sh`](https://github.com/braemons/vstimd/blob/main/packaging/scripts/git-version.sh).
+
+Cargo has no equivalent of Python's `setuptools-scm`. `package.version` must be a
+literal string, and a build script cannot change it, because the version is
+resolved into the dependency graph *before* build scripts run. Given that, the
+choice is between a hand-edited number that silently drifts out of step with the
+tag, or manifests that admit they do not know. vstimd picks the second:
+
+- `vstimd --version` and the wire protocol report a value injected by
+  `server/build.rs` via `cargo:rustc-env` — the one place Cargo *can* compute
+  something at build time.
+- `.deb` and `.rpm` versions are stamped by the `Makefile`
+  (`--deb-version` / `--define pkg_version`).
+
+**If you ever see an artifact versioned `0.0.0`, the stamping was bypassed** —
+that is what the sentinel is for. A plain `cargo build` in a checkout still gets
+a real version, because `build.rs` falls through to the same script.
+
+## How a tag becomes a package version
+
+Neither dpkg nor rpm allows `-` inside a version, and both sort `~` *before* the
+empty string. The tag is rewritten accordingly:
+
+| Git tag / state | Package version | Why |
+| --- | --- | --- |
+| `v0.2.0` | `0.2.0` | |
+| `v0.2.0-alpha1` | `0.2.0~alpha1` | `~` sorts **before** `0.2.0`, so the final release supersedes the alpha |
+| 2 commits past `v0.2.0-alpha1` | `0.2.0~alpha1+2.gabc1234` | `+` sorts **after** the bare tag, but still before `0.2.0` |
+| …with uncommitted changes | `…+dirty` | |
+
+So an upgrade path of `0.2.0~alpha1` → `0.2.0~alpha2` → `0.2.0` is monotonic to
+`apt` and `dnf`, and a rig never refuses a real release because a pre-release
+looked newer.
+
+Only tags matching `v[0-9]*` are considered, and the result is validated against
+the character set both packagers accept (`[A-Za-z0-9.+~]`, leading digit). A tag
+like `v1.0_beta` is **rejected immediately** rather than failing deep inside a
+container build twenty minutes later.
+
+!!! tip "Use annotated tags"
+    `git tag -a` rather than a bare `git tag`. The build also records a commit
+    identifier via `git describe`, which only considers annotated tags by
+    default; a lightweight tag leaves that line pointing at an older release.
+
+## Nothing falls back to a default
+
+A build with no reachable tag and no explicit version **fails**. This is
+deliberate: a package that quietly claims a made-up version is worse than a
+package that failed to build, because the wrong claim survives onto a rig and
+into `apt`'s upgrade decisions.
+
+Building outside a tagged checkout therefore means saying so. The packaging
+containers do exactly this, since a Docker build context has no `.git`:
+
+```bash
+make deb-arm64 VSTIMD_VERSION=0.2.0
+```
+
+The `Makefile` computes the version on the host and passes it down as a build
+argument. Note that the override takes the *normalised* form (`0.2.0~alpha1`),
+not the raw tag (`v0.2.0-alpha1`) — a leading `v` is rejected.
+
+Targets that do not consume a version (`web`, `clean`, `docs`) work fine in a
+checkout with no tags: the error is raised where the version is *used*, not when
+the `Makefile` is parsed.
+
+## What the release workflow produces
+
+Tagging `v*` runs five build jobs in parallel and attaches their output to the
+release:
+
+| Artifact | Job |
+| --- | --- |
+| `braemons-vstimd_<version>-1_{amd64,arm64}.deb` | `deb-amd64`, `deb-arm64` |
+| `braemons-gpiochip-daqd_<version>-1_arm64.deb` | `deb-arm64` |
+| `braemons-vstimd-<version>-1.{x86_64,aarch64}.rpm` | `rpm-amd64`, `rpm-arm64` |
+| `vstimd-<version>-raspios-lite-arm64.img.xz` (+ `.sha256`) | `sd-image` |
+
+A tag containing a hyphen (`v0.2.0-alpha1`) is published as a **pre-release**, so
+GitHub does not badge an alpha as the project's latest version.
+
+The same `.debs` are also published to the signed apt archive on `gh-pages`, so
+deployed rigs pick the release up with `apt upgrade` rather than being
+re-flashed. Pre-releases go to the `testing` suite and plain releases to
+`stable`, which is why the `~` ordering above matters: it is what stops a rig
+tracking `stable` from being offered an alpha. See
+[`packaging/apt/README.md`](https://github.com/braemons/vstimd/blob/main/packaging/apt/README.md)
+for the one-time signing key setup, and
+[Deployment](../operations/deployment.md#updating-a-deployed-rig) for the rig
+side.
+
+Re-running the workflow for an existing tag updates that release's assets rather
+than failing. `workflow_dispatch` runs the same builds without cutting a release,
+which is the way to exercise the pipeline before tagging.
+
+!!! warning "Tag on `main`"
+    A release tag on an unmerged branch leaves `main` describing an *older* tag,
+    so builds from `main` report a version that sorts below the published
+    release until the branch merges. Prefer tagging a commit that is on `main`.
+
+## Troubleshooting
+
+`no v* tag is reachable from HEAD`
+:   The checkout has no tags. In CI this means `fetch-depth: 0` is missing from
+    `actions/checkout` — the default shallow fetch brings down no tags at all.
+    Locally, `git fetch --tags`.
+
+`'<value>' is not a usable package version`
+:   The tag contains characters dpkg or rpm would reject (commonly `_`). Rename
+    the tag, or pass `VSTIMD_VERSION` explicitly.
+
+An artifact versioned `0.0.0`
+:   The `Cargo.toml` sentinel leaked through, meaning something built the crate
+    without going via the `Makefile` or setting `VSTIMD_VERSION`.
+
+To see what the current checkout resolves to:
+
+```bash
+make -s print-version
+```

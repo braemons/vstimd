@@ -1,0 +1,273 @@
+name: Release
+
+# Tag-driven release: builds the .debs, .rpms and the ready-to-flash
+# Raspberry Pi SD card image, then publishes them all on a GitHub Release.
+#
+#   git tag v0.1.0 && git push origin v0.1.0
+#
+# Re-running the workflow for an existing tag updates that release's assets.
+on:
+  push:
+    tags: ['v*']
+  # Manual runs are useful for exercising the build without cutting a tag.
+  # They produce workflow artifacts but no release (see the `release` job's if:).
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  # Keeps every job's artefact naming in step with the Makefile's output paths.
+  DIST_DIR: dist
+
+jobs:
+  # ── .deb / .rpm ────────────────────────────────────────────────────────────
+  # One job per target so a single arch failing does not hide the others, and
+  # so the four run in parallel rather than serially inside one runner.
+  packages:
+    name: ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [deb-amd64, deb-arm64, rpm-amd64, rpm-arm64]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          # The version is derived from the git tag, and the default shallow
+          # fetch brings down no tags at all — `git describe` would fail.
+          fetch-depth: 0
+
+      # The arm64 builders cross-compile, but the rpm/deb tooling inside the
+      # containers still runs some target-arch binaries under emulation.
+      - name: Register binfmt handlers
+        if: endsWith(matrix.target, 'arm64')
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+      # Fails fast and visibly when the tag situation leaves the build without
+      # a version, rather than aborting deep inside a Docker build.
+      - name: Resolve version
+        run: echo "building version $(make -s print-version)"
+
+      - name: Build
+        run: make ${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pkg-${{ matrix.target }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  # ── Raspberry Pi SD card image ─────────────────────────────────────────────
+  # Much slower than the package jobs: the chroot runs under qemu-user
+  # emulation and compiles the evdi kernel module with DKMS for every kernel
+  # in the image.
+  image:
+    name: sd-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          # The version is derived from the git tag, and the default shallow
+          # fetch brings down no tags at all — `git describe` would fail.
+          fetch-depth: 0
+
+      # Fails fast and visibly when the tag situation leaves the build without
+      # a version, rather than aborting deep inside a Docker build.
+      - name: Resolve version
+        run: echo "building version $(make -s print-version)"
+
+      # A stock runner has ~14 GB free on /, and the build needs room for a
+      # ~6.5 GB uncompressed working image plus the ~1 GB compressed output.
+      - name: Free up disk space
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
+          sudo docker image prune -af
+          df -h /
+
+      # The chroot is arm64 on an amd64 runner. --reset -p yes registers the
+      # handler with the F (fix-binary) flag, which is what makes the
+      # interpreter usable from inside the chroot's mount namespace.
+      - name: Register binfmt handlers
+        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+      # The image filename carries the same git-derived version as the packages
+      # (the Makefile defaults IMAGE_VERSION to it), so a downloaded asset says
+      # which release it came from without any tag parsing here.
+      #
+      # The login password defaults to the Makefile's (`vstimd`), which is a
+      # known credential on a publicly downloadable image — the image forces a
+      # change at first login. Set a VSTIMD_IMAGE_PASSWORD repo secret to
+      # override it for published builds.
+      - name: Build SD card image
+        env:
+          IMAGE_PASSWORD_SECRET: ${{ secrets.VSTIMD_IMAGE_PASSWORD }}
+        run: |
+          if [ -n "$IMAGE_PASSWORD_SECRET" ]; then
+            export VSTIMD_IMAGE_PASSWORD="$IMAGE_PASSWORD_SECRET"
+          fi
+          make image
+
+      # Deliberately not `dist/*`: that directory also holds the generated
+      # credentials file, which must never leave the runner.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sd-image
+          path: |
+            dist/*.img.xz
+            dist/*.img.xz.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  # ── apt repository ────────────────────────────────────────────────────────
+  # Publishes the .debs to a signed apt repo on the gh-pages branch, so deployed
+  # rigs update with `apt upgrade` instead of being re-flashed (which would
+  # discard /etc/braemons). Served from https://<owner>.github.io/vstimd/apt.
+  #
+  # Deliberately not gated on the sd-image job: package updates should publish
+  # even if the much slower image build fails.
+  apt-repo:
+    name: apt-repo
+    needs: packages
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+          fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect the .debs
+        run: |
+          mkdir -p dist
+          find artifacts -name '*.deb' -not -name '*dbgsym*' -exec cp -v {} dist/ \;
+
+      # The archive is cumulative: seed it with what is already published so
+      # this release *adds* a version rather than replacing the suite, and so
+      # the other suite (stable vs testing) survives untouched.
+      - name: Seed from the published archive
+        run: |
+          mkdir -p dist/apt-repo
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git fetch --depth 1 origin gh-pages
+            if git cat-file -e FETCH_HEAD:apt 2>/dev/null; then
+              git archive FETCH_HEAD apt | tar -x --strip-components=1 -C dist/apt-repo
+              echo "seeded $(find dist/apt-repo -name '*.deb' | wc -l) existing package(s)"
+            fi
+          else
+            echo "gh-pages does not exist yet — creating a fresh archive"
+          fi
+
+      - name: Build the signed repository
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+        run: |
+          if [ -z "$APT_SIGNING_KEY" ]; then
+            echo "::error::APT_SIGNING_KEY secret is not set — refusing to publish an unsigned archive."
+            echo "See packaging/apt/README.md for how to generate and store the key."
+            exit 1
+          fi
+          make apt-repo
+
+      - name: Publish to gh-pages
+        run: |
+          staged=$(mktemp -d)
+          cp -a dist/apt-repo/. "$staged/"
+
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null 2>&1; then
+            git checkout -B gh-pages FETCH_HEAD
+          else
+            git checkout --orphan gh-pages
+            git rm -rqf . 2>/dev/null || true
+          fi
+
+          rm -rf apt && mkdir -p apt
+          cp -a "$staged/." apt/
+          # Without this, Pages runs Jekyll and drops files it considers special.
+          touch .nojekyll
+
+          git add -A apt .nojekyll
+          git commit -m "apt: publish ${GITHUB_REF#refs/tags/}" || {
+            echo "archive unchanged — nothing to publish"; exit 0; }
+          git push origin gh-pages
+
+  # ── Publish ───────────────────────────────────────────────────────────────
+  release:
+    needs: [packages, image]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Collect release assets
+        run: |
+          mkdir -p release
+          find artifacts -type f \( -name '*.deb' -o -name '*.rpm' \
+               -o -name '*.img.xz' -o -name '*.img.xz.sha256' \) \
+               -exec cp -v {} release/ \;
+          # Belt and braces: the credentials file is already excluded upstream,
+          # but never let one reach a public release asset.
+          rm -f release/*credentials*
+          ls -lh release/
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          NOTES=$(cat <<'EOF'
+          ## Installing
+
+          **Raspberry Pi 5 (ready-to-flash image)** — write `*.img.xz` to an SD
+          card with Raspberry Pi Imager or `xz -dc … | sudo dd of=/dev/sdX bs=4M`.
+          Verify with the accompanying `.sha256`. The image boots straight into
+          `vstimd.target`, advertises itself over mDNS, and exports `/etc/braemons`
+          as a Samba share. Log in over SSH as `vstimd-admin` / `vstimd` —
+          **you are forced to change the password at first login.** The Samba
+          credential is separate and also starts out needing a change; set it
+          once over SSH with `smbpasswd`, which syncs the Unix password to
+          match. Treat these rigs as lab-network devices: the default login is
+          public, so the network is the security boundary.
+
+          **Debian / Ubuntu** — `sudo apt install ./braemons-vstimd_*_<arch>.deb`
+
+          **Fedora / RHEL** — `sudo dnf install ./braemons-vstimd-*.<arch>.rpm`
+
+          `braemons-gpiochip-daqd` is packaged separately; install it alongside
+          vstimd on rigs that drive GPIO trigger lines.
+          EOF
+          )
+          # A hyphen is semver's pre-release marker (v0.1.0-alpha1). Without
+          # this, GitHub would badge an alpha as the project's Latest release.
+          PRERELEASE=
+          case "$TAG" in *-*) PRERELEASE=--prerelease ;; esac
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" release/* --clobber
+          else
+            gh release create "$TAG" release/* \
+              --title "$TAG" --notes "$NOTES" --verify-tag $PRERELEASE
+          fi
