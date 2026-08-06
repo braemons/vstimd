@@ -33,11 +33,16 @@
 #   pin  3 → GPIO2  (I2C1 SDA)      pin  5 → GPIO3  (I2C1 SCL)
 #   pin  8 → GPIO14 (UART TXD)      pin 10 → GPIO15 (UART RXD)
 #   pin 27 → GPIO0  (ID_SD, HAT EEPROM)   pin 28 → GPIO1 (ID_SC, HAT EEPROM)
-#   pin 32 → GPIO12 (spare)
 #
-# Outputs: header pins 36–40 (last 4 GPIO pins before end-of-header),
-# mirroring the Jetson Orin Nano layout.
+# Outputs: header pins 32, 35, 36–40 (6 of 8 remaining free GPIO pins after
+# I2C1/UART/HAT-EEPROM reservations), mirroring the Jetson Orin Nano layout
+# where possible.
 # Inputs:  remaining GPIO pins in the 7–33 range.
+#
+# NOTE: only 2 previously-unclaimed pins were available (pin 32/GPIO12,
+# pin 35/GPIO19) to grow outputs from 4 to 10 without reclaiming I2C1/UART
+# pins. This file currently configures 16 in / 6 out — 4 outputs short of
+# the requested 10. See conversation for how to allocate the remainder.
 
 [vtl]
 shm_name = "/vstimd_vtl"
@@ -83,6 +88,18 @@ name      = "out_pin40"
 vtl_bank  = 0
 vtl_bit   = 40
 gpio_line = 21          # header pin 40, GPIO21
+
+[[outputs]]
+name      = "out_pin32"
+vtl_bank  = 0
+vtl_bit   = 32
+gpio_line = 12          # header pin 32, GPIO12 (was "spare")
+
+[[outputs]]
+name      = "out_pin35"
+vtl_bank  = 0
+vtl_bit   = 35
+gpio_line = 19          # header pin 35, GPIO19 (previously unlisted/free)
 
 # ── Input lines (vtl_bit = header pin number) ─────────────────────────────────
 # Kernel edge-event blocking — no busy-wait.
