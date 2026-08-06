@@ -293,6 +293,16 @@ rm -f /usr/sbin/uname
 dpkg -i /root/debs/*.deb || true
 apt-get install -y -f
 
+# gpiochip-daqd's postinst only installs the empty default-config.toml to
+# /etc/braemons/gpiochip-daqd-config.toml (it ships board-specific configs as
+# read-only examples under /usr/share/braemons/gpiochip-daqd/ instead, since
+# the .deb is board-agnostic). This image IS a specific board, so overwrite
+# with the matching example — a freshly flashed card must have GPIO already
+# wired up, not need someone to SSH in and cp it by hand.
+install -m 0644 \
+    /usr/share/braemons/gpiochip-daqd/raspberry-pi-5_in16_out4.toml \
+    /etc/braemons/gpiochip-daqd-config.toml
+
 # ── In-place updates ─────────────────────────────────────────────────────────
 # Point apt at the vstimd archive so a deployed rig upgrades with
 # 'apt update && apt upgrade' instead of being re-flashed. Re-flashing discards
