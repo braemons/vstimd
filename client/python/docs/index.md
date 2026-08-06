@@ -91,6 +91,7 @@ unit system documentation.
 :hidden:
 
 psychopy_users
+cli
 api/index
 api/psychopy/index
 ```

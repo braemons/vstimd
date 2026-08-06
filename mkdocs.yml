@@ -107,6 +107,7 @@ nav:
       - Saving & loading: concepts/saving-loading.md
   - Client library:
       - Python client: client/python.md
+      - Command-line client: client/cli.md
       - Web control UI: client/web.md
   - Running a rig:
       - Bare-metal Linux: operations/bare-metal.md
