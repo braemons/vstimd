@@ -94,8 +94,17 @@
 # save_on_quit = false
 
 # ── Thread scheduling ─────────────────────────────────────────────────────────
-# CPU core affinity for vstimd's render/vblank thread.
-# Not yet applied — CPU affinity wiring is a planned feature.
+# CPU affinity and real-time priority for vstimd's render/vblank thread.
+#
+# render_rt_prio defaults to 55 (SCHED_FIFO) even with no [scheduling] block:
+# above normal work, but below gpiochip-daqd's output thread (60) so trigger
+# output still wins if they share a core.  Set 0 to stay on SCHED_OTHER.
+# Needs CAP_SYS_NICE (the systemd unit has it); without it vstimd logs a
+# warning, shows the failure in the overlay's System panel, and keeps running.
+#
+# render_cpu_core is NOT set by default — which core to pin to depends on the
+# rig, so vstimd never guesses.  Omit to let the OS schedule on any core.
 #
 # [scheduling]
 # render_cpu_core = 3
+# render_rt_prio  = 55

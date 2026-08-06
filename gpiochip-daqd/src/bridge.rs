@@ -6,7 +6,7 @@ use gpio_cdev::{Chip, EventRequestFlags, EventType, LineRequestFlags};
 use log::{debug, info, warn};
 use vtl::{VtlClient, VtlSegment};
 
-use crate::config::{Edge, InputLine, OutputLine};
+use crate::config::{Edge, InputLine, OutputLine, SchedulingConfig};
 
 const CONSUMER: &str = "gpiochip-daqd";
 
@@ -22,7 +22,16 @@ pub const PRIO_INPUT: i32 = 50;
 /// systemd unit, which grants `CAP_SYS_NICE` via `CapabilityBoundingSet`.
 #[cfg(target_os = "linux")]
 pub fn set_thread_realtime(priority: i32) {
-    let param = libc::sched_param { sched_priority: priority };
+    if !(1..=99).contains(&priority) {
+        warn!(
+            "sched_setscheduler: priority {priority} is out of range (1-99) \
+             — leaving scheduling policy alone"
+        );
+        return;
+    }
+    let param = libc::sched_param {
+        sched_priority: priority,
+    };
     let ret = unsafe { libc::sched_setscheduler(0, libc::SCHED_FIFO, &param) };
     if ret != 0 {
         warn!(
@@ -38,6 +47,42 @@ pub fn set_thread_realtime(priority: i32) {
 #[cfg(not(target_os = "linux"))]
 pub fn set_thread_realtime(_priority: i32) {}
 
+/// Pin the calling thread to `core`.
+///
+/// `sched_setaffinity` with pid 0 means "this thread", so each input watcher
+/// pins itself rather than the whole process.  Warns and continues on failure
+/// — a wrong core number should not take the daemon down.
+#[cfg(target_os = "linux")]
+pub fn set_thread_affinity(core: usize) {
+    let online = unsafe { libc::sysconf(libc::_SC_NPROCESSORS_ONLN) };
+    if online > 0 && core >= online as usize {
+        warn!(
+            "cpu_core = {core} is out of range (system has {online} online CPUs, \
+             0-{}) — leaving affinity alone",
+            online - 1
+        );
+        return;
+    }
+
+    let mut set: libc::cpu_set_t = unsafe { std::mem::zeroed() };
+    unsafe {
+        libc::CPU_ZERO(&mut set);
+        libc::CPU_SET(core, &mut set);
+    }
+    let ret = unsafe { libc::sched_setaffinity(0, std::mem::size_of::<libc::cpu_set_t>(), &set) };
+    if ret != 0 {
+        warn!(
+            "sched_setaffinity(core {core}) failed: {}",
+            std::io::Error::last_os_error()
+        );
+    } else {
+        info!("thread pinned to CPU core {core}");
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn set_thread_affinity(_core: usize) {}
+
 /// Drives GPIO output pins from VTL `output_state`, waking on each
 /// `signal_output` posted by vstimd instead of sleeping on a fixed interval.
 ///
@@ -47,8 +92,12 @@ pub fn run_output_loop(
     chip_path: &str,
     outputs: &[OutputLine],
     vtl: &VtlSegment,
+    sched: &SchedulingConfig,
 ) -> Result<()> {
-    set_thread_realtime(PRIO_OUTPUT);
+    if let Some(core) = sched.output_cpu_core {
+        set_thread_affinity(core);
+    }
+    set_thread_realtime(sched.output_rt_prio.unwrap_or(PRIO_OUTPUT));
 
     if outputs.is_empty() {
         info!("no output lines configured, output loop idle");
@@ -57,8 +106,7 @@ pub fn run_output_loop(
         }
     }
 
-    let mut chip = Chip::new(chip_path)
-        .with_context(|| format!("open GPIO chip {chip_path}"))?;
+    let mut chip = Chip::new(chip_path).with_context(|| format!("open GPIO chip {chip_path}"))?;
 
     let handles: Vec<_> = outputs
         .iter()
@@ -68,7 +116,9 @@ pub fn run_output_loop(
                 .with_context(|| format!("get GPIO line {} for '{}'", o.gpio_line, o.name))?;
             let h = line
                 .request(LineRequestFlags::OUTPUT, 0, CONSUMER)
-                .with_context(|| format!("request output GPIO line {} ('{}')", o.gpio_line, o.name))?;
+                .with_context(|| {
+                    format!("request output GPIO line {} ('{}')", o.gpio_line, o.name)
+                })?;
             info!(
                 "output '{}': VTL bank={} bit={} → GPIO line {}",
                 o.name, o.vtl_bank, o.vtl_bit, o.gpio_line
@@ -94,7 +144,9 @@ pub fn run_output_loop(
                 prev[i] = level;
                 debug!(
                     "out  {:>3} '{}' → {}",
-                    out.gpio_line, out.name, if level == 1 { "HIGH" } else { "LOW" }
+                    out.gpio_line,
+                    out.name,
+                    if level == 1 { "HIGH" } else { "LOW" }
                 );
             }
         }
@@ -109,17 +161,22 @@ pub fn spawn_input_watcher(
     chip_path: String,
     inp: InputLine,
     vtl: VtlClient,
+    sched: &SchedulingConfig,
 ) -> thread::JoinHandle<Result<()>> {
+    // Read the config out here; the thread applies it to itself, since
+    // affinity and policy are per-thread and must be set from inside.
+    let prio = sched.input_rt_prio.unwrap_or(PRIO_INPUT);
+    let core = sched.input_cpu_core;
     thread::Builder::new()
         .name(format!("vtl-in:{}", inp.name))
-        .spawn(move || run_input_loop(&chip_path, &inp, &vtl))
+        .spawn(move || run_input_loop(&chip_path, &inp, &vtl, prio, core))
         .expect("spawn input watcher thread")
 }
 
 /// Public re-export of the input loop for integration tests.
 #[allow(dead_code)]
 pub fn run_input_loop_pub(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) -> Result<()> {
-    run_input_loop(chip_path, inp, vtl)
+    run_input_loop(chip_path, inp, vtl, PRIO_INPUT, None)
 }
 
 /// Drive all output pins exactly once from the current VTL `output_state`.
@@ -131,31 +188,40 @@ pub fn poll_outputs_once(chip_path: &str, outputs: &[OutputLine], vtl: &VtlSegme
     if outputs.is_empty() {
         return Ok(());
     }
-    let mut chip = Chip::new(chip_path)
-        .with_context(|| format!("open GPIO chip {chip_path}"))?;
+    let mut chip = Chip::new(chip_path).with_context(|| format!("open GPIO chip {chip_path}"))?;
     for out in outputs {
-        let line = chip.get_line(out.gpio_line)
+        let line = chip
+            .get_line(out.gpio_line)
             .with_context(|| format!("get GPIO line {}", out.gpio_line))?;
         let handle = line
             .request(LineRequestFlags::OUTPUT, 0, CONSUMER)
             .with_context(|| format!("request GPIO line {}", out.gpio_line))?;
         let level = ((vtl.output_state(out.vtl_bank as usize) >> out.vtl_bit) & 1) as u8;
-        handle.set_value(level)
+        handle
+            .set_value(level)
             .with_context(|| format!("set GPIO line {}", out.gpio_line))?;
     }
     Ok(())
 }
 
-fn run_input_loop(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) -> Result<()> {
-    set_thread_realtime(PRIO_INPUT);
+fn run_input_loop(
+    chip_path: &str,
+    inp: &InputLine,
+    vtl: &VtlSegment,
+    prio: i32,
+    core: Option<usize>,
+) -> Result<()> {
+    if let Some(core) = core {
+        set_thread_affinity(core);
+    }
+    set_thread_realtime(prio);
 
-    let mut chip = Chip::new(chip_path)
-        .with_context(|| format!("open GPIO chip {chip_path}"))?;
+    let mut chip = Chip::new(chip_path).with_context(|| format!("open GPIO chip {chip_path}"))?;
 
     let event_flags = match inp.edge {
-        Edge::Rising  => EventRequestFlags::RISING_EDGE,
+        Edge::Rising => EventRequestFlags::RISING_EDGE,
         Edge::Falling => EventRequestFlags::FALLING_EDGE,
-        Edge::Both    => EventRequestFlags::BOTH_EDGES,
+        Edge::Both => EventRequestFlags::BOTH_EDGES,
     };
 
     let line = chip
@@ -164,7 +230,12 @@ fn run_input_loop(chip_path: &str, inp: &InputLine, vtl: &VtlSegment) -> Result<
 
     let events = line
         .events(LineRequestFlags::INPUT, event_flags, CONSUMER)
-        .with_context(|| format!("request events on GPIO line {} ('{}')", inp.gpio_line, inp.name))?;
+        .with_context(|| {
+            format!(
+                "request events on GPIO line {} ('{}')",
+                inp.gpio_line, inp.name
+            )
+        })?;
 
     info!(
         "input '{}': GPIO line {} → VTL bank={} bit={} edge={:?}",

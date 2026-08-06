@@ -33,7 +33,6 @@ chip = "/dev/gpiochip0"
 # ── Thread scheduling ─────────────────────────────────────────────────────────
 # On Orin Nano the efficiency cores are 0–3; performance cores are 4–5.
 # Pin the output thread to a performance core to minimise jitter.
-# CPU affinity is not yet applied; uncomment once implemented.
 #
 # [scheduling]
 # output_rt_prio  = 60

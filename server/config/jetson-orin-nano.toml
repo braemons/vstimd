@@ -54,7 +54,7 @@ bit  = 63
 # save_on_quit = false
 
 # ── Thread scheduling ─────────────────────────────────────────────────────────
-# CPU core affinity for the render/vblank thread.  Not yet applied.
+# CPU affinity and real-time priority for the render/vblank thread.
 # On Orin Nano the efficiency cores are 0–3; performance cores are 4–5.
 #
 # [scheduling]
