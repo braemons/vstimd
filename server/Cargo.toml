@@ -77,7 +77,11 @@ recommends        = "vulkan-tools, avahi-daemon"
 # (the stanzas ship as an example — see packaging/samba/vstimd-shares.conf) —
 # two open ports for no functional gain. Avahi is a Recommends because the
 # package *does* wire it up: vstimd-set-hostname renders its service file.
-suggests          = "samba, libpam-smbpass"
+# Just samba: Ubuntu's libpam-smbpass (the usual way to push a Unix password
+# change into Samba's passdb) does not exist in Debian at all, so suggesting it
+# would point Debian/Raspberry Pi OS users at an uninstallable package. The
+# portable pam_exec(8) equivalent is in the appliance-setup docs.
+suggests          = "samba"
 section           = "science"
 priority          = "optional"
 extended-description = """\

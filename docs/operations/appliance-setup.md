@@ -163,7 +163,7 @@ package — but the share definitions are, at
 `smb.conf` stanzas by hand; point Samba at the shipped file instead:
 
 ```bash
-sudo apt install -y samba libpam-smbpass
+sudo apt install -y samba
 
 # Activate the shipped share definitions. Append at the END of the file, so
 # the include cannot land inside another share's section:
@@ -171,7 +171,6 @@ printf '\n[global]\n   include = /usr/share/braemons/vstimd/vstimd-shares.conf\n
     | sudo tee -a /etc/samba/smb.conf
 
 sudo smbpasswd -a vstimd-admin       # seed the Samba credential
-sudo pam-auth-update --enable smbpass
 sudo testparm -s                     # must parse cleanly
 sudo systemctl enable --now smbd nmbd
 ```
@@ -180,13 +179,44 @@ Including rather than copying means a later `apt upgrade` that revises the
 stanzas reaches this rig. This is exactly what the Raspberry Pi image build
 does, so a hand-built rig and a flashed one export byte-identical shares.
 
-`pam_smbpass` (from `libpam-smbpass`) keeps the Samba password in sync with
-the Unix one from here on: the shipped file's `unix password sync` already
-updates Unix when the Samba password changes, and `pam_smbpass` does the
-reverse — whenever the Unix password changes (including the `chage -d 0`
-forced first-login prompt above), it pushes the same password into Samba's
-passdb too. Without it, the Samba password is a second credential that never
-gets rotated by `chage -d 0` and has to be changed separately.
+### Keeping the Samba and Unix passwords in sync
+
+Samba keeps its own credential in `passdb.tdb`, which `chage -d 0` does not
+govern — that only gates Unix/SSH logins. The shipped file's `unix password
+sync` covers one direction (changing the Samba password, or changing it from a
+Windows client, updates the Unix one). For the reverse — pushing a Unix
+password change, including the forced first-login prompt, into Samba's passdb
+— add a `pam_exec` hook.
+
+Ubuntu packages `pam_smbpass` as `libpam-smbpass` for exactly this, but Debian
+(and therefore Raspberry Pi OS) does not ship it at all, so
+`apt install libpam-smbpass` simply fails there. `pam_exec(8)` is the
+Debian-native equivalent: `expose_authtok` hands the new plaintext password to
+a script on stdin during the password-change stack, and `seteuid` runs that
+script with effective root — needed for `smbpasswd -s`, which is root-only —
+even though the real caller is the unprivileged user changing their own
+password.
+
+```bash
+sudo tee /usr/local/sbin/sync-smb-password >/dev/null <<'EOF'
+#!/bin/sh
+# Only touch users who already have a Samba account — skip silently for any
+# other account's password change, such as root's.
+pdbedit -L 2>/dev/null | cut -d: -f1 | grep -qx "$PAM_USER" || exit 0
+IFS= read -r password
+printf '%s\n%s\n' "$password" "$password" | smbpasswd -s "$PAM_USER" >/dev/null
+EOF
+sudo chmod 755 /usr/local/sbin/sync-smb-password
+echo "password optional pam_exec.so expose_authtok seteuid /usr/local/sbin/sync-smb-password" \
+    | sudo tee -a /etc/pam.d/common-password >/dev/null
+```
+
+Run the `smbpasswd -a` above **before** the first password change comes through
+PAM: the hook deliberately no-ops for accounts `pdbedit` does not already know,
+so an account with no Samba entry yet is skipped rather than created.
+
+Without this, the Samba password is a second credential that never gets rotated
+by `chage -d 0` and has to be changed separately.
 
 !!! note "One server-wide setting comes with it"
     The shipped file sets `map to guest = bad user`, which is what lets

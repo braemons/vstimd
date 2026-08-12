@@ -187,18 +187,35 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool libpam-smbpass
+apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool
 
 # smb.conf's 'unix password sync' + 'passwd program' below already sync
 # Samba -> Unix (running smbpasswd, or changing the password from a Windows
-# client, also updates the Unix password). pam_smbpass closes the loop in
-# the other direction: it sits in the PAM password-change stack and, since
-# it sees the plaintext during that transaction (passwd, or the forced
-# first-login prompt from 'chage -d 0' below), pushes any Unix password
-# change into Samba's passdb too. Without this, only the SSH/login password
-# gets rotated at first login and the factory Samba password lingers
-# indefinitely unless someone remembers to run smbpasswd separately.
-pam-auth-update --enable smbpass
+# client, also updates the Unix password). This closes the loop in the other
+# direction: without it, only the SSH/login password gets rotated at first
+# login (the forced prompt from 'chage -d 0' below) and the factory Samba
+# password lingers indefinitely unless someone remembers to run smbpasswd
+# separately.
+#
+# Ubuntu ships a pam_smbpass module (libpam-smbpass) for exactly this, but
+# Debian — which this image is based on — does not package it at all, so
+# 'apt-get install libpam-smbpass' fails outright here. pam_exec(8) is a
+# Debian-provided equivalent: 'expose_authtok' hands the new plaintext
+# password to a script on stdin during the PAM password-change stack, and
+# 'seteuid' runs that script with effective root (needed for smbpasswd's -s
+# flag, which is root-only) even though passwd's real caller is the
+# unprivileged user going through the forced first-login change.
+cat > /usr/local/sbin/sync-smb-password <<'SYNC_EOF'
+#!/bin/sh
+# Only touch users who already have a Samba account (e.g. IMAGE_USER, seeded
+# by smbpasswd -a below) — skip silently for any other account's password
+# change, such as root's.
+pdbedit -L 2>/dev/null | cut -d: -f1 | grep -qx "\$PAM_USER" || exit 0
+IFS= read -r password
+printf '%s\n%s\n' "\$password" "\$password" | smbpasswd -s "\$PAM_USER" >/dev/null
+SYNC_EOF
+chmod 755 /usr/local/sbin/sync-smb-password
+echo "password optional pam_exec.so expose_authtok seteuid /usr/local/sbin/sync-smb-password" >> /etc/pam.d/common-password
 
 # Convenience tools for anyone who SSHes into the appliance to poke at it.
 apt-get install -y --no-install-recommends btop vim tmux
@@ -225,7 +242,7 @@ apt-get install -y --no-install-recommends \
 # ACTION=="add" alone is not enough: it fires the instant the netdev is
 # created, which on the Pi 5's onboard NIC is well before the PHY has linked
 # up and autonegotiated a mode — ethtool --set-eee errors out at that point
-# (silently, because of the trailing `|| true`), so the setting never
+# (silently, because of the trailing "|| true"), so the setting never
 # actually takes. Also matching ACTION=="change" (fired on carrier/link-state
 # transitions, i.e. when the cable is plugged in and negotiation completes)
 # re-applies it once the link is actually in a state where it can be set.
@@ -382,12 +399,11 @@ Dpkg::Options {
 APT_CONF
 fi
 
-# Admin login for SSH + Samba. Forced password change on first login: a
-# publicly downloadable image shouldn't leave a known password valid
-# indefinitely, generated or not.
+# Admin login for SSH + Samba. The password is expired at the very end of this
+# script rather than here -- see the 'chage -d 0' below for why the ordering
+# matters.
 useradd -m -s /bin/bash -G sudo "${IMAGE_USER}"
 echo "${IMAGE_USER}:${IMAGE_PASSWORD}" | chpasswd
-chage -d 0 "${IMAGE_USER}"
 systemctl enable ssh
 
 # Stock Raspberry Pi OS's first-boot user wizard (raspberrypi-sys-mods /
@@ -414,16 +430,37 @@ systemctl disable userconfig.service 2>/dev/null || true
 su - "${IMAGE_USER}" -c \
     'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default'
 
+# Force a password change at first login: a publicly downloadable image must
+# not leave a known password valid indefinitely, generated or not.
+#
+# MUST come after every 'su - IMAGE_USER' above. chage -d 0 marks the password
+# as expired, and su runs the full PAM account stack -- which then refuses to
+# hand over a shell until the password is changed, prompting for it on a stdin
+# that is not a terminal inside this chroot:
+#
+#     You are required to change your password immediately (administrator enforced)
+#     Current password: su: Authentication token manipulation error
+#
+# That is a non-zero exit under 'set -e', so expiring the password before the
+# rustup install above fails the whole image build. Anything added later that
+# needs to become IMAGE_USER must go above this line, or use runuser (whose
+# PAM config has no account stage) instead of su.
+chage -d 0 "${IMAGE_USER}"
+
 # Samba share for the vstimd/gpiochip-daqd config directory.
 #
 # Samba keeps its own credential in passdb.tdb, which the 'chage -d 0' above
 # does NOT govern — that only gates Unix/SSH logins. useradd/chpasswd (used
 # to bootstrap the account above) don't go through PAM either, so this
 # initial smbpasswd call is still needed to seed the Samba side to the same
-# factory password. From here on, though, pam_smbpass (enabled above) keeps
-# the two in sync automatically: the forced first-login SSH password change
-# runs through PAM, which pushes the new password into Samba's passdb too —
-# no separate manual smbpasswd run needed after today.
+# factory password. From here on, though, the pam_exec hook installed above
+# keeps the two in sync automatically: the forced first-login SSH password
+# change runs through PAM, which pushes the new password into Samba's passdb
+# too — no separate manual smbpasswd run needed after today.
+#
+# Seeding here is also what arms that hook: sync-smb-password deliberately
+# no-ops for accounts pdbedit does not already know, so the Samba account has
+# to exist before the first password change comes through PAM.
 #
 # NB: this heredoc is unquoted (it interpolates IMAGE_USER etc.), so backticks
 # and $ in here run on the BUILD HOST. Keep both out of comments.
@@ -465,7 +502,7 @@ vstimd appliance
                 vstimd-data   -> /var/lib/braemons (saved stim-configs, read-only to guests)
   Anyone on the LAN can browse them read-only with no credentials. Writing
   requires this account's login — changing your SSH password at first login
-  updates the Samba one too (pam_smbpass keeps them in sync from here on).
+  updates the Samba one too (a PAM hook keeps them in sync from here on).
 
 MOTD_EOF
 

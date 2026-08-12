@@ -140,7 +140,7 @@ ssh vstimd-admin@vstimd-a1b2c3.local
 | Password | `vstimd`, unless the release notes for your download say otherwise |
 | First login | You are **forced to change the password** (`chage -d 0`) before you get a shell |
 
-Changing it also changes the Samba password: `pam_smbpass` sits in the
+Changing it also changes the Samba password: a `pam_exec` hook sits in the
 password-change stack and pushes the new value into Samba's passdb, so the two
 never drift apart.
 
@@ -250,7 +250,7 @@ re-flashing for a new rig or a failed card.
 | Rig config | `/usr/share/braemons/vstimd/raspberry-pi-5.toml` installed as `/etc/braemons/vstimd-rig-config.toml` (not the generic all-commented-out default) |
 | GPIO config | `raspberry-pi-5_in16_out4.toml` installed as `/etc/braemons/gpiochip-daqd-config.toml` |
 | Services | `sshd`, `smbd`/`nmbd` with both shares, `avahi-daemon` |
-| Login | `vstimd-admin` in `sudo`, password change forced at first login, Samba password kept in sync by `pam_smbpass` |
+| Login | `vstimd-admin` in `sudo`, password change forced at first login, Samba password kept in sync by a `pam_exec` hook |
 | Updates | `/etc/apt/sources.list.d/braemons.sources` + `/etc/apt/keyrings/braemons.asc`, plus an unattended-upgrade conffile policy so a headless rig never hangs on a dpkg prompt |
 | DisplayLink | `displaylink-driver` with `evdi` pinned to 1.14.16 and DKMS-built for both shipped kernels (see [caveats](../developer/platform-notes.md)) |
 | Workaround | udev rule disabling Energy-Efficient Ethernet, which otherwise drops the Pi 5's link |
