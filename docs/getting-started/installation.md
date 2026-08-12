@@ -81,7 +81,7 @@ from a [release](https://github.com/braemons/vstimd/releases):
 
     Architectures published: `x86_64`, `aarch64`.
 
-Both packages install the binary with the web UI embedded, the systemd units,
+Both formats install the binary with the web UI embedded, the systemd units,
 the hostname/discovery service, an rsyslog + logrotate drop-in, and per-board
 example configs. `postinst` creates the `vstimd` system user and registers a
 "Boot to vstimd" bootloader entry. Then:
@@ -92,9 +92,11 @@ sudo systemctl enable --now vstimd
 
 See [Deployment](../operations/deployment.md) for what to do next on a rig.
 
-!!! note "`braemons-gpiochip-daqd` is arm64 only"
-    The GPIO trigger daemon is published for arm64 as a `.deb`. Rigs without
-    hardware trigger lines do not need it.
+!!! note "`braemons-gpiochip-daqd` is a separate package"
+    The GPIO trigger daemon ships as its own `.deb`, for both `amd64` and
+    `arm64`, and is installed alongside vstimd on rigs that drive hardware
+    trigger lines. It is not published as an `.rpm`. Rigs with no GPIO wiring do
+    not need it at all.
 
 ### Build from source
 

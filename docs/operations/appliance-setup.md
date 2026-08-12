@@ -79,6 +79,8 @@ Or, without the archive, install `.deb`s from a
 [release](https://github.com/braemons/vstimd/releases) directly:
 
 ```bash
+# Both packages are published for amd64 and arm64 — pick the one matching
+# `dpkg --print-architecture` on the rig.
 sudo apt install ./braemons-vstimd_<version>-1_arm64.deb \
                  ./braemons-gpiochip-daqd_<version>-1_arm64.deb
 ```

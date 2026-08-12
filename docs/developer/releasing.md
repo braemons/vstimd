@@ -89,7 +89,7 @@ release:
 | Artifact | Job | Installed via |
 | --- | --- | --- |
 | `braemons-vstimd_<version>-1_{amd64,arm64}.deb` | `deb-amd64`, `deb-arm64` | [apt](../getting-started/installation.md#apt-archive-debian-ubuntu) |
-| `braemons-gpiochip-daqd_<version>-1_arm64.deb` | `deb-arm64` | apt |
+| `braemons-gpiochip-daqd_<version>-1_{amd64,arm64}.deb` | `deb-amd64`, `deb-arm64` | apt |
 | `braemons-vstimd-<version>-1.{x86_64,aarch64}.rpm` | `rpm-amd64`, `rpm-arm64` | [dnf](../getting-started/installation.md#release-packages-deb-rpm) |
 | `vstimd-<version>-raspios-lite-arm64.img.xz` (+ `.sha256`) | `sd-image` | [flashed to an SD card](../operations/raspberry-pi-image.md) |
 
