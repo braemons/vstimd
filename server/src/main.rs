@@ -356,18 +356,36 @@ fn resolve_config_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBu
 /// Detection logic:
 /// - **Windows/macOS:** Always desktop (winit)
 /// - **Linux with DISPLAY or WAYLAND_DISPLAY:** Desktop session → winit
-/// - **Linux without display env vars:** Bare console → DRM
+/// - **Linux without display env vars:** Bare console — prefer a connected
+///   HDMI/DP display (DRM) if one is plugged in; otherwise fall back to a
+///   connected DisplayLink (evdi) output if one is present; otherwise DRM
+///   (which will fail loudly at init if nothing is actually connected).
 fn detect_render_target(window_mode: WindowMode, has_display: bool) -> RenderTarget {
     if cfg!(not(target_os = "linux")) {
         return RenderTarget::Desktop(window_mode);
     }
     if has_display {
         log::info!("vstimd: detected desktop session (DISPLAY or WAYLAND_DISPLAY set)");
-        RenderTarget::Desktop(window_mode)
-    } else {
-        log::info!("vstimd: detected console environment (no display server)");
-        RenderTarget::Drm
+        return RenderTarget::Desktop(window_mode);
     }
+
+    #[cfg(target_os = "linux")]
+    {
+        if vstimd::render::evdi::has_connected_native_display() {
+            log::info!("vstimd: detected console environment with a connected HDMI/DP display");
+            return RenderTarget::Drm;
+        }
+        if vstimd::render::evdi::find_connected_evdi().is_some() {
+            log::info!(
+                "vstimd: detected console environment with no HDMI/DP display but a connected \
+                 DisplayLink (evdi) output — using it"
+            );
+            return RenderTarget::Evdi;
+        }
+    }
+
+    log::info!("vstimd: detected console environment (no display server)");
+    RenderTarget::Drm
 }
 
 /// Resolve the render target from every source, highest priority first:
@@ -698,5 +716,6 @@ fn print_usage() {
     eprintln!("  1. --null / --evdi on the command line");
     eprintln!("  2. rig-config's [display] backend (\"drm\", \"desktop\", \"null\", \"evdi\")");
     eprintln!("  3. auto-detect: Windows/macOS or DISPLAY/WAYLAND_DISPLAY set -> desktop (winit);");
-    eprintln!("     otherwise -> console (DRM/KMS)");
+    eprintln!("     otherwise console -> DRM/KMS if HDMI/DP is connected, else a connected");
+    eprintln!("     DisplayLink (evdi) output if present, else DRM/KMS");
 }

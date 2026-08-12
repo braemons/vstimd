@@ -187,10 +187,33 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool
+apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool libpam-smbpass
+
+# smb.conf's 'unix password sync' + 'passwd program' below already sync
+# Samba -> Unix (running smbpasswd, or changing the password from a Windows
+# client, also updates the Unix password). pam_smbpass closes the loop in
+# the other direction: it sits in the PAM password-change stack and, since
+# it sees the plaintext during that transaction (passwd, or the forced
+# first-login prompt from 'chage -d 0' below), pushes any Unix password
+# change into Samba's passdb too. Without this, only the SSH/login password
+# gets rotated at first login and the factory Samba password lingers
+# indefinitely unless someone remembers to run smbpasswd separately.
+pam-auth-update --enable smbpass
 
 # Convenience tools for anyone who SSHes into the appliance to poke at it.
 apt-get install -y --no-install-recommends btop vim tmux
+
+# git + the system-level build requirements for compiling vstimd on the
+# appliance itself (cargo build --release / cargo test / cargo clippy per
+# CLAUDE.md), mirroring packaging/docker/Dockerfile.deb-builder's apt list
+# (minus its cross-compile-only and pre-built-runtime-lib entries, which
+# don't apply to a native on-device build). The Rust toolchain itself isn't
+# an apt package (Debian's rustc trails the edition vstimd needs) — installed
+# via rustup for IMAGE_USER below, after that user exists.
+apt-get install -y --no-install-recommends \
+    git build-essential pkg-config \
+    libinput-dev libudev-dev libdrm-dev libwayland-dev \
+    protobuf-compiler
 
 # Energy-Efficient Ethernet makes the Pi 5's NIC drop connections (see
 # docs/developer/platform-notes.md). A udev rule rather than a oneshot unit so
@@ -198,8 +221,16 @@ apt-get install -y --no-install-recommends btop vim tmux
 # re-enumeration, with no ordering against network.target to get wrong.
 # ethtool exits non-zero on NICs that don't implement EEE at all; that's
 # expected on some adapters, so don't let it fail the rule.
+#
+# ACTION=="add" alone is not enough: it fires the instant the netdev is
+# created, which on the Pi 5's onboard NIC is well before the PHY has linked
+# up and autonegotiated a mode — ethtool --set-eee errors out at that point
+# (silently, because of the trailing `|| true`), so the setting never
+# actually takes. Also matching ACTION=="change" (fired on carrier/link-state
+# transitions, i.e. when the cable is plugged in and negotiation completes)
+# re-applies it once the link is actually in a state where it can be set.
 cat > /etc/udev/rules.d/80-disable-eee.rules <<'UDEV_EOF'
-ACTION=="add", SUBSYSTEM=="net", KERNEL=="eth*", \
+ACTION=="add|change", SUBSYSTEM=="net", KERNEL=="eth*", \
   RUN+="/bin/sh -c '/usr/sbin/ethtool --set-eee %k eee off || true'"
 UDEV_EOF
 
@@ -303,6 +334,17 @@ install -m 0644 \
     /usr/share/braemons/gpiochip-daqd/raspberry-pi-5_in16_out4.toml \
     /etc/braemons/gpiochip-daqd-config.toml
 
+# Same deal for vstimd's own rig-config: 'make install' (the .deb's postinst
+# path) only ever installs the generic, everything-commented-out
+# server/config/default-rig-config.toml to
+# /etc/braemons/vstimd-rig-config.toml (see the Makefile's RIG_CONFIG/EXAMPLES
+# split) because the .deb itself is board-agnostic too. Overwrite with the
+# Pi 5 example so a freshly flashed card boots with correct VTL/GPIO settings
+# instead of a config with everything commented out.
+install -m 0644 \
+    /usr/share/braemons/vstimd/raspberry-pi-5.toml \
+    /etc/braemons/vstimd-rig-config.toml
+
 # ── In-place updates ─────────────────────────────────────────────────────────
 # Point apt at the vstimd archive so a deployed rig upgrades with
 # 'apt update && apt upgrade' instead of being re-flashed. Re-flashing discards
@@ -348,19 +390,40 @@ echo "${IMAGE_USER}:${IMAGE_PASSWORD}" | chpasswd
 chage -d 0 "${IMAGE_USER}"
 systemctl enable ssh
 
+# Stock Raspberry Pi OS's first-boot user wizard (raspberrypi-sys-mods /
+# userconf-pi, WantedBy=multi-user.target -- which vstimd.target requires, so
+# it runs regardless of vstimd.target being the default target): unless
+# /boot/firmware/userconf.txt was preseeded (only Raspberry Pi Imager's own
+# OS-customisation writes that -- balenaEtcher and any other raw-dd flash do
+# not), it blocks the very first boot on an interactive username/password
+# prompt on /dev/tty8. IMAGE_USER already exists at this point (created
+# above), so the wizard is redundant -- disable it outright rather than ship
+# an appliance that hangs on first boot waiting for a keyboard nobody has
+# plugged in.
+systemctl disable userconfig.service 2>/dev/null || true
+
+# Rust toolchain for IMAGE_USER, so 'cargo build --release'/'cargo test'/
+# 'cargo clippy' (see CLAUDE.md) work out of the box for anyone who git
+# clones vstimd onto the appliance to build from source. Debian's packaged
+# rustc trails the edition vstimd needs, so install via rustup rather than
+# apt (which is why this needs its own step -- apt-installed git and the
+# system -dev libs above aren't sufficient on their own). Installed as
+# IMAGE_USER, not root: cargo/rustup are meant to be per-user tooling, and
+# running the installer as that user avoids ending up with a root-owned
+# toolchain a non-root SSH login can't update.
+su - "${IMAGE_USER}" -c \
+    'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default'
+
 # Samba share for the vstimd/gpiochip-daqd config directory.
 #
 # Samba keeps its own credential in passdb.tdb, which the 'chage -d 0' above
-# does NOT govern — that only gates Unix/SSH logins. So the factory password
-# keeps working over SMB even after the user changes it at first SSH login.
-#
-# Samba cannot force a one-time change the way chage does: pdbedit in Samba
-# 4.22 (trixie) has no per-user "must change" option, only account policies
-# and control flags, and expiring by policy would re-expire on every rotation.
-# ('pdbedit --pwd-must-change-now' fails with "unknown option" and, under
-# set -e, kills the build.) So close the gap from the other side instead:
-# unix password sync makes one smbpasswd run set BOTH credentials, and the
-# MOTD below tells whoever logs in to do exactly that.
+# does NOT govern — that only gates Unix/SSH logins. useradd/chpasswd (used
+# to bootstrap the account above) don't go through PAM either, so this
+# initial smbpasswd call is still needed to seed the Samba side to the same
+# factory password. From here on, though, pam_smbpass (enabled above) keeps
+# the two in sync automatically: the forced first-login SSH password change
+# runs through PAM, which pushes the new password into Samba's passdb too —
+# no separate manual smbpasswd run needed after today.
 #
 # NB: this heredoc is unquoted (it interpolates IMAGE_USER etc.), so backticks
 # and $ in here run on the BUILD HOST. Keep both out of comments.
@@ -381,42 +444,50 @@ cat >> /etc/samba/smb.conf <<SMB_EOF
    passwd program = /usr/bin/passwd %u
    passwd chat = *password:* %n\n *password:* %n\n *successfully*
 
+# Both shares: browsable read-only for anyone on the LAN (no credentials
+# needed, via 'map to guest = Bad User' above -- any connection Samba can't
+# authenticate falls back to the guest account rather than being refused
+# outright), read-write only for IMAGE_USER. 'read only = yes' sets that
+# default for everyone including guest; 'write list' is what grants
+# IMAGE_USER the exception. LAN-only trust assumption -- see the appliance
+# setup docs' note on keeping Samba off untrusted networks.
 [${SAMBA_SHARE}]
    path = /etc/braemons
    browseable = yes
-   read only = no
-   guest ok = no
-   valid users = ${IMAGE_USER}
+   read only = yes
+   guest ok = yes
+   write list = ${IMAGE_USER}
    create mask = 0644
    directory mask = 0755
 
 [${SAMBA_DATA_SHARE}]
    path = /var/lib/braemons
    browseable = yes
-   read only = no
-   guest ok = no
-   valid users = ${IMAGE_USER}
+   read only = yes
+   guest ok = yes
+   write list = ${IMAGE_USER}
    create mask = 0644
    directory mask = 0755
    # vstimd.service runs as root with StateDirectory=braemons/vstimd, so
    # systemd (re)asserts root ownership of that subtree on every start —
-   # without this, the share would be read-only in practice no matter what
-   # the masks say. The only valid user here is already in sudo, so writing
-   # as root over SMB grants nothing they do not already have.
+   # without this, IMAGE_USER's writes (via write list above) would fail no
+   # matter what the masks say. IMAGE_USER is already in sudo, so writing as
+   # root over SMB grants nothing they do not already have; guest connections
+   # never reach this, since 'read only' blocks writes before force user
+   # would apply.
    force user = root
 SMB_EOF
 testparm -s >/dev/null
 
-# SSH forces the login password to change; nothing forces the Samba one, so
-# say so where it cannot be missed. No backticks/\$ here — see the note above.
+# No backticks/\$ here — see the note above.
 cat >> /etc/motd <<'MOTD_EOF'
 
 vstimd appliance
-  Samba shares: vstimd-config -> /etc/braemons (settings)
-                vstimd-data   -> /var/lib/braemons (saved stim-configs)
-  Their password is separate from your login and is still the factory
-  default. Run  smbpasswd  to change it — "unix password sync" is on, so
-  that updates this account's login password at the same time.
+  Samba shares: vstimd-config -> /etc/braemons (settings, read-only to guests)
+                vstimd-data   -> /var/lib/braemons (saved stim-configs, read-only to guests)
+  Anyone on the LAN can browse them read-only with no credentials. Writing
+  requires this account's login — changing your SSH password at first login
+  updates the Samba one too (pam_smbpass keeps them in sync from here on).
 
 MOTD_EOF
 
