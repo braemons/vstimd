@@ -16,6 +16,10 @@ BOOT_SCRIPT     := packaging/scripts/vstimd-boot-entry
 HOSTNAME_SCRIPT := packaging/scripts/vstimd-set-hostname
 SYSUSERS    := packaging/sysusers/vstimd.conf
 AVAHI_TEMPLATE  := packaging/avahi/vstimd.service.tmpl
+# Samba share definitions. Installed read-only as an example: samba is only a
+# Suggests, and nothing here activates until an admin adds the `include =` line
+# to smb.conf (see the file's own header).
+SAMBA_SHARES    := packaging/samba/vstimd-shares.conf
 RIG_CONFIG  := server/config/default-rig-config.toml
 EXAMPLES    := server/config/jetson-orin-nano.toml \
                server/config/raspberry-pi-5.toml \
@@ -140,6 +144,7 @@ install:
 	install -d -m 0755 $(DESTDIR)$(SHAREDIR)
 	for f in $(EXAMPLES); do install -m 0644 $$f $(DESTDIR)$(SHAREDIR)/; done
 	install -D -m 0644 $(AVAHI_TEMPLATE)  $(DESTDIR)$(SHAREDIR)/vstimd.service.avahi.tmpl
+	install -D -m 0644 $(SAMBA_SHARES)    $(DESTDIR)$(SHAREDIR)/vstimd-shares.conf
 
 uninstall:
 	systemctl disable --now vstimd 2>/dev/null || true
@@ -153,6 +158,7 @@ uninstall:
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd-hostname.service
 	rm -f $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
 	rm -f $(DESTDIR)$(SHAREDIR)/vstimd.service.avahi.tmpl
+	rm -f $(DESTDIR)$(SHAREDIR)/vstimd-shares.conf
 	rm -f /etc/avahi/services/vstimd.service
 	for f in $(EXAMPLES); do rm -f $(DESTDIR)$(SHAREDIR)/$$(basename $$f); done
 	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(SHAREDIR) $(DESTDIR)$(CONFDIR) 2>/dev/null || true

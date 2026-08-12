@@ -66,6 +66,7 @@ that is what you actually want.
 | `packaging/systemd/vstimd-hostname.service` | `/usr/lib/systemd/system/vstimd-hostname.service` |
 | `packaging/sysusers/vstimd.conf` | `/usr/lib/sysusers.d/vstimd.conf` |
 | `packaging/avahi/vstimd.service.tmpl` | `/usr/share/braemons/vstimd/vstimd.service.avahi.tmpl` |
+| `packaging/samba/vstimd-shares.conf` | `/usr/share/braemons/vstimd/vstimd-shares.conf` |
 | `server/config/default-rig-config.toml` | `/etc/braemons/vstimd-rig-config.toml` (never overwritten if present) |
 | `server/config/{jetson-orin-nano,raspberry-pi-5,raspberry-pi-4}.toml` | `/usr/share/braemons/vstimd/` |
 

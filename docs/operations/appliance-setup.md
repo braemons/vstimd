@@ -154,55 +154,45 @@ sudo chage -d 0 vstimd-admin   # force a password change at first login
 `gpiochip-daqd-config.toml`) and reading `/var/lib/braemons` (saved stim
 configs) from a lab Windows/macOS machine without SSHing in each time. Both
 shares are browsable read-only to anyone on the LAN with no credentials;
-writing requires `vstimd-admin`:
+writing requires an account in `sudo` (or `wheel` on RHEL-family), which
+`vstimd-admin` is.
+
+Samba is a **Suggests** of `braemons-vstimd`, so it is not installed with the
+package — but the share definitions are, at
+`/usr/share/braemons/vstimd/vstimd-shares.conf`. You do not need to write any
+`smb.conf` stanzas by hand; point Samba at the shipped file instead:
 
 ```bash
 sudo apt install -y samba libpam-smbpass
-sudo smbpasswd -a vstimd-admin
+
+# Activate the shipped share definitions. Append at the END of the file, so
+# the include cannot land inside another share's section:
+printf '\n[global]\n   include = /usr/share/braemons/vstimd/vstimd-shares.conf\n' \
+    | sudo tee -a /etc/samba/smb.conf
+
+sudo smbpasswd -a vstimd-admin       # seed the Samba credential
 sudo pam-auth-update --enable smbpass
-```
-
-`pam_smbpass` (from `libpam-smbpass`) keeps the Samba password in sync with
-the Unix one from here on: `smb.conf`'s `unix password sync` already updates
-Unix when the Samba password changes, and `pam_smbpass` does the reverse —
-whenever the Unix password changes (including the `chage -d 0` forced
-first-login prompt above), it pushes the same password into Samba's passdb
-too. Without it, the Samba password is a second credential that never gets
-rotated by `chage -d 0` and has to be changed separately.
-
-Append to `/etc/samba/smb.conf`:
-
-```ini
-[global]
-   unix password sync = yes
-
-[vstimd-config]
-   path = /etc/braemons
-   browseable = yes
-   read only = yes
-   guest ok = yes
-   write list = vstimd-admin
-   create mask = 0644
-   directory mask = 0755
-
-[vstimd-data]
-   path = /var/lib/braemons
-   browseable = yes
-   read only = yes
-   guest ok = yes
-   write list = vstimd-admin
-   create mask = 0644
-   directory mask = 0755
-   force user = root
-```
-
-`read only = yes` is the default for everyone including guest; `write list`
-is what grants `vstimd-admin` the exception.
-
-```bash
-sudo testparm -s
+sudo testparm -s                     # must parse cleanly
 sudo systemctl enable --now smbd nmbd
 ```
+
+Including rather than copying means a later `apt upgrade` that revises the
+stanzas reaches this rig. This is exactly what the Raspberry Pi image build
+does, so a hand-built rig and a flashed one export byte-identical shares.
+
+`pam_smbpass` (from `libpam-smbpass`) keeps the Samba password in sync with
+the Unix one from here on: the shipped file's `unix password sync` already
+updates Unix when the Samba password changes, and `pam_smbpass` does the
+reverse — whenever the Unix password changes (including the `chage -d 0`
+forced first-login prompt above), it pushes the same password into Samba's
+passdb too. Without it, the Samba password is a second credential that never
+gets rotated by `chage -d 0` and has to be changed separately.
+
+!!! note "One server-wide setting comes with it"
+    The shipped file sets `map to guest = bad user`, which is what lets
+    credential-free read-only browsing work — but it applies to the whole
+    server, not just these two shares. That is the right default for an
+    appliance; do not include this file on a general-purpose file server.
 
 `/var/lib/braemons/vstimd` is created by systemd's `StateDirectory=` the first
 time `vstimd.service` runs, and Samba won't export a path that doesn't exist
