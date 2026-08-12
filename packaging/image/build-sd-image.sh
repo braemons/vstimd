@@ -187,18 +187,35 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool libpam-smbpass
+apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool
 
 # smb.conf's 'unix password sync' + 'passwd program' below already sync
 # Samba -> Unix (running smbpasswd, or changing the password from a Windows
-# client, also updates the Unix password). pam_smbpass closes the loop in
-# the other direction: it sits in the PAM password-change stack and, since
-# it sees the plaintext during that transaction (passwd, or the forced
-# first-login prompt from 'chage -d 0' below), pushes any Unix password
-# change into Samba's passdb too. Without this, only the SSH/login password
-# gets rotated at first login and the factory Samba password lingers
-# indefinitely unless someone remembers to run smbpasswd separately.
-pam-auth-update --enable smbpass
+# client, also updates the Unix password). This closes the loop in the other
+# direction: without it, only the SSH/login password gets rotated at first
+# login (the forced prompt from 'chage -d 0' below) and the factory Samba
+# password lingers indefinitely unless someone remembers to run smbpasswd
+# separately.
+#
+# Ubuntu ships a pam_smbpass module (libpam-smbpass) for exactly this, but
+# Debian — which this image is based on — does not package it at all, so
+# 'apt-get install libpam-smbpass' fails outright here. pam_exec(8) is a
+# Debian-provided equivalent: 'expose_authtok' hands the new plaintext
+# password to a script on stdin during the PAM password-change stack, and
+# 'seteuid' runs that script with effective root (needed for smbpasswd's -s
+# flag, which is root-only) even though passwd's real caller is the
+# unprivileged user going through the forced first-login change.
+cat > /usr/local/sbin/sync-smb-password <<'SYNC_EOF'
+#!/bin/sh
+# Only touch users who already have a Samba account (e.g. IMAGE_USER, seeded
+# by smbpasswd -a below) — skip silently for any other account's password
+# change, such as root's.
+pdbedit -L 2>/dev/null | cut -d: -f1 | grep -qx "\$PAM_USER" || exit 0
+IFS= read -r password
+printf '%s\n%s\n' "\$password" "\$password" | smbpasswd -s "\$PAM_USER" >/dev/null
+SYNC_EOF
+chmod 755 /usr/local/sbin/sync-smb-password
+echo "password optional pam_exec.so expose_authtok seteuid /usr/local/sbin/sync-smb-password" >> /etc/pam.d/common-password
 
 # Convenience tools for anyone who SSHes into the appliance to poke at it.
 apt-get install -y --no-install-recommends btop vim tmux
@@ -225,7 +242,7 @@ apt-get install -y --no-install-recommends \
 # ACTION=="add" alone is not enough: it fires the instant the netdev is
 # created, which on the Pi 5's onboard NIC is well before the PHY has linked
 # up and autonegotiated a mode — ethtool --set-eee errors out at that point
-# (silently, because of the trailing `|| true`), so the setting never
+# (silently, because of the trailing "|| true"), so the setting never
 # actually takes. Also matching ACTION=="change" (fired on carrier/link-state
 # transitions, i.e. when the cable is plugged in and negotiation completes)
 # re-applies it once the link is actually in a state where it can be set.

@@ -151,17 +151,32 @@ shares are browsable read-only to anyone on the LAN with no credentials;
 writing requires `vstimd-admin`:
 
 ```bash
-sudo apt install -y samba libpam-smbpass
+sudo apt install -y samba
 sudo smbpasswd -a vstimd-admin
-sudo pam-auth-update --enable smbpass
 ```
 
-`pam_smbpass` (from `libpam-smbpass`) keeps the Samba password in sync with
-the Unix one from here on: `smb.conf`'s `unix password sync` already updates
-Unix when the Samba password changes, and `pam_smbpass` does the reverse —
-whenever the Unix password changes (including the `chage -d 0` forced
-first-login prompt above), it pushes the same password into Samba's passdb
-too. Without it, the Samba password is a second credential that never gets
+Keep the Samba password in sync with the Unix one from here on: `smb.conf`'s
+`unix password sync` already updates Unix when the Samba password changes;
+for the reverse direction — pushing a Unix password change (including the
+`chage -d 0` forced first-login prompt above) into Samba's passdb — add a
+`pam_exec` hook. Debian doesn't package Ubuntu's `libpam-smbpass` module, so
+this is the Debian-native equivalent: `expose_authtok` hands the new
+plaintext password to a script on stdin, and `seteuid` runs it with
+effective root (needed for `smbpasswd -s`, which is root-only).
+
+```bash
+sudo tee /usr/local/sbin/sync-smb-password >/dev/null <<'EOF'
+#!/bin/sh
+pdbedit -L 2>/dev/null | cut -d: -f1 | grep -qx "$PAM_USER" || exit 0
+IFS= read -r password
+printf '%s\n%s\n' "$password" "$password" | smbpasswd -s "$PAM_USER" >/dev/null
+EOF
+sudo chmod 755 /usr/local/sbin/sync-smb-password
+echo "password optional pam_exec.so expose_authtok seteuid /usr/local/sbin/sync-smb-password" \
+    | sudo tee -a /etc/pam.d/common-password >/dev/null
+```
+
+Without this, the Samba password is a second credential that never gets
 rotated by `chage -d 0` and has to be changed separately.
 
 Append to `/etc/samba/smb.conf`:
