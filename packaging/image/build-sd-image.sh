@@ -246,9 +246,22 @@ apt-get install -y --no-install-recommends \
 # actually takes. Also matching ACTION=="change" (fired on carrier/link-state
 # transitions, i.e. when the cable is plugged in and negotiation completes)
 # re-applies it once the link is actually in a state where it can be set.
+#
+# A single fire-and-forget attempt per event isn't enough either: measured on
+# a Pi 5 at boot, the onboard NIC flapped ~120 times over ~7 minutes before
+# EEE happened to land in the "off" state and the link finally stabilized —
+# i.e. EEE being on is itself what was driving the repeated add/change
+# events, so a rule that only tries once per event can lose that race for
+# minutes. Retrying in-place (bounded, short sleep) until --show-eee actually
+# confirms "disabled" wins on the first event instead of waiting for luck
+# across a flap storm.
+# Bare `$` in a udev RUN value is udev's own substitution syntax (`$kernel`,
+# `$env{}`, ...), not the shell's — a `$(...)` or `"$var"` here gets parsed
+# (and rejected) by udev before the shell ever sees it. %k is substituted by
+# udev itself, so it's used directly with no shell variable in between.
 cat > /etc/udev/rules.d/80-disable-eee.rules <<'UDEV_EOF'
 ACTION=="add|change", SUBSYSTEM=="net", KERNEL=="eth*", \
-  RUN+="/bin/sh -c '/usr/sbin/ethtool --set-eee %k eee off || true'"
+  RUN+="/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do /usr/sbin/ethtool --set-eee %k eee off >/dev/null 2>&1; /usr/sbin/ethtool --show-eee %k 2>/dev/null | grep -q \"EEE status: disabled\" && exit 0; sleep 0.3; done; true'"
 UDEV_EOF
 
 # ── DisplayLink / evdi ──────────────────────────────────────────────────────
