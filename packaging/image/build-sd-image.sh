@@ -399,12 +399,11 @@ Dpkg::Options {
 APT_CONF
 fi
 
-# Admin login for SSH + Samba. Forced password change on first login: a
-# publicly downloadable image shouldn't leave a known password valid
-# indefinitely, generated or not.
+# Admin login for SSH + Samba. The password is expired at the very end of this
+# script rather than here -- see the 'chage -d 0' below for why the ordering
+# matters.
 useradd -m -s /bin/bash -G sudo "${IMAGE_USER}"
 echo "${IMAGE_USER}:${IMAGE_PASSWORD}" | chpasswd
-chage -d 0 "${IMAGE_USER}"
 systemctl enable ssh
 
 # Stock Raspberry Pi OS's first-boot user wizard (raspberrypi-sys-mods /
@@ -430,6 +429,23 @@ systemctl disable userconfig.service 2>/dev/null || true
 # toolchain a non-root SSH login can't update.
 su - "${IMAGE_USER}" -c \
     'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default'
+
+# Force a password change at first login: a publicly downloadable image must
+# not leave a known password valid indefinitely, generated or not.
+#
+# MUST come after every 'su - IMAGE_USER' above. chage -d 0 marks the password
+# as expired, and su runs the full PAM account stack -- which then refuses to
+# hand over a shell until the password is changed, prompting for it on a stdin
+# that is not a terminal inside this chroot:
+#
+#     You are required to change your password immediately (administrator enforced)
+#     Current password: su: Authentication token manipulation error
+#
+# That is a non-zero exit under 'set -e', so expiring the password before the
+# rustup install above fails the whole image build. Anything added later that
+# needs to become IMAGE_USER must go above this line, or use runuser (whose
+# PAM config has no account stage) instead of su.
+chage -d 0 "${IMAGE_USER}"
 
 # Samba share for the vstimd/gpiochip-daqd config directory.
 #
