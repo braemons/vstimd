@@ -35,10 +35,12 @@ bit  = 63
 #
 # Force a specific render backend at boot, so the systemd unit (which passes
 # no --evdi/--null flag) picks it up with no ExecStart= edits. Default is
-# "auto" (desktop session -> winit, bare console -> DRM). Set to "evdi" to
-# boot straight into a DisplayLink output -- auxiliary/status display only,
-# not for stimulus timing (see docs/developer/platform-notes.md). --null and
-# --evdi on the command line still override this.
+# "auto": desktop session -> winit; bare console -> DRM if HDMI is connected,
+# else a connected DisplayLink (evdi) output if one is present, else DRM. Set
+# to "evdi" to force a DisplayLink output regardless of HDMI state --
+# auxiliary/status display only, not for stimulus timing (see
+# docs/developer/platform-notes.md). --null and --evdi on the command line
+# still override this.
 # backend = "evdi"
 #
 # Scale factor for the egui overlay UI (both desktop and DRM). Increase on

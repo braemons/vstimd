@@ -71,3 +71,46 @@ pub fn find_connected_evdi() -> Option<EvdiNode> {
 
     None
 }
+
+/// Whether any *non*-`evdi` DRM node (the real display controller — `vc4-drm`
+/// on a Raspberry Pi) reports a connected connector, i.e. an HDMI/DP display
+/// is physically plugged in. Used to decide between the DRM and evdi render
+/// targets on a headless boot (no `DISPLAY`/`WAYLAND_DISPLAY`): prefer real
+/// HDMI when it's there, fall back to a connected DisplayLink output when it
+/// isn't. Cheap — just opens each node and reads connector state, no Vulkan.
+pub fn has_connected_native_display() -> bool {
+    for n in 0..8u32 {
+        let path = format!("/dev/dri/card{n}");
+        let file = match OpenOptions::new().read(true).write(true).open(&path) {
+            Ok(f) => f,
+            Err(_) => continue,
+        };
+        let card = Card(file);
+
+        let driver = match card.get_driver() {
+            Ok(d) => d,
+            Err(_) => continue,
+        };
+        if driver.name() == OsStr::new("evdi") {
+            continue;
+        }
+
+        let res = match card.resource_handles() {
+            Ok(r) => r,
+            Err(_) => continue,
+        };
+
+        let connected = res.connectors().iter().any(|&conn_h| {
+            card.get_connector(conn_h, false)
+                .map(|c| c.state() == connector::State::Connected)
+                .unwrap_or(false)
+        });
+
+        if connected {
+            log::debug!("vstimd: {path} ({}) has a connected connector", driver.name().to_string_lossy());
+            return true;
+        }
+    }
+
+    false
+}

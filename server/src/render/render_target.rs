@@ -14,7 +14,9 @@ pub enum RenderTarget {
     Desktop(WindowMode),
     Null,
     /// Direct KMS presentation on a DisplayLink (evdi) output, no
-    /// compositor. Not auto-detected — opt in with `--evdi`. See
+    /// compositor. Opt in explicitly with `--evdi`, or picked by
+    /// console auto-detection when no HDMI/DP display is connected but an
+    /// evdi output is (see `detect_render_target` in `main.rs`). See
     /// `docs/developer/evdi-direct-presentation-plan.md`.
     Evdi,
 }
