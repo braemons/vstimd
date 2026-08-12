@@ -118,7 +118,9 @@ vstimd-a1b2c3  vstimd-a1b2c3.local  10.0.1.42   tcp://vstimd-a1b2c3.local:5555
 ```
 
 Without the Python client installed, `avahi-browse -r _vstimd._tcp` (Linux),
-`dns-sd -B _vstimd._tcp` (macOS), or your router's DHCP lease table will do.
+`dns-sd -B _vstimd._tcp` (macOS, and Windows with Bonjour installed — see
+[Discovery on Windows](discovery.md#on-windows-without-the-python-client)), or
+your router's DHCP lease table will do.
 
 Quickest confirmation that it is alive: browse to
 **`http://vstimd-XXXXXX.local:8080`** — the [web control UI](../client/web.md)
