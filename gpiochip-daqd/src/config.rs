@@ -47,17 +47,17 @@ impl Default for GpioConfig {
 /// Thread scheduling options.
 ///
 /// All fields are optional.  Omit a field to use the built-in default.
-/// `*_cpu_core` is accepted by the parser but not yet applied.
 #[derive(Deserialize, Debug, Default)]
-#[allow(dead_code)]
 pub struct SchedulingConfig {
     /// SCHED_FIFO priority for the output thread (1–99).  Default: 60.
     pub output_rt_prio: Option<i32>,
-    /// CPU core to pin the output thread to.  Not yet applied.
+    /// CPU core to pin the output thread to.  Unpinned if omitted.
     pub output_cpu_core: Option<usize>,
     /// SCHED_FIFO priority for each input watcher thread (1–99).  Default: 50.
     pub input_rt_prio: Option<i32>,
-    /// CPU core to pin input watcher threads to.  Not yet applied.
+    /// CPU core to pin input watcher threads to.  Unpinned if omitted.
+    /// All watchers share one core — they are blocked on GPIO edges, not
+    /// spinning, so they do not contend the way per-core pinning would fix.
     pub input_cpu_core: Option<usize>,
 }
 

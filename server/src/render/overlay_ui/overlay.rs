@@ -696,6 +696,18 @@ fn system_group(
     };
     ui.colored_label(clock_color, clock_label);
 
+    // Green only when everything asked for was actually granted — a requested
+    // pin or priority that silently didn't take is the failure worth seeing.
+    let sched = &sys.host.sched;
+    let sched_color = if sched.has_failure() {
+        egui::Color32::RED
+    } else if sched.is_default() {
+        egui::Color32::GRAY
+    } else {
+        egui::Color32::from_rgb(80, 200, 80)
+    };
+    ui.colored_label(sched_color, format!("Sched: {}", sched.summary()));
+
     ui.separator();
     ui.horizontal(|ui| {
         ui.label("CPU:");

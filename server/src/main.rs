@@ -27,11 +27,14 @@ fn main() {
         env!("VSTIMD_VERSION"),
         env!("VSTIMD_BUILD_DATE"),
     );
-    let host_info = HostInfo {
+    // `sched` is filled in later, once the rig-config is loaded and the render
+    // thread has actually been pinned/promoted.
+    let mut host_info = HostInfo {
         hardware_model: query_hardware_model(),
         hostname: query_hostname(),
         local_ip: query_local_ip(),
         zmq_port: vstimd::ipc::DEFAULT_ZMQ_PORT,
+        sched: Default::default(),
     };
     log::info!("vstimd: hardware: {}", host_info.hardware_model);
 
@@ -214,6 +217,11 @@ fn main() {
     // (which moves `scene`/`vtl` into BackendData) returns. Cheap Arc clones.
     let scene_for_quit = scene.clone();
     let vtl_for_quit = vtl.clone();
+
+    // Pin/promote the render thread before entering the frame loop. The loop
+    // runs on this (main) thread, so this is the thread that matters; the ZMQ
+    // and web threads deliberately stay on the general scheduler.
+    host_info.sched = vstimd::sched::apply_to_render_thread(&rig.scheduling);
 
     let data = BackendData {
         scene,

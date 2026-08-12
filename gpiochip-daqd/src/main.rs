@@ -4,7 +4,7 @@ mod config;
 use std::fs;
 
 use anyhow::{Context, Result};
-use log::{error, info, warn};
+use log::{error, info};
 use vtl::VtlOwner;
 
 const DEFAULT_CONFIG_PATH: &str = "/etc/braemons/gpiochip-daqd-config.toml";
@@ -82,11 +82,7 @@ fn main() -> Result<()> {
             i.gpio_line, i.name, i.vtl_bank, i.vtl_bit, i.edge
         );
     }
-    if cfg.scheduling.output_cpu_core.is_some() || cfg.scheduling.input_cpu_core.is_some() {
-        warn!("scheduling.output_cpu_core / input_cpu_core: parsed but CPU affinity is not yet implemented");
-    }
-
-    let config::Config { vtl: vtl_cfg, gpio, outputs, inputs, scheduling: _ } = cfg;
+    let config::Config { vtl: vtl_cfg, gpio, outputs, inputs, scheduling } = cfg;
 
     // In standalone mode create the VTL segment ourselves so gpiochip-daqd
     // can run without vstimd (e.g. for GPIO loopback testing).
@@ -114,7 +110,7 @@ fn main() -> Result<()> {
     for inp in inputs {
         let client = vtl::VtlClient::open(&vtl_cfg.shm_name)
             .context("open VTL client for input watcher")?;
-        _watchers.push(bridge::spawn_input_watcher(gpio.chip.clone(), inp, client));
+        _watchers.push(bridge::spawn_input_watcher(gpio.chip.clone(), inp, client, &scheduling));
     }
 
     #[cfg(target_os = "linux")]
@@ -122,7 +118,7 @@ fn main() -> Result<()> {
 
     // Output loop on the main thread — blocks on the VTL output semaphore
     // instead of polling, giving ~50µs response latency (SCHED_FIFO priority).
-    if let Err(e) = bridge::run_output_loop(&gpio.chip, &outputs, &vtl) {
+    if let Err(e) = bridge::run_output_loop(&gpio.chip, &outputs, &vtl, &scheduling) {
         error!("output loop error: {e:#}");
         return Err(e);
     }

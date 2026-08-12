@@ -51,7 +51,7 @@ bit  = 63
 # save_on_quit = false
 
 # ── Thread scheduling ─────────────────────────────────────────────────────────
-# CPU core affinity for the render/vblank thread.  Not yet applied.
+# CPU affinity and real-time priority for the render/vblank thread.
 # RPi 4 has 4 Cortex-A72 cores (0–3), all equal.
 #
 # [scheduling]

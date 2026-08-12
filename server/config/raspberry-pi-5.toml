@@ -58,8 +58,10 @@ bit  = 63
 # save_on_quit = false
 
 # ── Thread scheduling ─────────────────────────────────────────────────────────
-# CPU core affinity for the render/vblank thread.  Not yet applied.
+# CPU affinity and real-time priority for the render/vblank thread.
 # RPi 5 has 4 Cortex-A76 cores (0–3), all equal.
+# render_rt_prio defaults to 55 already; render_cpu_core defaults to unpinned.
 #
 # [scheduling]
 # render_cpu_core = 3
+# render_rt_prio  = 55
