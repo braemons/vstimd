@@ -7,13 +7,13 @@ layout, vblank sources) see [Rendering & DRM internals](../developer/rendering.m
 
 ---
 
-## Target platforms
+Every platform uses **`VK_KHR_display`**: the DRM backend releases DRM master and
+lets Vulkan acquire the display itself. `VK_EXT_acquire_drm_display` is not used —
+on the Jetsons it cannot work (the Vulkan device and the display node are
+different hardware, see below), and there is no code path for it elsewhere.
 
-| Platform | Status | Display API | Notes |
-|---|---|---|---|
-| NVIDIA Jetson Nano | Working | `VK_KHR_display` | Similar architecture to Orin |
-| NVIDIA Jetson Orin Nano | Working | `VK_KHR_display` | See setup below |
-| Raspberry Pi 5 | Working | `VK_EXT_acquire_drm_display` | See [Tested hardware](#tested-hardware) |
+For which platforms are supported at all, see
+[Deployment → Supported platforms](deployment.md#supported-platforms).
 
 ---
 
@@ -138,29 +138,31 @@ echo 'options nvidia-modeset disable_hdmi_frl=1' | sudo tee /etc/modprobe.d/nvid
 
 ## Raspberry Pi 5
 
-Runs on the standard `vc4`/`v3d` KMS drivers, using `VK_EXT_acquire_drm_display` via
-the Mesa v3dv ICD — unlike the Jetsons, GPU and display controller share the same DRM
-node here, so the `VK_EXT_acquire_drm_display` path (unavailable on Jetson, see above)
-works directly. Detailed setup walkthrough to follow; see
-[Tested hardware](#tested-hardware) for the validated configuration.
+Runs on the standard `vc4`/`v3d` KMS drivers via the Mesa v3dv ICD. Unlike the
+Jetsons, the GPU and the display controller are the same DRM node here, so setup
+is limited to the full-KMS overlay (`dtoverlay=vc4-kms-v3d`, already the Raspberry
+Pi OS default) and disabling the display manager — see
+[Deployment → Raspberry Pi 4 / 5](deployment.md#raspberry-pi-4-5).
+
+For a rig rather than a development board, skip all of it and flash the
+[Raspberry Pi 5 appliance image](raspberry-pi-image.md), which arrives configured.
+See [Tested hardware](#tested-hardware) for the validated configuration.
 
 ---
 
 ## Permissions
 
-The running user needs:
-
-- **`video`** group — DRM access to `/dev/dri/card*`
-- **`input`** group — libinput access to `/dev/input/*`
-- **`render`** group — GPU nodes (`/dev/dri/renderD*`) on Raspberry Pi OS
+Running vstimd **as your own login user** (development) needs group membership for
+the devices it opens:
 
 ```bash
 sudo usermod -aG input,video,render $USER
 # log out and back in for group changes to take effect
 ```
 
-For a packaged deployment these are provisioned automatically for the `vstimd`
-system user — see [Deployment](deployment.md).
+The packaged service does not use this path — see
+[Deployment → Service account and device access](deployment.md#2-service-account-and-device-access)
+for what the unit actually runs as and which groups cover what.
 
 ---
 

@@ -10,7 +10,8 @@ here, see [Building & packaging](../developer/building.md).
 | Platform | OS | Notes |
 |---|---|---|
 | Jetson Orin (Tegra) | Ubuntu (L4T) | Primary target; GPU and display controller are separate DRM nodes |
-| Raspberry Pi 4 / 5 | Raspberry Pi OS | Full KMS overlay required; see below |
+| Raspberry Pi 5 | Raspberry Pi OS | A [ready-to-flash image](raspberry-pi-image.md) is published with every release |
+| Raspberry Pi 4 | Raspberry Pi OS | Full KMS overlay required; see below |
 | x86 / desktop NVIDIA | Ubuntu | Extra kernel parameter required; see below |
 
 See [Bare-metal Linux](bare-metal.md) for the per-board display setup.
@@ -21,17 +22,18 @@ See [Bare-metal Linux](bare-metal.md) for the per-board display setup.
 
 ### From a package
 
-Install a `.deb` (or `.rpm`) built as described in
-[Building & packaging](../developer/building.md), then enable the service:
+The published `.deb`/`.rpm`, the braemons apt archive, and the Raspberry Pi 5
+image are all covered in [Installation](../getting-started/installation.md) —
+that page is the single place install commands live. In short:
 
 ```bash
-sudo dpkg -i braemons-vstimd_<version>-1_arm64.deb
+sudo apt install braemons-vstimd        # from the archive
 sudo systemctl enable --now vstimd
 ```
 
-`postinst` calls `systemd-sysusers` to create the `vstimd` system user (in the
-`input`, `video`, and `render` groups) and warns if a display manager is enabled on
-the same VT.
+On install, `postinst` (or the rpm `%post`) calls `systemd-sysusers` to create the
+`vstimd` system user, creates `/etc/braemons` and `/var/log/vstimd`, and registers
+a ["Boot to vstimd" bootloader entry](#boot-to-vstimd).
 
 ### From source
 
@@ -70,34 +72,32 @@ to control it — no client install needed.
 
 ### Network discovery
 
-Multiple rigs on the same LAN need distinct, collision-free names. Packages install
-`vstimd-hostname.service`, which runs `vstimd-set-hostname` at boot to derive a stable
-hostname from the primary interface's MAC address: `vstimd-XXXXXX`, where `XXXXXX` is
-the MAC's last 6 hex characters (13 chars total, within Samba's 15-char NetBIOS
-limit). The unit orders itself before `avahi-daemon`, `smbd`, and `nmbd`, so both
-inherit the generated hostname automatically — neither needs a `host-name=` override
-in `avahi-daemon.conf` nor a `netbios name` override in `smb.conf`. The script also
-keeps the `127.0.1.1` line in `/etc/hosts` in sync (`hostnamectl`/`hostname -F` never
-touch it, so without this, local hostname lookups — including the ones `sudo` does —
-break right after the rename) and, belt-and-braces for a rename on an already-running
-system, `try-restart`s `avahi-daemon`/`smbd`/`nmbd` if they're active.
-
-If Avahi is installed, the package also ships an mDNS service template
-(`/usr/share/braemons/vstimd/vstimd.service.avahi.tmpl`) that `vstimd-set-hostname`
-renders to `/etc/avahi/services/vstimd.service` at boot, advertising `_vstimd._tcp` on
-port 5555 — discoverable with `avahi-browse -r _vstimd._tcp`. The rendered file's
-`id=vstimd-XXXXXX` TXT record is a literal written by the script, not an Avahi `%h`
-substitution — Avahi's `avahi-service.dtd` only allows `replace-wildcards` on `<name>`,
-not `<txt-record>`, so `%h` can't be used inside a TXT value. The TXT record carries
-the raw hostname even if Avahi appends `#2`, `#3`, etc. to the advertised `<name>` on
-collision — key off the TXT record, not the display name, when matching a specific
-device programmatically.
+Packages install `vstimd-hostname.service`, which names the rig `vstimd-XXXXXX`
+after its MAC address at boot and renders the Avahi service file that advertises
+`_vstimd._tcp` on port 5555. Both Samba and Avahi inherit that name. The policy,
+the mDNS TXT record clients should match on, and how to opt out are documented in
+**[Discovery & hostnames](discovery.md)**.
 
 From source (`make install`), enable the unit alongside `vstimd`:
 
 ```bash
 sudo systemctl enable --now vstimd-hostname
 ```
+
+### Logs
+
+vstimd logs to the journal (`journalctl -u vstimd -f`). The packages additionally
+drop in an rsyslog rule and a logrotate policy, so on a rig with rsyslog installed
+the same messages land in a dedicated file:
+
+| Path | |
+|---|---|
+| `/var/log/vstimd/vstimd.log` | Everything from `programname == 'vstimd'` |
+| `/etc/rsyslog.d/10-vstimd.conf` | The routing rule |
+| `/etc/logrotate.d/vstimd` | Daily, 14 rotations, compressed |
+
+Raise the level with a drop-in: `systemctl edit vstimd` and set
+`Environment=RUST_LOG=debug`.
 
 ---
 
@@ -129,13 +129,9 @@ vstimd --version
 apt policy braemons-vstimd
 ```
 
-Packages come from the shared braemons archive at
-<https://braemons.github.io/packages/>, which serves every braemons daemon — one
-source entry and one key per rig, however many daemons it runs. Rigs on a closed
-lab network can point at an `rsync`'d mirror instead; signatures still verify,
-because they cover the archive contents rather than where it was fetched from.
-Setup for both cases is in the
-[archive README](https://github.com/braemons/packages#using-it).
+A rig that predates the archive, or one that was installed from a downloaded
+`.deb`, needs the source added once —
+see [Installation → apt archive](../getting-started/installation.md#apt-archive-debian-ubuntu).
 
 Reserve re-flashing for provisioning a new rig or recovering a failed card.
 
@@ -146,7 +142,9 @@ Reserve re-flashing for provisioning a new rig or recovering a failed card.
 ### 1. Display manager
 
 vstimd acquires the display via `VK_KHR_display`, which requires DRM master on the VT
-it uses (`TTYPath=/dev/tty1` in the unit file).
+it uses — `TTYPath=/dev/tty3` in the unit file. The unit also declares
+`Conflicts=getty@tty3.service`, so logind's own getty on that VT is stopped first
+rather than holding the terminal open while vstimd blocks trying to acquire it.
 
 **Dedicated / headless hardware (recommended):** disable the display manager so
 nothing contends for the display.
@@ -166,18 +164,29 @@ you can switch back to your desktop; the input grab is released while vstimd is 
 background. The unit file strips `DISPLAY`, `WAYLAND_DISPLAY`, and `XDG_RUNTIME_DIR`
 (`UnsetEnvironment`) so Vulkan does not fall back to WSI.
 
-### 2. Groups
+### 2. Service account and device access
 
-The `vstimd` user needs:
+`vstimd.service` currently runs as **`User=root`**, with
+`SupplementaryGroups=input video tty`. Root is what supplies `CAP_SYS_NICE`, which
+the render thread needs to promote itself to `SCHED_FIFO` (`[scheduling]
+render_rt_prio`, on by default). Without it vstimd still runs, but frame delivery
+loses its priority and the overlay's System panel reports the promotion as FAILED.
+
+`make setup-user` and the package post-install scripts still provision an
+unprivileged `vstimd` system user (in `input`, `video`, `render`, `tty`) via
+`systemd-sysusers`, ready for the unit to move onto it. If you switch the unit to
+that user yourself, add `AmbientCapabilities=CAP_SYS_NICE` in the same drop-in.
+
+The device access those groups cover:
 
 | Group | Device | Notes |
 |---|---|---|
 | `input` | `/dev/input/event*` | libinput keyboard/mouse |
 | `video` | `/dev/dri/card*` | DRM master / Vulkan |
 | `render` | `/dev/dri/renderD*` | GPU nodes on Raspberry Pi OS |
+| `tty` | `/dev/tty3` | The unit's `TTYPath`, for a non-root user |
 
-These are added automatically by `make setup-user` / package post-install. For an
-existing login user running vstimd directly (development only):
+For an existing login user running vstimd directly (development only):
 
 ```bash
 sudo usermod -aG input,video,render $USER
@@ -198,8 +207,13 @@ device tree at boot. See [Bare-metal Linux](bare-metal.md) for the full Orin set
 
 ### Raspberry Pi 4 / 5
 
-The Pi display stack requires **full KMS** (not fake-KMS). Add or confirm this in
-`/boot/firmware/config.txt` (Pi OS Bookworm) or `/boot/config.txt` (older):
+!!! tip "Pi 5: use the published image"
+    The [Raspberry Pi 5 appliance image](raspberry-pi-image.md) has all of this
+    done already. This section is for a Pi you are setting up by hand.
+
+The Pi display stack requires **full KMS** (not fake-KMS). Current Raspberry Pi OS
+sets this by default; add or confirm it in `/boot/firmware/config.txt` (Pi OS
+Bookworm and later) or `/boot/config.txt` (older):
 
 ```
 dtoverlay=vc4-kms-v3d
@@ -250,50 +264,69 @@ without a display manager. A normal boot into `graphical.target` leaves vstimd a
 sudo systemctl enable vstimd
 ```
 
-### GRUB (x86 — Fedora, Ubuntu, Debian)
+### The bootloader entry
 
-**Fedora — use `grubby`** (easiest, version-independent):
+The packages register a **"Boot to vstimd"** entry automatically in their
+post-install script, so on a packaged rig there is nothing to do. The same script
+is installed for you to run by hand after `make install`:
 
 ```bash
-sudo grubby --copy-default \
-  --add-kernel=$(grubby --default-kernel) \
-  --title="Boot to vstimd" \
-  --args="systemd.unit=vstimd.target"
-
-sudo grubby --info=ALL | grep -A4 "vstimd"
+sudo vstimd-boot-entry            # add the entry
+vstimd-boot-entry --dry-run       # show what it would do, no root needed
+sudo vstimd-boot-entry --remove   # take it away again
 ```
 
-**Ubuntu / Debian — add a custom entry** to `/etc/grub.d/40_custom`, copying the
-`linux`/`initrd` lines from your default entry and appending
-`systemd.unit=vstimd.target` to the `linux` line:
+It detects `grubby` (Fedora/RHEL), GRUB2 (Ubuntu/Debian/Fedora/Arch), or extlinux
+(Jetson, Raspberry Pi), clones the default entry, and appends
+`systemd.unit=vstimd.target` to its kernel command line. It is safe to re-run —
+an entry that already exists is left alone — and failure is non-fatal at install
+time, which is why it is worth checking the output on an unusual bootloader.
 
-```
-menuentry "Boot to vstimd" {
-    load_video
-    set gfxpayload=keep
-    linux   /boot/vmlinuz-6.8.0-51-generic root=UUID=<your-root-uuid> ro quiet systemd.unit=vstimd.target
-    initrd  /boot/initrd.img-6.8.0-51-generic
-}
-```
+The Raspberry Pi image goes further and makes `vstimd.target` the *default* target
+outright (`systemctl set-default`), so no menu selection is involved at all.
 
-Then `sudo update-grub` (Debian/Ubuntu) or `sudo grub2-mkconfig -o …` (Fedora).
+??? note "Adding the entry by hand"
+    Only needed if `vstimd-boot-entry` cannot handle your bootloader.
 
-### extlinux (Jetson, Raspberry Pi, embedded)
+    **Fedora — `grubby`:**
 
-Edit `/boot/extlinux/extlinux.conf`. Copy your primary entry and add
-`systemd.unit=vstimd.target` to the `APPEND` line:
+    ```bash
+    sudo grubby --copy-default \
+      --add-kernel=$(grubby --default-kernel) \
+      --title="Boot to vstimd" \
+      --args="systemd.unit=vstimd.target"
 
-```
-LABEL vstimd
-    MENU LABEL Boot to vstimd
-    LINUX /boot/Image
-    INITRD /boot/initrd
-    APPEND ${cbootargs} quiet root=PARTUUID=<your-partuuid> rw systemd.unit=vstimd.target
-```
+    sudo grubby --info=ALL | grep -A4 "vstimd"
+    ```
 
-No rebuild step is needed — extlinux reads the file directly at boot. On Jetson the
-file is typically `/boot/extlinux/extlinux.conf`; on Raspberry Pi it may be under
-`/boot/firmware/extlinux/`.
+    **Ubuntu / Debian — a custom entry** in `/etc/grub.d/40_custom`, copying the
+    `linux`/`initrd` lines from your default entry and appending
+    `systemd.unit=vstimd.target` to the `linux` line:
+
+    ```
+    menuentry "Boot to vstimd" {
+        load_video
+        set gfxpayload=keep
+        linux   /boot/vmlinuz-6.8.0-51-generic root=UUID=<your-root-uuid> ro quiet systemd.unit=vstimd.target
+        initrd  /boot/initrd.img-6.8.0-51-generic
+    }
+    ```
+
+    Then `sudo update-grub` (Debian/Ubuntu) or `sudo grub2-mkconfig -o …` (Fedora).
+
+    **extlinux (Jetson, embedded)** — copy your primary entry in
+    `/boot/extlinux/extlinux.conf` (or `/boot/firmware/extlinux/extlinux.conf`)
+    and add `systemd.unit=vstimd.target` to the `APPEND` line:
+
+    ```
+    LABEL vstimd
+        MENU LABEL Boot to vstimd
+        LINUX /boot/Image
+        INITRD /boot/initrd
+        APPEND ${cbootargs} quiet root=PARTUUID=<your-partuuid> rw systemd.unit=vstimd.target
+    ```
+
+    No rebuild step is needed — extlinux reads the file directly at boot.
 
 ### Switching back to the desktop
 

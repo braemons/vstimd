@@ -15,16 +15,20 @@ Use this guide when:
   (a desktop NVIDIA box, a different Pi model), or
 - you want to understand what the SD-image build actually does, step by step.
 
+!!! tip "Raspberry Pi 5: don't do this by hand"
+    Flash the published [appliance image](raspberry-pi-image.md) instead — it is
+    the output of exactly these steps, already done.
+
 ---
 
 ## Checklist
 
 1. [Base OS](#1-base-os)
 2. [Display backend](#2-display-backend)
-3. [Install vstimd + gpiochip-daqd](#3-install-vstimd--gpiochip-daqd)
+3. [Install vstimd + gpiochip-daqd](#3-install-vstimd-gpiochip-daqd)
 4. [Configure gpiochip-daqd](#4-configure-gpiochip-daqd)
 5. [Network identity](#5-network-identity)
-6. [Admin access (SSH + optional Samba)](#6-admin-access-ssh--optional-samba)
+6. [Admin access (SSH + optional Samba)](#6-admin-access-ssh-optional-samba)
 7. [Boot straight into vstimd](#7-boot-straight-into-vstimd)
 8. [Verify](#8-verify)
 9. [Optional: clone into a golden image](#9-optional-clone-into-a-golden-image)
@@ -64,23 +68,24 @@ sudo systemctl disable --now lightdm # Raspberry Pi OS
 ## 3. Install vstimd + gpiochip-daqd
 
 Preferred: point at the braemons apt archive so the rig can upgrade in place
-later (see the [archive README](https://github.com/braemons/packages#using-it)
-for adding the source and key). Then:
+later — [Installation → apt archive](../getting-started/installation.md#apt-archive-debian-ubuntu)
+has the setup. Then:
 
 ```bash
 sudo apt install braemons-vstimd braemons-gpiochip-daqd
 ```
 
-Or, without the archive, install locally-built `.deb`s directly:
+Or, without the archive, install `.deb`s from a
+[release](https://github.com/braemons/vstimd/releases) directly:
 
 ```bash
-sudo dpkg -i braemons-vstimd_<version>_arm64.deb braemons-gpiochip-daqd_<version>_arm64.deb
-sudo apt install -y -f   # pull in any missing dependencies
+sudo apt install ./braemons-vstimd_<version>-1_arm64.deb \
+                 ./braemons-gpiochip-daqd_<version>-1_arm64.deb
 ```
 
 Either way, `postinst` creates the `vstimd` system user in the `input`,
 `video`, and `render` groups automatically (see
-[Deployment → Groups](deployment.md#2-groups)) — no manual `usermod` needed
+[Deployment → Groups](deployment.md#2-service-account-and-device-access)) — no manual `usermod` needed
 for a packaged install.
 
 ## 4. Configure gpiochip-daqd
@@ -123,12 +128,13 @@ the shipped examples.
 
 Enable the hostname service so the rig gets a stable, collision-free name
 derived from its MAC address, and both Avahi and Samba pick it up
-automatically (see
-[Deployment → Network discovery](deployment.md#network-discovery) for how
-this works):
+automatically — see [Discovery & hostnames](discovery.md) for the policy, the
+mDNS advertisement, and how to opt out:
 
 ```bash
+sudo apt install -y avahi-daemon        # for the mDNS advertisement
 sudo systemctl enable --now vstimd-hostname
+hostname                                # → vstimd-XXXXXX
 ```
 
 ## 6. Admin access (SSH + optional Samba)
@@ -212,12 +218,18 @@ stim-configs with no credentials at all.
 
 ## 7. Boot straight into vstimd
 
-Follow [Deployment → Boot to vstimd](deployment.md#boot-to-vstimd) to enable
-the unit and add a boot-loader entry (GRUB on x86, extlinux on Jetson/Pi):
+The package post-install already registered a "Boot to vstimd" bootloader entry
+(GRUB on x86, extlinux on Jetson/Pi) — check it landed, then enable the unit:
 
 ```bash
+vstimd-boot-entry --dry-run     # "entry already present" = nothing to do
 sudo systemctl enable vstimd
 ```
+
+To make vstimd the *default* target instead of a menu choice — what the Pi image
+does — `sudo systemctl set-default vstimd.target`. See
+[Deployment → Boot to vstimd](deployment.md#boot-to-vstimd) for the details and
+the manual fallback.
 
 ## 8. Verify
 
