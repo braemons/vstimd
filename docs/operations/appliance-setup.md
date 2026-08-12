@@ -216,6 +216,11 @@ Only put Samba on a network you trust — the read-only guest share means
 anyone who can reach the box on the LAN can browse rig config and saved
 stim-configs with no credentials at all.
 
+From Windows, reach the shares by typing `\\vstimd-XXXXXX\vstimd-config` into
+Explorer. The rig will not appear on its own in Explorer's *Network* list:
+Samba announces over NetBIOS, and modern Windows builds that list from
+WS-Discovery. `sudo apt install wsdd` on the rig if you want the icon.
+
 ## 7. Boot straight into vstimd
 
 The package post-install already registered a "Boot to vstimd" bootloader entry

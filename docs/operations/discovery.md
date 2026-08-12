@@ -146,6 +146,35 @@ later, and on Linux with `nss-mdns` or `systemd-resolved` installed. On a
 network where `.local` is hijacked by a corporate search domain, use the IP
 address from `discover` instead.
 
+### On Windows, without the Python client
+
+Once you know a rig's name you need nothing at all — Windows resolves `.local`
+itself, so `ssh vstimd-a1b2c3.local`, `http://vstimd-a1b2c3.local:8080` and
+`\\vstimd-a1b2c3` all work on a stock machine. Discovery only matters when you
+do not know the name yet.
+
+For that, use `dns-sd.exe`, which comes with Apple's Bonjour (bundled with
+iTunes, or standalone as *Bonjour Print Services for Windows*):
+
+```powershell
+dns-sd -B _vstimd._tcp                      # browse; the instance name is the hostname
+dns-sd -L vstimd-a1b2c3 _vstimd._tcp local  # → host:port and the id= TXT record
+dns-sd -G v4 vstimd-a1b2c3.local            # → IP address
+```
+
+Both `-B` and `-L` run until ++ctrl+c++; there is no timeout flag.
+
+!!! warning "`Resolve-DnsName` cannot do this"
+    Windows' built-in mDNS support covers **A/AAAA name resolution only** — it
+    has no service enumeration, so `Resolve-DnsName _vstimd._tcp.local -Type PTR`
+    (or `_services._dns-sd._udp.local`) returns *DNS name does not exist*. There
+    is no stock-PowerShell equivalent of `avahi-browse`; use `dns-sd`, the Python
+    client, or address the rig by name.
+
+    `avahi-browse` under WSL only reaches the LAN when WSL is in mirrored
+    networking mode (`networkingMode=mirrored` in `.wslconfig`); the default NAT
+    does not forward multicast.
+
 ---
 
 ## Ports
@@ -156,7 +185,16 @@ address from `discover` instead.
 | 8080 | TCP | [Web control UI](../client/web.md) + `/events` WebSocket |
 | 5353 | UDP | mDNS (avahi) |
 | 22 | TCP | SSH, if `openssh-server` is installed |
-| 139, 445 | TCP | Samba, if configured |
+| 139, 445 | TCP | Samba — **only** on a rig where you installed it (see below) |
+
+!!! info "The packages do not install Samba"
+    File sharing is set up by the [Raspberry Pi image](raspberry-pi-image.md)
+    build, not by `braemons-vstimd`. On a rig installed from a `.deb`/`.rpm` or
+    from source there is no SMB server at all, so nothing appears in Windows
+    Explorer and `nbtstat -A <ip>` reports *Host not found* — that is expected,
+    not a discovery failure. Add it by hand with
+    [Manual appliance setup → Admin access](appliance-setup.md#6-admin-access-ssh-optional-samba)
+    if you want the shares.
 
 If the rig runs a firewall, open at least 5555 and 8080:
 `sudo ufw allow 5555/tcp && sudo ufw allow 8080/tcp`.

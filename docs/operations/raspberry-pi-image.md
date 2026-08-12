@@ -199,6 +199,12 @@ writing requires the `vstimd-admin` login.
     Requires `cifs-utils`. A desktop file manager can also open
     `smb://vstimd-a1b2c3.local/` directly via gvfs.
 
+!!! note "The rig will not show up in Explorer's Network list"
+    Type the path in directly. Samba announces itself over NetBIOS, while modern
+    Windows populates that browse list from WS-Discovery — so the icon never
+    appears even though `\\vstimd-a1b2c3` connects fine. Installing `wsdd` on the
+    rig (`sudo apt install wsdd`) is what makes it visible there.
+
 After editing the rig config, restart the service so it takes effect:
 
 ```bash
