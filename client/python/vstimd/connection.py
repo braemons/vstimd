@@ -68,6 +68,11 @@ class Connection:
     ----------
     address:
         ZMQ endpoint of the server (default ``tcp://localhost:5555``).
+    recv_timeout_s:
+        If set, every request gives up after this many seconds and raises
+        ``zmq.Again``.  ``None`` (default) blocks forever — the right choice
+        for commands like :meth:`SystemClient.wait_for_frames` that are
+        expected to block.
     """
 
     def __init__(
@@ -76,12 +81,12 @@ class Connection:
         *,
         wait_ready: bool = False,
         ready_timeout_s: float = 30.0,
+        recv_timeout_s: float | None = None,
     ) -> None:
         self._address = address
+        self._recv_timeout_ms = -1 if recv_timeout_s is None else max(1, int(recv_timeout_s * 1000))
         self._ctx = zmq.Context.instance()
-        self._sock = self._ctx.socket(zmq.REQ)
-        self._sock.setsockopt(zmq.LINGER, 0)
-        self._sock.connect(address)
+        self._sock = self._connect()
         self.stimuli = StimuliClient(self._send)
         self.system = SystemClient(self._send)
         self.vtl = VtlClient(self._send)
@@ -92,6 +97,18 @@ class Connection:
         self.config = ConfigClient(self._send)
         if wait_ready:
             self.wait_until_ready(timeout_s=ready_timeout_s)
+
+    def _connect(self) -> "zmq.Socket":
+        sock = self._ctx.socket(zmq.REQ)
+        sock.setsockopt(zmq.LINGER, 0)
+        sock.setsockopt(zmq.RCVTIMEO, self._recv_timeout_ms)
+        sock.connect(self._address)
+        return sock
+
+    @property
+    def address(self) -> str:
+        """ZMQ endpoint this connection was opened against."""
+        return self._address
 
     def _send(self, req: service_pb2.Request) -> service_pb2.Response:
         self._sock.send(req.SerializeToString())
@@ -132,11 +149,9 @@ class Connection:
                 return
             except zmq.Again:
                 self._sock.close()
-                self._sock = self._ctx.socket(zmq.REQ)
-                self._sock.setsockopt(zmq.LINGER, 0)
-                self._sock.connect(self._address)
+                self._sock = self._connect()
             finally:
-                self._sock.setsockopt(zmq.RCVTIMEO, -1)
+                self._sock.setsockopt(zmq.RCVTIMEO, self._recv_timeout_ms)
 
     def close(self) -> None:
         """Close the ZMQ socket."""

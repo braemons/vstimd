@@ -87,6 +87,40 @@ immediately as it arrives.
 Named strings (`'red'`), hex strings (`'#ff0000'`), PsychoPy `rgb` tuples
 `(-1..1)`, plain `0..1` tuples, `rgb255` tuples, and scalar greyscale values.
 
+## `vstimd-client` — command-line tool
+
+Installing the package also installs a `vstimd-client` executable for the
+system-level commands, plus mDNS discovery of servers on the local network:
+
+```bash
+pip install 'vstimd[discover]'   # [discover] adds the pure-Python mDNS backend
+```
+
+```console
+$ vstimd-client discover
+ID             HOSTNAME             ADDRESSES   ADDRESS
+vstimd-a1b2c3  vstimd-a1b2c3.local  10.0.1.42   tcp://vstimd-a1b2c3.local:5555
+
+$ vstimd-client --host vstimd-a1b2c3 info
+version     0.4.1
+resolution  1920x1080
+frame rate  60.00 Hz
+background  0.000 0.000 0.000 1.000
+```
+
+Discovery browses for `_vstimd._tcp` using the
+[zeroconf](https://pypi.org/project/zeroconf/) package if it is installed, and
+otherwise falls back to `avahi-browse`. The `ID` column is the server's
+`id=` TXT record — the reliable identity, unlike the display name which Avahi
+may suffix with `#2` on collision.
+
+Other commands: `ls`, `background`, `delete-all`, `enable-all`/`disable-all`,
+`wait-frames`, `wait-ready`, `shutdown`, and `config list|save|load|get|upload`.
+The target server comes from `--address`, `--host`, `$VSTIMD_ADDRESS`, or
+`tcp://localhost:5555`, in that order. `--json` makes every command emit
+machine-readable output. See `vstimd-client --help` and the
+[CLI docs](docs/cli.md) for details.
+
 ## Regenerating protobuf stubs
 
 ```bash
