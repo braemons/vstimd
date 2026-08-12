@@ -166,8 +166,10 @@ configures it in an arm64 chroot under `qemu-user-static`. Notes:
 
 - Needs `--privileged` (loop devices, chroot) and a host with binfmt handlers
   registered: `docker run --rm --privileged multiarch/qemu-user-static --reset -p yes`.
-- Slow — most of the time goes on DKMS-building the evdi module for every kernel
-  in the image under emulation. Budget an hour or more; the release job allows five.
+- Much slower than the package jobs — most of the time goes on DKMS-building the
+  evdi module for every kernel in the image under emulation. On a GitHub-hosted
+  runner it measures **~38 minutes** (37 and 38 min on the two `v0.1.0-alpha7`
+  builds). The job's `timeout-minutes: 300` is headroom, not an estimate.
 - Needs ~10 GB free: a ~6.5 GB working image plus the compressed output.
 - The base image is cached in `packaging/image/.cache/`; `FORCE_DOWNLOAD=1`
   refreshes it.
