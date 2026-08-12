@@ -3,6 +3,16 @@ Description=vstimd visual stimulus server
 # Wait for DRM and input device nodes to appear before starting.
 After=systemd-udev-settle.service network.target
 Wants=systemd-udev-settle.service
+# gpiochip-daqd's BindsTo=vstimd.service (its own unit file) makes it stop
+# whenever vstimd stops — but BindsTo= only pulls in a start in the other
+# direction (gpiochip-daqd starting would pull in vstimd), not this one. So
+# without this, any vstimd restart (Restart=on-failure recovery, a manual
+# restart, anything short of a full reboot) leaves gpiochip-daqd dead until
+# someone notices and starts it by hand. Wants= here is what actually
+# restarts gpiochip-daqd alongside vstimd every time; gpiochip-daqd's own
+# After=vstimd.service still governs the start order regardless of which
+# unit's dependency triggered the job.
+Wants=gpiochip-daqd.service
 # tty3 is reserved for vstimd's console. logind's default NAutoVTs=6 spawns
 # a getty there too; without this, agetty holds the tty open and vstimd's
 # own attempt to acquire it as its controlling terminal just blocks forever
