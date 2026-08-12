@@ -146,12 +146,23 @@ sudo chage -d 0 vstimd-admin   # force a password change at first login
 
 **Optional — Samba shares** for editing `/etc/braemons` (rig config,
 `gpiochip-daqd-config.toml`) and reading `/var/lib/braemons` (saved stim
-configs) from a lab Windows/macOS machine without SSHing in each time:
+configs) from a lab Windows/macOS machine without SSHing in each time. Both
+shares are browsable read-only to anyone on the LAN with no credentials;
+writing requires `vstimd-admin`:
 
 ```bash
-sudo apt install -y samba
+sudo apt install -y samba libpam-smbpass
 sudo smbpasswd -a vstimd-admin
+sudo pam-auth-update --enable smbpass
 ```
+
+`pam_smbpass` (from `libpam-smbpass`) keeps the Samba password in sync with
+the Unix one from here on: `smb.conf`'s `unix password sync` already updates
+Unix when the Samba password changes, and `pam_smbpass` does the reverse —
+whenever the Unix password changes (including the `chage -d 0` forced
+first-login prompt above), it pushes the same password into Samba's passdb
+too. Without it, the Samba password is a second credential that never gets
+rotated by `chage -d 0` and has to be changed separately.
 
 Append to `/etc/samba/smb.conf`:
 
@@ -162,22 +173,25 @@ Append to `/etc/samba/smb.conf`:
 [vstimd-config]
    path = /etc/braemons
    browseable = yes
-   read only = no
-   guest ok = no
-   valid users = vstimd-admin
+   read only = yes
+   guest ok = yes
+   write list = vstimd-admin
    create mask = 0644
    directory mask = 0755
 
 [vstimd-data]
    path = /var/lib/braemons
    browseable = yes
-   read only = no
-   guest ok = no
-   valid users = vstimd-admin
+   read only = yes
+   guest ok = yes
+   write list = vstimd-admin
    create mask = 0644
    directory mask = 0755
    force user = root
 ```
+
+`read only = yes` is the default for everyone including guest; `write list`
+is what grants `vstimd-admin` the exception.
 
 ```bash
 sudo testparm -s
@@ -192,9 +206,9 @@ yet — create it up front if you're setting this up before first boot:
 sudo install -d -m 0755 /var/lib/braemons
 ```
 
-Only put Samba on a network you trust — `smbpasswd` credentials are separate
-from the login password and don't get the forced-rotation treatment
-`chage -d 0` gives SSH.
+Only put Samba on a network you trust — the read-only guest share means
+anyone who can reach the box on the LAN can browse rig config and saved
+stim-configs with no credentials at all.
 
 ## 7. Boot straight into vstimd
 
