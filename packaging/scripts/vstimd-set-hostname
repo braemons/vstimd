@@ -51,20 +51,41 @@ update_etc_hosts() {
 
 # Find the primary interface: prefer common wired-NIC names, else fall back
 # to the first non-loopback interface that has a MAC address.
-IFACE=""
-for candidate in eth0 end0 eno1; do
-    [ -e "/sys/class/net/$candidate/address" ] && IFACE="$candidate" && break
-done
-if [ -z "$IFACE" ]; then
+find_iface() {
+    for candidate in eth0 end0 eno1; do
+        if [ -e "/sys/class/net/$candidate/address" ]; then
+            echo "$candidate"
+            return 0
+        fi
+    done
     for path in /sys/class/net/*/address; do
         [ -e "$path" ] || continue
         dev=$(basename "$(dirname "$path")")
         [ "$dev" = "lo" ] && continue
-        IFACE="$dev"
-        break
+        echo "$dev"
+        return 0
     done
-fi
-[ -n "$IFACE" ] || die "no network interface with a MAC address found"
+    return 1
+}
+
+# This unit runs deliberately early (Before=sysinit.target, see
+# vstimd-hostname.service) — before network.target, and before udev has
+# necessarily finished probing every device. On the Pi 5 the onboard NIC
+# hangs off the RP1 southbridge over PCIe and can take a few seconds longer
+# to enumerate than local-fs/systemd-udevd readiness alone guarantees, so the
+# interface may not exist in /sys/class/net yet on the first check — retry
+# for a bounded time instead of failing outright (this used to die()
+# immediately here, which is why the hostname was never set on a real
+# board even though the interface reliably showed up a moment later).
+IFACE=""
+DEADLINE=$(($(date +%s) + 20))
+while [ -z "$IFACE" ]; do
+    IFACE=$(find_iface || true)
+    [ -n "$IFACE" ] && break
+    [ "$(date +%s)" -lt "$DEADLINE" ] || break
+    sleep 0.2
+done
+[ -n "$IFACE" ] || die "no network interface with a MAC address found (waited 20s)"
 
 MAC=$(cat "/sys/class/net/$IFACE/address") || die "cannot read MAC for $IFACE"
 SUFFIX=$(printf '%s' "$MAC" | tr -d ':' | tr '[:upper:]' '[:lower:]' | tail -c 6)
@@ -78,12 +99,13 @@ if [ "$CURRENT_HOSTNAME" = "$NEW_HOSTNAME" ]; then
 else
     echo "vstimd-set-hostname: setting hostname to $NEW_HOSTNAME (from $IFACE MAC $MAC)"
 
-    if command -v hostnamectl >/dev/null 2>&1; then
-        hostnamectl set-hostname "$NEW_HOSTNAME"
-    else
-        echo "$NEW_HOSTNAME" > /etc/hostname
-        hostname -F /etc/hostname
-    fi
+    # Write /etc/hostname + call sethostname(2) directly rather than going
+    # through hostnamectl: hostnamectl talks to systemd-hostnamed over D-Bus,
+    # and this unit runs before sysinit.target — earlier than dbus.service is
+    # guaranteed to be up — so routing through it here is fragile. The direct
+    # path has no daemon dependency at all.
+    echo "$NEW_HOSTNAME" > /etc/hostname
+    hostname -F /etc/hostname
 
     update_etc_hosts
 

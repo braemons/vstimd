@@ -192,14 +192,34 @@ apt-get install -y --no-install-recommends openssh-server samba avahi-daemon eth
 # Convenience tools for anyone who SSHes into the appliance to poke at it.
 apt-get install -y --no-install-recommends btop vim tmux
 
+# git + the system-level build requirements for compiling vstimd on the
+# appliance itself (cargo build --release / cargo test / cargo clippy per
+# CLAUDE.md), mirroring packaging/docker/Dockerfile.deb-builder's apt list
+# (minus its cross-compile-only and pre-built-runtime-lib entries, which
+# don't apply to a native on-device build). The Rust toolchain itself isn't
+# an apt package (Debian's rustc trails the edition vstimd needs) — installed
+# via rustup for IMAGE_USER below, after that user exists.
+apt-get install -y --no-install-recommends \
+    git build-essential pkg-config \
+    libinput-dev libudev-dev libdrm-dev libwayland-dev \
+    protobuf-compiler
+
 # Energy-Efficient Ethernet makes the Pi 5's NIC drop connections (see
 # docs/developer/platform-notes.md). A udev rule rather than a oneshot unit so
 # it applies whenever a wired NIC appears, including USB adapters and
 # re-enumeration, with no ordering against network.target to get wrong.
 # ethtool exits non-zero on NICs that don't implement EEE at all; that's
 # expected on some adapters, so don't let it fail the rule.
+#
+# ACTION=="add" alone is not enough: it fires the instant the netdev is
+# created, which on the Pi 5's onboard NIC is well before the PHY has linked
+# up and autonegotiated a mode — ethtool --set-eee errors out at that point
+# (silently, because of the trailing `|| true`), so the setting never
+# actually takes. Also matching ACTION=="change" (fired on carrier/link-state
+# transitions, i.e. when the cable is plugged in and negotiation completes)
+# re-applies it once the link is actually in a state where it can be set.
 cat > /etc/udev/rules.d/80-disable-eee.rules <<'UDEV_EOF'
-ACTION=="add", SUBSYSTEM=="net", KERNEL=="eth*", \
+ACTION=="add|change", SUBSYSTEM=="net", KERNEL=="eth*", \
   RUN+="/bin/sh -c '/usr/sbin/ethtool --set-eee %k eee off || true'"
 UDEV_EOF
 
@@ -303,6 +323,17 @@ install -m 0644 \
     /usr/share/braemons/gpiochip-daqd/raspberry-pi-5_in16_out4.toml \
     /etc/braemons/gpiochip-daqd-config.toml
 
+# Same deal for vstimd's own rig-config: 'make install' (the .deb's postinst
+# path) only ever installs the generic, everything-commented-out
+# server/config/default-rig-config.toml to
+# /etc/braemons/vstimd-rig-config.toml (see the Makefile's RIG_CONFIG/EXAMPLES
+# split) because the .deb itself is board-agnostic too. Overwrite with the
+# Pi 5 example so a freshly flashed card boots with correct VTL/GPIO settings
+# instead of a config with everything commented out.
+install -m 0644 \
+    /usr/share/braemons/vstimd/raspberry-pi-5.toml \
+    /etc/braemons/vstimd-rig-config.toml
+
 # ── In-place updates ─────────────────────────────────────────────────────────
 # Point apt at the vstimd archive so a deployed rig upgrades with
 # 'apt update && apt upgrade' instead of being re-flashed. Re-flashing discards
@@ -347,6 +378,30 @@ useradd -m -s /bin/bash -G sudo "${IMAGE_USER}"
 echo "${IMAGE_USER}:${IMAGE_PASSWORD}" | chpasswd
 chage -d 0 "${IMAGE_USER}"
 systemctl enable ssh
+
+# Stock Raspberry Pi OS's first-boot user wizard (raspberrypi-sys-mods /
+# userconf-pi, WantedBy=multi-user.target -- which vstimd.target requires, so
+# it runs regardless of vstimd.target being the default target): unless
+# /boot/firmware/userconf.txt was preseeded (only Raspberry Pi Imager's own
+# OS-customisation writes that -- balenaEtcher and any other raw-dd flash do
+# not), it blocks the very first boot on an interactive username/password
+# prompt on /dev/tty8. IMAGE_USER already exists at this point (created
+# above), so the wizard is redundant -- disable it outright rather than ship
+# an appliance that hangs on first boot waiting for a keyboard nobody has
+# plugged in.
+systemctl disable userconfig.service 2>/dev/null || true
+
+# Rust toolchain for IMAGE_USER, so 'cargo build --release'/'cargo test'/
+# 'cargo clippy' (see CLAUDE.md) work out of the box for anyone who git
+# clones vstimd onto the appliance to build from source. Debian's packaged
+# rustc trails the edition vstimd needs, so install via rustup rather than
+# apt (which is why this needs its own step -- apt-installed git and the
+# system -dev libs above aren't sufficient on their own). Installed as
+# IMAGE_USER, not root: cargo/rustup are meant to be per-user tooling, and
+# running the installer as that user avoids ending up with a root-owned
+# toolchain a non-root SSH login can't update.
+su - "${IMAGE_USER}" -c \
+    'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile default'
 
 # Samba share for the vstimd/gpiochip-daqd config directory.
 #
