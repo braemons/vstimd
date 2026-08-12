@@ -35,6 +35,6 @@ cargo run --release -- --windowed 1280x720
 
 ## Contributing
 
-See [`BUILDING.md`](https://github.com/braemons/vstimd/blob/main/BUILDING.md) for
-build instructions, clippy configuration, and test conventions, and
-[Building & packaging](building.md) for producing deployable binaries and packages.
+See [Installation → build from source](../getting-started/installation.md#build-from-source)
+for the toolchain and system dependencies, and [Building & packaging](building.md)
+for producing deployable binaries and packages.
