@@ -22,8 +22,8 @@ From a source checkout, `cd client/python && uv sync` puts `vstimd-client` in
 
 Each rig advertises `_vstimd._tcp` on port 5555 over mDNS with an
 `id=<hostname>` TXT record — see
-[Deployment](../operations/deployment.md) for how the advertisement is
-published.
+[Discovery & hostnames](../operations/discovery.md) for how rigs name themselves
+and how the advertisement is published.
 
 ```console
 $ vstimd-client discover

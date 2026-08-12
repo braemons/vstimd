@@ -1,89 +1,80 @@
-# Visual Stimulation Daemon - vstimd
+# Visual Stimulation Daemon — vstimd
 
 [![Build and Test](https://github.com/braemons/vstimd/actions/workflows/ci.yml/badge.svg)](https://github.com/braemons/vstimd/actions/workflows/ci.yml)
+[![Docs](https://readthedocs.org/projects/vstimd/badge/?version=latest)](https://vstimd.readthedocs.io/)
 
-> **Status:** Pre-alpha — under active development, not yet suitable for production use.
+> **Status:** early alpha — under active development, not validated for
+> experiments or data collection.
 
-vstimd is a visual stimulus server with strong guarantees for accurate and
-precise frame timing as well as low-latency with broad compatibility with
-clients (Python/PsychoPy, MATLAB, Bonsai). This is achieved by handling
-rendering on a dedicated device and controlling it through cross-platform,
-cross-language user-friendly clients.
+**vstimd** is a visual stimulus server for neuroscience and psychophysics. It
+runs on a dedicated Linux device, renders with Vulkan straight onto KMS/DRM (no
+X11, no Wayland, no compositor), and takes commands over the network from any
+language that speaks ZMQ + protobuf.
 
-The primary deployment platform is the [Direct Rendering Manager](https://en.wikipedia.org/wiki/Direct_Rendering_Manager)
-(DRM) on NVIDIA Jetson Orin Nano, Raspberry Pi 5, and other Linux-based
-systems. Using DRM and bypassing any windowing system enables stable and
-low-latency rendering with few skipped frames.
+It is **trigger-driven**: you set up a scene ahead of time — stimuli plus small
+on-device animations — and the device then produces frame-accurate stimulation
+the moment a Virtual Trigger Line fires, fed by a hardware DAQ. The
+timing-critical path never leaves the box.
 
-vstimd combines ideas and concepts from Michael Stephan's
-[StimServer](https://github.com/esi-neuroscience/StimServer) C++ visual
-stimulus server and Andreas Kreiter's **VStim** project. 
+vstimd combines ideas from Michael Stephan's
+[StimServer](https://github.com/esi-neuroscience/StimServer) and Andreas
+Kreiter's **VStim**.
 
-This project is licensed under the GNU AGPLv3. Copyright (c) 2026 Joscha Schmiedt, University of Bremen. 
+## 📖 [Documentation → vstimd.readthedocs.io](https://vstimd.readthedocs.io/)
 
-## Goals
+- [Why vstimd?](https://vstimd.readthedocs.io/en/latest/why-vstimd/) — what a dedicated timing device buys you
+- [Installation](https://vstimd.readthedocs.io/en/latest/getting-started/installation/) — packages, apt archive, source
+- [Raspberry Pi 5 image](https://vstimd.readthedocs.io/en/latest/operations/raspberry-pi-image/) — flash a card, get a rig
+- [Tutorials](https://vstimd.readthedocs.io/en/latest/tutorial/) · [Python client](https://vstimd.readthedocs.io/en/latest/client/python/) · [Developer guide](https://vstimd.readthedocs.io/en/latest/developer/architecture/)
 
-- stable and low-latency rendering of visual stimuli for psychophysics
-  experiments
-- cross-platform client support (Linux, Windows, macOS) with different API
-  flavours (PsychoPy, Bonsai, StimServer)
-- Deterministic event logging for experiment replay and analysis
-  latency
+## Getting started
 
-## Quick Start
+**Run a rig.** Every [release](https://github.com/braemons/vstimd/releases) ships
+`.deb`s (amd64/arm64), `.rpm`s (x86_64/aarch64), and a ready-to-flash Raspberry Pi
+5 image. Packages are also served from the
+[braemons apt archive](https://github.com/braemons/packages), so rigs upgrade in
+place.
+
+**Build and run it locally.**
 
 ```sh
-# Terminal 1 — start the server
-cargo run --release
-# Press D to spawn demo stimuli (cyan circle + magenta rect)
-# Press F1 to toggle the debug overlay (frame timing, stimulus list, command log)
-
-# Terminal 2 — run the flash example
-cd client/python
-uv run examples/flash_rects.py              # 4 flashes at 2 Hz
-uv run examples/flash_rects.py --flashes 8 --hz 4
+cargo run --release                     # fullscreen (auto-detects DRM or desktop)
+cargo run --release -- --windowed 1280x720
+cargo run --release -- --null           # ZMQ only, no display
 ```
 
-Or drive the server directly from Python:
+Press <kbd>D</kbd> for demo stimuli, <kbd>F1</kbd>–<kbd>F7</kbd> for overlay
+panels, <kbd>Esc</kbd> to exit. Build dependencies and the packaging targets are
+in [Installation](https://vstimd.readthedocs.io/en/latest/getting-started/installation/)
+and [Building & packaging](https://vstimd.readthedocs.io/en/latest/developer/building/).
+
+**Drive it from Python.**
+
+```sh
+cd client/python && uv sync
+uv run examples/flash_rects.py
+```
 
 ```python
 from vstimd import Connection
 from vstimd.stimuli import Vec2, Color
 
-with Connection() as conn:
-    h = conn.stimuli.shapes.create_rect(pos=Vec2(0, -200), width=300, height=200,
+with Connection("tcp://vstimd-a1b2c3.local:5555") as conn:
+    h = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=300, height=200,
                                         color=Color(1.0, 0.0, 0.0))
-    conn.stimuli.set_enabled(h, False)
-    conn.stimuli.delete(h)
-    info = conn.system.query_server_info()
-    print(info.version)
+    conn.stimuli.set_enabled(h, True)
 ```
 
-## Building
+Or open `http://<rig>:8080` for the built-in web control UI, and use
+`vstimd-client discover` to find rigs on the network.
 
-```sh
-# Rust server
-cargo build
-cargo build --release
-cargo test
-cargo clippy
+## Contributing
 
-# Run options
-cargo run --release                   # fullscreen (auto-detects DRM or desktop)
-cargo run --release -- --windowed 1280x720
-cargo run --release -- --null         # ZMQ only, no display (also: VSTIMD_NULL=1)
+Design notes and roadmaps live in [`dev/`](dev/) — start with
+[`dev/PLAN.md`](dev/PLAN.md). Build, test and packaging workflows are in
+[`CLAUDE.md`](CLAUDE.md) and the
+[developer guide](https://vstimd.readthedocs.io/en/latest/developer/building/).
 
-# Python client (requires uv)
-cd client/python
-uv sync
-uv run examples/flash_rects.py
-```
+## License
 
-## Documentation
-
-- [`dev/PLAN.md`](dev/PLAN.md) — full design and roadmap
-- [`docs/concepts/architecture.md`](docs/concepts/architecture.md) — module structure, wire protocol, threading model, stack
-- [`docs/getting-started/bare-metal.md`](docs/getting-started/bare-metal.md) — DRM/console rendering on Linux (Jetson, Pi)
-- [`docs/api/python/index.md`](docs/api/python/index.md) — Python client API and PsychoPy compatibility
-- [`dev/INPUT_LATENCY.md`](dev/INPUT_LATENCY.md) — latency analysis for position input
-- [`dev/3D_ROADMAP.md`](dev/3D_ROADMAP.md) — 3-D stimulus roadmap
+GNU AGPLv3. Copyright © 2026 Joscha Schmiedt, University of Bremen.

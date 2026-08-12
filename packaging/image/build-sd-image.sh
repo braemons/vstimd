@@ -36,11 +36,11 @@ OUT_BASENAME="${OUT_BASENAME:-vstimd-${IMAGE_VERSION}-raspios-lite-arm64}"
 IMAGE_USER="${VSTIMD_IMAGE_USER:-vstimd-admin}"
 [ "$IMAGE_USER" != "vstimd" ] || { echo "error: VSTIMD_IMAGE_USER must not be 'vstimd' — that's the service account" >&2; exit 1; }
 IMAGE_PASSWORD="${VSTIMD_IMAGE_PASSWORD:-}"
-SAMBA_SHARE="${SAMBA_SHARE_NAME:-vstimd-config}"
-# Second share for the runtime state dir: saved stim-configs and the
-# save-on-quit slot live in /var/lib/braemons/vstimd (the unit's
-# StateDirectory=), which is what people actually want to copy off a rig.
-SAMBA_DATA_SHARE="${SAMBA_DATA_SHARE_NAME:-vstimd-data}"
+
+# The two shares — vstimd-config (/etc/braemons) and vstimd-data
+# (/var/lib/braemons, where saved stim-configs and the save-on-quit slot live)
+# — are defined once in packaging/samba/vstimd-shares.conf, which the .deb
+# installs. Their names are therefore fixed by that file, not overridable here.
 
 mkdir -p "$CACHE_DIR" "$DIST_DIR"
 
@@ -437,10 +437,14 @@ su - "${IMAGE_USER}" -c \
 # does NOT govern — that only gates Unix/SSH logins. useradd/chpasswd (used
 # to bootstrap the account above) don't go through PAM either, so this
 # initial smbpasswd call is still needed to seed the Samba side to the same
-# factory password. From here on, though, pam_smbpass (enabled above) keeps
-# the two in sync automatically: the forced first-login SSH password change
-# runs through PAM, which pushes the new password into Samba's passdb too —
-# no separate manual smbpasswd run needed after today.
+# factory password. From here on, though, the pam_exec hook installed above
+# keeps the two in sync automatically: the forced first-login SSH password
+# change runs through PAM, which pushes the new password into Samba's passdb
+# too — no separate manual smbpasswd run needed after today.
+#
+# Seeding here is also what arms that hook: sync-smb-password deliberately
+# no-ops for accounts pdbedit does not already know, so the Samba account has
+# to exist before the first password change comes through PAM.
 #
 # NB: this heredoc is unquoted (it interpolates IMAGE_USER etc.), so backticks
 # and $ in here run on the BUILD HOST. Keep both out of comments.
@@ -451,49 +455,27 @@ printf '%s\n%s\n' "${IMAGE_PASSWORD}" "${IMAGE_PASSWORD}" | smbpasswd -s -a "${I
 # would be dead on a freshly flashed card until vstimd had run once.
 install -d -m 0755 /var/lib/braemons
 
+# The share stanzas themselves ship in the .deb (installed just above) as
+# /usr/share/braemons/vstimd/vstimd-shares.conf, so the image and a hand-built
+# rig get byte-identical shares from one definition. Include it rather than
+# copying its contents in, so a later 'apt upgrade' that revises the stanzas
+# reaches this rig too.
+#
 # A repeated [global] is legal and merges into the first one, which keeps this
-# an append rather than an edit of the stock smb.conf.
+# an append rather than an edit of the stock smb.conf. The included file opens
+# with its own [global] (for the password-sync settings and 'map to guest')
+# before declaring the two shares; nothing follows this in smb.conf, so there
+# is no section for the include to leak into.
+#
+# IMAGE_USER gets write access through the shipped file's 'write list = @sudo
+# @wheel' — it was created with -G sudo above.
 cat >> /etc/samba/smb.conf <<SMB_EOF
 
 [global]
-   unix password sync = yes
-   pam password change = yes
-   passwd program = /usr/bin/passwd %u
-   passwd chat = *password:* %n\n *password:* %n\n *successfully*
-
-# Both shares: browsable read-only for anyone on the LAN (no credentials
-# needed, via 'map to guest = Bad User' above -- any connection Samba can't
-# authenticate falls back to the guest account rather than being refused
-# outright), read-write only for IMAGE_USER. 'read only = yes' sets that
-# default for everyone including guest; 'write list' is what grants
-# IMAGE_USER the exception. LAN-only trust assumption -- see the appliance
-# setup docs' note on keeping Samba off untrusted networks.
-[${SAMBA_SHARE}]
-   path = /etc/braemons
-   browseable = yes
-   read only = yes
-   guest ok = yes
-   write list = ${IMAGE_USER}
-   create mask = 0644
-   directory mask = 0755
-
-[${SAMBA_DATA_SHARE}]
-   path = /var/lib/braemons
-   browseable = yes
-   read only = yes
-   guest ok = yes
-   write list = ${IMAGE_USER}
-   create mask = 0644
-   directory mask = 0755
-   # vstimd.service runs as root with StateDirectory=braemons/vstimd, so
-   # systemd (re)asserts root ownership of that subtree on every start —
-   # without this, IMAGE_USER's writes (via write list above) would fail no
-   # matter what the masks say. IMAGE_USER is already in sudo, so writing as
-   # root over SMB grants nothing they do not already have; guest connections
-   # never reach this, since 'read only' blocks writes before force user
-   # would apply.
-   force user = root
+   include = /usr/share/braemons/vstimd/vstimd-shares.conf
 SMB_EOF
+# Fails the build loudly if the shipped stanzas or the include are malformed,
+# rather than shipping a card whose shares silently never appear.
 testparm -s >/dev/null
 
 # No backticks/\$ here — see the note above.
@@ -504,7 +486,7 @@ vstimd appliance
                 vstimd-data   -> /var/lib/braemons (saved stim-configs, read-only to guests)
   Anyone on the LAN can browse them read-only with no credentials. Writing
   requires this account's login — changing your SSH password at first login
-  updates the Samba one too (pam_smbpass keeps them in sync from here on).
+  updates the Samba one too (a PAM hook keeps them in sync from here on).
 
 MOTD_EOF
 

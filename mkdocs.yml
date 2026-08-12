@@ -110,8 +110,10 @@ nav:
       - Command-line client: client/cli.md
       - Web control UI: client/web.md
   - Running a rig:
-      - Bare-metal Linux: operations/bare-metal.md
+      - Raspberry Pi 5 image: operations/raspberry-pi-image.md
       - Deployment: operations/deployment.md
+      - Discovery & hostnames: operations/discovery.md
+      - Bare-metal Linux: operations/bare-metal.md
       - Manual appliance setup: operations/appliance-setup.md
   - Developer guide:
       - Architecture: developer/architecture.md
@@ -120,3 +122,5 @@ nav:
       - Server API: developer/server-api.md
       - Building & packaging: developer/building.md
       - Versioning & releasing: developer/releasing.md
+      - Platform notes: developer/platform-notes.md
+      - "Design record: evdi direct presentation": developer/evdi-direct-presentation-plan.md

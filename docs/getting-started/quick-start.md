@@ -2,6 +2,12 @@
 
 <span class="wip-badge">WIP</span>
 
+This page drives a server you started yourself, from a source checkout. If you
+have a packaged rig or a flashed [Raspberry Pi 5 image](../operations/raspberry-pi-image.md),
+it is already running — skip to step 2 and point the client at it
+(`vstimd-client discover` finds it, see
+[Discovery & hostnames](../operations/discovery.md)).
+
 ## 1. Start the server
 
 ```sh
@@ -96,3 +102,4 @@ Use deferred mode to make multiple changes visible on the exact same frame:
 - [Deferred mode](../concepts/deferred-mode.md) — atomic multi-stimulus frame flips
 - [The command API](../tutorial/command-api.md) — driving vstimd from Python step by step
 - [Bare-metal Linux](../operations/bare-metal.md) — running without a compositor on Jetson/Pi
+- [Raspberry Pi 5 image](../operations/raspberry-pi-image.md) — turn a Pi into a rig in ten minutes
