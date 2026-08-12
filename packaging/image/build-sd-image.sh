@@ -264,6 +264,27 @@ ACTION=="add|change", SUBSYSTEM=="net", KERNEL=="eth*", \
   RUN+="/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do /usr/sbin/ethtool --set-eee %k eee off >/dev/null 2>&1; /usr/sbin/ethtool --show-eee %k 2>/dev/null | grep -q \"EEE status: disabled\" && exit 0; sleep 0.3; done; true'"
 UDEV_EOF
 
+# Even the retrying udev rule above only wins by racing the flap storm: it's
+# an independent process reacting after the fact to a link-state transition
+# that EEE itself is causing, so it's still possible to lose several rounds
+# before it sticks (measured ~2 minutes / 31 flaps on one boot, down from
+# ~7 minutes / 120 flaps with the non-retrying version, but still not
+# instant). NetworkManager (which owns this NIC on this image) supports
+# disabling EEE as a first-class connection property; setting it as a
+# default here means NM applies it itself as part of its own activation
+# state machine — synchronously, before the connection is marked active —
+# instead of an external script chasing a moving target. match-device
+# (rather than a specific connection name/UUID) so it also covers the
+# UUID-anything default wired profile NM auto-creates for eth0 the first
+# time it sees the device, plus any USB adapter matching eth*. Kept
+# alongside the udev rule above as a fallback for anything NM doesn't
+# manage; the two don't conflict.
+cat > /etc/NetworkManager/conf.d/99-disable-eee.conf <<'NM_EOF'
+[connection-disable-eee]
+match-device=interface-name:eth*
+ethtool.eee-enabled=false
+NM_EOF
+
 # ── DisplayLink / evdi ──────────────────────────────────────────────────────
 # Drives a USB screen via vstimd's --evdi backend: auxiliary/status displays,
 # and stimulus output for behavioral-training setups. Not for recording
