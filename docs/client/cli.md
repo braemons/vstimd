@@ -56,12 +56,31 @@ Every other command talks to a single server, selected in this order:
 2. `--host NAME [--port N]` — a bare name gets `.local` appended, so an `ID`
    from `discover` can be pasted straight in
 3. `$VSTIMD_ADDRESS`
-4. `tcp://localhost:5555`
+4. whatever mDNS finds, falling back to `tcp://localhost:5555`
 
 ```sh
 vstimd-client --host vstimd-a1b2c3 info
 export VSTIMD_ADDRESS=tcp://vstimd-a1b2c3.local:5555   # or set it once
 ```
+
+Given none of the first three, the client browses the network for about a
+second. One rig found is used and announced; several are listed for you to pick
+from; none falls back to `tcp://localhost:5555`. On a bench with a single rig
+that removes the address from the command line altogether:
+
+```console
+$ vstimd-client info
+vstimd-client: using vstimd-a1b2c3 at tcp://vstimd-a1b2c3.local:5555
+version     0.4.1
+```
+
+!!! warning "Scripts should name their rig"
+
+    The choice is never silent — one candidate is announced, several are
+    prompted for — but a script that relies on there being exactly one rig will
+    start asking questions the day a second appears. Pass `-a`/`-H` or set
+    `$VSTIMD_ADDRESS`, which also skips the browse. `--non-interactive` refuses
+    to prompt and exits `2` instead; a non-terminal stdin does the same.
 
 `--address` completes what it is given — a missing scheme becomes `tcp://` and
 a missing port becomes `--port` (5555 by default) — so `-a 10.0.1.42`,

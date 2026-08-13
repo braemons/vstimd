@@ -52,7 +52,39 @@ Every other command talks to one server, selected in this order:
 2. `--host NAME [--port N]` — a bare name gets `.local` appended, so the `ID`
    from `discover` works directly: `--host vstimd-a1b2c3`
 3. `$VSTIMD_ADDRESS`
-4. `tcp://localhost:5555`
+4. whatever mDNS finds (see below)
+
+### Finding the server for you
+
+Given none of the first three, the client browses for about a second and:
+
+- **one rig found** — uses it, and says so on stderr;
+- **several found** — lists them and asks which;
+- **none found** — falls back to `tcp://localhost:5555`, as before.
+
+```console
+$ vstimd-client info
+vstimd-client: using vstimd-a1b2c3 at tcp://vstimd-a1b2c3.local:5555
+version     0.4.1
+resolution  1920x1080
+...
+
+$ vstimd-client info
+vstimd-client: 2 vstimd servers found, and no address given
+  1  vstimd-a1b2c3  tcp://vstimd-a1b2c3.local:5555
+  2  vstimd-ffee00  tcp://vstimd-ffee00.local:5555
+Select a server [1-2, q to cancel]:
+```
+
+The prompt and the menu go to stderr, so `--json` output on stdout stays
+parseable however the server was chosen.
+
+Which rig ran a command is not something to be vague about, so the choice is
+never made silently: with one candidate it is announced, with several you are
+asked. `--non-interactive` refuses to ask — it lists the candidates and exits
+`2` — and so does a non-terminal stdin, which is what a cron job or a CI step
+has. Naming the server with `-a`, `-H`, or `$VSTIMD_ADDRESS` skips the browse
+entirely, which is what a script should do anyway.
 
 `--address` fills in what you leave out, so these are the same server:
 

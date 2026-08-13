@@ -19,6 +19,24 @@ from .exit_codes import ExitCode
 ADDRESS_ENV = "VSTIMD_ADDRESS"
 TRACEBACK_ENV = "VSTIMD_TRACEBACK"
 
+# How long to browse when no address was given. Short: this is on the path of
+# every address-less command, and a rig on the same subnet answers at once.
+AUTO_DISCOVER_WAIT_S = 1.5
+
+
+class _CommandFailure(Exception):
+    """Unwind to :func:`main` with a message and an exit code.
+
+    For failures found while working out *which* server to talk to, before
+    there is a connection or a command handler to return a code from.
+    """
+
+    def __init__(self, message: str, code: ExitCode, *, hint: str | None = None) -> None:
+        super().__init__(message)
+        self.message = message
+        self.code = code
+        self.hint = hint
+
 # Commands that block on the server for an unbounded time — no recv timeout.
 _BLOCKING_COMMANDS = {"wait-frames", "wait-until", "wait-ready"}
 
@@ -30,7 +48,10 @@ _ADDRESS_ROWS: tuple[tuple[str, str], ...] = (
     ("-H, --host NAME [-p PORT]", "a bare NAME gets '.local' appended, so an"),
     ("", "ID from `discover` can be pasted straight in"),
     (f"${ADDRESS_ENV}", "set it once for a whole shell session"),
-    (DEFAULT_ADDRESS, "the default"),
+    ("(nothing)", "browse the network: the one rig found is used,"),
+    ("", "several means you are asked which. --non-interactive"),
+    ("", f"fails instead of asking, and {DEFAULT_ADDRESS}"),
+    ("", "is the fallback when no rig answers"),
 )
 
 
@@ -46,9 +67,9 @@ _ADDRESS_HELP = _format_address_help()
 _EXAMPLES = """\
 Examples:
   vstimd-client discover                     find the rigs on this network
-  vstimd-client -H vstimd-a1b2c3 info        display properties of one rig
+  vstimd-client info                         ...or just ask the one rig there is
+  vstimd-client -H vstimd-a1b2c3 info        display properties of a named rig
   vstimd-client -a 10.0.1.42 ls              stimuli on the rig at an address
-  vstimd-client background 0.5 0.5 0.5       grey out the local server
   vstimd-client -H rig1 wait-ready -w 60     block until a rig has booted
   vstimd-client --json discover | jq -r '.[0].address'\
 """
@@ -158,6 +179,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--json", action="store_true", dest="as_json",
         help="emit machine-readable JSON instead of a human-readable table",
+    )
+    parser.add_argument(
+        "--non-interactive", action="store_true",
+        help="never prompt; fail instead of asking which discovered server to use",
     )
 
     # Not `required`: a bare `vstimd-client` should reach main() and print the
@@ -483,8 +508,11 @@ def _server_to_dict(server: DiscoveredServer) -> dict[str, Any]:
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
-def resolve_address(args: argparse.Namespace) -> str:
-    """Work out which ZMQ endpoint to talk to, from flags then environment.
+def resolve_address(args: argparse.Namespace) -> str | None:
+    """Return the endpoint the user named, or ``None`` if they named none.
+
+    Only looks at flags and the environment — never the network, so that
+    :func:`choose_address` decides when discovery is worth the wait.
 
     Raises :class:`~vstimd.cli.address.AddressError` if what was given cannot
     be completed into an endpoint.
@@ -497,9 +525,85 @@ def resolve_address(args: argparse.Namespace) -> str:
         if "." not in host and ":" not in host:
             host = f"{host}.local"
         return normalize_address(host, default_port=args.port)
-    return normalize_address(
-        os.environ.get(ADDRESS_ENV) or DEFAULT_ADDRESS, default_port=args.port
-    )
+    if from_env := os.environ.get(ADDRESS_ENV):
+        return normalize_address(from_env, default_port=args.port)
+    return None
+
+
+def choose_address(args: argparse.Namespace) -> str:
+    """Decide which server to talk to, browsing for one if none was named.
+
+    With no ``--address``, ``--host`` or ``$VSTIMD_ADDRESS``, the old behaviour
+    was to assume ``tcp://localhost:5555`` and time out on a machine that is
+    not itself a rig. Looking on the network first is what a person would do,
+    and on a bench with one rig it removes the address from the command line
+    entirely.
+
+    Ambiguity is never resolved silently: with several rigs visible you are
+    asked which, and if nobody can be asked the command fails rather than
+    guessing. The chosen server is announced on stderr either way, since
+    "whichever rig answered" is a bad thing to be unsure about when the command
+    is `shutdown`.
+    """
+    named = resolve_address(args)
+    if named is not None:
+        return named
+
+    try:
+        servers = discovery.discover(AUTO_DISCOVER_WAIT_S)
+    except DiscoveryUnavailableError:
+        # No mDNS here at all. Fall back rather than fail: a local server is
+        # the likeliest thing someone without discovery is talking to.
+        return normalize_address(DEFAULT_ADDRESS, default_port=args.port)
+
+    if not servers:
+        return normalize_address(DEFAULT_ADDRESS, default_port=args.port)
+    if len(servers) == 1:
+        server = servers[0]
+        print(
+            f"vstimd-client: using {_server_label(server)} at {server.address}",
+            file=sys.stderr,
+        )
+        return server.address
+    return _select_server(servers, args)
+
+
+def _server_label(server: DiscoveredServer) -> str:
+    return server.id or server.name or server.hostname or "?"
+
+
+def _select_server(servers: Sequence[DiscoveredServer], args: argparse.Namespace) -> str:
+    """Ask which of several discovered rigs to use."""
+    count = len(servers)
+    width = max(len(_server_label(s)) for s in servers)
+    listing = [
+        f"  {i}  {_server_label(s):<{width}}  {s.address}"
+        for i, s in enumerate(servers, 1)
+    ]
+
+    # The prompt and the menu go to stderr so that --json output on stdout
+    # stays parseable no matter how the server was chosen.
+    print(f"vstimd-client: {count} vstimd servers found, and no address given", file=sys.stderr)
+    print("\n".join(listing), file=sys.stderr)
+
+    if args.non_interactive or not sys.stdin.isatty():
+        raise _CommandFailure(
+            "cannot choose between them without asking",
+            ExitCode.USAGE,
+            hint=f"name one, e.g. -H {_server_label(servers[0])}, or set ${ADDRESS_ENV}",
+        )
+
+    while True:
+        print(f"Select a server [1-{count}, q to cancel]: ", end="", file=sys.stderr, flush=True)
+        try:
+            answer = input().strip()
+        except EOFError:
+            raise _CommandFailure("no selection made", ExitCode.USAGE) from None
+        if answer.lower() in ("q", "quit"):
+            raise _CommandFailure("cancelled", ExitCode.FAILURE)
+        if answer.isdigit() and 1 <= int(answer) <= count:
+            return servers[int(answer) - 1].address
+        print(f"  not a choice: {answer!r}", file=sys.stderr)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -521,9 +625,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             return _fail(exc, ExitCode.NO_BACKEND)
 
     try:
-        address = resolve_address(args)
+        address = choose_address(args)
     except AddressError as exc:
         return _fail(exc, ExitCode.USAGE)
+    except _CommandFailure as exc:
+        return _fail(exc.message, exc.code, hint=exc.hint)
 
     timeout_s = args.timeout if args.timeout > 0 else None
     if args.command in _BLOCKING_COMMANDS:

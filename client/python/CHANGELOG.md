@@ -18,6 +18,14 @@ versioned independently of the vstimd server.
   bracketed automatically; `ipc://` and `inproc://` endpoints pass through
   unchanged.
 - `VSTIMD_TRACEBACK=1` restores the full traceback for bug reports.
+- With no `--address`, `--host` or `$VSTIMD_ADDRESS`, the client now browses for
+  a server instead of assuming `tcp://localhost:5555`. One rig found is used
+  and announced on stderr; several are listed and prompted for; none falls back
+  to `tcp://localhost:5555` as before. On a bench with a single rig, commands no
+  longer need an address at all.
+- `--non-interactive` refuses to prompt, listing the candidates and exiting `2`
+  instead. A non-terminal stdin behaves the same way, so cron jobs and CI steps
+  cannot hang on the selector.
 
 ### Changed
 
