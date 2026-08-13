@@ -8,7 +8,12 @@ from vstimd._proto import service_pb2
 
 
 class ErrorCode(IntEnum):
-    """Machine-readable result codes from the server (mirrors proto ErrorCode enum)."""
+    """Machine-readable result codes from the server.
+
+    Mirrors the ``ErrorCode`` enum in ``proto/vstimd/v1/service.proto``; a unit
+    test asserts the two agree, since a code missing here used to make parsing
+    the response fail rather than reporting the error it described.
+    """
     UNSPECIFIED   = 0  # default zero value / malformed response
     OK            = 1  # success
     UNKNOWN       = 2  # unexpected server-side error
@@ -19,6 +24,18 @@ class ErrorCode(IntEnum):
     INVALID_ARGUMENT     = 7
     NOT_SUPPORTED        = 8
     NOT_READY            = 9
+    FILE_NOT_FOUND       = 10
+    FILE_IO              = 11
+    FILE_FORMAT          = 12
+    UNSUPPORTED_VERSION  = 13
+    FILE_ALREADY_EXISTS  = 14
+
+    @classmethod
+    def _missing_(cls, value: object) -> "ErrorCode":
+        # A newer server may report a code this client predates. Bucketing it
+        # as UNKNOWN keeps an old client usable against a new server; the raw
+        # number survives on the raised exception's message.
+        return cls.UNKNOWN
 
 
 @dataclass

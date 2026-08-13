@@ -96,7 +96,9 @@ with Connection() as conn:
 
 ## Errors
 
-Each non-OK server response is raised as a subclass of `VstimdError`:
+No method returns an error code. Every non-OK server response is raised as a
+subclass of `VstimdError`, so a script that catches nothing still cannot carry
+on past a command the server refused.
 
 | Exception | Raised when |
 |---|---|
@@ -108,16 +110,39 @@ Each non-OK server response is raised as a subclass of `VstimdError`:
 | `NotSupportedError` | The command is not supported in this build/config |
 | `NotReadyError` | Server still initialising — retry after the first frame |
 | `ConfigNotFoundError`, `ConfigIoError`, `ConfigFormatError`, `ConfigVersionError`, `ConfigAlreadyExistsError` | Config save/load failures |
-| `UnknownServerError` | Unexpected server-side error |
+| `UnknownServerError` | Unexpected server-side error, or a code this client predates |
+| `ProtocolError` | The reply could not be decoded, or carried no result code |
+
+Three of these group under `StimulusError` (`HandleNotFoundError`,
+`WrongStimulusTypeError`, `WrongTargetError`) and the five config failures
+under `ConfigError`, so you can catch a family rather than listing members:
 
 ```python
-from vstimd.exceptions import HandleNotFoundError
+from vstimd.exceptions import ConfigError, ConfigNotFoundError
 
 try:
-    conn.stimuli.set_enabled(bad_handle, True)
-except HandleNotFoundError:
-    ...
+    conn.config.load("gratings")
+except ConfigNotFoundError:
+    conn.config.save("gratings")          # first run on this rig
+except ConfigError as exc:
+    log.error("config unusable: %s", exc.detail)
 ```
+
+Each exception carries what the server said and what it was answering:
+
+```python
+try:
+    conn.stimuli.set_enabled(bad_handle, True)
+except HandleNotFoundError as exc:
+    exc.code       # ErrorCode.HANDLE_NOT_FOUND
+    exc.detail     # the server's own message
+    exc.command    # 'set_enabled' — which request failed
+    exc.handle     # 7, or None for a scene-wide command
+```
+
+`str(exc)` folds that context in, so an uncaught one reads
+`no such stimulus (set_enabled, handle 7)` rather than leaving you to work out
+which of twenty mutations it came from.
 
 ## PsychoPy compatibility
 

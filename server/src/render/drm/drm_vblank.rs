@@ -220,6 +220,26 @@ impl VkVblank {
 
 // ── DrmVblankState ────────────────────────────────────────────────────────────
 
+/// Number of legacy `DRM_IOCTL_WAIT_VBLANK` attempts (on `DrmVblank`'s own
+/// fd — separate from the fd Vulkan/`VK_KHR_display` uses for atomic
+/// commits) within which a single `EINVAL` is tolerated as a startup
+/// transient instead of fatal.
+///
+/// Root-caused via `strace` on a Raspberry Pi 5 (vc4/v3d): the first two
+/// `wait_vblank` calls succeed against whatever was on screen before vstimd
+/// started (vblank IRQs fire regardless of content); the instant Vulkan's
+/// first real `DRM_IOCTL_MODE_ATOMIC` page-flip lands on its own fd — ~130µs
+/// later — the very next `wait_vblank` call on this fd fails `EINVAL` once,
+/// then the fallback clock works normally for the rest of the session. This
+/// is a legacy-vblank-vs-atomic-commit race across file descriptors in the
+/// vc4 kernel driver, reproduced 3/3 times, always within the first few
+/// calls — not the AMD RENOIR DMCUB scenario `validate()`/fail-fast (see its
+/// doc comment) was written for, where a *later*, less predictable failure
+/// is a real sign timing can no longer be trusted. 5 gives headroom over the
+/// observed 3rd-attempt failure without extending grace deep enough into a
+/// session to blur that distinction.
+const DRM_VBLANK_GRACE_ATTEMPTS: u32 = 5;
+
 /// Owns both vblank clock sources and the pending FIRST_PIXEL_OUT fence,
 /// collapsing the three separate fields and two methods that previously lived
 /// in `DrmRenderState`.
@@ -229,11 +249,15 @@ pub struct DrmVblankState {
     /// Fence registered at end of previous frame; collected at start of next.
     /// Only ever `Some` while `vk` is also `Some` (set in `register`).
     pending_fence: Option<ash::vk::Fence>,
+    /// Count of `wait()` calls that reached the DRM branch, success or not.
+    /// Compared against `DRM_VBLANK_GRACE_ATTEMPTS` to tell the startup race
+    /// apart from a genuine later clock loss.
+    drm_wait_attempts: u32,
 }
 
 impl DrmVblankState {
     pub fn new(drm: Option<DrmVblank>, vk: Option<VkVblank>) -> Self {
-        Self { drm, vk, pending_fence: None }
+        Self { drm, vk, pending_fence: None, drm_wait_attempts: 0 }
     }
 
     pub fn clock_source(&self, has_present_wait: bool) -> ClockSource {
@@ -254,19 +278,41 @@ impl DrmVblankState {
     ///
     /// The clock source is fixed once at startup — `DrmVblank::open()` only
     /// selects a CRTC after confirming the ioctl actually works, so `self.drm`
-    /// being `Some` here means it was already verified. An `Err` therefore
-    /// means the previously-working clock just died at runtime: for a
-    /// stimulus-timing session that's not something to silently paper over
-    /// with a worse fallback, so the caller treats it as fatal.
+    /// being `Some` here means it was already verified. A failure within
+    /// `DRM_VBLANK_GRACE_ATTEMPTS` is the known vc4 startup race (see its doc
+    /// comment) and falls through to whatever fallback clock is available,
+    /// same as before `e5dc6a5` — but only once, and only this early. Any
+    /// later failure means the previously-working clock just died at
+    /// runtime: for a stimulus-timing session that's not something to
+    /// silently paper over with a worse fallback, so the caller treats it as
+    /// fatal.
     pub fn wait(&mut self) -> Result<Option<Instant>, String> {
         if let Some(vblank) = self.drm.as_ref() {
-            return match vblank.wait() {
-                Some(t) => Ok(Some(t)),
-                None => Err(format!(
-                    "DRM_IOCTL_WAIT_VBLANK failed on CRTC {} after previously succeeding",
-                    vblank.crtc_pipe
-                )),
-            };
+            self.drm_wait_attempts += 1;
+            match vblank.wait() {
+                Some(t) => return Ok(Some(t)),
+                None if self.drm_wait_attempts <= DRM_VBLANK_GRACE_ATTEMPTS => {
+                    log::warn!(
+                        "vstimd: DRM_IOCTL_WAIT_VBLANK failed on CRTC {} on attempt {} — within \
+                         the startup grace window, treating as the known vc4 atomic-commit race \
+                         rather than a real clock failure; disabling DRM vblank clock for the \
+                         rest of this session",
+                        vblank.crtc_pipe,
+                        self.drm_wait_attempts
+                    );
+                    self.drm = None;
+                    // Fall through to the VK path below for this frame. No fence is
+                    // pending yet (register() no-ops while self.drm was Some), so
+                    // this frame returns Ok(None) — same as frame 0/1 — and the VK
+                    // path (if available) takes over starting next frame.
+                }
+                None => {
+                    return Err(format!(
+                        "DRM_IOCTL_WAIT_VBLANK failed on CRTC {} after previously succeeding",
+                        vblank.crtc_pipe
+                    ));
+                }
+            }
         }
         // VK path: collect the fence registered at the end of the previous frame.
         // On frame 0 (and frame 1, since register() skips frame 0) there is no
