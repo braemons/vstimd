@@ -11,6 +11,7 @@
 use drm::Device as DrmDevice;
 use drm::control::Device as CtrlDevice;
 use drm::control::connector;
+use std::ffi::OsStr;
 use std::fs::{File, OpenOptions};
 use std::os::fd::{AsFd, BorrowedFd};
 
@@ -48,10 +49,15 @@ pub struct DrmDisplayGuard {
 impl DrmDisplayGuard {
     /// Find the display controller and snapshot current CRTC state.
     ///
-    /// Walks `/dev/dri/card0..7`, picks the first card that has connected
-    /// connectors, and records the current CRTC mode + framebuffer for every
-    /// active output.  Then releases DRM master so the Vulkan driver can
-    /// acquire it via `VK_KHR_display`.
+    /// Walks `/dev/dri/card0..7`, skips `evdi`-driven nodes (DisplayLink
+    /// docks — a real display controller like `vc4-drm` is what we want
+    /// here; an evdi node can enumerate first and still report a connected
+    /// connector with an active CRTC from a prior `--evdi` run, which would
+    /// otherwise get mistaken for the real display), picks the first
+    /// remaining card that has connected connectors, and records the
+    /// current CRTC mode + framebuffer for every active output.  Then
+    /// releases DRM master so the Vulkan driver can acquire it via
+    /// `VK_KHR_display`.
     pub fn acquire() -> Option<Self> {
         for n in 0..8u32 {
             let path = format!("/dev/dri/card{n}");
@@ -60,6 +66,14 @@ impl DrmDisplayGuard {
                 Err(_) => continue,
             };
             let card = Card(file);
+
+            let driver = match card.get_driver() {
+                Ok(d) => d,
+                Err(_) => continue,
+            };
+            if driver.name() == OsStr::new("evdi") {
+                continue;
+            }
 
             let res = match card.resource_handles() {
                 Ok(r) => r,
