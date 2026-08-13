@@ -370,6 +370,23 @@ rm -f /usr/sbin/uname
 # -> /opt/displaylink/udev.sh -> 'systemctl start --no-block displaylink-driver'
 # when a DisplayLink device (vendor 17e9) appears, including at boot coldplug.
 
+# Pin the Mesa stack before resolving the vstimd .deb's deps below. Without
+# this, 'apt-get install -y -f' is free to satisfy libvulkan1/mesa-vulkan-drivers
+# from whatever's enabled — on this image that included a trixie-backports
+# 26.2.0 build, which broke evdi's headless Vulkan swapchain
+# (vkCreateSwapchainKHR -> ERROR_OUT_OF_DEVICE_MEMORY on the v3dv driver,
+# 100% reproducible, unrelated to memory pressure) while HDMI/DRM output
+# still worked. 25.0.7-2+rpt4+deb13u1 (plain bookworm/trixie archive, not
+# backports) is confirmed working on another device with the same evdi
+# hardware. Pin every package built from the mesa source so apt can't mix
+# versions across them; the trailing '*' still allows later point releases
+# (e.g. a +deb13u2 security update) without reopening the door to backports.
+cat > /etc/apt/preferences.d/mesa-pin <<APT_PREF
+Package: mesa-vulkan-drivers mesa-libgallium libegl-mesa0 libgl1-mesa-dri libglx-mesa0 mesa-va-drivers mesa-vdpau-drivers
+Pin: version 25.0.7-2+rpt4*
+Pin-Priority: 1001
+APT_PREF
+
 # vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
 # creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
 dpkg -i /root/debs/*.deb || true
