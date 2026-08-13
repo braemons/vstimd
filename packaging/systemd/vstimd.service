@@ -20,6 +20,15 @@ Wants=gpiochip-daqd.service
 # via a normal SIGTERM first, so the tty is free by the time vstimd opens it.
 Conflicts=getty@tty3.service
 After=getty@tty3.service
+# Default StartLimitIntervalSec=10s/StartLimitBurst=5 doesn't reliably trip:
+# a fast crash loop (e.g. a Vulkan init failure right at startup) can cycle
+# every 2-3s with RestartSec=2, so only ~3-4 attempts ever fit inside any
+# 10s sliding window and it restarts indefinitely instead of giving up.
+# Widening the window makes the burst threshold reachable regardless of how
+# fast each individual failure is, and a lower burst gives up sooner so a
+# broken display/render path doesn't fight the console/VT for minutes.
+StartLimitIntervalSec=30
+StartLimitBurst=3
 
 [Service]
 Type=notify

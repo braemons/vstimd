@@ -246,10 +246,44 @@ apt-get install -y --no-install-recommends \
 # actually takes. Also matching ACTION=="change" (fired on carrier/link-state
 # transitions, i.e. when the cable is plugged in and negotiation completes)
 # re-applies it once the link is actually in a state where it can be set.
+#
+# A single fire-and-forget attempt per event isn't enough either: measured on
+# a Pi 5 at boot, the onboard NIC flapped ~120 times over ~7 minutes before
+# EEE happened to land in the "off" state and the link finally stabilized —
+# i.e. EEE being on is itself what was driving the repeated add/change
+# events, so a rule that only tries once per event can lose that race for
+# minutes. Retrying in-place (bounded, short sleep) until --show-eee actually
+# confirms "disabled" wins on the first event instead of waiting for luck
+# across a flap storm.
+# Bare `$` in a udev RUN value is udev's own substitution syntax (`$kernel`,
+# `$env{}`, ...), not the shell's — a `$(...)` or `"$var"` here gets parsed
+# (and rejected) by udev before the shell ever sees it. %k is substituted by
+# udev itself, so it's used directly with no shell variable in between.
 cat > /etc/udev/rules.d/80-disable-eee.rules <<'UDEV_EOF'
 ACTION=="add|change", SUBSYSTEM=="net", KERNEL=="eth*", \
-  RUN+="/bin/sh -c '/usr/sbin/ethtool --set-eee %k eee off || true'"
+  RUN+="/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do /usr/sbin/ethtool --set-eee %k eee off >/dev/null 2>&1; /usr/sbin/ethtool --show-eee %k 2>/dev/null | grep -q \"EEE status: disabled\" && exit 0; sleep 0.3; done; true'"
 UDEV_EOF
+
+# Even the retrying udev rule above only wins by racing the flap storm: it's
+# an independent process reacting after the fact to a link-state transition
+# that EEE itself is causing, so it's still possible to lose several rounds
+# before it sticks (measured ~2 minutes / 31 flaps on one boot, down from
+# ~7 minutes / 120 flaps with the non-retrying version, but still not
+# instant). NetworkManager (which owns this NIC on this image) supports
+# disabling EEE as a first-class connection property; setting it as a
+# default here means NM applies it itself as part of its own activation
+# state machine — synchronously, before the connection is marked active —
+# instead of an external script chasing a moving target. match-device
+# (rather than a specific connection name/UUID) so it also covers the
+# UUID-anything default wired profile NM auto-creates for eth0 the first
+# time it sees the device, plus any USB adapter matching eth*. Kept
+# alongside the udev rule above as a fallback for anything NM doesn't
+# manage; the two don't conflict.
+cat > /etc/NetworkManager/conf.d/99-disable-eee.conf <<'NM_EOF'
+[connection-disable-eee]
+match-device=interface-name:eth*
+ethtool.eee-enabled=false
+NM_EOF
 
 # ── DisplayLink / evdi ──────────────────────────────────────────────────────
 # Drives a USB screen via vstimd's --evdi backend: auxiliary/status displays,
@@ -335,6 +369,23 @@ rm -f /usr/sbin/uname
 # exits 0). It is started on demand by /lib/udev/rules.d/99-displaylink.rules
 # -> /opt/displaylink/udev.sh -> 'systemctl start --no-block displaylink-driver'
 # when a DisplayLink device (vendor 17e9) appears, including at boot coldplug.
+
+# Pin the Mesa stack before resolving the vstimd .deb's deps below. Without
+# this, 'apt-get install -y -f' is free to satisfy libvulkan1/mesa-vulkan-drivers
+# from whatever's enabled — on this image that included a trixie-backports
+# 26.2.0 build, which broke evdi's headless Vulkan swapchain
+# (vkCreateSwapchainKHR -> ERROR_OUT_OF_DEVICE_MEMORY on the v3dv driver,
+# 100% reproducible, unrelated to memory pressure) while HDMI/DRM output
+# still worked. 25.0.7-2+rpt4+deb13u1 (plain bookworm/trixie archive, not
+# backports) is confirmed working on another device with the same evdi
+# hardware. Pin every package built from the mesa source so apt can't mix
+# versions across them; the trailing '*' still allows later point releases
+# (e.g. a +deb13u2 security update) without reopening the door to backports.
+cat > /etc/apt/preferences.d/mesa-pin <<APT_PREF
+Package: mesa-vulkan-drivers mesa-libgallium libegl-mesa0 libgl1-mesa-dri libglx-mesa0 mesa-va-drivers mesa-vdpau-drivers
+Pin: version 25.0.7-2+rpt4*
+Pin-Priority: 1001
+APT_PREF
 
 # vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
 # creates the vstimd system user, /etc/braemons, the hostname unit, etc.).

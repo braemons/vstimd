@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use std::os::fd::{AsFd, BorrowedFd};
 use std::time::Instant;
 
@@ -26,6 +27,13 @@ impl DrmVblank {
     /// Iterate /dev/dri/card* and return a handle bound to the first CRTC that
     /// is actively driving a display (mode set). Returns `None` if none found.
     ///
+    /// Skips `evdi`-driven nodes (DisplayLink docks): an evdi node enumerates
+    /// before the real display controller (`vc4-drm` is `card5` on a Pi 5,
+    /// evdi nodes are lower-numbered) and can still show an active CRTC/mode
+    /// left over from a prior `--evdi` run, which would otherwise get bound
+    /// here instead of the real display's CRTC — see `DrmDisplayGuard::acquire`,
+    /// which had (and fixes) the identical bug.
+    ///
     /// This only checks that a CRTC has a mode set — it does *not* confirm
     /// `DRM_IOCTL_WAIT_VBLANK` actually works. Call `validate()` as late as
     /// possible — after the rest of `DrmRenderLoopData::new()`'s setup has
@@ -42,6 +50,13 @@ impl DrmVblank {
                 continue;
             };
             let card = Card(file);
+
+            let Ok(driver) = card.get_driver() else {
+                continue;
+            };
+            if driver.name() == OsStr::new("evdi") {
+                continue;
+            }
 
             // Release master immediately. Opening with O_RDWR automatically
             // grants DRM master when no other fd holds it (which is the case
