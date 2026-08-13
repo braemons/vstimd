@@ -123,10 +123,15 @@ may suffix with `#2` on collision.
 
 Other commands: `ls`, `background`, `delete-all`, `enable-all`/`disable-all`,
 `wait-frames`, `wait-ready`, `shutdown`, and `config list|save|load|get|upload`.
+Run `vstimd-client` with no arguments for the grouped list.
+
 The target server comes from `--address`, `--host`, `$VSTIMD_ADDRESS`, or
-`tcp://localhost:5555`, in that order. `--json` makes every command emit
-machine-readable output. See `vstimd-client --help` and the
-[CLI docs](https://github.com/braemons/vstimd/blob/main/client/python/docs/cli.md)
+`tcp://localhost:5555`, in that order. `--address` fills in what you leave out,
+so `-a 10.0.1.42` and `-a tcp://10.0.1.42:5555` mean the same thing. `--json`
+makes every command emit machine-readable output, and failures are
+distinguished by exit code (`3` unreachable, `4` timed out, `5` server error,
+`6` not found) rather than by parsing stderr. See
+[the CLI docs](https://github.com/braemons/vstimd/blob/main/client/python/docs/cli.md)
 for details.
 
 ## Regenerating protobuf stubs
