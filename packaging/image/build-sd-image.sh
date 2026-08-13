@@ -255,10 +255,16 @@ apt-get install -y --no-install-recommends \
 # minutes. Retrying in-place (bounded, short sleep) until --show-eee actually
 # confirms "disabled" wins on the first event instead of waiting for luck
 # across a flap storm.
-# Bare `$` in a udev RUN value is udev's own substitution syntax (`$kernel`,
-# `$env{}`, ...), not the shell's — a `$(...)` or `"$var"` here gets parsed
-# (and rejected) by udev before the shell ever sees it. %k is substituted by
-# udev itself, so it's used directly with no shell variable in between.
+# Bare $ in a udev RUN value is udev's own substitution syntax ($kernel,
+# $env{}, and so on), not the shell's -- a shell command substitution or
+# "$var" here gets parsed (and rejected) by udev before the shell ever sees
+# it. %k is substituted by udev itself, so it's used directly with no shell
+# variable in between.
+# (No backticks or literal \$(...) in this comment either: it's still inside
+# the unquoted CHROOT_EOF heredoc below, so the outer shell evaluates them at
+# image-build time -- confirmed in a real build log as spurious
+# "line 184: $: command not found" warnings, from the markdown-style
+# backticks a previous version of this comment used around such syntax.)
 cat > /etc/udev/rules.d/80-disable-eee.rules <<'UDEV_EOF'
 ACTION=="add|change", SUBSYSTEM=="net", KERNEL=="eth*", \
   RUN+="/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do /usr/sbin/ethtool --set-eee %k eee off >/dev/null 2>&1; /usr/sbin/ethtool --show-eee %k 2>/dev/null | grep -q \"EEE status: disabled\" && exit 0; sleep 0.3; done; true'"
@@ -269,21 +275,50 @@ UDEV_EOF
 # that EEE itself is causing, so it's still possible to lose several rounds
 # before it sticks (measured ~2 minutes / 31 flaps on one boot, down from
 # ~7 minutes / 120 flaps with the non-retrying version, but still not
-# instant). NetworkManager (which owns this NIC on this image) supports
-# disabling EEE as a first-class connection property; setting it as a
-# default here means NM applies it itself as part of its own activation
-# state machine — synchronously, before the connection is marked active —
-# instead of an external script chasing a moving target. match-device
-# (rather than a specific connection name/UUID) so it also covers the
-# UUID-anything default wired profile NM auto-creates for eth0 the first
-# time it sees the device, plus any USB adapter matching eth*. Kept
-# alongside the udev rule above as a fallback for anything NM doesn't
-# manage; the two don't conflict.
-cat > /etc/NetworkManager/conf.d/99-disable-eee.conf <<'NM_EOF'
-[connection-disable-eee]
-match-device=interface-name:eth*
-ethtool.eee-enabled=false
+# instant).
+#
+# A previous version of this fix set ethtool.eee-enabled=false under a
+# NetworkManager.conf(5) "[connection-*]" section (conf.d "connection default
+# values"). That mechanism only supports a fixed whitelist of single-value
+# properties (connection.*, ethernet.mtu, ethernet.wake-on-lan, a handful of
+# others — see the "Supported Properties" table in NetworkManager.conf(5));
+# the multi-value "ethtool" setting group (arbitrary option/value pairs,
+# eee-enabled among them since NM 1.46) is not on that list at all. NM loads
+# such a file without complaint and silently never applies it — there is no
+# error or log line to notice, which is why this looked like it should work.
+#
+# The [ethtool] section IS honoured, but only inside an actual connection
+# *profile*, not a conf.d default. Ship one directly as a keyfile instead.
+# [match] interface-name=eth* is a real per-profile wildcard matcher (distinct
+# from conf.d's match-device=), so this still covers eth0 and any USB adapter
+# matching eth* without needing a UUID/name NM would only assign once it has
+# already seen the device. Shipped before first boot, so NM finds this
+# profile immediately and never auto-generates its own default "Wired
+# connection" for eth0 in the meantime — no race between the two profiles.
+install -d -m 0755 /etc/NetworkManager/system-connections
+cat > /etc/NetworkManager/system-connections/99-disable-eee.nmconnection <<'NM_EOF'
+[connection]
+id=disable-eee
+uuid=8f5a6b2e-1c4d-4a3f-9e7b-2d6c1a9f4e50
+type=ethernet
+autoconnect=true
+autoconnect-priority=1
+
+[match]
+interface-name=eth*;
+
+[ethtool]
+eee-enabled=false
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+addr-gen-mode=default
 NM_EOF
+# NM refuses to load a keyfile connection with group/world permissions.
+chmod 600 /etc/NetworkManager/system-connections/99-disable-eee.nmconnection
 
 # ── DisplayLink / evdi ──────────────────────────────────────────────────────
 # Drives a USB screen via vstimd's --evdi backend: auxiliary/status displays,
@@ -370,55 +405,16 @@ rm -f /usr/sbin/uname
 # -> /opt/displaylink/udev.sh -> 'systemctl start --no-block displaylink-driver'
 # when a DisplayLink device (vendor 17e9) appears, including at boot coldplug.
 
-# Pin the Mesa stack before resolving the vstimd .deb's deps below. Without
-# this, 'apt-get install -y -f' is free to satisfy libvulkan1/mesa-vulkan-drivers
-# from whatever's enabled — on this image that included a trixie-backports
-# 26.2.0 build, which broke evdi's headless Vulkan swapchain
-# (vkCreateSwapchainKHR -> ERROR_OUT_OF_DEVICE_MEMORY on the v3dv driver,
-# 100% reproducible, unrelated to memory pressure) while HDMI/DRM output
-# still worked. 25.0.7-2+rpt4+deb13u1 (plain bookworm/trixie archive, not
-# backports) is confirmed working on another device with the same evdi
-# hardware. Pin every package built from the mesa source so apt can't mix
-# versions across them; the trailing '*' still allows later point releases
-# (e.g. a +deb13u2 security update) without reopening the door to backports.
-cat > /etc/apt/preferences.d/mesa-pin <<APT_PREF
-Package: mesa-vulkan-drivers mesa-libgallium libegl-mesa0 libgl1-mesa-dri libglx-mesa0 mesa-va-drivers mesa-vdpau-drivers
-Pin: version 25.0.7-2+rpt4*
-Pin-Priority: 1001
-APT_PREF
-
-# vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
-# creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
-dpkg -i /root/debs/*.deb || true
-apt-get install -y -f
-
-# gpiochip-daqd's postinst only installs the empty default-config.toml to
-# /etc/braemons/gpiochip-daqd-config.toml (it ships board-specific configs as
-# read-only examples under /usr/share/braemons/gpiochip-daqd/ instead, since
-# the .deb is board-agnostic). This image IS a specific board, so overwrite
-# with the matching example — a freshly flashed card must have GPIO already
-# wired up, not need someone to SSH in and cp it by hand.
-install -m 0644 \
-    /usr/share/braemons/gpiochip-daqd/raspberry-pi-5_in16_out4.toml \
-    /etc/braemons/gpiochip-daqd-config.toml
-
-# Same deal for vstimd's own rig-config: 'make install' (the .deb's postinst
-# path) only ever installs the generic, everything-commented-out
-# server/config/default-rig-config.toml to
-# /etc/braemons/vstimd-rig-config.toml (see the Makefile's RIG_CONFIG/EXAMPLES
-# split) because the .deb itself is board-agnostic too. Overwrite with the
-# Pi 5 example so a freshly flashed card boots with correct VTL/GPIO settings
-# instead of a config with everything commented out.
-install -m 0644 \
-    /usr/share/braemons/vstimd/raspberry-pi-5.toml \
-    /etc/braemons/vstimd-rig-config.toml
-
 # ── In-place updates ─────────────────────────────────────────────────────────
 # Point apt at the vstimd archive so a deployed rig upgrades with
 # 'apt update && apt upgrade' instead of being re-flashed. Re-flashing discards
 # /etc/braemons (the rig config and any saved stimulus configs) and
 # /var/lib/braemons, which is exactly what an upgrade must preserve:
 # vstimd-rig-config.toml is a dpkg conffile, so local edits survive.
+#
+# Moved ahead of the Mesa install below (it used to sit right before the admin
+# user is created, near the end of this script) because that install now
+# prefers pulling from this same archive — see the comment there.
 if [ -f /root/braemons-archive-keyring.asc ]; then
     # Kept ASCII-armored as .asc, which apt reads directly — dearmoring would
     # need gpg(1), which is not guaranteed present on a Lite image.
@@ -448,7 +444,89 @@ Dpkg::Options {
    "--force-confold";
 };
 APT_CONF
+
+    # The top-level 'apt-get update' ran before this source existed; refresh
+    # so the Mesa install below can actually see its index.
+    apt-get update
 fi
+
+# Install a known-good Mesa build before resolving the vstimd .deb's deps
+# below, rather than letting 'apt-get install -y -f' satisfy
+# libvulkan1/mesa-vulkan-drivers from whatever's enabled — on this image that
+# pulls in 26.2.0, which breaks evdi's headless Vulkan swapchain
+# (vkCreateSwapchainKHR -> ERROR_OUT_OF_DEVICE_MEMORY on the v3dv driver,
+# 100% reproducible, unrelated to memory pressure) while HDMI/DRM output
+# still works. 25.0.7-2+rpt4+deb13u1 is confirmed working on another device
+# with the same evdi hardware.
+#
+# A previous version of this fix pinned that version via
+# /etc/apt/preferences.d (Pin: version 25.0.7-2+rpt4*, Pin-Priority: 1001).
+# That doesn't survive the version being retired from the index: apt only
+# ever resolves against the *currently published* Packages index, and
+# archive.raspberrypi.com's trixie/main suite (not just trixie-backports) has
+# since moved on to serving 26.2.0-1~bpo13+0~rpt2 as the only candidate for
+# every mesa-source package — 25.0.7-2+rpt4* has no candidate in any enabled
+# repo any more. A priority-1001 pin for a version apt has no candidate for
+# is simply inert: apt doesn't error, it has nothing to prefer, and falls
+# through to whatever *is* available — which is exactly how the CI build for
+# the alpha8 image still ended up installing 26.2.0 despite the pin.
+# deb.debian.org's own trixie archive still carries a 25.0.7, but as
+# 25.0.7-2+deb13u1 — a plain Debian build without whatever RPi Foundation's
+# "+rpt4" patches carry for the V3D driver, i.e. not the build that was
+# actually confirmed working on this hardware.
+#
+# The next version of this fix curled the known-good .deb directly from
+# archive.raspberrypi.com's pool (old pool files survive there after the
+# Packages index rotates past them, so this worked) — but that depends on the
+# pool file staying reachable indefinitely, which archive.raspberrypi.com
+# doesn't promise. braemons/packages (the same archive configured above for
+# in-place updates) now vendors this exact version into every suite's pool
+# instead — see pinned-packages.txt there — so ask apt for the exact version
+# by name first, which is satisfied from wherever it's actually available.
+# Until that archive has been published with the pin (or if updates are
+# disabled on this image entirely, see the 'if' above), fall straight back to
+# the direct pool download so the build still succeeds.
+MESA_VERSION="25.0.7-2+rpt4+deb13u1"
+if ! apt-get install -y --allow-downgrades "mesa-vulkan-drivers=\${MESA_VERSION}"; then
+    echo "==> mesa-vulkan-drivers \${MESA_VERSION} not available from any configured apt source yet -- falling back to archive.raspberrypi.com's pool directly" >&2
+    curl -fL -o "/root/mesa-vulkan-drivers_\${MESA_VERSION}_arm64.deb" \
+        "http://archive.raspberrypi.com/debian/pool/main/m/mesa/mesa-vulkan-drivers_\${MESA_VERSION}_arm64.deb"
+    dpkg -i "/root/mesa-vulkan-drivers_\${MESA_VERSION}_arm64.deb" || true
+    apt-get install -y -f
+    rm -f "/root/mesa-vulkan-drivers_\${MESA_VERSION}_arm64.deb"
+fi
+# Local hold, independent of which source it came from: nothing installed
+# afterwards -- including 'apt-get install -y -f' a few lines down, which
+# resolves braemons-vstimd's own libvulkan1/mesa-vulkan-drivers dependency --
+# can pull 26.x back in on this machine, and it survives a future 'apt
+# upgrade' on a deployed rig too.
+apt-mark hold mesa-vulkan-drivers
+
+# vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
+# creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
+dpkg -i /root/debs/*.deb || true
+apt-get install -y -f
+
+# gpiochip-daqd's postinst only installs the empty default-config.toml to
+# /etc/braemons/gpiochip-daqd-config.toml (it ships board-specific configs as
+# read-only examples under /usr/share/braemons/gpiochip-daqd/ instead, since
+# the .deb is board-agnostic). This image IS a specific board, so overwrite
+# with the matching example — a freshly flashed card must have GPIO already
+# wired up, not need someone to SSH in and cp it by hand.
+install -m 0644 \
+    /usr/share/braemons/gpiochip-daqd/raspberry-pi-5_in16_out4.toml \
+    /etc/braemons/gpiochip-daqd-config.toml
+
+# Same deal for vstimd's own rig-config: 'make install' (the .deb's postinst
+# path) only ever installs the generic, everything-commented-out
+# server/config/default-rig-config.toml to
+# /etc/braemons/vstimd-rig-config.toml (see the Makefile's RIG_CONFIG/EXAMPLES
+# split) because the .deb itself is board-agnostic too. Overwrite with the
+# Pi 5 example so a freshly flashed card boots with correct VTL/GPIO settings
+# instead of a config with everything commented out.
+install -m 0644 \
+    /usr/share/braemons/vstimd/raspberry-pi-5.toml \
+    /etc/braemons/vstimd-rig-config.toml
 
 # Admin login for SSH + Samba. The password is expired at the very end of this
 # script rather than here -- see the 'chage -d 0' below for why the ordering
