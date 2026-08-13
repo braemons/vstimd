@@ -7,6 +7,18 @@ versioned independently of the vstimd server.
 
 ## [Unreleased]
 
+### Changed
+
+- `zeroconf` is now a regular dependency rather than the `[discover]` extra, so
+  `vstimd-client discover` works from a plain install — including through
+  `uvx vstimd-client`. The `[discover]` extra still resolves, as a no-op, so
+  the install command documented for 0.1.0rc1 keeps working.
+
+### Fixed
+
+- Two CLI error messages still told users to `pip install vstimd[discover]`,
+  naming a distribution that does not exist.
+
 ## [0.1.0rc1] — 2026-08-13
 
 First release candidate; the first version published to PyPI.

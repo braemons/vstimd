@@ -837,10 +837,6 @@ source = { editable = "." }
 dependencies = [
     { name = "protobuf" },
     { name = "pyzmq" },
-]
-
-[package.optional-dependencies]
-discover = [
     { name = "zeroconf" },
 ]
 
@@ -854,14 +850,13 @@ dev = [
     { name = "sphinx-autodoc-typehints" },
     { name = "sphinx-copybutton" },
     { name = "ty" },
-    { name = "zeroconf" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "protobuf", specifier = ">=5" },
     { name = "pyzmq", specifier = ">=25" },
-    { name = "zeroconf", marker = "extra == 'discover'", specifier = ">=0.132" },
+    { name = "zeroconf", specifier = ">=0.132" },
 ]
 provides-extras = ["discover"]
 
@@ -875,7 +870,6 @@ dev = [
     { name = "sphinx-autodoc-typehints", specifier = ">=2" },
     { name = "sphinx-copybutton", specifier = ">=0.5" },
     { name = "ty", specifier = ">=0.0.1a1" },
-    { name = "zeroconf", specifier = ">=0.132" },
 ]
 
 [[package]]
