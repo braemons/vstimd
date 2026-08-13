@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 import zmq  # type: ignore[import]
+from google.protobuf.message import DecodeError
 
 from vstimd._proto import service_pb2
 from vstimd.stimuli import StimuliClient
@@ -9,38 +10,19 @@ from vstimd.system import SystemClient
 from vstimd.vtl import VtlClient
 from vstimd.animations import AnimationClient
 from vstimd.config import ConfigClient
-from vstimd.exceptions import (
-    VstimdError,
-    HandleNotFoundError,
-    WrongStimulusTypeError,
-    WrongTargetError,
-    CreationFailedError,
-    InvalidArgumentError,
-    NotSupportedError,
-    NotReadyError,
-    UnknownServerError,
-    ConfigNotFoundError,
-    ConfigIoError,
-    ConfigFormatError,
-    ConfigVersionError,
-    ConfigAlreadyExistsError,
-)
+from vstimd.exceptions import ProtocolError, error_for_code
 
-_ERROR_CODE_MAP: dict[int, type[VstimdError]] = {
-    service_pb2.ERROR_CODE_UNKNOWN: UnknownServerError,
-    service_pb2.ERROR_CODE_HANDLE_NOT_FOUND: HandleNotFoundError,
-    service_pb2.ERROR_CODE_WRONG_STIMULUS_TYPE: WrongStimulusTypeError,
-    service_pb2.ERROR_CODE_WRONG_TARGET: WrongTargetError,
-    service_pb2.ERROR_CODE_CREATION_FAILED: CreationFailedError,
-    service_pb2.ERROR_CODE_INVALID_ARGUMENT: InvalidArgumentError,
-    service_pb2.ERROR_CODE_NOT_SUPPORTED: NotSupportedError,
-    service_pb2.ERROR_CODE_NOT_READY: NotReadyError,
-    service_pb2.ERROR_CODE_FILE_NOT_FOUND: ConfigNotFoundError,
-    service_pb2.ERROR_CODE_FILE_IO: ConfigIoError,
-    service_pb2.ERROR_CODE_FILE_FORMAT: ConfigFormatError,
-    service_pb2.ERROR_CODE_UNSUPPORTED_VERSION: ConfigVersionError,
-    service_pb2.ERROR_CODE_FILE_ALREADY_EXISTS: ConfigAlreadyExistsError,
-}
+
+def _request_context(req: service_pb2.Request) -> tuple[str | None, int | None]:
+    """Name the command in *req* and the stimulus it addressed, for an error.
+
+    "handle not found" on its own leaves you grepping the script for which of
+    twenty mutations it came from; "handle not found (set_position, handle 7)"
+    does not.
+    """
+    command = req.WhichOneof("body")
+    handle = req.stimulus if req.WhichOneof("target") == "stimulus" else None
+    return command, handle
 
 
 class Connection:
@@ -111,13 +93,28 @@ class Connection:
         return self._address
 
     def _send(self, req: service_pb2.Request) -> service_pb2.Response:
+        """Send one request and return the reply, raising if it is an error.
+
+        The single choke point for error handling: no caller anywhere in the
+        client sees a non-OK response, so none of them has to remember to look.
+        """
         self._sock.send(req.SerializeToString())
         raw = self._sock.recv()
+        command, handle = _request_context(req)
+
         resp = service_pb2.Response()
-        resp.ParseFromString(raw)
+        try:
+            resp.ParseFromString(raw)
+        except DecodeError as exc:
+            raise ProtocolError(
+                f"could not decode the {len(raw)}-byte reply — is something "
+                "other than vstimd listening on this address?",
+                command=command,
+                handle=handle,
+            ) from exc
+
         if resp.code != service_pb2.ERROR_CODE_OK:
-            exc_type = _ERROR_CODE_MAP.get(resp.code, UnknownServerError)
-            raise exc_type(resp.error or f"server error code {resp.code}")
+            raise error_for_code(resp.code, resp.error, command=command, handle=handle)
         return resp
 
     def __enter__(self) -> "Connection":
