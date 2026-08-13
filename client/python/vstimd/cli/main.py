@@ -7,6 +7,7 @@ import os
 import sys
 from typing import Any, Callable, Sequence
 
+from vstimd._version import __version__
 from vstimd.connection import Connection
 from vstimd.exceptions import VstimdError
 
@@ -32,6 +33,10 @@ def build_parser() -> argparse.ArgumentParser:
             f"otherwise {DEFAULT_ADDRESS}. Use `vstimd-client discover` to find "
             "servers on the local network."
         ),
+    )
+    # The client's own version — `info` reports the server's.
+    parser.add_argument(
+        "-V", "--version", action="version", version=f"vstimd-client {__version__}",
     )
     parser.add_argument(
         "-a",

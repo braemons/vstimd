@@ -1,13 +1,23 @@
 [build-system]
-requires = ["setuptools>=68"]
+# 77+ for PEP 639 (`license` as an SPDX expression + `license-files`).
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "vstimd"
-version = "0.1.0"
+# Distribution name differs from the import package on purpose: `vstimd` is the
+# server, `vstimd-client` is what you install to talk to it — `import vstimd`.
+name = "vstimd-client"
+dynamic = ["version"]
 description = "Python client for the vstimd visual stimulus server (ZMQ + protobuf)"
 readme = "README.md"
-license = { file = "LICENSE" }
+# The client is LGPL, not AGPL like the rest of vstimd: experiment scripts
+# import it directly, and copyleft that reaches into a lab's own code is a
+# barrier to adoption the server does not have.
+#
+# LGPLv3 is GPLv3 plus additional permissions, so both texts ship: LICENSE is
+# the LGPL, LICENSE.GPL the GPLv3 it builds on.
+license = "LGPL-3.0-only"
+license-files = ["LICENSE", "LICENSE.GPL"]
 requires-python = ">=3.12"
 authors = [
     { name = "Joscha Schmiedt", email = "joscha@schmiedt.dev" },
@@ -24,7 +34,6 @@ keywords = [
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
-    "License :: OSI Approved :: GNU Affero General Public License v3",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
@@ -51,6 +60,7 @@ vstimd-client = "vstimd.cli.main:run"
 Homepage = "https://github.com/braemons/vstimd"
 Repository = "https://github.com/braemons/vstimd"
 "Bug Tracker" = "https://github.com/braemons/vstimd/issues"
+Changelog = "https://github.com/braemons/vstimd/blob/main/client/python/CHANGELOG.md"
 
 [dependency-groups]
 # grpcio-tools bundles protoc and is required for `make proto`
@@ -71,6 +81,14 @@ dev = [
 include = ["vstimd"]
 exclude = ["vstimd/_proto"]
 
+[tool.setuptools.dynamic]
+version = { attr = "vstimd._version.__version__" }
+
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["vstimd*"]
+
+# py.typed marks the package as typed (PEP 561); the .pyi files are the
+# generated protobuf stubs, which are useless to a type checker if dropped.
+[tool.setuptools.package-data]
+"*" = ["py.typed", "*.pyi"]
