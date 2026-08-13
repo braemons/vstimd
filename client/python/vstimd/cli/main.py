@@ -9,16 +9,117 @@ from typing import Any, Callable, Sequence
 
 from vstimd._version import __version__
 from vstimd.connection import Connection
-from vstimd.exceptions import VstimdError
+from vstimd.exceptions import ConfigNotFoundError, VstimdError
 
 from . import discovery
+from .address import DEFAULT_ADDRESS, DEFAULT_PORT, AddressError, normalize_address
 from .discovery import DiscoveredServer, DiscoveryUnavailableError
+from .exit_codes import ExitCode
 
-DEFAULT_ADDRESS = "tcp://localhost:5555"
 ADDRESS_ENV = "VSTIMD_ADDRESS"
+TRACEBACK_ENV = "VSTIMD_TRACEBACK"
 
 # Commands that block on the server for an unbounded time — no recv timeout.
 _BLOCKING_COMMANDS = {"wait-frames", "wait-until", "wait-ready"}
+
+# A continuation row has an empty left column. Built rather than written out so
+# the columns cannot drift when a constant below changes length.
+_ADDRESS_ROWS: tuple[tuple[str, str], ...] = (
+    ("-a, --address tcp://HOST:PORT", "a full endpoint; a bare HOST or HOST:PORT"),
+    ("", f"is completed to tcp://HOST:{DEFAULT_PORT}"),
+    ("-H, --host NAME [-p PORT]", "a bare NAME gets '.local' appended, so an"),
+    ("", "ID from `discover` can be pasted straight in"),
+    (f"${ADDRESS_ENV}", "set it once for a whole shell session"),
+    (DEFAULT_ADDRESS, "the default"),
+)
+
+
+def _format_address_help() -> str:
+    width = max(len(left) for left, _ in _ADDRESS_ROWS)
+    lines = ["Choosing a server (first match wins):"]
+    lines += [f"  {left:<{width}}  {right}" for left, right in _ADDRESS_ROWS]
+    return "\n".join(lines)
+
+
+_ADDRESS_HELP = _format_address_help()
+
+_EXAMPLES = """\
+Examples:
+  vstimd-client discover                     find the rigs on this network
+  vstimd-client -H vstimd-a1b2c3 info        display properties of one rig
+  vstimd-client -a 10.0.1.42 ls              stimuli on the rig at an address
+  vstimd-client background 0.5 0.5 0.5       grey out the local server
+  vstimd-client -H rig1 wait-ready -w 60     block until a rig has booted
+  vstimd-client --json discover | jq -r '.[0].address'\
+"""
+
+# Names must match the subparsers in build_parser(); a unit test enforces that.
+_COMMAND_GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
+    (
+        "Find a server",
+        (("discover", "browse the network for vstimd servers over mDNS"),),
+    ),
+    (
+        "Inspect",
+        (
+            ("info", "display properties and server version"),
+            ("ls", "list the stimuli in the scene"),
+        ),
+    ),
+    (
+        "Change the scene",
+        (
+            ("background", "set the background clear colour (R G B [A], 0-1)"),
+            ("delete-all", "remove every unprotected stimulus"),
+            ("enable-all", "enable every unprotected stimulus"),
+            ("disable-all", "disable every unprotected stimulus"),
+        ),
+    ),
+    (
+        "Synchronise",
+        (
+            ("wait-frames", "block until N more frames are rendered"),
+            ("wait-ready", "block until the server answers and has drawn a frame"),
+        ),
+    ),
+    (
+        "Manage the server",
+        (
+            ("config", "list, save, load, get, or upload scene configs"),
+            ("shutdown", "ask the server to exit cleanly"),
+        ),
+    ),
+)
+
+
+def format_overview() -> str:
+    """The grouped command listing shown when no command is given.
+
+    ``--help`` lists the same commands flat and adds every option; this is the
+    shorter answer to "what can this thing do", which is the actual question
+    behind running the bare command.
+    """
+    lines = [
+        f"vstimd-client {__version__} — control a vstimd visual stimulus server.",
+        "",
+        "Usage:",
+        "  vstimd-client [OPTIONS] COMMAND [ARGS...]",
+        "",
+    ]
+    width = max(len(name) for _, commands in _COMMAND_GROUPS for name, _ in commands)
+    for title, commands in _COMMAND_GROUPS:
+        lines.append(f"{title}:")
+        lines += [f"  {name:<{width}}  {help_text}" for name, help_text in commands]
+        lines.append("")
+    lines += [
+        _ADDRESS_HELP,
+        "",
+        _EXAMPLES,
+        "",
+        "Run `vstimd-client COMMAND --help` for a command's options,",
+        "or `vstimd-client --help` for the global ones.",
+    ]
+    return "\n".join(lines)
 
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
@@ -28,11 +129,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="vstimd-client",
         description="Control and inspect a vstimd visual stimulus server.",
-        epilog=(
-            f"The server address defaults to ${ADDRESS_ENV} if set, "
-            f"otherwise {DEFAULT_ADDRESS}. Use `vstimd-client discover` to find "
-            "servers on the local network."
-        ),
+        epilog=f"{_ADDRESS_HELP}\n\n{_EXAMPLES}",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     # The client's own version — `info` reports the server's.
     parser.add_argument(
@@ -41,7 +139,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-a",
         "--address",
-        help=f"ZMQ endpoint of the server (default: ${ADDRESS_ENV} or {DEFAULT_ADDRESS})",
+        help=f"server endpoint, HOST or HOST:PORT or tcp://HOST:PORT "
+        f"(default: ${ADDRESS_ENV} or {DEFAULT_ADDRESS})",
     )
     parser.add_argument(
         "-H",
@@ -50,7 +149,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "-p", "--port", type=int, default=discovery.DEFAULT_PORT,
-        help="port to use with --host (default: %(default)s)",
+        help="port to use when the address carries none (default: %(default)s)",
     )
     parser.add_argument(
         "-t", "--timeout", type=float, default=5.0,
@@ -61,8 +160,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="emit machine-readable JSON instead of a human-readable table",
     )
 
+    # Not `required`: a bare `vstimd-client` should reach main() and print the
+    # command overview rather than argparse's one-line "COMMAND is required".
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
-    sub.required = True
 
     p = sub.add_parser("discover", help="find vstimd servers via mDNS/Avahi")
     p.add_argument(
@@ -160,13 +260,14 @@ def cmd_discover(args: argparse.Namespace) -> int:
     servers = discovery.discover(args.wait, backend=args.backend)
     if args.as_json:
         _print_json([_server_to_dict(s) for s in servers])
-        return 0 if servers else 1
+        return ExitCode.OK if servers else ExitCode.NOT_FOUND
     if not servers:
-        print(
-            f"No vstimd servers found (listened {args.wait:g}s).",
-            file=sys.stderr,
+        return _fail(
+            f"no vstimd servers found (listened {args.wait:g}s)",
+            ExitCode.NOT_FOUND,
+            hint="mDNS does not cross subnets — try `--wait 5`, or give the "
+            "address directly with -a",
         )
-        return 1
     _print_table(
         ["ID", "HOSTNAME", "ADDRESSES", "ADDRESS"],
         [
@@ -262,15 +363,13 @@ def cmd_wait_ready(conn: Connection, args: argparse.Namespace) -> int:
 def cmd_shutdown(conn: Connection, args: argparse.Namespace) -> int:
     if not args.yes:
         if not sys.stdin.isatty():
-            print(
-                "vstimd-client: refusing to prompt on non-interactive stdin; use --yes",
-                file=sys.stderr,
+            return _fail(
+                "refusing to prompt on non-interactive stdin; use --yes",
+                ExitCode.USAGE,
             )
-            return 1
         answer = input(f"Shut down the vstimd server at {conn.address}? [y/N] ")
         if answer.strip().lower() not in ("y", "yes"):
-            print("aborted", file=sys.stderr)
-            return 1
+            return _fail("aborted", ExitCode.FAILURE)
     conn.system.shutdown()
     return _ok(args, "shutdown requested")
 
@@ -332,7 +431,20 @@ def _ok(args: argparse.Namespace, message: str) -> int:
         _print_json({"ok": True, "message": message})
     else:
         print(message)
-    return 0
+    return ExitCode.OK
+
+
+def _fail(message: object, code: ExitCode, *, hint: str | None = None) -> int:
+    """Report a failure the way a command-line tool should: one line, no stack.
+
+    Tracebacks are for bugs in the client. Everything a user can cause — a rig
+    that is off, a typo in an address, a config that does not exist — is a
+    sentence on stderr and a distinct exit code.
+    """
+    print(f"vstimd-client: {message}", file=sys.stderr)
+    if hint:
+        print(f"  hint: {hint}", file=sys.stderr)
+    return code
 
 
 def _print_json(payload: object) -> None:
@@ -372,20 +484,31 @@ def _server_to_dict(server: DiscoveredServer) -> dict[str, Any]:
 
 
 def resolve_address(args: argparse.Namespace) -> str:
-    """Work out which ZMQ endpoint to talk to, from flags then environment."""
+    """Work out which ZMQ endpoint to talk to, from flags then environment.
+
+    Raises :class:`~vstimd.cli.address.AddressError` if what was given cannot
+    be completed into an endpoint.
+    """
     if args.address:
-        return args.address
+        return normalize_address(args.address, default_port=args.port)
     if args.host:
         host = args.host
+        # A bare name is an id from `discover`, which is an mDNS name.
         if "." not in host and ":" not in host:
             host = f"{host}.local"
-        return f"tcp://{host}:{args.port}"
-    return os.environ.get(ADDRESS_ENV) or DEFAULT_ADDRESS
+        return normalize_address(host, default_port=args.port)
+    return normalize_address(
+        os.environ.get(ADDRESS_ENV) or DEFAULT_ADDRESS, default_port=args.port
+    )
 
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+
+    if args.command is None:
+        print(format_overview(), file=sys.stderr)
+        return ExitCode.USAGE
 
     if args.address and args.host:
         parser.error("--address and --host are mutually exclusive")
@@ -395,42 +518,84 @@ def main(argv: Sequence[str] | None = None) -> int:
         try:
             return func(args)
         except DiscoveryUnavailableError as exc:
-            print(f"vstimd-client: {exc}", file=sys.stderr)
-            return 2
+            return _fail(exc, ExitCode.NO_BACKEND)
 
-    address = resolve_address(args)
+    try:
+        address = resolve_address(args)
+    except AddressError as exc:
+        return _fail(exc, ExitCode.USAGE)
+
     timeout_s = args.timeout if args.timeout > 0 else None
     if args.command in _BLOCKING_COMMANDS:
         timeout_s = None
 
     import zmq  # type: ignore[import]  # imported here so `discover` works without a server
 
-    conn = Connection(address, recv_timeout_s=timeout_s)
+    try:
+        conn = Connection(address, recv_timeout_s=timeout_s)
+    except zmq.ZMQError as exc:
+        return _fail(
+            f"cannot open a connection to {address}: {exc}",
+            ExitCode.UNAVAILABLE,
+            hint="an address looks like tcp://HOST:PORT; run `vstimd-client "
+            "discover` to list the rigs on this network",
+        )
+
     try:
         return func(conn, args)
     except zmq.Again:
-        print(
-            f"vstimd-client: no reply from {address} within {args.timeout:g}s "
-            "— is the server running?",
-            file=sys.stderr,
+        # REQ sockets queue silently when nothing is listening, so a dead rig
+        # and a wrong address both surface here rather than at connect time.
+        return _fail(
+            f"no reply from {address} within {args.timeout:g}s",
+            ExitCode.TIMEOUT,
+            hint="is vstimd running there? `vstimd-client discover` lists the "
+            "rigs it can see, and -t raises the timeout",
         )
-        return 1
+    except zmq.ZMQError as exc:
+        return _fail(f"connection to {address} failed: {exc}", ExitCode.UNAVAILABLE)
+    except ConfigNotFoundError as exc:
+        return _fail(exc, ExitCode.NOT_FOUND)
     except VstimdError as exc:
-        print(f"vstimd-client: {exc}", file=sys.stderr)
-        return 1
+        return _fail(exc, ExitCode.SERVER_ERROR)
     except TimeoutError as exc:
-        print(f"vstimd-client: {exc}", file=sys.stderr)
-        return 1
+        return _fail(exc, ExitCode.TIMEOUT)
+    except FileNotFoundError as exc:
+        return _fail(f"{exc.filename}: no such file", ExitCode.NOT_FOUND)
     except OSError as exc:
-        print(f"vstimd-client: {exc}", file=sys.stderr)
-        return 1
+        return _fail(exc, ExitCode.FAILURE)
     finally:
         conn.close()
 
 
 def run() -> None:
-    """Console-script wrapper: run :func:`main` and exit with its status."""
+    """Console-script wrapper: run :func:`main` and exit with its status.
+
+    The last line of defence against a traceback reaching the terminal: any
+    exception :func:`main` did not expect is a bug in the client, and is
+    reported as one, with the traceback available behind an environment
+    variable for whoever has to fix it.
+    """
     try:
         sys.exit(main())
     except KeyboardInterrupt:
-        sys.exit(130)
+        print("interrupted", file=sys.stderr)
+        sys.exit(ExitCode.INTERRUPTED)
+    except BrokenPipeError:
+        # `vstimd-client ls | head` closes the pipe under us. Redirect stdout to
+        # the void so the interpreter's own flush at exit cannot fail as well.
+        os.dup2(os.open(os.devnull, os.O_WRONLY), sys.stdout.fileno())
+        sys.exit(ExitCode.FAILURE)
+    except Exception as exc:
+        if os.environ.get(TRACEBACK_ENV):
+            raise
+        print(
+            f"vstimd-client: unexpected error: {type(exc).__name__}: {exc}",
+            file=sys.stderr,
+        )
+        print(
+            f"  hint: this is a bug — set {TRACEBACK_ENV}=1 for the traceback, "
+            "then report it at https://github.com/braemons/vstimd/issues",
+            file=sys.stderr,
+        )
+        sys.exit(ExitCode.FAILURE)
