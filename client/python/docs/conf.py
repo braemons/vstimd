@@ -3,9 +3,11 @@ import os
 
 sys.path.insert(0, os.path.abspath(".."))
 
-project = "vstimd"
+from vstimd._version import __version__  # noqa: E402  (needs the sys.path entry above)
+
+project = "vstimd-client"
 author = "Joscha Schmiedt"
-release = "0.1.0"
+release = __version__
 
 extensions = [
     "sphinx.ext.autodoc",
@@ -16,7 +18,7 @@ extensions = [
 ]
 
 html_theme = "furo"
-html_title = "vstimd"
+html_title = "vstimd-client"
 
 autodoc_default_options = {
     "members": True,

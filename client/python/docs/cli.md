@@ -5,7 +5,7 @@ It covers the system-level commands — server info, scene-wide mutations, confi
 management, shutdown — plus mDNS discovery of servers on the local network.
 
 ```bash
-pip install 'vstimd[discover]'   # [discover] adds the pure-Python mDNS backend
+pip install 'vstimd-client[discover]'   # [discover] adds the pure-Python mDNS backend
 vstimd-client --help
 ```
 

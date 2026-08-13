@@ -1,18 +1,19 @@
 # vstimd Python Client
 
 Python client for the `vstimd` visual stimulus server.  Communicates over
-ZeroMQ using protobuf encoding.
+ZeroMQ using protobuf encoding.  The distribution is `vstimd-client`; the
+import package is `vstimd`.
 
 ## Install
 
 ```bash
-pip install vstimd
+pip install vstimd-client
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv add vstimd
+uv add vstimd-client
 ```
 
 ---

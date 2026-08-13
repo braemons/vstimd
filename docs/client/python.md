@@ -7,11 +7,22 @@ this page is the reference for the client's shape.
 
 ## Install
 
-Requires Python ≥ 3.12 and [uv](https://docs.astral.sh/uv/):
+Requires Python ≥ 3.12. The distribution on PyPI is `vstimd-client`; the import
+package is `vstimd`.
+
+```sh
+pip install vstimd-client
+```
+
+Pre-1.0 releases are still candidates, so until the first final release you need
+`pip install --pre vstimd-client` (or `uv add --prerelease allow vstimd-client`).
+
+To work from a checkout instead:
 
 ```sh
 cd client/python
 uv sync
+make proto      # the protobuf stubs are generated, not committed
 ```
 
 See [Installation](../getting-started/installation.md) for other options.

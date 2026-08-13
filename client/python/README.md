@@ -1,18 +1,20 @@
-# vstimd Python client
+# vstimd-client
 
 Python client for the `vstimd` visual stimulus server. Talks to the server
 over ZMQ using protobuf encoding.
 
+The distribution is `vstimd-client`; the import package is `vstimd`.
+
 ## Install
 
 ```bash
-pip install vstimd
+pip install vstimd-client
 ```
 
 Or with [uv](https://docs.astral.sh/uv/):
 
 ```bash
-uv add vstimd
+uv add vstimd-client
 ```
 
 ### Development install
@@ -20,7 +22,11 @@ uv add vstimd
 ```bash
 cd client/python
 uv sync
+make proto   # the protobuf stubs are generated, not committed
 ```
+
+A checkout without generated stubs imports as an empty shell, so run `make
+proto` (every other `make` target does it for you) before working from source.
 
 ## Quick start
 
@@ -48,7 +54,7 @@ Drop-in replacement for `psychopy.visual`:
 from psychopy import visual
 
 # After
-from vstimd import psychopy as visual
+from vstimd.psychopy import visual
 ```
 
 The only required addition is `address=` on `Window`:
@@ -93,7 +99,7 @@ Installing the package also installs a `vstimd-client` executable for the
 system-level commands, plus mDNS discovery of servers on the local network:
 
 ```bash
-pip install 'vstimd[discover]'   # [discover] adds the pure-Python mDNS backend
+pip install 'vstimd-client[discover]'   # [discover] adds the pure-Python mDNS backend
 ```
 
 ```console
@@ -119,7 +125,8 @@ Other commands: `ls`, `background`, `delete-all`, `enable-all`/`disable-all`,
 The target server comes from `--address`, `--host`, `$VSTIMD_ADDRESS`, or
 `tcp://localhost:5555`, in that order. `--json` makes every command emit
 machine-readable output. See `vstimd-client --help` and the
-[CLI docs](docs/cli.md) for details.
+[CLI docs](https://github.com/braemons/vstimd/blob/main/client/python/docs/cli.md)
+for details.
 
 ## Regenerating protobuf stubs
 
@@ -142,3 +149,17 @@ make test-e2e-null
 # E2E against a real running server
 VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 make test-e2e
 ```
+
+## Status and versioning
+
+Pre-1.0: the API may still change between minor versions. Release candidates
+(`0.1.0rc1`) are published to PyPI and are not installed by `pip install
+vstimd-client` unless you pass `--pre`.
+
+## License
+
+GNU LGPLv3. Copyright © 2026 Joscha Schmiedt, University of Bremen.
+
+The client is licensed more permissively than the vstimd server itself, which
+is AGPLv3: importing this package into your experiment does not place your
+experiment under copyleft.

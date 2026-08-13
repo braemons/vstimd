@@ -7,7 +7,7 @@ management, shutdown — plus mDNS discovery of the servers on your network.
 ## Install
 
 ```sh
-pip install 'vstimd[discover]'
+pip install 'vstimd-client[discover]'
 ```
 
 The `[discover]` extra pulls in [zeroconf](https://pypi.org/project/zeroconf/),
@@ -15,8 +15,8 @@ a pure-Python mDNS implementation. Without it, discovery falls back to shelling
 out to `avahi-browse`, which needs `avahi-utils` and a running `avahi-daemon`
 (Linux only). Everything else works with the base install.
 
-From a source checkout, `cd client/python && uv sync` puts `vstimd-client` in
-`.venv/bin/`.
+From a source checkout, `cd client/python && uv sync && make proto` puts
+`vstimd-client` in `.venv/bin/`.
 
 ## Discovering rigs
 
