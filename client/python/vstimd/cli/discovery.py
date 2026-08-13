@@ -24,12 +24,22 @@ import time
 from dataclasses import dataclass, field
 from typing import Any
 
+from .address import DEFAULT_PORT
+
 SERVICE_TYPE = "_vstimd._tcp"
 """DNS-SD service type advertised by vstimd servers."""
 
 _ZC_SERVICE_TYPE = SERVICE_TYPE + ".local."
 
-DEFAULT_PORT = 5555
+__all__ = [
+    "DEFAULT_PORT",
+    "SERVICE_TYPE",
+    "DiscoveredServer",
+    "DiscoveryUnavailableError",
+    "available_backends",
+    "discover",
+    "parse_avahi_browse",
+]
 
 
 class DiscoveryUnavailableError(RuntimeError):
@@ -232,7 +242,7 @@ def _discover_avahi(timeout_s: float) -> list[DiscoveredServer]:
     if shutil.which("avahi-browse") is None:
         raise DiscoveryUnavailableError(
             "avahi-browse not found — install avahi-utils, or use the "
-            "zeroconf backend (pip install 'vstimd[discover]')"
+            "zeroconf backend (--backend zeroconf)"
         )
     try:
         proc = subprocess.run(

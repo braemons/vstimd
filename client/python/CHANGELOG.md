@@ -9,6 +9,23 @@ versioned independently of the vstimd server.
 
 ### Added
 
+- `vstimd-client` with no command now prints its commands, grouped by what they
+  are for, along with how to point it at a server and a handful of examples —
+  instead of a one-line argparse complaint.
+- `--address` accepts what people actually type: the scheme and port are filled
+  in when missing, so `-a 10.0.1.42`, `-a 10.0.1.42:5555` and
+  `-a tcp://10.0.1.42:5555` all name the same server. Bare IPv6 literals are
+  bracketed automatically; `ipc://` and `inproc://` endpoints pass through
+  unchanged.
+- `VSTIMD_TRACEBACK=1` restores the full traceback for bug reports.
+- With no `--address`, `--host` or `$VSTIMD_ADDRESS`, the client now browses for
+  a server instead of assuming `tcp://localhost:5555`. One rig found is used
+  and announced on stderr; several are listed and prompted for; none falls back
+  to `tcp://localhost:5555` as before. On a bench with a single rig, commands no
+  longer need an address at all.
+- `--non-interactive` refuses to prompt, listing the candidates and exiting `2`
+  instead. A non-terminal stdin behaves the same way, so cron jobs and CI steps
+  cannot hang on the selector.
 - Server errors carry structured context. Every `VstimdError` now has `code`
   (the `ErrorCode` the server returned), `detail` (its message), `command`
   (which request failed, e.g. `set_position`) and `handle` (the stimulus it
@@ -20,8 +37,27 @@ versioned independently of the vstimd server.
   result code set — previously the first crashed with a raw protobuf
   `DecodeError` and the second was treated as success.
 
+### Changed
+
+- **Exit codes now say what went wrong**: `3` unreachable, `4` timed out, `5`
+  server error, `6` not found, `7` no mDNS backend, on top of the existing `0`,
+  `1`, `2` and `130`. Previously almost every failure exited `1`. Scripts that
+  test for a specific non-zero code need updating; scripts that test for
+  success do not.
+  - `discover` finding nothing now exits `6`, was `1`.
+  - `discover` with no mDNS backend now exits `7`, was `2` — which argparse
+    also uses for command-line errors, so the two were indistinguishable.
+  - A request that times out now exits `4`, was `1`.
+  - `shutdown` refusing to prompt on a non-interactive stdin now exits `2`, was
+    `1`, since the fix is to pass `--yes`.
+
 ### Fixed
 
+- The CLI no longer prints a traceback for anything a user can cause. A
+  malformed address, an unreachable rig, a missing config file and a closed
+  pipe each produce one line on stderr and a meaningful exit code. In
+  particular `-a HOST` — an address without a scheme — used to end in a
+  `zmq.error.ZMQError: Invalid argument` traceback; it now simply works.
 - `ErrorCode` was missing every code above `NOT_READY`, so the five config
   error codes (10–14) had no enum member. Constructing a `ServerResponse` from
   such a reply raised `ValueError: 10 is not a valid ErrorCode` — failing while

@@ -42,7 +42,7 @@ vstimd-ffee00  vstimd-ffee00.local  10.0.1.51   tcp://vstimd-ffee00.local:5555
     off in scripts.
 
 `--wait N` listens longer on a lossy network, `--backend {zeroconf,avahi}`
-forces one implementation, and the command exits 1 when nothing is found:
+forces one implementation, and the command exits 6 when nothing is found:
 
 ```sh
 vstimd-client discover --wait 5 --backend avahi
@@ -52,18 +52,42 @@ vstimd-client discover --wait 5 --backend avahi
 
 Every other command talks to a single server, selected in this order:
 
-1. `--address tcp://host:port` — a full ZMQ endpoint
+1. `--address` — an endpoint, or as much of one as you feel like typing
 2. `--host NAME [--port N]` — a bare name gets `.local` appended, so an `ID`
    from `discover` can be pasted straight in
 3. `$VSTIMD_ADDRESS`
-4. `tcp://localhost:5555`
+4. whatever mDNS finds, falling back to `tcp://localhost:5555`
 
 ```sh
 vstimd-client --host vstimd-a1b2c3 info
 export VSTIMD_ADDRESS=tcp://vstimd-a1b2c3.local:5555   # or set it once
 ```
 
-Requests time out after `--timeout` seconds (default 5) and exit 1;
+Given none of the first three, the client browses the network for about a
+second. One rig found is used and announced; several are listed for you to pick
+from; none falls back to `tcp://localhost:5555`. On a bench with a single rig
+that removes the address from the command line altogether:
+
+```console
+$ vstimd-client info
+vstimd-client: using vstimd-a1b2c3 at tcp://vstimd-a1b2c3.local:5555
+version     0.4.1
+```
+
+!!! warning "Scripts should name their rig"
+
+    The choice is never silent — one candidate is announced, several are
+    prompted for — but a script that relies on there being exactly one rig will
+    start asking questions the day a second appears. Pass `-a`/`-H` or set
+    `$VSTIMD_ADDRESS`, which also skips the browse. `--non-interactive` refuses
+    to prompt and exits `2` instead; a non-terminal stdin does the same.
+
+`--address` completes what it is given — a missing scheme becomes `tcp://` and
+a missing port becomes `--port` (5555 by default) — so `-a 10.0.1.42`,
+`-a 10.0.1.42:5555` and `-a tcp://10.0.1.42:5555` all name the same rig. An
+address it cannot complete is rejected with an explanation and exit code 2.
+
+Requests time out after `--timeout` seconds (default 5) and exit 4;
 `--timeout 0` blocks forever. The `wait-*` commands always block, bounded by
 their own `--wait` deadline.
 
@@ -115,8 +139,26 @@ vstimd-client config get -o scene.json
 vstimd-client config upload restored scene.json --overwrite --apply-now
 ```
 
-Exit codes: `0` success, `1` server error / timeout / nothing discovered,
-`2` no mDNS backend available, `130` interrupted.
+Failures are told apart by exit status, so a start-up script can distinguish a
+rig that is switched off from one that refused the request:
+
+| Code | Meaning |
+|---|---|
+| `0` | success |
+| `1` | a failure none of the codes below describes |
+| `2` | bad command line, or no command given |
+| `3` | the server could not be reached — bad address, nothing listening |
+| `4` | the server did not reply within `--timeout` |
+| `5` | the server replied with an error |
+| `6` | nothing found: no rigs discovered, no such config |
+| `7` | `discover` has no mDNS backend available |
+| `130` | interrupted with Ctrl-C |
+
+Every failure prints one line on stderr, never a traceback. A traceback would
+be a bug — `VSTIMD_TRACEBACK=1` brings back the full one for a bug report.
+
+Running `vstimd-client` with no command lists everything it can do, grouped,
+with examples.
 
 Discovery is also importable, so an experiment script can find a rig without
 shelling out:
