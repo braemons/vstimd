@@ -46,12 +46,17 @@ classifiers = [
 dependencies = [
     "pyzmq>=25",
     "protobuf>=5",
+    # Pure-Python mDNS backend for `vstimd-client discover`. A dependency
+    # rather than an extra because discovery is how you find a rig in the
+    # first place, and the alternative backend (avahi-browse) exists only on
+    # Linux with a running avahi-daemon.
+    "zeroconf>=0.132",
 ]
 
 [project.optional-dependencies]
-# Pure-Python mDNS backend for `vstimd-client discover`. Without it, discovery
-# falls back to shelling out to avahi-browse (Linux + avahi-daemon only).
-discover = ["zeroconf>=0.132"]
+# Kept as a no-op so `vstimd-client[discover]`, which 0.1.0rc1 documented,
+# keeps resolving. zeroconf is now a plain dependency.
+discover = []
 
 [project.scripts]
 vstimd-client = "vstimd.cli.main:run"
@@ -68,7 +73,6 @@ dev = [
     "pytest>=8",
     "grpcio-tools>=1.62",
     "ty>=0.0.1a1",
-    "zeroconf>=0.132",
     "sphinx>=8",
     "myst-parser>=4",
     "furo>=2024",

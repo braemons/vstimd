@@ -99,7 +99,7 @@ Installing the package also installs a `vstimd-client` executable for the
 system-level commands, plus mDNS discovery of servers on the local network:
 
 ```bash
-pip install 'vstimd-client[discover]'   # [discover] adds the pure-Python mDNS backend
+pip install vstimd-client
 ```
 
 ```console
@@ -115,8 +115,9 @@ background  0.000 0.000 0.000 1.000
 ```
 
 Discovery browses for `_vstimd._tcp` using the
-[zeroconf](https://pypi.org/project/zeroconf/) package if it is installed, and
-otherwise falls back to `avahi-browse`. The `ID` column is the server's
+[zeroconf](https://pypi.org/project/zeroconf/) package, which is installed
+alongside the client, and falls back to `avahi-browse` if it is somehow
+missing. The `ID` column is the server's
 `id=` TXT record — the reliable identity, unlike the display name which Avahi
 may suffix with `#2` on collision.
 

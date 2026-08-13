@@ -9,8 +9,8 @@ at boot by ``vstimd-set-hostname``.
 Two backends are supported:
 
 * ``zeroconf`` — the pure-Python `zeroconf <https://pypi.org/project/zeroconf/>`_
-  package.  Cross-platform, no daemon needed.  Install with
-  ``pip install vstimd[discover]``.
+  package.  Cross-platform, no daemon needed, and a dependency of
+  ``vstimd-client``, so it is normally present.
 * ``avahi`` — shells out to ``avahi-browse``.  Linux only, needs a running
   ``avahi-daemon``.
 
@@ -107,8 +107,9 @@ def discover(
             found = _discover_avahi(timeout_s)
         else:
             raise DiscoveryUnavailableError(
-                "no mDNS backend available — install the zeroconf package "
-                "(pip install 'vstimd[discover]') or avahi-utils"
+                "no mDNS backend available — zeroconf ships with vstimd-client, "
+                "so reinstall it (pip install --force-reinstall vstimd-client) "
+                "or install avahi-utils"
             )
     else:
         raise ValueError(f"unknown discovery backend: {backend!r}")
@@ -165,8 +166,9 @@ def _discover_zeroconf(timeout_s: float) -> list[DiscoveredServer]:
         from zeroconf import ServiceBrowser, Zeroconf  # type: ignore[import-untyped]
     except ImportError as exc:  # pragma: no cover - exercised via backend selection
         raise DiscoveryUnavailableError(
-            "the zeroconf package is not installed "
-            "(pip install 'vstimd[discover]')"
+            "the zeroconf package is not installed — it ships with "
+            "vstimd-client, so reinstall it "
+            "(pip install --force-reinstall vstimd-client)"
         ) from exc
 
     names: list[str] = []

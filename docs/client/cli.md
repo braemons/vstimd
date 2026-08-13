@@ -7,13 +7,15 @@ management, shutdown — plus mDNS discovery of the servers on your network.
 ## Install
 
 ```sh
-pip install 'vstimd-client[discover]'
+pip install vstimd-client
 ```
 
-The `[discover]` extra pulls in [zeroconf](https://pypi.org/project/zeroconf/),
-a pure-Python mDNS implementation. Without it, discovery falls back to shelling
-out to `avahi-browse`, which needs `avahi-utils` and a running `avahi-daemon`
-(Linux only). Everything else works with the base install.
+Or without installing anything permanently, `uvx vstimd-client info`.
+
+Discovery works out of the box: [zeroconf](https://pypi.org/project/zeroconf/),
+a pure-Python mDNS implementation, is a dependency of the client. If it is ever
+missing, discovery falls back to shelling out to `avahi-browse`, which needs
+`avahi-utils` and a running `avahi-daemon` (Linux only).
 
 From a source checkout, `cd client/python && uv sync && make proto` puts
 `vstimd-client` in `.venv/bin/`.

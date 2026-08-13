@@ -94,15 +94,18 @@ jobs:
         shell: bash
         run: |
           python -m pip install --upgrade pip
-          # pip accepts extras appended to a local wheel path, which installs
-          # the artefact itself rather than resolving the name from PyPI — the
-          # point being to test this build, not whatever is already published.
+          # Installs the artefact itself rather than resolving the name from
+          # PyPI — the point being to test this build, not whatever is already
+          # published. No extras: discovery must work from a plain install.
           wheel=$(ls dist/*.whl)
-          python -m pip install "${wheel}[discover]"
+          python -m pip install "${wheel}"
           cd "$(mktemp -d)"   # anywhere but a directory holding the sources
           python -c "import vstimd; print(vstimd.__version__); vstimd.Connection"
           python -c "from vstimd.psychopy import visual; visual.Window"
           python -c "from vstimd.v1 import service_pb2; print(service_pb2.DESCRIPTOR.name)"
+          # zeroconf is a dependency, not an extra, so `discover` must have a
+          # backend without anything else being installed.
+          python -c "from vstimd.cli import discovery; assert 'zeroconf' in discovery.available_backends(), discovery.available_backends()"
           vstimd-client --version
           vstimd-client --help > /dev/null
 
