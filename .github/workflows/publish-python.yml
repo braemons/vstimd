@@ -1,0 +1,137 @@
+name: Publish Python client
+
+# Tag-driven release of the `vstimd-client` distribution to PyPI.
+#
+#   git tag python-v0.1.0rc1 && git push origin python-v0.1.0rc1
+#
+# The prefix keeps this separate from the server's `v*` tags, which drive
+# release.yml (.deb/.rpm/SD image) — the client versions independently.
+#
+# Publishing uses PyPI trusted publishing (OIDC), so there is no API token to
+# store. It has to be configured once, before the first upload, from the
+# braemons PyPI organisation under Publishing → Add a pending publisher:
+#
+#   PyPI project: vstimd-client
+#   owner: braemons   repository: vstimd
+#   workflow: publish-python.yml   environment: pypi   (testpypi for TestPyPI)
+#
+# `owner` is the GitHub org, which is unrelated to the PyPI org — the publisher
+# is matched on the repository and workflow that requests the token.
+on:
+  push:
+    tags: ['python-v*']
+  # Manual runs default to TestPyPI, which is the way to rehearse the whole
+  # path — including the upload — without burning a version number on PyPI.
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Index to upload to
+        type: choice
+        options: [testpypi, pypi]
+        default: testpypi
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: client/python
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+
+      - uses: astral-sh/setup-uv@v5
+
+      # `make build` regenerates the protobuf stubs first: they are generated
+      # artefacts, not tracked in git, and a wheel built without them imports
+      # as an empty shell.
+      - run: make build
+
+      # A tag that disagrees with the packaged version means one of the two is
+      # wrong, and PyPI will not let the filename be reused once uploaded.
+      - name: Check version matches tag
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          tag="${GITHUB_REF#refs/tags/python-v}"
+          version=$(python3 -c 'import re, pathlib; print(re.search(r"__version__ = \"([^\"]+)\"", pathlib.Path("vstimd/_version.py").read_text()).group(1))')
+          echo "tag=$tag packaged=$version"
+          [ "$tag" = "$version" ] || { echo "::error::tag $tag != version $version"; exit 1; }
+
+      - name: Check metadata renders on PyPI
+        run: uvx twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: python-dist
+          path: client/python/dist/*
+          if-no-files-found: error
+
+  # Installs the built wheel the way a user would — from the artefact, into a
+  # clean environment, with no source tree on sys.path. This is what catches a
+  # wheel that is missing the generated protobuf modules.
+  smoke:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python: ['3.12', '3.14']
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Install the wheel and import it
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          # pip accepts extras appended to a local wheel path, which installs
+          # the artefact itself rather than resolving the name from PyPI — the
+          # point being to test this build, not whatever is already published.
+          wheel=$(ls dist/*.whl)
+          python -m pip install "${wheel}[discover]"
+          cd "$(mktemp -d)"   # anywhere but a directory holding the sources
+          python -c "import vstimd; print(vstimd.__version__); vstimd.Connection"
+          python -c "from vstimd.psychopy import visual; visual.Window"
+          python -c "from vstimd.v1 import service_pb2; print(service_pb2.DESCRIPTOR.name)"
+          vstimd-client --version
+          vstimd-client --help > /dev/null
+
+      # A typed package that ships no py.typed is a silent no-op for users.
+      - name: Check the typing marker survived packaging
+        shell: bash
+        run: |
+          python -c "import pathlib, vstimd; assert (pathlib.Path(vstimd.__file__).parent / 'py.typed').is_file()"
+
+  publish:
+    needs: smoke
+    runs-on: ubuntu-latest
+    environment: ${{ (github.event_name == 'push' || inputs.target == 'pypi') && 'pypi' || 'testpypi' }}
+    permissions:
+      id-token: write   # required for trusted publishing
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: python-dist
+          path: dist
+
+      - uses: astral-sh/setup-uv@v5
+
+      - name: Publish
+        run: |
+          if [ "${{ github.event_name }}" = "push" ] || [ "${{ inputs.target }}" = "pypi" ]; then
+            uv publish --trusted-publishing always dist/*
+          else
+            uv publish --trusted-publishing always \
+              --publish-url https://test.pypi.org/legacy/ dist/*
+          fi

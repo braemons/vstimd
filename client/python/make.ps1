@@ -59,6 +59,10 @@ switch ($Target) {
         Invoke-Proto
         uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v
     }
+    "typecheck" {
+        Invoke-Proto
+        uv run --group dev ty check
+    }
     "docs" {
         Invoke-Proto
         uv run --group dev sphinx-build -b html docs docs/_build/html
@@ -69,7 +73,7 @@ switch ($Target) {
     }
     default {
         Write-Error "Unknown target: $Target"
-        Write-Host "Available targets: proto, build, publish, test, test-integration, test-e2e, test-e2e-null, docs, clean"
+        Write-Host "Available targets: proto, build, publish, test, test-integration, test-e2e, test-e2e-null, typecheck, docs, clean"
         exit 1
     }
 }

@@ -1,0 +1,3 @@
+# README, LICENSE and the package sources are picked up automatically; the
+# changelog is not, and it is worth having in the sdist.
+include CHANGELOG.md

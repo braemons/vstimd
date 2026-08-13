@@ -77,4 +77,6 @@ Design notes and roadmaps live in [`dev/`](dev/) — start with
 
 ## License
 
-GNU AGPLv3. Copyright © 2026 Joscha Schmiedt, University of Bremen.
+GNU AGPLv3, except the Python client in [`client/python`](client/python), which
+is GNU LGPLv3 so that importing it does not place your experiment's own code
+under copyleft. Copyright © 2026 Joscha Schmiedt, University of Bremen.

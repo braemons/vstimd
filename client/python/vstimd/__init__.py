@@ -21,6 +21,7 @@ Example::
 import os as _os
 __path__ = list(__path__) + [_os.path.join(_os.path.dirname(__file__), "_proto", "vstimd")]
 
+from ._version import __version__
 from .connection import Connection
 from ._handles import AnimationHandle, StimulusHandle
 from .response import ErrorCode, ServerResponse
@@ -56,6 +57,7 @@ from .exceptions import (
 from . import psychopy
 
 __all__ = [
+    "__version__",
     "Connection",
     "AnimationHandle",
     "StimulusHandle",

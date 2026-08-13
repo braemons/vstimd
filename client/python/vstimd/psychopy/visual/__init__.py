@@ -1,6 +1,6 @@
 """PsychoPy-compatible visual stimulus layer for vstimd.
 
-    from vstimd import visual
+    from vstimd.psychopy import visual
 
     win = visual.Window(size=(1920, 1080), address='tcp://192.168.1.10:5555')
     circ = visual.Circle(win, radius=50, fillColor='red')
