@@ -7,6 +7,8 @@ versioned independently of the vstimd server.
 
 ## [Unreleased]
 
+## [0.1.0rc2] — 2026-08-13
+
 ### Changed
 
 - `zeroconf` is now a regular dependency rather than the `[discover]` extra, so
@@ -43,5 +45,6 @@ First release candidate; the first version published to PyPI.
   the rest of vstimd, so that importing it does not place an experiment's own
   code under copyleft.
 
-[Unreleased]: https://github.com/braemons/vstimd/compare/python-v0.1.0rc1...HEAD
+[Unreleased]: https://github.com/braemons/vstimd/compare/python-v0.1.0rc2...HEAD
+[0.1.0rc2]: https://github.com/braemons/vstimd/compare/python-v0.1.0rc1...python-v0.1.0rc2
 [0.1.0rc1]: https://github.com/braemons/vstimd/releases/tag/python-v0.1.0rc1
