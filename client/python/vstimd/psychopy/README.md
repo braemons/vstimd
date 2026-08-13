@@ -12,7 +12,7 @@ Existing neuroscience experiments can swap one import line:
 from psychopy import visual
 
 # After
-from vstimd import psychopy as visual   # or: import vstimd.psychopy.visual as visual
+from vstimd.psychopy import visual
 ```
 
 All constructor arguments, property setters, and drawing methods work unchanged.
