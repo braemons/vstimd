@@ -352,6 +352,22 @@ impl DrmRenderLoopData {
                 }
             };
 
+            // The DRM clock's startup-race grace period (DRM_VBLANK_GRACE_ATTEMPTS
+            // in drm_vblank.rs) can silently disable it mid-loop; resync so
+            // system_info — and the one-time log line below — reflect the clock
+            // actually in use rather than what was resolved at startup. This is
+            // the same "don't silently degrade with no signal" concern e5dc6a5
+            // fixed, scoped back down to just this one known-benign transition.
+            let resolved_clock = self.vblank.clock_source(self.rs.ctx.present_wait.is_some());
+            if resolved_clock != self.rs.system_info.clock_source {
+                log::warn!(
+                    "vstimd: vblank clock source changed: {} -> {}",
+                    self.rs.system_info.clock_source.as_str(),
+                    resolved_clock.as_str()
+                );
+                self.rs.system_info.clock_source = resolved_clock;
+            }
+
             // Log the settled clock source once, after frame 1 (when the VK
             // fence has been collected for the first time).
             if !clock_logged && self.rs.timing.frame_index > 0 {
