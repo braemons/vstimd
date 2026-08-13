@@ -14,8 +14,12 @@ package is `vstimd`.
 pip install vstimd-client
 ```
 
-Pre-1.0 releases are still candidates, so until the first final release you need
-`pip install --pre vstimd-client` (or `uv add --prerelease allow vstimd-client`).
+Until `0.1.0` is released the only versions on PyPI are release candidates, and
+the command above installs the newest of them: pip and uv fall back to
+pre-releases when nothing stable satisfies the request. Once a final release
+exists, that same command gives you the stable version, and opting back into
+candidates needs `pip install --pre vstimd-client` (or `uv add --prerelease
+allow vstimd-client`).
 
 To work from a checkout instead:
 

@@ -152,9 +152,13 @@ VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 make test-e2e
 
 ## Status and versioning
 
-Pre-1.0: the API may still change between minor versions. Release candidates
-(`0.1.0rc1`) are published to PyPI and are not installed by `pip install
-vstimd-client` unless you pass `--pre`.
+Pre-1.0: the API may still change between minor versions.
+
+Release candidates (`0.1.0rc1`) are published to PyPI. While no final release
+exists yet, `pip install vstimd-client` resolves to the newest candidate — pip
+falls back to pre-releases only when nothing stable satisfies the request. Once
+`0.1.0` is out, that same command gives you the stable version, and picking up
+later candidates needs `pip install --pre vstimd-client`.
 
 ## License
 

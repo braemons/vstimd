@@ -6,6 +6,7 @@ import json
 
 import pytest
 
+from vstimd import __version__
 from vstimd.cli import discovery
 from vstimd.cli.discovery import DiscoveredServer, parse_avahi_browse
 from vstimd.cli.main import build_parser, cmd_shutdown, main, resolve_address
@@ -165,6 +166,16 @@ def test_every_subcommand_has_a_handler():
 def test_command_requires_a_subcommand():
     with pytest.raises(SystemExit):
         main([])
+
+
+@pytest.mark.parametrize("flag", ["--version", "-V"])
+def test_version_flag_prints_the_client_version(flag, capsys):
+    # argparse's `version` action exits 0 after printing, before any subcommand
+    # is required — so this also pins that --version works with no command.
+    with pytest.raises(SystemExit) as exc:
+        main([flag])
+    assert exc.value.code == 0
+    assert capsys.readouterr().out.strip() == f"vstimd-client {__version__}"
 
 
 def test_shutdown_requires_yes_when_stdin_is_non_interactive(monkeypatch, capsys):
