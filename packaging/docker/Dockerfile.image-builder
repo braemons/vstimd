@@ -22,5 +22,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /src
 COPY packaging/image/build-sd-image.sh packaging/image/build-sd-image.sh
+# The archive signing key the built image trusts for in-place updates. Only
+# dist/ and the cache dir are bind-mounted at run time, so anything the script
+# reads out of the repo has to be COPYed in here or it simply isn't there --
+# and the script's `[ -f "$APT_KEYRING" ]` test then silently ships an image
+# with no update source. Copy the directory, not the file, so the build still
+# works if the key is ever removed (packaging/apt/README.md keeps it non-empty).
+COPY packaging/apt/ packaging/apt/
 
 ENTRYPOINT ["packaging/image/build-sd-image.sh"]
