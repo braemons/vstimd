@@ -11,7 +11,7 @@
 //! any backend dependency.
 
 use input::event::keyboard::KeyboardEventTrait as _;
-use std::os::fd::OwnedFd;
+use std::os::fd::{AsRawFd as _, OwnedFd};
 use std::path::Path;
 
 use crate::render::AppKey;
@@ -86,6 +86,11 @@ impl Drop for TtyKbdGuard {
 
 // ── libinput interface impl ───────────────────────────────────────────────────
 
+/// `EVIOCGRAB` — `_IOW('E', 0x90, c_int)`. Evdev-specific, not part of POSIX,
+/// so `libc` doesn't expose it; encoded by hand from `<linux/input.h>`'s
+/// `_IOC` layout (direction=write, size=4, type='E', nr=0x90).
+const EVIOCGRAB: libc::c_ulong = 0x4004_4590;
+
 struct Interface;
 
 impl input::LibinputInterface for Interface {
@@ -96,7 +101,24 @@ impl input::LibinputInterface for Interface {
             .write(flags & 0b11 != 0) // O_WRONLY=1, O_RDWR=2
             .custom_flags(flags)
             .open(path)
-            .map(|f| f.into())
+            .map(|f| {
+                let fd: OwnedFd = f.into();
+                // libinput's udev/seat backend does not itself grab devices
+                // exclusively (confirmed via strace: it opens and queries
+                // every device but never issues EVIOCGRAB) — without this,
+                // the kernel's own VT keyboard handler keeps receiving the
+                // same raw keys in parallel, so they leak to whatever
+                // getty/shell is on the active VT even while the overlay
+                // also responds normally.
+                if unsafe { libc::ioctl(fd.as_raw_fd(), EVIOCGRAB, 1) } < 0 {
+                    log::warn!(
+                        "vstimd: EVIOCGRAB failed on {}: {} — input may leak to the console",
+                        path.display(),
+                        std::io::Error::last_os_error()
+                    );
+                }
+                fd
+            })
             .map_err(|e| e.raw_os_error().unwrap_or(-1))
     }
 

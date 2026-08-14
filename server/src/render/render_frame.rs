@@ -338,17 +338,26 @@ pub fn render_frame(
 
     // ── 6. Acquire swapchain image ────────────────────────────────────────────
     let t_acquire_start = std::time::Instant::now();
-    let (image_index, _suboptimal) = match unsafe {
-        ctx.swapchain_loader.acquire_next_image(
-            ctx.swapchain,
-            u64::MAX,
-            frame.image_available,
-            vk::Fence::null(),
-        )
-    } {
-        Ok(r) => r,
-        Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return (None, platform_output),
-        Err(e) => panic!("acquire_next_image: {e}"),
+    let image_index: u32 = if ctx.self_presented {
+        // No real presentation engine to synchronize with (see
+        // VkContext::self_presented) — the fence wait in step 2 already fully
+        // serializes every frame (FRAMES_IN_FLIGHT == 1), so whichever image is
+        // due for reuse is guaranteed idle already. Round-robin instead of
+        // acquiring.
+        (rs.timing.frame_index % ctx.swapchain_images.len()) as u32
+    } else {
+        match unsafe {
+            ctx.swapchain_loader.acquire_next_image(
+                ctx.swapchain,
+                u64::MAX,
+                frame.image_available,
+                vk::Fence::null(),
+            )
+        } {
+            Ok((idx, _suboptimal)) => idx,
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => return (None, platform_output),
+            Err(e) => panic!("acquire_next_image: {e}"),
+        }
     };
     let acquire_us = t_acquire_start.elapsed().as_micros() as u32;
 
@@ -603,10 +612,11 @@ pub fn render_frame(
             ctx.device.cmd_end_render_pass(cb);
         }
 
-        // ── Optional CPU readback ─────────────────────────────────────────────
-        // Recorded here, while the image is still ours (both render passes'
-        // `finalLayout` leaves it in `PRESENT_SRC_KHR`) and before it is
-        // handed to `queue_present` below. See `ReadbackTarget`'s doc comment.
+        // ── Optional CPU readback (evdi only — readback is only ever Some for
+        //    a self_presented context; see VkContext::self_presented) ─────────
+        // Recorded here, while the image is still ours (both of evdi's render
+        // passes' `finalLayout` leaves it in `GENERAL`, not `PRESENT_SRC_KHR` —
+        // see evdi_init.rs's create_render_pass_no_wsi doc comment for why).
         if let Some(rb) = readback {
             let image = ctx.swapchain_images[image_index as usize];
             let subresource_range = vk::ImageSubresourceRange {
@@ -617,7 +627,7 @@ pub fn render_frame(
                 layer_count: 1,
             };
             let to_transfer_src = vk::ImageMemoryBarrier::default()
-                .old_layout(vk::ImageLayout::PRESENT_SRC_KHR)
+                .old_layout(vk::ImageLayout::GENERAL)
                 .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
                 .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
@@ -659,10 +669,10 @@ pub fn render_frame(
                 &[region],
             );
 
-            // Present expects the image back in `PRESENT_SRC_KHR`.
+            // The render pass expects the image back in `GENERAL`.
             let back_to_present = vk::ImageMemoryBarrier::default()
                 .old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
-                .new_layout(vk::ImageLayout::PRESENT_SRC_KHR)
+                .new_layout(vk::ImageLayout::GENERAL)
                 .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .image(image)
@@ -693,18 +703,27 @@ pub fn render_frame(
             .reset_fences(&[frame.in_flight])
             .expect("fence reset");
     }
+    // Self-presented contexts (evdi) never call acquire_next_image (see step 6
+    // above), so frame.image_available is never signaled — waiting on it here
+    // would deadlock the GPU queue forever. There's also no queue_present to
+    // wait on frame.render_done, so it must not be signaled either: binary
+    // semaphores can't be signaled twice without an intervening wait, and the
+    // next frame's submit would otherwise hit an already-signaled semaphore.
     let wait_sems = [frame.image_available];
     let signal_sems = [frame.render_done];
     let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
     let cbs = [cb];
+    let mut submit_info = vk::SubmitInfo::default().command_buffers(&cbs);
+    if !ctx.self_presented {
+        submit_info = submit_info
+            .wait_semaphores(&wait_sems)
+            .wait_dst_stage_mask(&wait_stages)
+            .signal_semaphores(&signal_sems);
+    }
     unsafe {
         if let Err(e) = ctx.device.queue_submit(
             ctx.graphics_queue,
-            &[vk::SubmitInfo::default()
-                .wait_semaphores(&wait_sems)
-                .wait_dst_stage_mask(&wait_stages)
-                .command_buffers(&cbs)
-                .signal_semaphores(&signal_sems)],
+            &[submit_info],
             frame.in_flight,
         ) {
             log::error!(
@@ -732,27 +751,33 @@ pub fn render_frame(
     }
 
     // ── 9. Present ────────────────────────────────────────────────────────────
-    let present_ids = [this_present_id];
-    let mut present_id_ext = vk::PresentIdKHR::default().present_ids(&present_ids);
-    let swapchains = [ctx.swapchain];
-    let image_indices_arr = [image_index];
-    let mut present_info = vk::PresentInfoKHR::default()
-        .wait_semaphores(&signal_sems)
-        .swapchains(&swapchains)
-        .image_indices(&image_indices_arr);
-    if ctx.present_wait.is_some() {
-        present_info = present_info.push_next(&mut present_id_ext);
-    }
-    match unsafe {
-        ctx.swapchain_loader
-            .queue_present(ctx.graphics_queue, &present_info)
-    } {
-        Ok(_) | Err(vk::Result::SUBOPTIMAL_KHR) => {}
-        Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
-            rs.timing.frame_index = rs.timing.frame_index.wrapping_add(1);
-            return (None, platform_output);
+    // Self-presented contexts (evdi) have no presentation engine to hand the
+    // image to — it was already copied out by the readback above, and evdi
+    // pushes it to the DisplayLink output itself, entirely outside Vulkan
+    // (see evdi_render_loop.rs). Nothing to do here.
+    if !ctx.self_presented {
+        let present_ids = [this_present_id];
+        let mut present_id_ext = vk::PresentIdKHR::default().present_ids(&present_ids);
+        let swapchains = [ctx.swapchain];
+        let image_indices_arr = [image_index];
+        let mut present_info = vk::PresentInfoKHR::default()
+            .wait_semaphores(&signal_sems)
+            .swapchains(&swapchains)
+            .image_indices(&image_indices_arr);
+        if ctx.present_wait.is_some() {
+            present_info = present_info.push_next(&mut present_id_ext);
         }
-        Err(e) => panic!("queue_present: {e}"),
+        match unsafe {
+            ctx.swapchain_loader
+                .queue_present(ctx.graphics_queue, &present_info)
+        } {
+            Ok(_) | Err(vk::Result::SUBOPTIMAL_KHR) => {}
+            Err(vk::Result::ERROR_OUT_OF_DATE_KHR) => {
+                rs.timing.frame_index = rs.timing.frame_index.wrapping_add(1);
+                return (None, platform_output);
+            }
+            Err(e) => panic!("queue_present: {e}"),
+        }
     }
     let submit_us = t_submit_start.elapsed().as_micros() as u32;
 

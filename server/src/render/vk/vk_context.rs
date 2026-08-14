@@ -61,6 +61,21 @@ pub struct VkContext {
     /// creation with VK_SURFACE_COUNTER_VBLANK_BIT_EXT.  Needed by
     /// recreate_swapchain to re-enable the counter on new swapchains.
     pub surface_counter_enabled: bool,
+    /// True when `swapchain_images`/`swapchain_image_views` are plain images
+    /// this `VkContext` allocated and owns directly, not images backed by a
+    /// real `vk::SwapchainKHR` presentation engine — see the evdi backend's
+    /// `evdi_init.rs`, which builds a `VkContext` this way to work around a
+    /// Mesa v3dv WSI headless-surface bug. `swapchain`/`surface` stay
+    /// `VK_NULL_HANDLE` in that case — per the Vulkan spec, `VK_NULL_HANDLE`
+    /// is always a legal, no-op value for a destroy command's
+    /// object-to-destroy parameter, so the unconditional destroy calls
+    /// below need no extra guard — and `render_frame()` skips `acquire_next_image`/
+    /// `queue_present` entirely when this is true.
+    pub self_presented: bool,
+    /// Backing memory for `swapchain_images` when `self_presented` is true —
+    /// empty otherwise. A real swapchain's images are freed implicitly by
+    /// `vkDestroySwapchainKHR`; self-owned ones need their memory freed here.
+    pub owned_image_memory: Vec<vk::DeviceMemory>,
 }
 
 impl Drop for VkContext {
@@ -96,6 +111,18 @@ impl Drop for VkContext {
             self.device.destroy_render_pass(self.egui_render_pass, None);
             for &view in &self.swapchain_image_views {
                 self.device.destroy_image_view(view, None);
+            }
+            // A real swapchain's images are owned by the presentation engine and
+            // freed implicitly by destroy_swapchain below; self-owned ones (evdi)
+            // need to be destroyed and their memory freed explicitly here.
+            if self.self_presented {
+                log::debug!("vstimd: [drop] destroy self-owned images + memory");
+                for &image in &self.swapchain_images {
+                    self.device.destroy_image(image, None);
+                }
+                for &mem in &self.owned_image_memory {
+                    self.device.free_memory(mem, None);
+                }
             }
             log::debug!("vstimd: [drop] destroy command pool");
             self.device.destroy_command_pool(self.command_pool, None);
@@ -461,6 +488,8 @@ pub fn build_context(
         debug_utils,
         display_control: display_control_loader,
         surface_counter_enabled: use_display_control,
+        self_presented: false,
+        owned_image_memory: Vec::new(),
     }
 }
 

@@ -201,11 +201,11 @@ writing requires the `vstimd-admin` login.
     Requires `cifs-utils`. A desktop file manager can also open
     `smb://vstimd-a1b2c3.local/` directly via gvfs.
 
-!!! note "The rig will not show up in Explorer's Network list"
-    Type the path in directly. Samba announces itself over NetBIOS, while modern
-    Windows populates that browse list from WS-Discovery — so the icon never
-    appears even though `\\vstimd-a1b2c3` connects fine. Installing `wsdd` on the
-    rig (`sudo apt install wsdd`) is what makes it visible there.
+!!! info "The rig shows up in Explorer's Network list"
+    Samba announces itself over NetBIOS, but modern Windows builds that list
+    from WS-Discovery instead — so the image also ships `wsdd2`, enabled by
+    default, to cover that. On a hand-built rig without it, `\\vstimd-a1b2c3`
+    still connects fine typed directly; only the icon is missing.
 
 After editing the rig config, restart the service so it takes effect:
 
@@ -249,7 +249,7 @@ re-flashing for a new rig or a failed card.
 | Boot | Default target set to `vstimd.target`; `vstimd`, `vstimd-hostname`, and `gpiochip-daqd` enabled |
 | Rig config | `/usr/share/braemons/vstimd/raspberry-pi-5.toml` installed as `/etc/braemons/vstimd-rig-config.toml` (not the generic all-commented-out default) |
 | GPIO config | `raspberry-pi-5_in16_out4.toml` installed as `/etc/braemons/gpiochip-daqd-config.toml` |
-| Services | `sshd`, `smbd`/`nmbd` with both shares, `avahi-daemon` |
+| Services | `sshd`, `smbd`/`nmbd` with both shares, `avahi-daemon`, `wsdd2` |
 | Login | `vstimd-admin` in `sudo`, password change forced at first login, Samba password kept in sync by a `pam_exec` hook |
 | Updates | `/etc/apt/sources.list.d/braemons.sources` + `/etc/apt/keyrings/braemons.asc`, plus an unattended-upgrade conffile policy so a headless rig never hangs on a dpkg prompt |
 | DisplayLink | `displaylink-driver` with `evdi` pinned to 1.14.16 and DKMS-built for both shipped kernels (see [caveats](../developer/platform-notes.md)) |

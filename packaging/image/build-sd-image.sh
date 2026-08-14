@@ -187,7 +187,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool
+apt-get install -y --no-install-recommends openssh-server samba avahi-daemon wsdd2 ethtool
 
 # smb.conf's 'unix password sync' + 'passwd program' below already sync
 # Samba -> Unix (running smbpasswd, or changing the password from a Windows
@@ -411,10 +411,6 @@ rm -f /usr/sbin/uname
 # /etc/braemons (the rig config and any saved stimulus configs) and
 # /var/lib/braemons, which is exactly what an upgrade must preserve:
 # vstimd-rig-config.toml is a dpkg conffile, so local edits survive.
-#
-# Moved ahead of the Mesa install below (it used to sit right before the admin
-# user is created, near the end of this script) because that install now
-# prefers pulling from this same archive — see the comment there.
 if [ -f /root/braemons-archive-keyring.asc ]; then
     # Kept ASCII-armored as .asc, which apt reads directly — dearmoring would
     # need gpg(1), which is not guaranteed present on a Lite image.
@@ -446,61 +442,9 @@ Dpkg::Options {
 APT_CONF
 
     # The top-level 'apt-get update' ran before this source existed; refresh
-    # so the Mesa install below can actually see its index.
+    # so the vstimd .deb install below can resolve deps from it.
     apt-get update
 fi
-
-# Install a known-good Mesa build before resolving the vstimd .deb's deps
-# below, rather than letting 'apt-get install -y -f' satisfy
-# libvulkan1/mesa-vulkan-drivers from whatever's enabled — on this image that
-# pulls in 26.2.0, which breaks evdi's headless Vulkan swapchain
-# (vkCreateSwapchainKHR -> ERROR_OUT_OF_DEVICE_MEMORY on the v3dv driver,
-# 100% reproducible, unrelated to memory pressure) while HDMI/DRM output
-# still works. 25.0.7-2+rpt4+deb13u1 is confirmed working on another device
-# with the same evdi hardware.
-#
-# A previous version of this fix pinned that version via
-# /etc/apt/preferences.d (Pin: version 25.0.7-2+rpt4*, Pin-Priority: 1001).
-# That doesn't survive the version being retired from the index: apt only
-# ever resolves against the *currently published* Packages index, and
-# archive.raspberrypi.com's trixie/main suite (not just trixie-backports) has
-# since moved on to serving 26.2.0-1~bpo13+0~rpt2 as the only candidate for
-# every mesa-source package — 25.0.7-2+rpt4* has no candidate in any enabled
-# repo any more. A priority-1001 pin for a version apt has no candidate for
-# is simply inert: apt doesn't error, it has nothing to prefer, and falls
-# through to whatever *is* available — which is exactly how the CI build for
-# the alpha8 image still ended up installing 26.2.0 despite the pin.
-# deb.debian.org's own trixie archive still carries a 25.0.7, but as
-# 25.0.7-2+deb13u1 — a plain Debian build without whatever RPi Foundation's
-# "+rpt4" patches carry for the V3D driver, i.e. not the build that was
-# actually confirmed working on this hardware.
-#
-# The next version of this fix curled the known-good .deb directly from
-# archive.raspberrypi.com's pool (old pool files survive there after the
-# Packages index rotates past them, so this worked) — but that depends on the
-# pool file staying reachable indefinitely, which archive.raspberrypi.com
-# doesn't promise. braemons/packages (the same archive configured above for
-# in-place updates) now vendors this exact version into every suite's pool
-# instead — see pinned-packages.txt there — so ask apt for the exact version
-# by name first, which is satisfied from wherever it's actually available.
-# Until that archive has been published with the pin (or if updates are
-# disabled on this image entirely, see the 'if' above), fall straight back to
-# the direct pool download so the build still succeeds.
-MESA_VERSION="25.0.7-2+rpt4+deb13u1"
-if ! apt-get install -y --allow-downgrades "mesa-vulkan-drivers=\${MESA_VERSION}"; then
-    echo "==> mesa-vulkan-drivers \${MESA_VERSION} not available from any configured apt source yet -- falling back to archive.raspberrypi.com's pool directly" >&2
-    curl -fL -o "/root/mesa-vulkan-drivers_\${MESA_VERSION}_arm64.deb" \
-        "http://archive.raspberrypi.com/debian/pool/main/m/mesa/mesa-vulkan-drivers_\${MESA_VERSION}_arm64.deb"
-    dpkg -i "/root/mesa-vulkan-drivers_\${MESA_VERSION}_arm64.deb" || true
-    apt-get install -y -f
-    rm -f "/root/mesa-vulkan-drivers_\${MESA_VERSION}_arm64.deb"
-fi
-# Local hold, independent of which source it came from: nothing installed
-# afterwards -- including 'apt-get install -y -f' a few lines down, which
-# resolves braemons-vstimd's own libvulkan1/mesa-vulkan-drivers dependency --
-# can pull 26.x back in on this machine, and it survives a future 'apt
-# upgrade' on a deployed rig too.
-apt-mark hold mesa-vulkan-drivers
 
 # vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
 # creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
@@ -635,7 +579,7 @@ vstimd appliance
 
 MOTD_EOF
 
-systemctl enable smbd nmbd avahi-daemon
+systemctl enable smbd nmbd avahi-daemon wsdd2
 
 systemctl enable vstimd vstimd-hostname gpiochip-daqd
 # Appliance behaviour: boot straight into vstimd.target instead of the

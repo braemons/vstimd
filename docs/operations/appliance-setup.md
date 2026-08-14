@@ -241,7 +241,8 @@ stim-configs with no credentials at all.
 From Windows, reach the shares by typing `\\vstimd-XXXXXX\vstimd-config` into
 Explorer. The rig will not appear on its own in Explorer's *Network* list:
 Samba announces over NetBIOS, and modern Windows builds that list from
-WS-Discovery. `sudo apt install wsdd` on the rig if you want the icon.
+WS-Discovery. `sudo apt install wsdd2 && sudo systemctl enable --now wsdd2` on
+the rig if you want the icon — `wsdd` itself is gone from Debian as of trixie.
 
 ## 7. Boot straight into vstimd
 
