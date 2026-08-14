@@ -1,6 +1,7 @@
 from .test_animations import *  # noqa: F401, F403
 from .test_circle import *      # noqa: F401, F403
 from .test_config import *      # noqa: F401, F403
+from .test_demo_examples import *  # noqa: F401, F403
 from .test_ellipse import *     # noqa: F401, F403
 from .test_grating import *     # noqa: F401, F403
 from .test_polygon import *     # noqa: F401, F403
