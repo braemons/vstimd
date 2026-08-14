@@ -194,17 +194,17 @@ impl SceneState {
     /// [`super::animation::cancel_one`]. A `Running` animation applies its
     /// configured `cancel_action` (which may be empty for a hard abort) and
     /// ends in `Done`; an `Armed` one is stopped before it starts. For
-    /// `CANCEL_ACTION_TRIGGER_LINE`, `output_pending` receives the pulse on
-    /// `cancel_action_trigger_line`; callers outside the render loop pass a
-    /// scratch buffer seeded from `VtlState::staged`. Returns false if the
-    /// handle is unknown.
+    /// `CANCEL_ACTION_TRIGGER_LINE`, `outputs.pulses` receives the pulse on
+    /// `cancel_action_trigger_line`; callers outside the render loop pass
+    /// scratch buffers seeded from `VtlState::staged`/`pulses`. Returns false if
+    /// the handle is unknown.
     /// Shared by `cmd_cancel_animation` and the overlay UI.
     pub fn cancel_animation(
         &mut self,
         handle: u32,
-        output_pending: &mut [u64; vtl::MAX_BANKS],
+        outputs: &mut crate::vtl_state::VtlOutputs<'_>,
     ) -> bool {
-        super::animation::cancel_one(handle, self, output_pending)
+        super::animation::cancel_one(handle, self, outputs)
     }
 
     /// Remove an animation, releasing any flicker hold if it was running.
@@ -238,13 +238,14 @@ impl SceneState {
     /// `input_edges`    — rising/falling/current input lines from `VtlState::poll()`
     /// `output_edges`   — rising/falling/current output lines from `VtlState::output_edges()`,
     ///                    used to start/cancel/couple animations off output-line edges
-    /// `output_pending` — `VtlState::staged` passed by value; animations set/clear bits directly;
-    ///                    written back to staged after all animations have run
+    /// `outputs`        — the two output channels: `levels` (`VtlState::staged`, held until
+    ///                    cleared) and `pulses` (one frame, then LOW). Both are passed by
+    ///                    value and written back after all animations have run.
     pub fn advance_animations(
         &mut self,
         input_edges: &crate::vtl_state::VtlEdges,
         output_edges: &crate::vtl_state::VtlEdges,
-        output_pending: &mut [u64; vtl::MAX_BANKS],
+        outputs: &mut crate::vtl_state::VtlOutputs<'_>,
     ) {
         // Snapshot the handles into a reused buffer: `advance_one` borrows the
         // whole `SceneState` mutably, so we can't iterate `self.animations`
@@ -258,7 +259,7 @@ impl SceneState {
                 self,
                 input_edges,
                 output_edges,
-                output_pending,
+                outputs,
             );
         }
         self.runtime.anim_scratch = handles;

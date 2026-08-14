@@ -192,6 +192,35 @@ pub struct VtlConfig {
     pub names: Vec<VtlNameEntry>,
 }
 
+/// The two output channels an animation can write during one frame.
+///
+/// `levels` is the persistent state (`VtlState::staged`): a bit set here stays
+/// HIGH until something clears it. `pulses` lasts exactly one frame — it is
+/// OR-ed into the committed output at the next [A] and dropped, so each
+/// occurrence produces its own rising edge instead of latching the line HIGH
+/// forever on the first one.
+pub struct VtlOutputs<'a> {
+    pub levels: &'a mut [u64; MAX_BANKS],
+    pub pulses: &'a mut [u64; MAX_BANKS],
+}
+
+impl VtlOutputs<'_> {
+    /// Mark `bit` for one frame — an event mark for a recording system.
+    pub fn pulse(&mut self, bit: VtlBit) {
+        self.pulses[bit.bank] |= 1u64 << bit.bit;
+    }
+
+    /// Drive `bit` HIGH and hold it until something clears it.
+    pub fn set_level(&mut self, bit: VtlBit) {
+        self.levels[bit.bank] |= 1u64 << bit.bit;
+    }
+
+    /// Drive `bit` LOW.
+    pub fn clear_level(&mut self, bit: VtlBit) {
+        self.levels[bit.bank] &= !(1u64 << bit.bit);
+    }
+}
+
 #[derive(Default, Clone)]
 pub struct VtlEdges {
     pub rising:  [u64; MAX_BANKS],
@@ -203,9 +232,17 @@ pub struct VtlState {
     pub config:  VtlConfig,
     /// Vblank trigger bit from rig-config; None disables the trigger.
     pub vblank_vtl: Option<VtlBit>,
-    /// Persistent output state committed to shm at [A] each frame.
-    /// Animations and ZMQ commands both write here; never reset between frames.
+    /// Persistent output *level* state committed to shm at [A] each frame.
+    /// Levels are held until something clears them: ZMQ/overlay writes, and the
+    /// animation `DONE_LEVEL` action. Never reset between frames.
     pub staged:  [u64; MAX_BANKS],
+    /// One-frame *pulses* produced by animations during the previous frame,
+    /// OR-ed into the level state by the next `commit_staged` and cleared
+    /// immediately after. This is what keeps an event mark an edge: a bit an
+    /// animation does not re-assert falls LOW at the next commit, so a
+    /// recording system sees one rising edge per occurrence rather than a line
+    /// that latches HIGH on the first trial and never moves again.
+    pub pulses:  [u64; MAX_BANKS],
     owner:       VtlOwner,
     prev_input:  [u64; MAX_BANKS],
     prev_output: [u64; MAX_BANKS],
@@ -226,6 +263,7 @@ impl VtlState {
             config: VtlConfig::default(),
             vblank_vtl: None,
             staged:      [0; MAX_BANKS],
+            pulses:      [0; MAX_BANKS],
             owner,
             prev_input:  [0; MAX_BANKS],
             prev_output: [0; MAX_BANKS],
@@ -238,11 +276,16 @@ impl VtlState {
 
     /// Commit `staged` to shm and signal daqd.
     /// Called at [A] once per frame from the render thread.
-    pub fn commit_staged(&self) {
+    /// Write the committed output state — levels plus the pulses accumulated
+    /// during the previous frame — to shm, then drop the pulses so they fall
+    /// LOW at the next commit one frame later.
+    pub fn commit_staged(&mut self) {
         let n = self.owner.num_output_banks() as usize;
-        for (bank, &val) in self.staged.iter().enumerate().take(n.min(MAX_BANKS)) {
-            self.owner.set_output_state(bank, val);
+        for bank in 0..n.min(MAX_BANKS) {
+            self.owner
+                .set_output_state(bank, self.staged[bank] | self.pulses[bank]);
         }
+        self.pulses = [0; MAX_BANKS];
         self.owner.signal_output();
     }
 

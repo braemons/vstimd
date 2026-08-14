@@ -18,6 +18,12 @@ pub struct AnimationConfig {
     pub final_action: FinalAction,
     /// Output line to pulse for one frame when `FINAL_ACTION_TRIGGER_LINE` is set.
     pub final_action_trigger_line: Option<VtlBit>,
+    /// Output line driven HIGH on completion (and LOW again when the animation
+    /// next starts) when `DONE_LEVEL` is set. Separate from
+    /// `final_action_trigger_line` so one animation can mark the moment on one
+    /// line and hold the state on another.
+    #[serde(default)]
+    pub final_action_level_line: Option<VtlBit>,
     /// If `Some`, the animation waits for this edge before starting.
     pub start_trigger: Option<(VtlBit, VtlEdge)>,
     /// If `Some`, this input edge cancels the animation while it is `Armed` or
@@ -79,6 +85,7 @@ impl AnimationEntry {
                 start_action_trigger_line: None,
                 final_action: FinalAction::empty(),
                 final_action_trigger_line: None,
+                final_action_level_line: None,
                 start_trigger: None,
                 cancel_trigger: None,
                 cancel_action: CancelAction::empty(),

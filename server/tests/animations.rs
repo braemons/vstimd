@@ -19,7 +19,7 @@ use vstimd::scene::{
         Transform2D,
     },
 };
-use vstimd::vtl_state::{VtlEdge, VtlBit, VtlEdges};
+use vstimd::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -41,15 +41,34 @@ fn advance_with(scene: &mut SceneState, edges: &VtlEdges) -> [u64; vtl::MAX_BANK
     advance_with_edges(scene, edges, &no_edges())
 }
 
-/// Advance by one frame with explicit input and output edges.  Returns output_pending.
+/// Advance by one frame with explicit input and output edges. Returns what the
+/// next commit would publish: the levels written this frame OR the pulses raised
+/// during it. Tests that care which channel a bit came from use
+/// [`advance_channels`].
 fn advance_with_edges(
     scene: &mut SceneState,
     input_edges: &VtlEdges,
     output_edges: &VtlEdges,
 ) -> [u64; vtl::MAX_BANKS] {
-    let mut out = no_outputs();
-    scene.advance_animations(input_edges, output_edges, &mut out);
-    out
+    let (levels, pulses) = advance_channels(scene, input_edges, output_edges);
+    std::array::from_fn(|i| levels[i] | pulses[i])
+}
+
+/// Advance one frame, returning the two output channels separately:
+/// `(levels, pulses)`.
+fn advance_channels(
+    scene: &mut SceneState,
+    input_edges: &VtlEdges,
+    output_edges: &VtlEdges,
+) -> ([u64; vtl::MAX_BANKS], [u64; vtl::MAX_BANKS]) {
+    let mut levels = no_outputs();
+    let mut pulses = no_outputs();
+    scene.advance_animations(
+        input_edges,
+        output_edges,
+        &mut VtlOutputs { levels: &mut levels, pulses: &mut pulses },
+    );
+    (levels, pulses)
 }
 
 /// Create a rect stimulus and return its handle.  Starts with `enabled=true`.

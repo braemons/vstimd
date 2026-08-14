@@ -65,15 +65,19 @@ for a trigger that never arrives.
 | `demo_gratings_triggered` | `in_pin11` | 11 | rising edge → show the 45° grating for 2 s |
 | | `out_pin36` | 36 | pulses at 45° onset |
 | | `out_pin37` | 37 | pulses when the 45° flash ends |
+| | `out_pin35` | 35 | HIGH from the end of the 45° flash until the next one starts |
 | | `in_pin12` | 12 | rising edge → show the 135° grating for 2 s |
 | | `out_pin38` | 38 | pulses at 135° onset |
 | | `out_pin40` | 40 | pulses when the 135° flash ends |
+| | `out_pin32` | 32 | HIGH from the end of the 135° flash until the next one starts |
 | `demo_moving_target` | `out_pin36` | 36 | pulses at the end of every sweep |
 | `demo_trigger_gate` | `in_pin7` | 7 | HIGH → patch visible, LOW → hidden |
 
 Output pulses are one frame wide and are committed right after the vblank the
 stimulus becomes visible on, which is what makes them usable as event marks —
-see [Frame timing](../concepts/frame-timing.md).
+see [Frame timing](../concepts/frame-timing.md). The `out_pin35` / `out_pin32`
+lines show the other mode: a level that holds the "finished" state until the
+next presentation starts, for a client that polls rather than timestamps.
 
 !!! note "Durations are counted in frames"
 

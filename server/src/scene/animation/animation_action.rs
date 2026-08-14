@@ -12,7 +12,7 @@ bitflags::bitflags! {
 
 bitflags::bitflags! {
     #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
-    pub struct FinalAction: u8 {
+    pub struct FinalAction: u16 {
         const DISABLE                 = 0x01;
         /// Return to `Armed` on completion instead of `Done`, so the animation
         /// waits for its `start_trigger` again and fires on every edge rather
@@ -26,6 +26,14 @@ bitflags::bitflags! {
         const REVERSE                 = 0x20;
         const RESTORE_STATE           = 0x40;
         const END_DEFERRED            = 0x80;
+        /// Drive `final_action_level_line` HIGH on completion and leave it
+        /// there — a level answering "has this finished since it last
+        /// started?", readable at any time rather than only at the instant it
+        /// happens. Cleared when the animation next starts, so each run
+        /// re-arms the answer. Independent of
+        /// `FINAL_ACTION_TRIGGER_LINE`, which marks the moment instead; both
+        /// can be set, on separate lines.
+        const DONE_LEVEL              = 0x100;
     }
 }
 
@@ -64,7 +72,7 @@ impl serde::Serialize for FinalAction {
 }
 impl<'de> serde::Deserialize<'de> for FinalAction {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Ok(Self::from_bits_truncate(u8::deserialize(d)?))
+        Ok(Self::from_bits_truncate(u16::deserialize(d)?))
     }
 }
 
@@ -85,6 +93,6 @@ impl CancelAction {
     /// trigger-line bit maps to `FINAL_ACTION_TRIGGER_LINE`, driving whichever
     /// trigger line the caller passes.
     pub fn as_final_action(self) -> FinalAction {
-        FinalAction::from_bits_truncate(self.bits())
+        FinalAction::from_bits_truncate(self.bits() as u16)
     }
 }

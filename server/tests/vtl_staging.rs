@@ -1,13 +1,16 @@
-/// Tests for VtlState staged output buffer behaviour.
+/// Tests for VtlState output behaviour, which has two channels:
 ///
-/// Key invariant: `staged` is never reset to zero between frames.
-/// ZMQ writes via `set_staged_bit`/`set_staged_bank` persist until explicitly
-/// cleared.  Animation trigger writes accumulate into staged and also persist.
+/// * `staged` — levels. Never reset between frames: ZMQ writes via
+///   `set_staged_bit`/`set_staged_bank`, and the animation `DONE_LEVEL` action,
+///   persist until something clears them.
+/// * `pulses` — one-frame event marks. An animation's start/final/cancel trigger
+///   line lands here, is published by the next `commit_staged`, and falls LOW
+///   immediately after, so every occurrence produces its own edge.
 use vstimd::scene::{
     SceneState,
     animation::{Animation, AnimationEntry, FinalAction, StartAction},
 };
-use vstimd::vtl_state::{VtlBit, VtlEdges};
+use vstimd::vtl_state::{VtlBit, VtlEdges, VtlOutputs};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -19,13 +22,32 @@ fn bit(bank: usize, b: u8) -> VtlBit {
     VtlBit { bank, bit: b, kind: vtl::VtlKind::Output }
 }
 
-/// Simulate the render loop's copy-advance-writeback pattern.
-/// Returns the new staged value after animations have run.
+/// Simulate the render loop's copy-advance-writeback pattern for the level
+/// channel. Pulses are dropped, as the real commit does one frame later.
 fn advance_staged(
     scene: &mut SceneState,
     staged: &mut [u64; vtl::MAX_BANKS],
 ) {
-    scene.advance_animations(&no_edges(), &VtlEdges::default(), staged);
+    let mut pulses = [0u64; vtl::MAX_BANKS];
+    scene.advance_animations(
+        &no_edges(),
+        &VtlEdges::default(),
+        &mut VtlOutputs { levels: staged, pulses: &mut pulses },
+    );
+}
+
+/// Advance one frame and return just the pulses raised during it.
+fn advance_pulses(
+    scene: &mut SceneState,
+    staged: &mut [u64; vtl::MAX_BANKS],
+) -> [u64; vtl::MAX_BANKS] {
+    let mut pulses = [0u64; vtl::MAX_BANKS];
+    scene.advance_animations(
+        &no_edges(),
+        &VtlEdges::default(),
+        &mut VtlOutputs { levels: staged, pulses: &mut pulses },
+    );
+    pulses
 }
 
 // ── VtlState::set_staged_bit / set_staged_bank ────────────────────────────────
@@ -119,9 +141,15 @@ mod vtl_state_tests {
         vtl.commit_staged();
         let input_edges = vtl.poll();
         let output_edges = vtl.output_edges();
-        let mut staged = vtl.staged;
-        scene.advance_animations(&input_edges, &output_edges, &mut staged);
-        vtl.staged = staged;
+        let mut levels = vtl.staged;
+        let mut pulses = vtl.pulses;
+        scene.advance_animations(
+            &input_edges,
+            &output_edges,
+            &mut VtlOutputs { levels: &mut levels, pulses: &mut pulses },
+        );
+        vtl.staged = levels;
+        vtl.pulses = pulses;
     }
 
     fn state(scene: &SceneState, h: u32) -> &AnimState {
@@ -163,9 +191,9 @@ mod vtl_state_tests {
         assert!(matches!(state(&scene, a), AnimState::Running { .. }), "A running");
         assert_eq!(state(&scene, b), &AnimState::Armed, "B waits");
 
-        frame(&mut vtl, &mut scene); // frame 1: A done, writes bit 5
+        frame(&mut vtl, &mut scene); // frame 1: A done, pulses bit 5
         assert_eq!(state(&scene, a), &AnimState::Done, "A done on frame 1");
-        assert_ne!(vtl.staged[0] & (1 << 5), 0, "A staged output bit 5");
+        assert_ne!(vtl.pulses[0] & (1 << 5), 0, "A pulsed output bit 5");
         assert_eq!(state(&scene, b), &AnimState::Armed,
             "B not started same frame A wrote the bit (no zero-frame cascade)");
 
@@ -236,10 +264,10 @@ mod vtl_state_tests {
             e
         });
 
-        frame(&mut vtl, &mut scene); // 0: A done (dur 1), writes bit 7; B running
+        frame(&mut vtl, &mut scene); // 0: A done (dur 1), pulses bit 7; B running
         assert_eq!(state(&scene, a), &AnimState::Done);
         assert!(matches!(state(&scene, b), AnimState::Running { .. }), "B running");
-        assert_ne!(vtl.staged[0] & (1 << 7), 0, "A staged output bit 7");
+        assert_ne!(vtl.pulses[0] & (1 << 7), 0, "A pulsed output bit 7");
 
         frame(&mut vtl, &mut scene); // 1: B sees the output edge → cancelled
         assert_eq!(state(&scene, b), &AnimState::Done, "B cancelled by A's output edge");
@@ -284,7 +312,7 @@ mod vtl_state_tests {
 // ── Animation trigger lines preserve staged state ────────────────────────────
 
 #[test]
-fn start_trigger_line_bit_persists_in_staged() {
+fn start_trigger_line_pulses_for_one_frame_only() {
     let mut scene = SceneState::new();
     let mut staged = [0u64; vtl::MAX_BANKS];
 
@@ -298,21 +326,23 @@ fn start_trigger_line_bit_persists_in_staged() {
         e
     });
 
-    // Frame 0: Armed → Running, start trigger fires → bit set in staged.
-    advance_staged(&mut scene, &mut staged);
-    assert_ne!(staged[0] & (1u64 << 4), 0, "start trigger bit set on frame 0");
+    // Frame 0: Armed → Running, start trigger fires.
+    let pulses = advance_pulses(&mut scene, &mut staged);
+    assert_ne!(pulses[0] & (1u64 << 4), 0, "start trigger did not pulse on frame 0");
+    assert_eq!(staged[0] & (1u64 << 4), 0, "a trigger-line pulse must not become a level");
 
-    // Frame 1: still running — bit must NOT be zeroed (no reset).
-    advance_staged(&mut scene, &mut staged);
-    assert_ne!(staged[0] & (1u64 << 4), 0, "bit persists on frame 1 (no reset)");
-
-    // Frame 2: done — bit still present until explicitly cleared.
-    advance_staged(&mut scene, &mut staged);
-    assert_ne!(staged[0] & (1u64 << 4), 0, "bit persists after animation done");
+    // Frames 1-2: still running, but the mark is over. A line that stayed HIGH
+    // here would give a recording system one edge per session instead of one
+    // per occurrence.
+    for frame in 1..=2 {
+        let pulses = advance_pulses(&mut scene, &mut staged);
+        assert_eq!(pulses[0] & (1u64 << 4), 0, "start trigger re-pulsed on frame {frame}");
+        assert_eq!(staged[0] & (1u64 << 4), 0, "start trigger leaked into levels");
+    }
 }
 
 #[test]
-fn final_trigger_line_bit_persists_in_staged() {
+fn final_trigger_line_pulses_for_one_frame_only() {
     let mut scene = SceneState::new();
     let mut staged = [0u64; vtl::MAX_BANKS];
 
@@ -326,13 +356,78 @@ fn final_trigger_line_bit_persists_in_staged() {
         e
     });
 
-    // Frame 0: done on first advance, final trigger fires.
-    advance_staged(&mut scene, &mut staged);
-    assert_ne!(staged[0] & (1u64 << 2), 0, "final trigger bit set when done");
+    // Frame 0: done on the first advance, final trigger fires.
+    let pulses = advance_pulses(&mut scene, &mut staged);
+    assert_ne!(pulses[0] & (1u64 << 2), 0, "final trigger did not pulse");
+    assert_eq!(staged[0] & (1u64 << 2), 0, "a trigger-line pulse must not become a level");
 
-    // Frame 1: animation is gone but bit must persist in staged.
+    // Frame 1: the animation is finished and the line is quiet again.
+    let pulses = advance_pulses(&mut scene, &mut staged);
+    assert_eq!(pulses[0] & (1u64 << 2), 0, "final trigger pulsed again after completion");
+}
+
+/// The other half of the pair: DONE_LEVEL is the sticky answer to "has it
+/// finished?", and it clears when the animation next starts so each run answers
+/// for itself.
+#[test]
+fn done_level_holds_until_the_animation_starts_again() {
+    let mut scene = SceneState::new();
+    let mut staged = [0u64; vtl::MAX_BANKS];
+    let level = 1u64 << 6;
+
+    let a = scene.add_animation({
+        let mut e = AnimationEntry::armed(
+            Animation::FlashForNFrames { duration_frames: 2 },
+            vec![],
+        );
+        e.final_action = FinalAction::DONE_LEVEL;
+        e.final_action_level_line = Some(bit(0, 6));
+        e
+    });
+
+    // Running: not finished yet, so the level stays LOW.
     advance_staged(&mut scene, &mut staged);
-    assert_ne!(staged[0] & (1u64 << 2), 0, "final trigger bit persists after animation removed");
+    assert_eq!(staged[0] & level, 0, "level went HIGH before completion");
+
+    // Completion raises it, and it stays up across later frames.
+    advance_staged(&mut scene, &mut staged);
+    assert_ne!(staged[0] & level, 0, "level did not go HIGH on completion");
+    advance_staged(&mut scene, &mut staged);
+    assert_ne!(staged[0] & level, 0, "level did not hold");
+
+    // Arming and starting again clears it: the answer is about this run.
+    scene.arm_animation(a);
+    advance_staged(&mut scene, &mut staged);
+    assert_eq!(staged[0] & level, 0, "level was not cleared when the animation restarted");
+
+    advance_staged(&mut scene, &mut staged);
+    assert_ne!(staged[0] & level, 0, "level did not go HIGH again on the second completion");
+}
+
+/// Both channels at once: the pulse marks the instant, the level answers later.
+#[test]
+fn pulse_and_level_can_be_used_together_on_separate_lines() {
+    let mut scene = SceneState::new();
+    let mut staged = [0u64; vtl::MAX_BANKS];
+
+    let _a = scene.add_animation({
+        let mut e = AnimationEntry::armed(
+            Animation::FlashForNFrames { duration_frames: 1 },
+            vec![],
+        );
+        e.final_action = FinalAction::FINAL_ACTION_TRIGGER_LINE | FinalAction::DONE_LEVEL;
+        e.final_action_trigger_line = Some(bit(0, 2));
+        e.final_action_level_line = Some(bit(0, 6));
+        e
+    });
+
+    let pulses = advance_pulses(&mut scene, &mut staged);
+    assert_ne!(pulses[0] & (1u64 << 2), 0, "the mark did not pulse");
+    assert_ne!(staged[0] & (1u64 << 6), 0, "the level did not go HIGH");
+
+    let pulses = advance_pulses(&mut scene, &mut staged);
+    assert_eq!(pulses[0] & (1u64 << 2), 0, "the mark did not fall LOW");
+    assert_ne!(staged[0] & (1u64 << 6), 0, "the level did not hold");
 }
 
 #[test]
@@ -385,12 +480,12 @@ fn cascade_prevention_unaffected_by_persistent_staged() {
         e
     });
 
-    // Frame 0: A completes and writes bit 0 into staged.
+    // Frame 0: A completes and pulses bit 0.
     // B's start_trigger sees no output edge this pass — B must stay Armed.
-    scene.advance_animations(&no_edges(), &VtlEdges::default(), &mut staged);
+    let pulses = advance_pulses(&mut scene, &mut staged);
 
     assert_eq!(scene.animations[&a].state, AnimState::Done, "A done");
-    assert_ne!(staged[0] & 1, 0, "A wrote bit 0 into staged");
+    assert_ne!(pulses[0] & 1, 0, "A pulsed bit 0");
     assert_eq!(scene.animations[&b].state, AnimState::Armed,
         "B stays Armed — A's mid-pass write is not visible as an output edge this frame");
 }

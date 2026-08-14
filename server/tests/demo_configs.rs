@@ -276,11 +276,21 @@ fn loading_the_gratings_demo_leaves_it_waiting_for_its_triggers() {
 
     let mut out;
     let no_edges = VtlEdges::default();
+    // The demo's marks are one-frame pulses, so watch that channel.
+    let advance = |scene: &mut SceneState, edges: &VtlEdges| {
+        let mut levels = [0u64; vtl::MAX_BANKS];
+        let mut pulses = [0u64; vtl::MAX_BANKS];
+        scene.advance_animations(
+            edges,
+            &VtlEdges::default(),
+            &mut vstimd::vtl_state::VtlOutputs { levels: &mut levels, pulses: &mut pulses },
+        );
+        pulses
+    };
 
     // Idle frames change nothing: the animation is waiting, not running.
     for _ in 0..3 {
-        out = [0u64; vtl::MAX_BANKS];
-        scene.advance_animations(&no_edges, &no_edges, &mut out);
+        out = advance(&mut scene, &no_edges);
         assert!(!enabled(&scene), "the grating appeared without a trigger");
         assert_eq!(out[0], 0, "an output pulsed without a trigger");
     }
@@ -289,8 +299,7 @@ fn loading_the_gratings_demo_leaves_it_waiting_for_its_triggers() {
     let mut edges = VtlEdges::default();
     edges.rising[0] = 1 << 11;
     edges.current[0] = 1 << 11;
-    out = [0; vtl::MAX_BANKS];
-    scene.advance_animations(&edges, &no_edges, &mut out);
+    out = advance(&mut scene, &edges);
     assert!(enabled(&scene), "the trigger did not show the grating");
     assert_eq!(out[0] & (1 << 36), 1 << 36, "the onset line did not pulse");
     assert_eq!(out[0] & (1 << 37), 0, "the done line pulsed at onset");
@@ -303,12 +312,10 @@ fn loading_the_gratings_demo_leaves_it_waiting_for_its_triggers() {
 
     // 120 frames total; frame 0 was the trigger frame, so 119 more end it.
     for _ in 0..118 {
-        out = [0; vtl::MAX_BANKS];
-        scene.advance_animations(&no_edges, &no_edges, &mut out);
+        advance(&mut scene, &no_edges);
         assert!(enabled(&scene), "the grating vanished before 2 s were up");
     }
-    out = [0; vtl::MAX_BANKS];
-    scene.advance_animations(&no_edges, &no_edges, &mut out);
+    out = advance(&mut scene, &no_edges);
     assert!(!enabled(&scene), "the grating was still visible after 120 frames");
     assert_eq!(out[0] & (1 << 37), 1 << 37, "the done line did not pulse");
 
@@ -319,8 +326,7 @@ fn loading_the_gratings_demo_leaves_it_waiting_for_its_triggers() {
         AnimState::Armed,
         "the flash did not re-arm after completing"
     );
-    out = [0; vtl::MAX_BANKS];
-    scene.advance_animations(&edges, &no_edges, &mut out);
+    out = advance(&mut scene, &edges);
     assert!(enabled(&scene), "the second trigger did not show the grating");
     assert_eq!(out[0] & (1 << 36), 1 << 36, "the onset line did not pulse again");
 }
@@ -340,9 +346,14 @@ fn loading_the_moving_target_demo_starts_it_moving() {
     let start = pos(&scene);
 
     let no_edges = VtlEdges::default();
-    let mut out = [0u64; vtl::MAX_BANKS];
+    let mut levels = [0u64; vtl::MAX_BANKS];
+    let mut pulses = [0u64; vtl::MAX_BANKS];
     for _ in 0..10 {
-        scene.advance_animations(&no_edges, &no_edges, &mut out);
+        scene.advance_animations(
+            &no_edges,
+            &no_edges,
+            &mut vstimd::vtl_state::VtlOutputs { levels: &mut levels, pulses: &mut pulses },
+        );
     }
     assert_ne!(pos(&scene), start, "the target never started moving");
 }

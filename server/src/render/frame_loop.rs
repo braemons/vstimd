@@ -7,6 +7,7 @@
 //! live here so a backend's loop is only the part that is actually specific
 //! to it.
 
+use crate::vtl_state::VtlOutputs;
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::render::AppKey;
@@ -104,26 +105,37 @@ pub(crate) fn overlay_raw_input(
 /// one frame.
 ///
 /// The VTL lock is taken twice on purpose, and never across the scene write
-/// lock: `staged` is copied out, animations run holding only the scene lock,
-/// then the updated `staged` is written back. Holding both at once would put
-/// the ZMQ thread behind the render thread's scene lock.
+/// lock: the output channels are copied out, animations run holding only the
+/// scene lock, then the updated channels are written back. Holding both at once
+/// would put the ZMQ thread behind the render thread's scene lock.
+///
+/// `commit_staged` has just published (and cleared) the previous frame's
+/// pulses, so `pulses` starts this frame empty and collects only what the
+/// animations mark now — that one-frame life is what keeps an event mark an
+/// edge rather than a line that latches HIGH on the first trial.
 pub(crate) fn advance_frame(vtl: Option<&Arc<Mutex<VtlState>>>, scene: &Arc<RwLock<SceneState>>) {
-    let (input_edges, output_edges, mut staged) = vtl
+    let (input_edges, output_edges, mut levels, mut pulses) = vtl
         .map(|v| {
             let mut g = v.lock().expect("vtl lock poisoned");
             g.commit_staged();
             let input_edges = g.poll();
             let output_edges = g.output_edges();
-            (input_edges, output_edges, g.staged)
+            (input_edges, output_edges, g.staged, g.pulses)
         })
         .unwrap_or_default();
 
     scene
         .write()
         .expect("scene lock poisoned")
-        .advance_animations(&input_edges, &output_edges, &mut staged);
+        .advance_animations(
+            &input_edges,
+            &output_edges,
+            &mut VtlOutputs { levels: &mut levels, pulses: &mut pulses },
+        );
 
     if let Some(v) = vtl {
-        v.lock().expect("vtl lock poisoned").staged = staged;
+        let mut g = v.lock().expect("vtl lock poisoned");
+        g.staged = levels;
+        g.pulses = pulses;
     }
 }

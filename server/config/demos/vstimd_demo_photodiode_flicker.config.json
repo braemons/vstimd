@@ -125,6 +125,7 @@
         "start_action_trigger_line": null,
         "final_action": 0,
         "final_action_trigger_line": null,
+        "final_action_level_line": null,
         "start_trigger": null,
         "cancel_trigger": null,
         "cancel_action": 0,
