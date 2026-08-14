@@ -11,7 +11,7 @@
 //! any backend dependency.
 
 use input::event::keyboard::KeyboardEventTrait as _;
-use std::os::fd::{AsRawFd as _, OwnedFd};
+use std::os::fd::{AsRawFd as _, OwnedFd, RawFd};
 use std::path::Path;
 
 use crate::render::AppKey;
@@ -91,6 +91,65 @@ impl Drop for TtyKbdGuard {
 /// `_IOC` layout (direction=write, size=4, type='E', nr=0x90).
 const EVIOCGRAB: libc::c_ulong = 0x4004_4590;
 
+/// `EVIOCGNAME(len)` — same `_IOC` layout as [`EVIOCGRAB`] but read-direction
+/// (dir=2, nr=0x06) and with a caller-chosen buffer length in the size field,
+/// so it has to be built at the call site rather than written as a constant.
+const fn eviocgname(len: u32) -> libc::c_ulong {
+    ((2 << 30) | (len << 16) | (0x45 << 8) | 0x06) as libc::c_ulong
+}
+
+/// `EVIOCGBIT(EV_KEY, len)` — reads the device's key capability bitmap.
+/// `nr` is `0x20 + ev_type`, and `EV_KEY` is 1.
+const fn eviocgbit_key(len: u32) -> libc::c_ulong {
+    ((2 << 30) | (len << 16) | (0x45 << 8) | 0x21) as libc::c_ulong
+}
+
+/// Bytes needed for a full evdev key bitmap (`KEY_CNT` = 768 bits).
+const KEY_BITMAP_BYTES: usize = 96;
+
+fn has_key(bitmap: &[u8; KEY_BITMAP_BYTES], code: usize) -> bool {
+    bitmap[code / 8] & (1 << (code % 8)) != 0
+}
+
+/// Human-readable evdev device name, for logs only.
+fn device_name(fd: RawFd) -> String {
+    let mut buf = [0u8; 256];
+    if unsafe { libc::ioctl(fd, eviocgname(buf.len() as u32), buf.as_mut_ptr()) } < 0 {
+        return "<unnamed>".to_string();
+    }
+    let end = buf.iter().position(|&b| b == 0).unwrap_or(buf.len());
+    String::from_utf8_lossy(&buf[..end]).into_owned()
+}
+
+/// True when the device is a bare power/sleep switch rather than something a
+/// person types or points with.
+///
+/// Matches the Pi 5's `gpio-keys` power button and the separate
+/// "system control" nodes many USB keyboards expose, but not the keyboard
+/// itself: the test is "advertises a power key *and* has no ordinary typing
+/// keys". A keyboard that happened to carry `KEY_POWER` on its main node
+/// still gets grabbed, which is the safe way round — a missed grab there
+/// would leak every keystroke to the console.
+fn is_power_switch(fd: RawFd) -> bool {
+    let mut keys = [0u8; KEY_BITMAP_BYTES];
+    if unsafe { libc::ioctl(fd, eviocgbit_key(KEY_BITMAP_BYTES as u32), keys.as_mut_ptr()) } < 0 {
+        // Can't tell what this is — grab it, same as before.
+        return false;
+    }
+    is_power_switch_bitmap(&keys)
+}
+
+/// The capability test behind [`is_power_switch`], split out so it can be
+/// exercised without a real device.
+fn is_power_switch_bitmap(keys: &[u8; KEY_BITMAP_BYTES]) -> bool {
+    /// `KEY_POWER`, `KEY_SLEEP`, `KEY_SUSPEND`, `KEY_POWER2`.
+    const POWER_KEYS: [usize; 4] = [116, 142, 205, 356];
+    // KEY_1 (2) through KEY_SPACE (57) spans every digit and letter.
+    const TYPING_KEYS: std::ops::RangeInclusive<usize> = 2..=57;
+
+    POWER_KEYS.iter().any(|&k| has_key(keys, k)) && !TYPING_KEYS.clone().any(|k| has_key(keys, k))
+}
+
 struct Interface;
 
 impl input::LibinputInterface for Interface {
@@ -103,6 +162,21 @@ impl input::LibinputInterface for Interface {
             .open(path)
             .map(|f| {
                 let fd: OwnedFd = f.into();
+                // The power button is an input device like any other (on the
+                // Pi 5 a `gpio-keys` node emitting KEY_POWER), so libinput
+                // opens it along with the keyboard. Grabbing it would swallow
+                // the press before systemd-logind ever saw it, leaving no way
+                // to shut the machine down while vstimd is running. Leave
+                // power switches ungrabbed: we don't act on those keys, and
+                // logind reads them in parallel — it never needs the grab.
+                if is_power_switch(fd.as_raw_fd()) {
+                    log::info!(
+                        "vstimd: leaving power switch ungrabbed: {} ({}) — logind handles it",
+                        path.display(),
+                        device_name(fd.as_raw_fd())
+                    );
+                    return fd;
+                }
                 // libinput's udev/seat backend does not itself grab devices
                 // exclusively (confirmed via strace: it opens and queries
                 // every device but never issues EVIOCGRAB) — without this,
@@ -361,4 +435,68 @@ fn evdev_to_egui_key(code: u32) -> Option<egui::Key> {
         109 => egui::Key::PageDown,   // KEY_PAGEDOWN
         _ => return None,
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Build a key bitmap advertising exactly `codes`.
+    fn bitmap(codes: &[usize]) -> [u8; KEY_BITMAP_BYTES] {
+        let mut b = [0u8; KEY_BITMAP_BYTES];
+        for &c in codes {
+            b[c / 8] |= 1 << (c % 8);
+        }
+        b
+    }
+
+    /// The Pi 5 / ACPI case this exists for: a `gpio-keys` node whose only
+    /// capability is KEY_POWER must stay ungrabbed so logind sees the press.
+    #[test]
+    fn bare_power_button_is_left_ungrabbed() {
+        assert!(is_power_switch_bitmap(&bitmap(&[116])));
+    }
+
+    /// A keyboard that also advertises KEY_POWER on its main node must still
+    /// be grabbed — otherwise every keystroke leaks to the console. Observed
+    /// on real hardware (Keychron Q11), so it is not a hypothetical.
+    #[test]
+    fn keyboard_carrying_power_key_is_still_grabbed() {
+        // KEY_A, KEY_Z, KEY_SPACE alongside KEY_POWER.
+        assert!(!is_power_switch_bitmap(&bitmap(&[30, 44, 57, 116])));
+    }
+
+    /// A keyboard's separate "system control" node (power/sleep only, no
+    /// typing keys) is a power switch by the same rule.
+    #[test]
+    fn system_control_node_is_left_ungrabbed() {
+        assert!(is_power_switch_bitmap(&bitmap(&[116, 142, 205])));
+    }
+
+    /// Mice and everything else without a power key are unaffected.
+    #[test]
+    fn mouse_is_grabbed() {
+        assert!(!is_power_switch_bitmap(&bitmap(&[272, 273, 274]))); // BTN_LEFT/RIGHT/MIDDLE
+        assert!(!is_power_switch_bitmap(&bitmap(&[])));
+    }
+
+    /// KEY_POWER2 (356) lives past the first 256 bits — a narrower bitmap
+    /// buffer would silently miss it.
+    #[test]
+    fn power2_is_within_the_bitmap() {
+        const { assert!(356 / 8 < KEY_BITMAP_BYTES) };
+        assert!(is_power_switch_bitmap(&bitmap(&[356])));
+    }
+
+    /// The read-direction `_IOC` helpers are hand-encoded; check them against
+    /// the independently known-good `EVIOCGRAB` layout.
+    #[test]
+    fn ioctl_encodings_match_the_ioc_layout() {
+        let ioc = |dir: u32, ty: u32, nr: u32, size: u32| {
+            ((dir << 30) | (size << 16) | (ty << 8) | nr) as libc::c_ulong
+        };
+        assert_eq!(EVIOCGRAB, ioc(1, 0x45, 0x90, 4));
+        assert_eq!(eviocgname(256), ioc(2, 0x45, 0x06, 256));
+        assert_eq!(eviocgbit_key(96), ioc(2, 0x45, 0x21, 96));
+    }
 }

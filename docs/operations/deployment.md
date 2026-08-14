@@ -164,6 +164,17 @@ you can switch back to your desktop; the input grab is released while vstimd is 
 background. The unit file strips `DISPLAY`, `WAYLAND_DISPLAY`, and `XDG_RUNTIME_DIR`
 (`UnsetEnvironment`) so Vulkan does not fall back to WSI.
 
+**Power button:** vstimd grabs input devices exclusively (`EVIOCGRAB`) so keystrokes
+cannot leak to the console behind the stimulus. Power and sleep switches are excluded
+from that grab — on the Raspberry Pi 5 the power button is an ordinary `gpio-keys`
+input device, and grabbing it would swallow `KEY_POWER` before `systemd-logind` saw
+it, leaving no way to shut the machine down while vstimd is running. Left ungrabbed,
+the button behaves normally: logind powers off, systemd stops `vstimd.service` with
+SIGTERM, and the usual graceful path runs (scene saved, display released, VT
+restored). The exclusion is by capability, not device name — a device counts as a
+power switch when it advertises a power/sleep key and no ordinary typing keys, so a
+keyboard that carries `KEY_POWER` on its main node is still grabbed.
+
 ### 2. Service account and device access
 
 `vstimd.service` currently runs as **`User=root`**, with
