@@ -116,6 +116,23 @@ with Connection() as conn:
     conn.vtl.set_line(pin11, False)
 ```
 
+## Building them yourself
+
+Every demo has a tutorial that rebuilds it from an empty scene with the Python
+command API, and a runnable script to go with it — see
+[Build the demos yourself](../tutorial/demos/index.md). Reading a demo backwards
+into the calls that would produce it is the fastest way to learn the API, and
+the scripts are a better starting point for your own scene than a JSON file is.
+
+| Demo | Tutorial | Script |
+|---|---|---|
+| `demo_first_light` | [First light](../tutorial/demos/first-light.md) | `examples/demos/first_light.py` |
+| `demo_drifting_grating` | [Drifting grating](../tutorial/demos/drifting-grating.md) | `examples/demos/drifting_grating.py` |
+| `demo_gratings_triggered` | [Gratings, triggers & a saved config](../tutorial/demos/gratings-triggers-config.md) | `examples/demos/gratings_triggered.py` |
+| `demo_moving_target` | [Moving target](../tutorial/demos/moving-target.md) | `examples/demos/moving_target.py` |
+| `demo_photodiode_flicker` | [Photodiode & flicker](../tutorial/demos/photodiode-flicker.md) | `examples/demos/photodiode_flicker.py` |
+| `demo_trigger_gate` | [Trigger gate](../tutorial/demos/trigger-gate.md) | `examples/demos/trigger_gate.py` |
+
 ## Making your own
 
 Load the demo that is closest to what you want, change it — from the overlay,

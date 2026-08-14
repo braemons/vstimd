@@ -100,6 +100,14 @@ nav:
       - How vstimd works — setup & triggers: tutorial/index.md
       - Setup — the command API: tutorial/command-api.md
       - Execution — triggers & animations (VTL): tutorial/vtl-and-animations.md
+      - Build the demos yourself:
+          - Overview: tutorial/demos/index.md
+          - First light: tutorial/demos/first-light.md
+          - Drifting grating: tutorial/demos/drifting-grating.md
+          - Gratings, triggers & a saved config: tutorial/demos/gratings-triggers-config.md
+          - Moving target: tutorial/demos/moving-target.md
+          - Photodiode & flicker: tutorial/demos/photodiode-flicker.md
+          - Trigger gate: tutorial/demos/trigger-gate.md
       - Integrating recording systems: tutorial/recording-integration.md
   - Concepts:
       - Frame timing: concepts/frame-timing.md

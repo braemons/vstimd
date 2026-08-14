@@ -256,6 +256,9 @@ live state.
 
 ## Next
 
+- **[Build the demos yourself](demos/index.md)** — six worked scripts that put the
+  command API and this page together, starting with
+  [gratings armed on trigger lines and saved as a config](demos/gratings-triggers-config.md).
 - **[Integrating recording systems](recording-integration.md)** — wiring VTL output
   markers into ephys/imaging clocks, and TTL inputs from DAQs and Arduinos.
 - **[Frame timing](../concepts/frame-timing.md)** — the guarantee that makes

@@ -18,6 +18,33 @@ handle paths from a client — configs are addressed by a bare **name**.
 | Background colour | |
 | VTL line **names** (the I/O map) | VTL live line levels |
 
+## Four ways to do it
+
+Saving and loading is the same operation on the same files whichever route you
+take, so use whichever is in front of you.
+
+| From | How | Good for |
+|---|---|---|
+| **The on-device overlay** | The **Config** panel (++f6++) lists the configs in the config directory; load, save, and overwrite from there | a rig with a keyboard and no client attached |
+| **The web control UI** | The config section of the browser UI served by the device — [Web control UI](../client/web.md) | setting a rig up from a laptop or a phone on the same network, with no software installed |
+| **The command-line client** | `vstimd-client config list` / `save NAME` / `load NAME` / `get` / `upload NAME FILE` — [Command-line client](../client/cli.md) | scripts, deployment, CI, and anything you want in a shell history |
+| **The Python client** | `conn.config.*` — see below | building a scene programmatically and persisting it in the same script |
+
+```console
+$ vstimd-client config list
+$ vstimd-client config save center_target -f
+$ vstimd-client config load center_target
+```
+
+All four write the same `.config.json` files into the same directory, so a scene
+saved from the overlay loads from Python, and a config uploaded from CI shows up
+in the web UI. A fifth route exists on a rig with the
+[Samba shares](../operations/appliance-setup.md#6-admin-access-ssh-optional-samba)
+installed: the config directory under `/var/lib/braemons` is exported as a
+network share — browsable by anyone on the LAN, writable with an admin account —
+so the `.config.json` files can be copied on and off the device from a lab
+Windows or macOS machine like any other files.
+
 ## From a client (`config` namespace)
 
 ```python
@@ -80,11 +107,19 @@ load_config  = "center_target"
 save_on_quit = false
 ```
 
+That section lives in the rig config, `/etc/braemons/vstimd-rig-config.toml`
+(the shipped template with every key documented is
+`server/config/default-rig-config.toml`). On a rig with the
+[Samba shares](../operations/appliance-setup.md#6-admin-access-ssh-optional-samba)
+installed, `/etc/braemons` is a network share, so pointing a rig at a different
+startup scene is a file edit from your own machine — no SSH session and no
+`vstimd-client` needed. Restart `vstimd.service` for it to take effect.
+
 An explicit `--config <path>` CLI flag overrides `[startup] load_config`. A missing
 last-session slot on first boot is a no-op (the rig starts with an empty scene), not
-an error. See the **Config** panel (F6) of the on-device overlay, or the web control
-UI, for loading configs interactively, and
-[Deployment](../operations/deployment.md) for the wider boot flow.
+an error. See [Deployment](../operations/deployment.md) for the wider boot flow, and
+[Gratings, triggers & a saved config](../tutorial/demos/gratings-triggers-config.md)
+for a worked example that ends with exactly this step.
 
 ### Where configs live, and save-on-quit archives
 
@@ -109,3 +144,5 @@ accumulate in one directory, as a nudge to clean up.
 - **[How vstimd works](../tutorial/index.md)** — where config files fit as a setup
   API alongside the command API, ahead of trigger-driven execution.
 - **[Deferred mode](deferred-mode.md)** — atomic frame flips for coordinated changes.
+- **[Build the demos yourself](../tutorial/demos/index.md)** — six scripts that each
+  end by saving the scene they built.

@@ -126,3 +126,10 @@ your ephys/imaging clock.
 | Emit a stimulus-onset marker to ephys/imaging | **Animation with an output trigger-line action** |
 | Chain one reaction into another on-device | **Animations coupled via VTL output edges** |
 | Port existing PsychoPy code with minimal edits | **[PsychoPy-compatible layer](command-api.md#psychopy-compatibility)** |
+
+## Worked examples
+
+Once the two halves make sense, **[Build the demos yourself](demos/index.md)**
+rebuilds each of the shipped [demo scenes](../getting-started/demos.md) from an
+empty scene in an annotated Python script — setup and trigger-driven execution
+in the same file, ending in a config the rig can boot into.
