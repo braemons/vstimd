@@ -1,9 +1,14 @@
 # Demo configs
 
 Ordinary stim-configs, in exactly the format `config save` writes. They are
-compiled into the binary (`io_config::DEMO_CONFIGS`) and written into the config
-dir at startup if a file of that name is not already there, so a dev checkout, a
-`.deb` install and the Raspberry Pi image all offer the same set.
+compiled into the binary (`io_config::DEMO_CONFIGS`) and installed into the
+config dir at startup, so a dev checkout, a `.deb` install and the Raspberry Pi
+image all offer the same set.
+
+Editing one of these files therefore ships a new version to every rig on the
+next start — but only to demo files the server installed and the operator never
+touched, tracked by fingerprint in a `.vstimd_demo_seed` sidecar. An operator's
+edited copy is left alone forever (they can delete it to get the update back).
 
 There is deliberately no demo-specific command or load path: a demo is loaded,
 edited and re-saved through the same `config load` / `config save` a user config

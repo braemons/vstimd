@@ -134,27 +134,101 @@ pub const DEMO_CONFIGS: &[(&str, &str)] = &[
     ),
 ];
 
-/// Write every [`DEMO_CONFIGS`] entry that is not already present in `dir`.
+/// Sidecar recording the fingerprint of each demo file this server wrote, so a
+/// later version can tell "the file I installed" from "the file the operator
+/// changed". One `name hash` pair per line; unparsable lines are ignored.
+const DEMO_STAMP_FILE: &str = ".vstimd_demo_seed";
+
+/// FNV-1a over the file bytes. Change detection only — never a security
+/// boundary — so a short non-cryptographic hash is the right size of tool.
+fn demo_fingerprint(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
+}
+
+fn read_demo_stamps(dir: &std::path::Path) -> std::collections::HashMap<String, u64> {
+    let mut stamps = std::collections::HashMap::new();
+    let Ok(raw) = std::fs::read_to_string(dir.join(DEMO_STAMP_FILE)) else {
+        return stamps;
+    };
+    for line in raw.lines() {
+        if let Some((name, hash)) = line.split_once(' ')
+            && let Ok(hash) = hash.trim().parse::<u64>()
+        {
+            stamps.insert(name.to_string(), hash);
+        }
+    }
+    stamps
+}
+
+fn write_demo_stamps(dir: &std::path::Path, stamps: &std::collections::HashMap<String, u64>) {
+    let mut lines: Vec<String> = stamps.iter().map(|(n, h)| format!("{n} {h}")).collect();
+    lines.sort();
+    // Best-effort: losing the stamp file only costs the next refresh, which
+    // then leaves the on-disk demo alone (the safe direction).
+    let _ = std::fs::write(dir.join(DEMO_STAMP_FILE), lines.join("\n") + "\n");
+}
+
+/// Install the [`DEMO_CONFIGS`] into `dir`, refreshing the ones this server
+/// previously wrote and never clobbering the ones an operator touched.
 ///
-/// Existing files are never touched: an operator who edited (or deleted and
-/// re-saved) a demo keeps their version, and a demo the operator deleted comes
-/// back on the next start — deleting it for good means saving something else
-/// under that name. Returns the names actually written; individual write errors
-/// are collected as `Err` names rather than aborting the rest, because failing
-/// to seed a demo must never stop the server from starting.
+/// Per demo:
+/// - **absent** — written, and its fingerprint recorded.
+/// - **present, byte-identical to a version we installed** — the operator never
+///   touched it, so a newer shipped version replaces it. Without this an
+///   improved demo could never reach a rig that already had the old file: the
+///   fix ships, the rig keeps the stale copy, and the demo silently behaves
+///   like the old version.
+/// - **present and modified (or unrecognised)** — left alone. An operator's
+///   edits, and any file predating the stamp sidecar, are theirs.
+///
+/// A demo the operator deletes comes back on the next start; deleting it for
+/// good means saving something else under that name.
+///
+/// Returns the names written and any per-file errors. Errors are collected
+/// rather than propagated because failing to install a demo must never stop the
+/// server from starting.
 pub fn seed_demo_configs(dir: &std::path::Path) -> (Vec<&'static str>, Vec<(&'static str, std::io::Error)>) {
     let mut written = vec![];
     let mut failed = vec![];
+    let mut stamps = read_demo_stamps(dir);
+
     for (name, json) in DEMO_CONFIGS {
         let path = config_path(dir, name);
-        if path.exists() {
-            continue;
+        let shipped = demo_fingerprint(json.as_bytes());
+        match std::fs::read(&path) {
+            Ok(on_disk) => {
+                let current = demo_fingerprint(&on_disk);
+                if current == shipped {
+                    // Already up to date; (re)record so a file restored by hand
+                    // from the shipped copy is recognised next time.
+                    stamps.insert((*name).to_string(), shipped);
+                    continue;
+                }
+                if stamps.get(*name) != Some(&current) {
+                    continue; // operator's file — hands off
+                }
+            }
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                failed.push((*name, e));
+                continue;
+            }
+            Err(_) => {} // absent — fall through and write it
         }
         match std::fs::write(&path, json) {
-            Ok(()) => written.push(*name),
+            Ok(()) => {
+                stamps.insert((*name).to_string(), shipped);
+                written.push(*name);
+            }
             Err(e) => failed.push((*name, e)),
         }
     }
+
+    write_demo_stamps(dir, &stamps);
     (written, failed)
 }
 

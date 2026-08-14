@@ -347,11 +347,38 @@ fn loading_the_moving_target_demo_starts_it_moving() {
     assert_ne!(pos(&scene), start, "the target never started moving");
 }
 
-#[test]
-fn seeding_writes_every_demo_and_never_overwrites() {
-    let dir = std::env::temp_dir().join(format!("vstimd-demo-seed-{}", std::process::id()));
+/// A scratch config dir for a seeding test. Per-test name so the cases can run
+/// in parallel without sharing a directory.
+fn seed_dir(tag: &str) -> std::path::PathBuf {
+    let dir = std::env::temp_dir().join(format!("vstimd-demo-seed-{}-{tag}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
     std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// Record `content` as the version the server installed for `name`, mirroring
+/// what `seed_demo_configs` writes into its sidecar. Lets a test stand in for
+/// "an older release wrote this file".
+fn stamp_as_installed(dir: &std::path::Path, name: &str, content: &str) {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in content.as_bytes() {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    let path = dir.join(".vstimd_demo_seed");
+    let mut lines: Vec<String> = std::fs::read_to_string(&path)
+        .unwrap_or_default()
+        .lines()
+        .filter(|l| !l.starts_with(&format!("{name} ")))
+        .map(str::to_string)
+        .collect();
+    lines.push(format!("{name} {h}"));
+    std::fs::write(&path, lines.join("\n") + "\n").unwrap();
+}
+
+#[test]
+fn seeding_writes_every_demo_and_never_overwrites() {
+    let dir = seed_dir("basic");
 
     let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
     assert!(failed.is_empty(), "seed errors: {failed:?}");
@@ -361,12 +388,86 @@ fn seeding_writes_every_demo_and_never_overwrites() {
         assert!(listed.contains(&name.to_string()), "'{name}' is not listed after seeding");
     }
 
+    // Seeding again is a no-op: nothing is rewritten, nothing errors.
+    let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(written.is_empty() && failed.is_empty(), "re-seeding rewrote files");
+
     // An operator's edit survives the next start.
     let edited = vstimd::io_config::config_path(&dir, DEMO_CONFIGS[0].0);
     std::fs::write(&edited, "edited by the operator").unwrap();
     let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
     assert!(written.is_empty() && failed.is_empty());
     assert_eq!(std::fs::read_to_string(&edited).unwrap(), "edited by the operator");
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// A demo the server installed and the operator never touched must be replaced
+/// when the shipped version changes — otherwise a fixed demo never reaches a rig
+/// that already has the old file, and it silently keeps behaving like the old
+/// version. This is what happened when REARM was added to the gratings demo.
+#[test]
+fn seeding_refreshes_an_untouched_demo_that_changed_upstream() {
+    let (name, shipped) = DEMO_CONFIGS[0];
+    let dir = seed_dir("refresh");
+    let path = vstimd::io_config::config_path(&dir, name);
+
+    vstimd::io_config::seed_demo_configs(&dir);
+
+    // Simulate "the server shipped an older version of this demo": rewrite the
+    // file with different content and stamp it as ours.
+    let older = shipped.replace("\"version\": 2", "\"version\":  2");
+    assert_ne!(older, shipped, "the stand-in for an older demo is not different");
+    std::fs::write(&path, &older).unwrap();
+    stamp_as_installed(&dir, name, &older);
+
+    let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(failed.is_empty(), "seed errors: {failed:?}");
+    assert!(written.contains(&name), "'{name}' was not refreshed");
+    assert_eq!(
+        std::fs::read_to_string(&path).unwrap(),
+        shipped,
+        "the refreshed file is not the shipped version"
+    );
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// The refresh must not reach files the server never wrote — a config dir that
+/// predates the stamp sidecar is all operator content as far as we know.
+#[test]
+fn seeding_leaves_an_unstamped_file_alone() {
+    let (name, _) = DEMO_CONFIGS[0];
+    let dir = seed_dir("unstamped");
+    let path = vstimd::io_config::config_path(&dir, name);
+    std::fs::write(&path, "someone else's file").unwrap();
+
+    let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(failed.is_empty(), "seed errors: {failed:?}");
+    assert!(!written.contains(&name), "an unstamped file was overwritten");
+    assert_eq!(std::fs::read_to_string(&path).unwrap(), "someone else's file");
+
+    std::fs::remove_dir_all(&dir).unwrap();
+}
+
+/// Restoring a demo by hand from the shipped copy leaves it eligible for the
+/// next refresh, even though this server never wrote that particular file.
+#[test]
+fn seeding_adopts_a_file_identical_to_the_shipped_one() {
+    let (name, shipped) = DEMO_CONFIGS[0];
+    let dir = seed_dir("adopt");
+    let path = vstimd::io_config::config_path(&dir, name);
+    std::fs::write(&path, shipped).unwrap();
+
+    let (written, _) = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(!written.contains(&name), "an identical file was rewritten");
+
+    // Now that it is stamped, an upstream change reaches it.
+    let older = shipped.replace("\"version\": 2", "\"version\":  2");
+    std::fs::write(&path, &older).unwrap();
+    stamp_as_installed(&dir, name, &older);
+    let (written, _) = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(written.contains(&name), "the adopted file was not refreshed");
 
     std::fs::remove_dir_all(&dir).unwrap();
 }
