@@ -113,7 +113,7 @@ including cancelling a batch.
 The `system` namespace holds commands that are not addressed to one stimulus:
 
 ```python
-conn.system.set_background(Color(0.5, 0.5, 0.5))   # grey background
+conn.system.set_background(0.5, 0.5, 0.5)          # grey background (r, g, b, a=1.0)
 conn.system.set_all_enabled(False)                 # hide everything
 conn.system.delete_all()                           # clear the scene
 
@@ -173,5 +173,7 @@ win.flip()
 
 - **[Triggers & animations](vtl-and-animations.md)** — the frame-accurate,
   on-device path.
+- **[Build the demos yourself](demos/index.md)** — the shipped demo scenes,
+  rebuilt call by call in runnable scripts.
 - **[Python client reference](../client/python.md)** — the full command surface.
 - **[Deferred mode](../concepts/deferred-mode.md)** — atomic frame flips in depth.

@@ -1,0 +1,110 @@
+# Build the demos yourself
+
+The [demo scenes](../../getting-started/demos.md) are ordinary configs, so every
+one of them is something you could have built from a client. These six pages do
+exactly that: each takes one shipped demo apart and rebuilds it from an empty
+scene with the Python command API, then saves the result under a name of your
+own.
+
+That makes them the practical follow-on to the two preceding tutorials. Where
+[the command API](../command-api.md) teaches the calls and
+[triggers & animations](../vtl-and-animations.md) teaches the on-device
+execution model, these pages show both being used together to produce a scene
+you can actually run an experiment with — and then persist, so the rig can boot
+into it with no client attached.
+
+| Tutorial | Rebuilds | Teaches |
+|---|---|---|
+| [First light](first-light.md) | `demo_first_light` | shapes, text, the scene as a unit |
+| [Drifting grating](drifting-grating.md) | `demo_drifting_grating` | gratings, and motion the server owns |
+| [Gratings, triggers & a saved config](gratings-triggers-config.md) | `demo_gratings_triggered` | arming stimuli against input lines, marking onsets on output lines, saving and booting into the result |
+| [Moving target](moving-target.md) | `demo_moving_target` | path animations, looping, one pulse per repeat |
+| [Photodiode & flicker](photodiode-flicker.md) | `demo_photodiode_flicker` | frame-counted timing, the photodiode patch |
+| [Trigger gate](trigger-gate.md) | `demo_trigger_gate` | level-coupled visibility, driving a line from software |
+
+Each page has a companion script in `client/python/examples/demos/`, runnable
+as-is:
+
+```console
+$ cd client/python
+$ uv run examples/demos/first_light.py                       # tcp://localhost:5555
+$ uv run examples/demos/first_light.py tcp://vstimd-ab12.local:5555
+$ uv run examples/demos/first_light.py --save-as my_scene -f
+```
+
+Every script takes the server address as an optional first argument, `--save-as`
+for the config name to write, and `-f` to overwrite an existing one. Nothing in
+them needs a display: run the server with `--null` and the scripts work exactly
+the same, which is how they are tested.
+
+!!! info "These pages are tested against the demos they describe"
+    `tests/e2e/cases/test_demo_examples.py` runs each script for real and
+    compares the resulting scene with the shipped demo config, so a tutorial
+    that drifts away from the demo — or from the API — fails CI rather than
+    quietly going stale.
+
+    ```console
+    $ cd client/python && make test-e2e-null
+    ```
+
+## What every script does first
+
+Three things repeat in all six, so they live in
+`examples/demos/_common.py` rather than in each script.
+
+**Start from nothing.** `delete_all` removes the stimuli, but an animation
+outlives the stimuli it drives and the VTL name map is separate again, so
+reproducibility takes all three:
+
+```python
+def clean_slate(conn):
+    conn.system.delete_all()
+    for anim in conn.animations.list_animations():
+        conn.animations.delete(anim.handle)
+    for line in conn.vtl.list_lines():
+        conn.vtl.set_line_name(line.bank, line.bit, line.kind, name="")
+```
+
+**Explain yourself on screen.** Every demo carries a caption across the bottom
+of the frame, so a rig with no client attached still says what it is doing. It
+is an ordinary text stimulus:
+
+```python
+def add_explanation(conn, text):
+    return conn.stimuli.text.create_text(
+        text=text,
+        pos=Vec2(0, -340),
+        box_width=1500, box_height=320,
+        letter_height=24,
+        color=Color(0.9, 0.9, 0.9),
+        fill_color=Color(0.0, 0.0, 0.0, 0.65),
+        name="explanation",
+    )
+```
+
+**Name things.** Every stimulus and animation gets a `name=`. Names are what
+the overlay, the web UI, and `list_stimuli()` show you, and they are saved with
+the config — a scene of five unnamed handles is a scene nobody can edit six
+months later.
+
+## Two things worth knowing before you start
+
+!!! warning "`width`/`height` are full sizes; the config file stores halves"
+    `create_rect(width=80, height=80)` makes an 80 × 80 px square, and the
+    saved JSON records `"size": [40.0, 40.0]` — the half-extents the renderer
+    works in. The same applies to gratings and ellipses. Reading a demo config
+    to work out what to pass, remember to double.
+
+!!! note "The photodiode patch has no command yet"
+    `demo_photodiode_flicker` and `demo_gratings_triggered` switch on the
+    corner photodiode patch, which is a scene setting rather than a stimulus
+    and has no command of its own in v0.1. The scripts set it by editing the
+    retrieved config JSON and uploading it back — see
+    [Photodiode & flicker](photodiode-flicker.md). From the on-device overlay
+    it is a keypress.
+
+## Next
+
+- **[First light](first-light.md)** — start here; it is the smallest complete scene.
+- **[Demo scenes](../../getting-started/demos.md)** — what the shipped demos do, and which pins they use.
+- **[Saving & loading](../../concepts/saving-loading.md)** — the persistence model these scripts end on.
