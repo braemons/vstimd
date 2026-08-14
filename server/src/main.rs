@@ -348,16 +348,40 @@ fn resolve_config_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBu
     first_writable_dir(&candidates)
 }
 
-/// Write the shipped demo configs into `dir` if they are not there yet, so
-/// `config list` offers them on a fresh install (see
-/// [`vstimd::io_config::DEMO_CONFIGS`]). Never fatal: a read-only or full config
-/// dir costs the demos, not the server.
+/// Install the shipped demo configs into `dir` — writing the missing ones and
+/// replacing the ones this server wrote that nobody has since edited (see
+/// [`vstimd::io_config::seed_demo_configs`] for the full rule). Never fatal: a
+/// read-only or full config dir costs the demos, not the server.
+///
+/// Installing and refreshing are logged apart on purpose: "installed" added a
+/// file, "updated" *overwrote* one that was already there, and an operator
+/// reading the journal after an upgrade needs to tell those apart.
 fn seed_demo_configs(dir: &std::path::Path) {
-    let (written, failed) = vstimd::io_config::seed_demo_configs(dir);
-    if !written.is_empty() {
-        log::info!("vstimd: installed demo configs: {}", written.join(", "));
+    let report = vstimd::io_config::seed_demo_configs(dir);
+    if !report.installed.is_empty() {
+        log::info!("vstimd: installed demo configs: {}", report.installed.join(", "));
     }
-    for (name, e) in failed {
+    if !report.refreshed.is_empty() {
+        log::info!(
+            "vstimd: updated demo configs to the shipped version: {}",
+            report.refreshed.join(", ")
+        );
+    }
+    // Only worth a line when a demo was deliberately left alone; "already up to
+    // date" is the boring case and would be noise on every boot.
+    let kept: Vec<&str> = report
+        .kept
+        .iter()
+        .filter(|(_, why)| *why != vstimd::io_config::DemoSkip::UpToDate)
+        .map(|(name, _)| *name)
+        .collect();
+    if !kept.is_empty() {
+        log::info!(
+            "vstimd: kept local demo configs (edited here, so not replaced): {}",
+            kept.join(", ")
+        );
+    }
+    for (name, e) in report.failed {
         log::warn!("vstimd: could not install demo config '{name}': {e}");
     }
 }

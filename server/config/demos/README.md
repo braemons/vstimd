@@ -5,14 +5,34 @@ compiled into the binary (`io_config::DEMO_CONFIGS`) and installed into the
 config dir at startup, so a dev checkout, a `.deb` install and the Raspberry Pi
 image all offer the same set.
 
-Editing one of these files therefore ships a new version to every rig on the
-next start — but only to demo files the server installed and the operator never
-touched, tracked by fingerprint in a `.vstimd_demo_seed` sidecar. An operator's
-edited copy is left alone forever (they can delete it to get the update back).
-
 There is deliberately no demo-specific command or load path: a demo is loaded,
 edited and re-saved through the same `config load` / `config save` a user config
 goes through. See `docs/getting-started/demos.md` for what each one does.
+
+## What happens to a demo file already on the rig
+
+At startup the server compares each demo on disk against the shipped copy and
+against a fingerprint of what it last wrote (`.vstimd_demo_seed` in the config
+dir). Exactly one of these applies per demo:
+
+| On disk | Action | Logged as |
+|---|---|---|
+| absent | written, fingerprint recorded | `installed demo configs` |
+| identical to the shipped copy | left as-is, (re)stamped | (nothing) |
+| unchanged since the server wrote it, but the shipped copy has changed | **replaced** | `updated demo configs` |
+| edited since the server wrote it | left alone, permanently | `kept local demo configs` |
+| present with no fingerprint on record | left alone, permanently | `kept local demo configs` |
+
+Two consequences worth being explicit about:
+
+- **Editing a file in this directory ships it to every rig on the next start —
+  but only to rigs whose copy is untouched.** A rig where someone edited that
+  demo keeps their version and stops tracking the shipped one until they delete
+  it.
+- **A file identical to the shipped copy is adopted**, even if this server never
+  wrote it, so restoring a demo by hand puts it back in the refresh path.
+- Config dirs predating the fingerprint sidecar have no record, so their demos
+  are treated as operator files. Delete one to opt back in.
 
 ## Editing them
 

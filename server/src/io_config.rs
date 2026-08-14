@@ -173,48 +173,85 @@ fn write_demo_stamps(dir: &std::path::Path, stamps: &std::collections::HashMap<S
     let _ = std::fs::write(dir.join(DEMO_STAMP_FILE), lines.join("\n") + "\n");
 }
 
+/// What [`seed_demo_configs`] did, per outcome. Installing and refreshing are
+/// reported apart because they mean different things to an operator: one added
+/// a file, the other *replaced* one that was already there.
+#[derive(Default, Debug)]
+pub struct DemoSeedReport {
+    /// Demos that were not present and have now been written.
+    pub installed: Vec<&'static str>,
+    /// Demos that were present, unmodified since this server installed them,
+    /// and have been replaced with a newer shipped version.
+    pub refreshed: Vec<&'static str>,
+    /// Demos left exactly as they were, and why — see [`DemoSkip`].
+    pub kept: Vec<(&'static str, DemoSkip)>,
+    /// Per-file errors. Collected, never propagated: failing to install a demo
+    /// must not stop the server from starting.
+    pub failed: Vec<(&'static str, std::io::Error)>,
+}
+
+/// Why a demo already on disk was left alone.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DemoSkip {
+    /// Byte-identical to the shipped version — nothing to do. The file is
+    /// (re)stamped, so a copy restored by hand stays in the refresh path.
+    UpToDate,
+    /// Changed since this server wrote it: the operator's file, and theirs to
+    /// keep. It stops tracking the shipped version until they delete it.
+    Modified,
+    /// Present with no stamp — this server never wrote it, so it cannot be told
+    /// apart from an operator's file and is treated as one. Applies to config
+    /// dirs that predate the stamp sidecar.
+    Unstamped,
+}
+
 /// Install the [`DEMO_CONFIGS`] into `dir`, refreshing the ones this server
 /// previously wrote and never clobbering the ones an operator touched.
 ///
-/// Per demo:
-/// - **absent** — written, and its fingerprint recorded.
-/// - **present, byte-identical to a version we installed** — the operator never
-///   touched it, so a newer shipped version replaces it. Without this an
-///   improved demo could never reach a rig that already had the old file: the
-///   fix ships, the rig keeps the stale copy, and the demo silently behaves
-///   like the old version.
-/// - **present and modified (or unrecognised)** — left alone. An operator's
-///   edits, and any file predating the stamp sidecar, are theirs.
+/// | On disk | Action |
+/// |---|---|
+/// | absent | written, fingerprint recorded |
+/// | identical to the shipped copy | left; (re)stamped so it stays in the refresh path |
+/// | matches the fingerprint we recorded, but the shipped copy has changed | **replaced** with the new version |
+/// | anything else — edited, or present with no stamp | left alone, permanently |
+///
+/// The refresh case is the one that matters for shipping fixes: without it an
+/// improved demo could never reach a rig that already had the old file — the fix
+/// ships, the rig keeps the stale copy, and the demo silently behaves like the
+/// old version.
 ///
 /// A demo the operator deletes comes back on the next start; deleting it for
 /// good means saving something else under that name.
-///
-/// Returns the names written and any per-file errors. Errors are collected
-/// rather than propagated because failing to install a demo must never stop the
-/// server from starting.
-pub fn seed_demo_configs(dir: &std::path::Path) -> (Vec<&'static str>, Vec<(&'static str, std::io::Error)>) {
-    let mut written = vec![];
-    let mut failed = vec![];
+pub fn seed_demo_configs(dir: &std::path::Path) -> DemoSeedReport {
+    let mut report = DemoSeedReport::default();
     let mut stamps = read_demo_stamps(dir);
 
     for (name, json) in DEMO_CONFIGS {
         let path = config_path(dir, name);
         let shipped = demo_fingerprint(json.as_bytes());
+        let mut refreshing = false;
         match std::fs::read(&path) {
             Ok(on_disk) => {
                 let current = demo_fingerprint(&on_disk);
                 if current == shipped {
-                    // Already up to date; (re)record so a file restored by hand
-                    // from the shipped copy is recognised next time.
                     stamps.insert((*name).to_string(), shipped);
+                    report.kept.push((*name, DemoSkip::UpToDate));
                     continue;
                 }
-                if stamps.get(*name) != Some(&current) {
-                    continue; // operator's file — hands off
+                match stamps.get(*name) {
+                    Some(&stamped) if stamped == current => refreshing = true,
+                    Some(_) => {
+                        report.kept.push((*name, DemoSkip::Modified));
+                        continue;
+                    }
+                    None => {
+                        report.kept.push((*name, DemoSkip::Unstamped));
+                        continue;
+                    }
                 }
             }
             Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
-                failed.push((*name, e));
+                report.failed.push((*name, e));
                 continue;
             }
             Err(_) => {} // absent — fall through and write it
@@ -222,14 +259,18 @@ pub fn seed_demo_configs(dir: &std::path::Path) -> (Vec<&'static str>, Vec<(&'st
         match std::fs::write(&path, json) {
             Ok(()) => {
                 stamps.insert((*name).to_string(), shipped);
-                written.push(*name);
+                if refreshing {
+                    report.refreshed.push(*name);
+                } else {
+                    report.installed.push(*name);
+                }
             }
-            Err(e) => failed.push((*name, e)),
+            Err(e) => report.failed.push((*name, e)),
         }
     }
 
     write_demo_stamps(dir, &stamps);
-    (written, failed)
+    report
 }
 
 /// List bare config names (no path, no extension) from a config directory.

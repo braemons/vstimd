@@ -23,14 +23,23 @@ $ vstimd-client config load demo_drifting_grating
 ```
 
 The server installs the demos into its config directory
-(`/var/lib/braemons/vstimd` on a packaged rig) at startup: missing ones are
-written, and ones it installed earlier and you never touched are refreshed when
-a new version ships a newer copy. **A demo you edited is never overwritten** —
-it stops tracking the shipped version from that point on, so save it under your
-own name if you want both. A demo you delete comes back on the next start
-unless you save something else under that name.
+(`/var/lib/braemons/vstimd` on a packaged rig) at startup. What happens to a
+file that is already there depends on whether you have touched it:
 
-To take a shipped update after editing a demo, delete your copy and restart.
+| Your copy | What the server does |
+|---|---|
+| not there | writes it |
+| exactly as the server left it | replaces it when a new version ships a newer copy |
+| edited by you | **leaves it alone, permanently** |
+
+So a demo you edited is never overwritten — it stops tracking the shipped
+version from that point on. Save it under your own name if you want to keep
+both, and delete your copy (then restart) to take a shipped update after all. A
+demo you delete comes back on the next start unless you save something else
+under that name.
+
+The startup log says which of the three happened: `installed demo configs`,
+`updated demo configs to the shipped version`, or `kept local demo configs`.
 
 Every demo puts an on-screen explanation of itself at the bottom of the frame,
 including which pins drive it, so a rig with no client attached is still

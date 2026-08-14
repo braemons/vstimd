@@ -4,7 +4,9 @@
 //! `config load` does, and assert the properties each demo is supposed to
 //! demonstrate.
 
-use vstimd::io_config::{parse_config_json, retrieve_config_json, DEMO_CONFIGS, DEMO_PREFIX};
+use vstimd::io_config::{
+    parse_config_json, retrieve_config_json, DemoSkip, DEMO_CONFIGS, DEMO_PREFIX,
+};
 use vstimd::scene::animation::{Animation, StartAction};
 use vstimd::scene::{AnimState, FinalAction};
 
@@ -391,24 +393,39 @@ fn stamp_as_installed(dir: &std::path::Path, name: &str, content: &str) {
 fn seeding_writes_every_demo_and_never_overwrites() {
     let dir = seed_dir("basic");
 
-    let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
-    assert!(failed.is_empty(), "seed errors: {failed:?}");
-    assert_eq!(written.len(), DEMO_CONFIGS.len());
+    let report = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(report.failed.is_empty(), "seed errors: {:?}", report.failed);
+    assert_eq!(report.installed.len(), DEMO_CONFIGS.len());
+    assert!(report.refreshed.is_empty(), "nothing existed to refresh");
     let listed = vstimd::io_config::list_config_names(&dir).unwrap();
     for (name, _) in DEMO_CONFIGS {
         assert!(listed.contains(&name.to_string()), "'{name}' is not listed after seeding");
     }
 
-    // Seeding again is a no-op: nothing is rewritten, nothing errors.
-    let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
-    assert!(written.is_empty() && failed.is_empty(), "re-seeding rewrote files");
+    // Seeding again is a no-op: nothing is rewritten, nothing errors, and every
+    // demo is reported as already up to date.
+    let report = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(
+        report.installed.is_empty() && report.refreshed.is_empty() && report.failed.is_empty(),
+        "re-seeding rewrote files"
+    );
+    assert_eq!(report.kept.len(), DEMO_CONFIGS.len());
+    assert!(
+        report.kept.iter().all(|(_, why)| *why == DemoSkip::UpToDate),
+        "an untouched demo was not reported as up to date"
+    );
 
     // An operator's edit survives the next start.
     let edited = vstimd::io_config::config_path(&dir, DEMO_CONFIGS[0].0);
     std::fs::write(&edited, "edited by the operator").unwrap();
-    let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
-    assert!(written.is_empty() && failed.is_empty());
+    let report = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(report.installed.is_empty() && report.refreshed.is_empty() && report.failed.is_empty());
     assert_eq!(std::fs::read_to_string(&edited).unwrap(), "edited by the operator");
+    assert!(
+        report.kept.contains(&(DEMO_CONFIGS[0].0, DemoSkip::Modified)),
+        "an edited demo was not reported as kept: {:?}",
+        report.kept
+    );
 
     std::fs::remove_dir_all(&dir).unwrap();
 }
@@ -432,9 +449,17 @@ fn seeding_refreshes_an_untouched_demo_that_changed_upstream() {
     std::fs::write(&path, &older).unwrap();
     stamp_as_installed(&dir, name, &older);
 
-    let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
-    assert!(failed.is_empty(), "seed errors: {failed:?}");
-    assert!(written.contains(&name), "'{name}' was not refreshed");
+    let report = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(report.failed.is_empty(), "seed errors: {:?}", report.failed);
+    assert!(
+        report.refreshed.contains(&name),
+        "'{name}' was not reported as refreshed: {report:?}"
+    );
+    assert!(
+        !report.installed.contains(&name),
+        "a replaced file was reported as newly installed — the log would say the \
+         wrong thing to an operator"
+    );
     assert_eq!(
         std::fs::read_to_string(&path).unwrap(),
         shipped,
@@ -453,9 +478,17 @@ fn seeding_leaves_an_unstamped_file_alone() {
     let path = vstimd::io_config::config_path(&dir, name);
     std::fs::write(&path, "someone else's file").unwrap();
 
-    let (written, failed) = vstimd::io_config::seed_demo_configs(&dir);
-    assert!(failed.is_empty(), "seed errors: {failed:?}");
-    assert!(!written.contains(&name), "an unstamped file was overwritten");
+    let report = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(report.failed.is_empty(), "seed errors: {:?}", report.failed);
+    assert!(
+        !report.installed.contains(&name) && !report.refreshed.contains(&name),
+        "an unstamped file was overwritten"
+    );
+    assert!(
+        report.kept.contains(&(name, DemoSkip::Unstamped)),
+        "an unstamped file was not reported as such: {:?}",
+        report.kept
+    );
     assert_eq!(std::fs::read_to_string(&path).unwrap(), "someone else's file");
 
     std::fs::remove_dir_all(&dir).unwrap();
@@ -470,15 +503,19 @@ fn seeding_adopts_a_file_identical_to_the_shipped_one() {
     let path = vstimd::io_config::config_path(&dir, name);
     std::fs::write(&path, shipped).unwrap();
 
-    let (written, _) = vstimd::io_config::seed_demo_configs(&dir);
-    assert!(!written.contains(&name), "an identical file was rewritten");
+    let report = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(
+        report.kept.contains(&(name, DemoSkip::UpToDate)),
+        "an identical file was not adopted as up to date: {:?}",
+        report.kept
+    );
 
     // Now that it is stamped, an upstream change reaches it.
     let older = shipped.replace("\"version\": 2", "\"version\":  2");
     std::fs::write(&path, &older).unwrap();
     stamp_as_installed(&dir, name, &older);
-    let (written, _) = vstimd::io_config::seed_demo_configs(&dir);
-    assert!(written.contains(&name), "the adopted file was not refreshed");
+    let report = vstimd::io_config::seed_demo_configs(&dir);
+    assert!(report.refreshed.contains(&name), "the adopted file was not refreshed");
 
     std::fs::remove_dir_all(&dir).unwrap();
 }
