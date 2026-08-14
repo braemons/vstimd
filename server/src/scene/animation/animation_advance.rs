@@ -359,9 +359,10 @@ pub(crate) fn cancel_one(
 /// Shared teardown for both normal completion and cancel. Applies `action`
 /// (a [`FinalAction`] bitset — cancel converts its `CancelAction` via
 /// `as_final_action`), pulsing `trigger_line` for the trigger-line bit. When
-/// `allow_restart` is false, `RESTART` is ignored and the animation lands in
-/// `Done`. When `release_anim_hold` is false, the `anim_enabled` reset is
-/// skipped (used for Armed cancel, which never grabbed the hold).
+/// `allow_restart` is false, `RESTART` and `REARM` are both ignored and the
+/// animation lands in `Done` — cancel is always terminal. When
+/// `release_anim_hold` is false, the `anim_enabled` reset is skipped (used for
+/// Armed cancel, which never grabbed the hold).
 #[allow(clippy::too_many_arguments)]
 fn finalize(
     handle: u32,
@@ -373,13 +374,16 @@ fn finalize(
     allow_restart: bool,
     release_anim_hold: bool,
 ) {
-    let (captured, restart) = {
+    let (captured, restart, rearm) = {
         let Some(entry) = scene.config.animations.get(&handle) else {
             return;
         };
         let cap = entry.captured_user_enabled.clone();
         let restart = allow_restart && final_action.contains(FinalAction::RESTART);
-        (cap, restart)
+        // RESTART wins: it is the stronger statement (run again now), and with
+        // no start_trigger the two are the same thing anyway.
+        let rearm = allow_restart && !restart && final_action.contains(FinalAction::REARM);
+        (cap, restart, rearm)
     };
 
     if final_action.contains(FinalAction::RESTORE_STATE) {
@@ -435,12 +439,17 @@ fn finalize(
         scene.runtime.deferred_mode = false;
     }
 
-    if restart {
-        if let Some(entry) = scene.config.animations.get_mut(&handle) {
+    if let Some(entry) = scene.config.animations.get_mut(&handle) {
+        if restart {
             entry.state = AnimState::Running { frame_counter: 0 };
             entry.captured_user_enabled = None;
+        } else if rearm {
+            // Back to waiting: with a start_trigger the animation fires again on
+            // the next edge; without one it starts again on the next frame.
+            entry.state = AnimState::Armed;
+            entry.captured_user_enabled = None;
+        } else {
+            entry.state = AnimState::Done;
         }
-    } else if let Some(entry) = scene.config.animations.get_mut(&handle) {
-        entry.state = AnimState::Done;
     }
 }

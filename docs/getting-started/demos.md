@@ -70,14 +70,16 @@ Output pulses are one frame wide and are committed right after the vblank the
 stimulus becomes visible on, which is what makes them usable as event marks —
 see [Frame timing](../concepts/frame-timing.md).
 
-!!! note "The 2 s flashes are single-shot"
+!!! note "Durations are counted in frames"
 
     `demo_gratings_triggered` uses `FlashForNFrames`, whose duration is counted
-    in frames: 120 frames is 2 s at the 60 Hz the Pi 5 rig runs at. An
-    animation that has run lands in `Done` and ignores further triggers, so
-    re-arm it between trials — from the overlay's Animations panel (++f4++), or
-    with `conn.animations.arm(handle)` — or drive repeated trials from a client
-    instead.
+    in frames: 120 frames is 2 s at the 60 Hz the Pi 5 rig runs at, and
+    something else on a display running at another rate.
+
+    Both flashes carry `FinalAction.REARM`, so each one returns to `Armed` when
+    it finishes and fires again on the next edge — trial after trial, with no
+    client in the loop. Drop that bit if you want an animation that fires
+    exactly once per arm.
 
 ## No trigger source yet?
 

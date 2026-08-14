@@ -150,6 +150,10 @@ fn gratings_demo_flashes_two_orientations_on_two_input_triggers() {
         assert!(anim.start_action.contains(StartAction::START_ACTION_TRIGGER_LINE));
         assert!(anim.start_action_trigger_line.is_some());
         assert!(anim.final_action.contains(FinalAction::DISABLE));
+        assert!(
+            anim.final_action.contains(FinalAction::REARM),
+            "the flash would fire only once per session without REARM"
+        );
         assert!(anim.final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE));
         done_bits.push(anim.final_action_trigger_line.expect("no done trigger line").bit);
     }
@@ -307,6 +311,18 @@ fn loading_the_gratings_demo_leaves_it_waiting_for_its_triggers() {
     scene.advance_animations(&no_edges, &no_edges, &mut out);
     assert!(!enabled(&scene), "the grating was still visible after 120 frames");
     assert_eq!(out[0] & (1 << 37), 1 << 37, "the done line did not pulse");
+
+    // …and it re-arms, so the next edge fires another presentation. Without
+    // this the demo works exactly once per session.
+    assert_eq!(
+        scene.animations.get(&1).unwrap().state,
+        AnimState::Armed,
+        "the flash did not re-arm after completing"
+    );
+    out = [0; vtl::MAX_BANKS];
+    scene.advance_animations(&edges, &no_edges, &mut out);
+    assert!(enabled(&scene), "the second trigger did not show the grating");
+    assert_eq!(out[0] & (1 << 36), 1 << 36, "the onset line did not pulse again");
 }
 
 /// The demos that carry no `start_trigger` are supposed to run the moment they

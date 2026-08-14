@@ -14,6 +14,12 @@ bitflags::bitflags! {
     #[derive(Default, Clone, Copy, Debug, PartialEq, Eq)]
     pub struct FinalAction: u8 {
         const DISABLE                 = 0x01;
+        /// Return to `Armed` on completion instead of `Done`, so the animation
+        /// waits for its `start_trigger` again and fires on every edge rather
+        /// than only the first. Without a `start_trigger` this restarts the
+        /// animation immediately, which is what `RESTART` already does — so
+        /// `RESTART` wins if both are set.
+        const REARM                   = 0x02;
         const TOGGLE_PHOTODIODE       = 0x04;
         const FINAL_ACTION_TRIGGER_LINE = 0x08;
         const RESTART                 = 0x10;

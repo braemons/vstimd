@@ -886,6 +886,127 @@ fn restart_loops_animation() {
     );
 }
 
+// ── FinalAction::REARM ────────────────────────────────────────────────────────
+
+#[test]
+fn rearm_makes_a_triggered_flash_fire_on_every_edge() {
+    let mut scene = SceneState::new();
+    let s = create_rect(&mut scene);
+    scene.stimuli.get_mut(&s).unwrap().stimulus.flags_mut().enabled = false;
+
+    let a = scene.add_animation({
+        let mut e =
+            AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.start_trigger = Some((bit(0, 3), VtlEdge::Rising));
+        e.final_action = FinalAction::DISABLE | FinalAction::REARM;
+        e
+    });
+
+    // No edge: still waiting.
+    advance(&mut scene);
+    assert_eq!(anim_state(&scene, a), &AnimState::Armed);
+    assert!(!is_enabled(&scene, s));
+
+    for cycle in 0..3 {
+        advance_with(&mut scene, &rising_edge(0, 3)); // frame 0 → Running{1}
+        assert!(is_enabled(&scene, s), "cycle {cycle}: trigger did not show the stimulus");
+        advance(&mut scene); // frame 1: done → DISABLE + REARM
+        assert!(!is_enabled(&scene, s), "cycle {cycle}: stimulus stayed visible");
+        assert_eq!(
+            anim_state(&scene, a),
+            &AnimState::Armed,
+            "cycle {cycle}: animation did not re-arm"
+        );
+    }
+}
+
+/// The default (no REARM) is unchanged: one shot, then Done, and later edges do
+/// nothing until something arms it again.
+#[test]
+fn without_rearm_a_triggered_flash_fires_once() {
+    let mut scene = SceneState::new();
+    let s = create_rect(&mut scene);
+    scene.stimuli.get_mut(&s).unwrap().stimulus.flags_mut().enabled = false;
+
+    let a = scene.add_animation({
+        let mut e =
+            AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.start_trigger = Some((bit(0, 3), VtlEdge::Rising));
+        e.final_action = FinalAction::DISABLE;
+        e
+    });
+
+    advance_with(&mut scene, &rising_edge(0, 3));
+    advance(&mut scene);
+    assert_eq!(anim_state(&scene, a), &AnimState::Done);
+
+    advance_with(&mut scene, &rising_edge(0, 3));
+    assert_eq!(anim_state(&scene, a), &AnimState::Done, "a Done animation restarted");
+    assert!(!is_enabled(&scene, s));
+}
+
+/// Without a start trigger there is nothing to wait for, so REARM starts the
+/// animation again on the next frame — one frame later than RESTART, which
+/// restarts within the completing frame.
+#[test]
+fn rearm_without_a_start_trigger_restarts_next_frame() {
+    let mut scene = SceneState::new();
+    let s = create_rect(&mut scene);
+
+    let a = scene.add_animation({
+        let mut e =
+            AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.final_action = FinalAction::REARM;
+        e
+    });
+
+    advance(&mut scene); // frame 0 → Running{1}
+    advance(&mut scene); // frame 1: done → REARM → Armed
+    assert_eq!(anim_state(&scene, a), &AnimState::Armed);
+    advance(&mut scene); // Armed with no trigger → runs immediately
+    assert_eq!(anim_state(&scene, a), &AnimState::Running { frame_counter: 1 });
+}
+
+/// RESTART is the stronger statement, so it wins and the animation never passes
+/// through Armed.
+#[test]
+fn restart_takes_precedence_over_rearm() {
+    let mut scene = SceneState::new();
+    let s = create_rect(&mut scene);
+
+    let a = scene.add_animation({
+        let mut e =
+            AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
+        e.start_trigger = Some((bit(0, 3), VtlEdge::Rising));
+        e.final_action = FinalAction::RESTART | FinalAction::REARM;
+        e
+    });
+
+    advance_with(&mut scene, &rising_edge(0, 3));
+    advance(&mut scene);
+    assert_eq!(anim_state(&scene, a), &AnimState::Running { frame_counter: 0 });
+}
+
+/// Cancel is always terminal — REARM must not resurrect a cancelled animation.
+#[test]
+fn cancel_ignores_rearm() {
+    let mut scene = SceneState::new();
+    let s = create_rect(&mut scene);
+
+    let a = scene.add_animation({
+        let mut e =
+            AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 30 }, vec![s]);
+        e.start_trigger = Some((bit(0, 3), VtlEdge::Rising));
+        e.cancel_trigger = Some((bit(0, 4), VtlEdge::Rising));
+        e.final_action = FinalAction::REARM;
+        e
+    });
+
+    advance_with(&mut scene, &rising_edge(0, 3));
+    advance_with(&mut scene, &rising_edge(0, 4));
+    assert_eq!(anim_state(&scene, a), &AnimState::Done, "cancel re-armed the animation");
+}
+
 // ── FinalAction::TOGGLE_PHOTODIODE ────────────────────────────────────────────
 
 #[test]

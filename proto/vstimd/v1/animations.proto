@@ -82,9 +82,14 @@ message MoveAlongSegments2D {
 //
 // final_action_mask bit values — applied when animation completes:
 //   0x01  DISABLE           — disable stimuli on completion
+//   0x02  REARM             — return to ARMED on completion, so the animation waits for
+//                             its start_trigger again and fires on every edge instead of
+//                             only the first. With no start_trigger this is RESTART, and
+//                             RESTART wins if both bits are set.
 //   0x04  TOGGLE_PHOTODIODE — toggle the photodiode indicator on completion
 //   0x08  FINAL_ACTION_TRIGGER_LINE — pulse final_action_trigger_line for one frame on completion
-//   0x10  RESTART                   — re-arm and restart the animation on completion
+//   0x10  RESTART                   — restart the animation immediately on completion,
+//                                     without waiting for start_trigger again
 //   0x20  REVERSE                   — reserved
 //   0x40  RESTORE_STATE             — restore user_enabled to its value at animation start
 //   0x80  END_DEFERRED              — call end_deferred_mode on completion

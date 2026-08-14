@@ -136,7 +136,7 @@ The action masks let you attach behaviour to each phase of the animation:
 | Phase | Mask | Useful bits |
 |---|---|---|
 | Armed → Running (start) | `StartAction` | `ENABLE`, `TOGGLE_PHOTODIODE`, `START_ACTION_TRIGGER_LINE` |
-| Completion (final) | `FinalAction` | `DISABLE`, `TOGGLE_PHOTODIODE`, `FINAL_ACTION_TRIGGER_LINE`, `RESTART`, `RESTORE_STATE`, `END_DEFERRED` |
+| Completion (final) | `FinalAction` | `DISABLE`, `REARM`, `TOGGLE_PHOTODIODE`, `FINAL_ACTION_TRIGGER_LINE`, `RESTART`, `RESTORE_STATE`, `END_DEFERRED` |
 | Cancellation | `CancelAction` | `DISABLE`, `TOGGLE_PHOTODIODE`, `CANCEL_ACTION_TRIGGER_LINE`, `RESTORE_STATE`, `END_DEFERRED` |
 
 Masks are `IntFlag`s, so combine them with `|`:
@@ -211,8 +211,21 @@ for a in conn.animations.list_animations():
 details = conn.animations.query(handle)   # full config + current state
 ```
 
-An animation with `FinalAction.RESTART` re-arms itself on completion — handy for a
-free-running flicker or a repeating cue.
+A completed animation is `DONE` and ignores further trigger edges, so a
+trigger-driven animation fires **once per arm** unless you say otherwise. Two
+bits change that:
+
+| Bit | On completion | Use it for |
+|---|---|---|
+| `FinalAction.REARM` | back to `ARMED` — waits for `start_trigger` again | one presentation per trigger edge, trial after trial |
+| `FinalAction.RESTART` | straight back to `RUNNING`, trigger ignored | a free-running flicker or a repeating cue |
+
+`RESTART` wins if both are set, and with no `start_trigger` they do the same
+thing. Neither applies to a cancelled animation — cancel is always terminal.
+
+```python
+final = FinalAction.DISABLE | FinalAction.REARM | FinalAction.FINAL_ACTION_TRIGGER_LINE
+```
 
 ## Inspecting VTL state from the shell
 

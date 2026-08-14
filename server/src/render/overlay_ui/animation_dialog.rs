@@ -69,6 +69,8 @@ pub struct AnimationDialog {
     cancel_pulse_enabled: bool,
     cancel_pulse_bank: u32,
     cancel_pulse_bit: u32,
+    // Re-arm on completion: fire again on the next start-trigger edge.
+    rearm_on_finish: bool,
     // Final trigger: pulse a VTL output line when the animation completes.
     final_trig_enabled: bool,
     final_bank: u32,
@@ -114,6 +116,7 @@ impl Default for AnimationDialog {
             cancel_pulse_enabled: false,
             cancel_pulse_bank: 0,
             cancel_pulse_bit: 0,
+            rearm_on_finish: false,
             final_trig_enabled: false,
             final_bank: 0,
             final_bit: 0,
@@ -202,6 +205,9 @@ impl AnimationDialog {
             });
         }
         entry.config.cancel_action = cancel_action;
+        if self.rearm_on_finish {
+            entry.config.final_action |= FinalAction::REARM;
+        }
         if self.final_trig_enabled {
             entry.config.final_action |= FinalAction::FINAL_ACTION_TRIGGER_LINE;
             entry.config.final_action_trigger_line = Some(VtlBit {
@@ -358,6 +364,11 @@ impl AnimationDialog {
                         ui.add(egui::DragValue::new(&mut self.cancel_pulse_bit).range(0..=63));
                     });
                 }
+                ui.checkbox(&mut self.rearm_on_finish, "Re-arm on completion")
+                    .on_hover_text(
+                        "Wait for the start trigger again instead of finishing, so the \
+                         animation fires on every edge rather than only the first.",
+                    );
                 ui.checkbox(&mut self.final_trig_enabled, "Pulse VTL line on completion");
                 if self.final_trig_enabled {
                     ui.horizontal(|ui| {

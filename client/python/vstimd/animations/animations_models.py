@@ -25,7 +25,15 @@ class StartAction(IntFlag):
 
 
 class FinalAction(IntFlag):
+    """Actions applied when an animation completes.
+
+    ``REARM`` is what makes a trigger-driven animation repeat: without it a
+    completed animation is ``DONE`` and ignores further edges until it is armed
+    again. With no ``start_trigger`` it behaves like ``RESTART``, which wins if
+    both bits are set.
+    """
     DISABLE           = 0x01
+    REARM                     = 0x02
     TOGGLE_PHOTODIODE = 0x04
     FINAL_ACTION_TRIGGER_LINE = 0x08
     RESTART                   = 0x10

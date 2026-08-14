@@ -194,7 +194,7 @@
             1500.0,
             260.0
           ],
-          "text_live": "demo_gratings_triggered \u2014 trigger in, trigger out\n\nTwo masked gratings at the centre, 45 deg and 135 deg, hidden until triggered.\nRising edge on in_pin11 (header pin 11) shows the 45 deg one for 2 s (120 frames @ 60 Hz),\npulsing out_pin36 at onset and out_pin37 when it ends.\nin_pin12 does the same for the 135 deg one, pulsing out_pin38 / out_pin40.\nEach flash is single-shot: re-arm the animation to fire it again.",
+          "text_live": "demo_gratings_triggered \u2014 trigger in, trigger out\n\nTwo masked gratings at the centre, 45 deg and 135 deg, hidden until triggered.\nRising edge on in_pin11 (header pin 11) shows the 45 deg one for 2 s (120 frames @ 60 Hz),\npulsing out_pin36 at onset and out_pin37 when it ends.\nin_pin12 does the same for the 135 deg one, pulsing out_pin38 / out_pin40.\nBoth re-arm themselves, so every trigger edge fires another 2 s presentation.",
           "font_family": "",
           "letter_height_px": 26.0,
           "anchor": "Center",
@@ -216,7 +216,7 @@
           "bit": 36,
           "kind": "Output"
         },
-        "final_action": 9,
+        "final_action": 11,
         "final_action_trigger_line": {
           "bank": 0,
           "bit": 37,
@@ -251,7 +251,7 @@
           "bit": 38,
           "kind": "Output"
         },
-        "final_action": 9,
+        "final_action": 11,
         "final_action_trigger_line": {
           "bank": 0,
           "bit": 40,
