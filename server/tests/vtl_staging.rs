@@ -107,6 +107,49 @@ mod vtl_state_tests {
             "commit_staged writes staged to shm");
     }
 
+    /// The crux of the pulse channel, at the shm boundary the DAQ actually
+    /// reads: a pulse is published by one commit and gone by the next, so the
+    /// pin goes HIGH for one frame period and falls on its own.
+    #[test]
+    fn commit_staged_publishes_pulses_then_drops_them() {
+        let mut vtl = make_vtl();
+        vtl.staged[0] = 1 << 1; // a level, held across commits
+        vtl.pulses[0] = 1 << 2; // a mark, this frame only
+
+        vtl.commit_staged();
+        assert_eq!(
+            vtl.owner().output_state(0),
+            (1 << 1) | (1 << 2),
+            "commit must publish the level and the pulse together"
+        );
+        assert_eq!(vtl.pulses[0], 0, "pulses must be consumed by the commit");
+
+        vtl.commit_staged();
+        assert_eq!(
+            vtl.owner().output_state(0),
+            1 << 1,
+            "the pulse must fall LOW one frame later, leaving the level up"
+        );
+    }
+
+    /// A pulse and a level on the *same* bit: the level wins once the pulse is
+    /// spent, rather than the pulse's clear taking the level down with it.
+    #[test]
+    fn a_pulse_on_a_held_line_does_not_clear_the_level() {
+        let mut vtl = make_vtl();
+        vtl.staged[0] = 1 << 3;
+        vtl.pulses[0] = 1 << 3;
+
+        vtl.commit_staged();
+        assert_ne!(vtl.owner().output_state(0) & (1 << 3), 0);
+        vtl.commit_staged();
+        assert_ne!(
+            vtl.owner().output_state(0) & (1 << 3),
+            0,
+            "the level was dropped when the pulse expired"
+        );
+    }
+
     #[test]
     fn staged_survives_advance_animations_cycle() {
         let mut vtl = make_vtl();

@@ -30,6 +30,29 @@ Represent signals driven *by* vstimd to report what is on screen.
 > both the DRM and winit render loops. ZMQ `SetVirtualTriggerLine` commands provide an
 > additional software-only path for testing and manual override.
 
+### Levels and pulses both ride on `output_state`
+
+vstimd holds two output channels in process and merges them into `output_state`
+at each commit:
+
+- **Levels** (`VtlState::staged`) persist until something clears them: ZMQ /
+  overlay writes, and an animation's `DONE_LEVEL` action.
+- **Pulses** (`VtlState::pulses`) are one-frame event marks — an animation's
+  start / final / cancel action line. `commit_staged` ORs them into
+  `output_state` and clears them, so the bit falls LOW at the next commit and
+  every occurrence produces its own rising edge. A mark that latched HIGH would
+  give a recording system one edge per session instead of one per trial.
+
+A reader therefore sees a pulse as `output_state` being HIGH for exactly one
+frame period. Nothing extra is needed to consume it — `gpiochip-daqd` mirrors
+`output_state` onto the pin and gets a one-frame-wide hardware pulse for free.
+
+> **Note:** the `output_set_pulse` region below is **not** how vstimd emits
+> pulses. It is part of the layout and the `vtl` crate API
+> (`set_output_pulse` / `drain_output_pulse`) but no writer or reader uses it
+> today; `gpiochip-daqd` reads `output_state` only. Do not confuse it with
+> `VtlState::pulses`, which is an in-process staging buffer, not this field.
+
 ### Shared memory layout
 
 Each bank is a `u64` bitmask: up to 64 lines per bank, up to 4 banks.
@@ -88,7 +111,7 @@ Five `[u64; 4]` arrays, each element is an `AtomicU64`:
 +0x20  32   input_rise_latch[4]  sticky rising-edge latches (OR-set by writer, fetch_and-clear by reader)
 +0x40  32   input_fall_latch[4]  sticky falling-edge latches
 +0x60  32   output_state[4]      current output levels
-+0x80  32   output_set_pulse[4]  one-shot output pulses
++0x80  32   output_set_pulse[4]  one-shot output pulses (reserved; unused — see note above)
 ```
 
 ## Reading from the terminal

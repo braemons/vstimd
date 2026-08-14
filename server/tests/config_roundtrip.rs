@@ -266,3 +266,66 @@ fn additive_load_preserves_armed_too() {
         "additive load left the animation pointing at a remapped-away stimulus"
     );
 }
+
+/// `FinalAction` widened to u16 for `DONE_LEVEL` (0x100). A mask above the old
+/// u8 ceiling must survive save/load, as must the line the bit addresses —
+/// truncation would silently turn a two-line animation back into a one-line one.
+#[test]
+fn wide_final_action_bits_and_the_level_line_round_trip() {
+    use vstimd::scene::animation::{Animation, AnimationEntry, FinalAction};
+    use vstimd::scene::VtlBit;
+
+    let mut saved = SceneState::new();
+    let h = saved.add_stimulus(make_rect_entry());
+    saved.add_animation({
+        let mut e = AnimationEntry::armed(
+            Animation::FlashForNFrames { duration_frames: 30 },
+            vec![h],
+        );
+        e.final_action = FinalAction::DISABLE
+            | FinalAction::REARM
+            | FinalAction::FINAL_ACTION_TRIGGER_LINE
+            | FinalAction::DONE_LEVEL;
+        e.final_action_trigger_line = Some(VtlBit { bank: 0, bit: 37, kind: VtlKind::Output });
+        e.final_action_level_line = Some(VtlBit { bank: 0, bit: 35, kind: VtlKind::Output });
+        e
+    });
+    assert!(saved.animations[&1].final_action.bits() > u8::MAX as u16);
+
+    let json = retrieve_config_json(&saved.config, &VtlConfig::default()).unwrap();
+    let (snap, _io) = parse_config_json(&json).unwrap();
+    let mut scene = SceneState::new();
+    scene.load_snapshot(snap, LoadMode::Replace);
+
+    let anim = scene.animations.values().next().unwrap();
+    assert!(anim.final_action.contains(FinalAction::DONE_LEVEL), "DONE_LEVEL was truncated away");
+    assert!(anim.final_action.contains(FinalAction::REARM));
+    assert_eq!(anim.final_action_level_line.unwrap().bit, 35);
+    assert_eq!(anim.final_action_trigger_line.unwrap().bit, 37);
+}
+
+/// Configs written before `final_action_level_line` existed must still load —
+/// the field is `#[serde(default)]`, and every shipped demo predates it.
+#[test]
+fn a_config_without_the_level_line_field_still_loads() {
+    use vstimd::scene::animation::{Animation, AnimationEntry};
+
+    let mut saved = SceneState::new();
+    let h = saved.add_stimulus(make_rect_entry());
+    saved.add_animation(AnimationEntry::armed(
+        Animation::FlashForNFrames { duration_frames: 30 },
+        vec![h],
+    ));
+    let json = retrieve_config_json(&saved.config, &VtlConfig::default()).unwrap();
+
+    // Strip the key, as an older writer would have left it.
+    let mut tree: serde_json::Value = serde_json::from_str(&json).unwrap();
+    let anim = &mut tree["scene"]["animations"]["1"];
+    assert!(anim.as_object_mut().unwrap().remove("final_action_level_line").is_some());
+    let stripped = serde_json::to_string(&tree).unwrap();
+
+    let (snap, _io) = parse_config_json(&stripped).expect("older config failed to load");
+    let mut scene = SceneState::new();
+    scene.load_snapshot(snap, LoadMode::Replace);
+    assert!(scene.animations.values().next().unwrap().final_action_level_line.is_none());
+}
