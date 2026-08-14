@@ -255,16 +255,18 @@ apt-get install -y --no-install-recommends \
 # minutes. Retrying in-place (bounded, short sleep) until --show-eee actually
 # confirms "disabled" wins on the first event instead of waiting for luck
 # across a flap storm.
-# Bare $ in a udev RUN value is udev's own substitution syntax ($kernel,
-# $env{}, and so on), not the shell's -- a shell command substitution or
-# "$var" here gets parsed (and rejected) by udev before the shell ever sees
+# Bare \$ in a udev RUN value is udev's own substitution syntax (\$kernel,
+# \$env{}, and so on), not the shell's -- a shell command substitution or
+# "\$var" here gets parsed (and rejected) by udev before the shell ever sees
 # it. %k is substituted by udev itself, so it's used directly with no shell
 # variable in between.
-# (No backticks or literal \$(...) in this comment either: it's still inside
-# the unquoted CHROOT_EOF heredoc below, so the outer shell evaluates them at
-# image-build time -- confirmed in a real build log as spurious
-# "line 184: $: command not found" warnings, from the markdown-style
-# backticks a previous version of this comment used around such syntax.)
+# (Every \$ above is backslash-escaped, and there are no backticks or literal
+# \$(...) either: this comment is still inside the unquoted CHROOT_EOF heredoc
+# below, so the outer shell evaluates any unescaped \$ or backtick at
+# image-build time. An earlier version leaked "\$: command not found" warnings
+# from markdown-style backticks here; unescaped "\$kernel" is worse still --
+# under the outer script's 'set -u' it aborts the whole build with
+# "kernel: unbound variable".)
 cat > /etc/udev/rules.d/80-disable-eee.rules <<'UDEV_EOF'
 ACTION=="add|change", SUBSYSTEM=="net", KERNEL=="eth*", \
   RUN+="/bin/sh -c 'for i in 1 2 3 4 5 6 7 8 9 10; do /usr/sbin/ethtool --set-eee %k eee off >/dev/null 2>&1; /usr/sbin/ethtool --show-eee %k 2>/dev/null | grep -q \"EEE status: disabled\" && exit 0; sleep 0.3; done; true'"
