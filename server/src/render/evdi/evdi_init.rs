@@ -43,7 +43,11 @@ pub fn init(width: u32, height: u32) -> VkContext {
 
     // No real surface is ever created — VK_KHR_surface is enabled purely so
     // this loader is valid for Drop's unconditional `destroy_surface(VK_NULL_HANDLE,
-    // ...)` call, which the spec defines as a no-op.
+    // ...)` call. Per the Vulkan spec's object-model convention (and each
+    // destroy command's "if <handle> is not VK_NULL_HANDLE, <handle> must be
+    // a valid handle" Valid Usage clause), VK_NULL_HANDLE is always a
+    // legal — and no-op — value for the object-to-destroy parameter, so no
+    // extra guard is needed in Drop.
     let surface_loader = ash::khr::surface::Instance::new(&entry, &instance);
 
     let physical_devices = unsafe {
@@ -76,8 +80,9 @@ pub fn init(width: u32, height: u32) -> VkContext {
         .queue_family_index(graphics_queue_family)
         .queue_priorities(&queue_priorities);
     // VK_KHR_swapchain is enabled purely so Drop's swapchain_loader is valid
-    // to call destroy_swapchain(VK_NULL_HANDLE, ...) on — also a defined
-    // no-op. Nothing here creates a real swapchain.
+    // to call destroy_swapchain(VK_NULL_HANDLE, ...) on — same defined-no-op
+    // convention as the surface loader above. Nothing here creates a real
+    // swapchain.
     let device_exts = [ash::khr::swapchain::NAME.as_ptr()];
     let enabled_features =
         vk::PhysicalDeviceFeatures::default().fill_mode_non_solid(supports_wireframe);

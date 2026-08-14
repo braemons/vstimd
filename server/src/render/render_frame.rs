@@ -705,21 +705,20 @@ pub fn render_frame(
     }
     // Self-presented contexts (evdi) never call acquire_next_image (see step 6
     // above), so frame.image_available is never signaled — waiting on it here
-    // would deadlock the GPU queue forever. Nothing needs it anyway: there is
-    // no presentation engine on the other end for frame.render_done to
-    // synchronize with either, but signaling an unwaited semaphore is
-    // harmless, so it's left as-is for simplicity.
+    // would deadlock the GPU queue forever. There's also no queue_present to
+    // wait on frame.render_done, so it must not be signaled either: binary
+    // semaphores can't be signaled twice without an intervening wait, and the
+    // next frame's submit would otherwise hit an already-signaled semaphore.
     let wait_sems = [frame.image_available];
     let signal_sems = [frame.render_done];
     let wait_stages = [vk::PipelineStageFlags::COLOR_ATTACHMENT_OUTPUT];
     let cbs = [cb];
-    let mut submit_info = vk::SubmitInfo::default()
-        .command_buffers(&cbs)
-        .signal_semaphores(&signal_sems);
+    let mut submit_info = vk::SubmitInfo::default().command_buffers(&cbs);
     if !ctx.self_presented {
         submit_info = submit_info
             .wait_semaphores(&wait_sems)
-            .wait_dst_stage_mask(&wait_stages);
+            .wait_dst_stage_mask(&wait_stages)
+            .signal_semaphores(&signal_sems);
     }
     unsafe {
         if let Err(e) = ctx.device.queue_submit(

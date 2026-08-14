@@ -66,8 +66,10 @@ pub struct VkContext {
     /// real `vk::SwapchainKHR` presentation engine — see the evdi backend's
     /// `evdi_init.rs`, which builds a `VkContext` this way to work around a
     /// Mesa v3dv WSI headless-surface bug. `swapchain`/`surface` stay
-    /// `VK_NULL_HANDLE` in that case (a defined no-op for the destroy calls
-    /// below), and `render_frame()` skips `acquire_next_image`/
+    /// `VK_NULL_HANDLE` in that case — per the Vulkan spec, `VK_NULL_HANDLE`
+    /// is always a legal, no-op value for a destroy command's
+    /// object-to-destroy parameter, so the unconditional destroy calls
+    /// below need no extra guard — and `render_frame()` skips `acquire_next_image`/
     /// `queue_present` entirely when this is true.
     pub self_presented: bool,
     /// Backing memory for `swapchain_images` when `self_presented` is true —
