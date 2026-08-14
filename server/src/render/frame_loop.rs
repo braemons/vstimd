@@ -134,8 +134,8 @@ pub(crate) fn advance_frame(vtl: Option<&Arc<Mutex<VtlState>>>, scene: &Arc<RwLo
         );
 
     if let Some(v) = vtl {
-        let mut g = v.lock().expect("vtl lock poisoned");
-        g.staged = levels;
-        g.pulses = pulses;
+        v.lock()
+            .expect("vtl lock poisoned")
+            .store_frame_outputs(levels, pulses);
     }
 }

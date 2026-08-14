@@ -289,6 +289,27 @@ impl VtlState {
         self.owner.signal_output();
     }
 
+    /// Write back the output channels after an animation pass.
+    ///
+    /// Levels are replaced: the animation pass started from the current
+    /// `staged` and owns the result for this frame. Pulses are **OR-ed**,
+    /// because the VTL lock is deliberately released while animations run (so
+    /// the ZMQ thread never waits behind the scene lock) and another thread can
+    /// add a pulse in that window — a ZMQ `CancelAnimation` firing its
+    /// cancel-action line, say. Assigning here would drop it, and a dropped
+    /// pulse is a missing event mark in the recording, which is invisible until
+    /// someone analyses the data.
+    pub fn store_frame_outputs(
+        &mut self,
+        levels: [u64; MAX_BANKS],
+        pulses: [u64; MAX_BANKS],
+    ) {
+        self.staged = levels;
+        for (bank, p) in pulses.iter().enumerate() {
+            self.pulses[bank] |= p;
+        }
+    }
+
     /// Set or clear a single bit in `staged` and write through to shm immediately
     /// so that `list_lines` sees the updated value without waiting for the next [A].
     pub fn set_staged_bit(&mut self, bank: usize, bit: u8, high: bool) {

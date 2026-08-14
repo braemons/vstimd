@@ -195,9 +195,14 @@ impl SceneState {
     /// configured `cancel_action` (which may be empty for a hard abort) and
     /// ends in `Done`; an `Armed` one is stopped before it starts. For
     /// `CANCEL_ACTION_TRIGGER_LINE`, `outputs.pulses` receives the pulse on
-    /// `cancel_action_trigger_line`; callers outside the render loop pass
-    /// scratch buffers seeded from `VtlState::staged`/`pulses`. Returns false if
-    /// the handle is unknown.
+    /// `cancel_action_trigger_line`.
+    ///
+    /// Callers outside the render loop seed `levels` from `VtlState::staged` and
+    /// start `pulses` **empty**, then OR whatever was produced into
+    /// `VtlState::pulses`. Seeding pulses from the live buffer instead would
+    /// re-publish marks that are already on their way out, stretching a
+    /// one-frame mark across two frames. Returns false if the handle is
+    /// unknown.
     /// Shared by `cmd_cancel_animation` and the overlay UI.
     pub fn cancel_animation(
         &mut self,

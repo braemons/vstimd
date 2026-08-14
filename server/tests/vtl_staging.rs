@@ -132,6 +132,47 @@ mod vtl_state_tests {
         );
     }
 
+    /// The write-back after an animation pass must not clobber a pulse another
+    /// thread added while the VTL lock was released — the ZMQ thread firing a
+    /// cancel-action line, say. A dropped pulse is a missing event mark in the
+    /// recording, invisible until someone analyses the data.
+    #[test]
+    fn storing_frame_outputs_merges_pulses_added_meanwhile() {
+        let mut vtl = make_vtl();
+
+        // Render thread copies the (empty) channels out...
+        let levels = vtl.staged;
+        let mut pulses = vtl.pulses;
+        // ...another thread fires a cancel-action pulse on bit 9 in the window
+        // where the VTL lock is free...
+        vtl.pulses[0] |= 1 << 9;
+        // ...and the animation pass produces its own on bit 4.
+        pulses[0] |= 1 << 4;
+
+        vtl.store_frame_outputs(levels, pulses);
+
+        assert_ne!(vtl.pulses[0] & (1 << 4), 0, "the animation's own pulse was lost");
+        assert_ne!(
+            vtl.pulses[0] & (1 << 9),
+            0,
+            "a pulse added while the lock was released was clobbered"
+        );
+    }
+
+    /// Levels are not merged: the animation pass starts from the current staged
+    /// value and owns the result, so a bit it cleared must stay cleared.
+    #[test]
+    fn storing_frame_outputs_lets_the_pass_clear_a_level() {
+        let mut vtl = make_vtl();
+        vtl.staged[0] = 1 << 5;
+
+        let mut levels = vtl.staged;
+        levels[0] &= !(1 << 5); // the pass cleared it (e.g. DONE_LEVEL reset)
+        vtl.store_frame_outputs(levels, [0; vtl::MAX_BANKS]);
+
+        assert_eq!(vtl.staged[0] & (1 << 5), 0, "a cleared level came back");
+    }
+
     /// A pulse and a level on the *same* bit: the level wins once the pulse is
     /// spent, rather than the pulse's clear taking the level down with it.
     #[test]

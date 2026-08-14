@@ -206,11 +206,7 @@ impl WinitRenderLoopData {
                 &output_edges,
                 &mut VtlOutputs { levels: &mut levels, pulses: &mut pulses },
             );
-            {
-                let mut v = vtl.lock().unwrap();
-                v.staged = levels;
-                v.pulses = pulses;
-            }
+            vtl.lock().unwrap().store_frame_outputs(levels, pulses);
         }
 
         // 2. Render: build overlay UI, tessellate scene, record Vulkan commands,

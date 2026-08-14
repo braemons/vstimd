@@ -50,9 +50,7 @@ impl NullBackend {
                 );
             }
             if let Some(v) = vtl.as_ref() {
-                let mut g = v.lock().unwrap();
-                g.staged = levels;
-                g.pulses = pulses;
+                v.lock().unwrap().store_frame_outputs(levels, pulses);
             }
             if let Some(remaining) = frame_period.checked_sub(t0.elapsed()) {
                 std::thread::sleep(remaining);
