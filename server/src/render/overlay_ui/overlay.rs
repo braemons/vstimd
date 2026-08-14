@@ -361,16 +361,29 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                         if let Some(h) = arm    { sc.arm_animation(h); }
                         if let Some(h) = disarm { sc.disarm_animation(h); }
                         if let Some(h) = cancel {
-                            // Seed from staged outputs so a cancel_action trigger-line
-                            // pulse is applied, then commit changed banks back.
-                            let mut output_pending = (*vtl)
+                            // Seed from the staged levels so a cancel_action
+                            // level change is applied, then commit changed banks
+                            // back. Any pulse the cancel produces is handed to
+                            // VtlState::pulses, which the next commit publishes
+                            // for one frame.
+                            let mut levels = (*vtl)
                                 .and_then(|v| v.try_lock().ok().map(|g| g.staged))
                                 .unwrap_or([0u64; ::vtl::MAX_BANKS]);
-                            sc.cancel_animation(h, &mut output_pending);
+                            let mut pulses = [0u64; ::vtl::MAX_BANKS];
+                            sc.cancel_animation(
+                                h,
+                                &mut crate::vtl_state::VtlOutputs {
+                                    levels: &mut levels,
+                                    pulses: &mut pulses,
+                                },
+                            );
                             if let Some(v) = *vtl
                                 && let Ok(mut g) = v.try_lock()
                             {
-                                for (bank, &val) in output_pending.iter().enumerate() {
+                                for (bank, &p) in pulses.iter().enumerate() {
+                                    g.pulses[bank] |= p;
+                                }
+                                for (bank, &val) in levels.iter().enumerate() {
                                     if g.staged[bank] != val {
                                         g.set_staged_bank(bank, val);
                                     }

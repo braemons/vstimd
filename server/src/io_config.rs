@@ -89,6 +89,190 @@ pub fn load_config(path: &std::path::Path) -> anyhow::Result<(SceneConfig, IoCon
     parse_config_json(&s)
 }
 
+// ── Demo configs ──────────────────────────────────────────────────────────────
+
+/// Every demo name starts with this, so demos are visible as a group in
+/// `config list` and cannot be confused with user-saved configs.
+pub const DEMO_PREFIX: &str = "demo_";
+
+/// Demos shipped with the server: `(name, config JSON)`.
+///
+/// Demos are deliberately *ordinary* configs — there is no demo-specific
+/// command, load path or scene builder. They are compiled in (rather than
+/// installed as package data) so a dev checkout, a `.deb` install and the
+/// Raspberry Pi image all offer the same set, and are written into the config
+/// dir at startup by [`seed_demo_configs`]. From that point on a demo is just a
+/// file: `config load` it, edit the scene, `config save` it under your own name.
+///
+/// The trigger lines they use are the ones the Raspberry Pi 5 gpiochip-daqd
+/// example wires to physical header pins (`in_pin11`, `out_pin36`, …), so a
+/// demo does something measurable on a stock Pi 5 rig with no extra config.
+pub const DEMO_CONFIGS: &[(&str, &str)] = &[
+    (
+        "demo_first_light",
+        include_str!("../config/demos/vstimd_demo_first_light.config.json"),
+    ),
+    (
+        "demo_drifting_grating",
+        include_str!("../config/demos/vstimd_demo_drifting_grating.config.json"),
+    ),
+    (
+        "demo_gratings_triggered",
+        include_str!("../config/demos/vstimd_demo_gratings_triggered.config.json"),
+    ),
+    (
+        "demo_moving_target",
+        include_str!("../config/demos/vstimd_demo_moving_target.config.json"),
+    ),
+    (
+        "demo_photodiode_flicker",
+        include_str!("../config/demos/vstimd_demo_photodiode_flicker.config.json"),
+    ),
+    (
+        "demo_trigger_gate",
+        include_str!("../config/demos/vstimd_demo_trigger_gate.config.json"),
+    ),
+];
+
+/// Sidecar recording the fingerprint of each demo file this server wrote, so a
+/// later version can tell "the file I installed" from "the file the operator
+/// changed". One `name hash` pair per line; unparsable lines are ignored.
+const DEMO_STAMP_FILE: &str = ".vstimd_demo_seed";
+
+/// FNV-1a over the file bytes. Change detection only — never a security
+/// boundary — so a short non-cryptographic hash is the right size of tool.
+fn demo_fingerprint(bytes: &[u8]) -> u64 {
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for b in bytes {
+        h ^= *b as u64;
+        h = h.wrapping_mul(0x0000_0100_0000_01b3);
+    }
+    h
+}
+
+fn read_demo_stamps(dir: &std::path::Path) -> std::collections::HashMap<String, u64> {
+    let mut stamps = std::collections::HashMap::new();
+    let Ok(raw) = std::fs::read_to_string(dir.join(DEMO_STAMP_FILE)) else {
+        return stamps;
+    };
+    for line in raw.lines() {
+        if let Some((name, hash)) = line.split_once(' ')
+            && let Ok(hash) = hash.trim().parse::<u64>()
+        {
+            stamps.insert(name.to_string(), hash);
+        }
+    }
+    stamps
+}
+
+fn write_demo_stamps(dir: &std::path::Path, stamps: &std::collections::HashMap<String, u64>) {
+    let mut lines: Vec<String> = stamps.iter().map(|(n, h)| format!("{n} {h}")).collect();
+    lines.sort();
+    // Best-effort: losing the stamp file only costs the next refresh, which
+    // then leaves the on-disk demo alone (the safe direction).
+    let _ = std::fs::write(dir.join(DEMO_STAMP_FILE), lines.join("\n") + "\n");
+}
+
+/// What [`seed_demo_configs`] did, per outcome. Installing and refreshing are
+/// reported apart because they mean different things to an operator: one added
+/// a file, the other *replaced* one that was already there.
+#[derive(Default, Debug)]
+pub struct DemoSeedReport {
+    /// Demos that were not present and have now been written.
+    pub installed: Vec<&'static str>,
+    /// Demos that were present, unmodified since this server installed them,
+    /// and have been replaced with a newer shipped version.
+    pub refreshed: Vec<&'static str>,
+    /// Demos left exactly as they were, and why — see [`DemoSkip`].
+    pub kept: Vec<(&'static str, DemoSkip)>,
+    /// Per-file errors. Collected, never propagated: failing to install a demo
+    /// must not stop the server from starting.
+    pub failed: Vec<(&'static str, std::io::Error)>,
+}
+
+/// Why a demo already on disk was left alone.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum DemoSkip {
+    /// Byte-identical to the shipped version — nothing to do. The file is
+    /// (re)stamped, so a copy restored by hand stays in the refresh path.
+    UpToDate,
+    /// Changed since this server wrote it: the operator's file, and theirs to
+    /// keep. It stops tracking the shipped version until they delete it.
+    Modified,
+    /// Present with no stamp — this server never wrote it, so it cannot be told
+    /// apart from an operator's file and is treated as one. Applies to config
+    /// dirs that predate the stamp sidecar.
+    Unstamped,
+}
+
+/// Install the [`DEMO_CONFIGS`] into `dir`, refreshing the ones this server
+/// previously wrote and never clobbering the ones an operator touched.
+///
+/// | On disk | Action |
+/// |---|---|
+/// | absent | written, fingerprint recorded |
+/// | identical to the shipped copy | left; (re)stamped so it stays in the refresh path |
+/// | matches the fingerprint we recorded, but the shipped copy has changed | **replaced** with the new version |
+/// | anything else — edited, or present with no stamp | left alone, permanently |
+///
+/// The refresh case is the one that matters for shipping fixes: without it an
+/// improved demo could never reach a rig that already had the old file — the fix
+/// ships, the rig keeps the stale copy, and the demo silently behaves like the
+/// old version.
+///
+/// A demo the operator deletes comes back on the next start; deleting it for
+/// good means saving something else under that name.
+pub fn seed_demo_configs(dir: &std::path::Path) -> DemoSeedReport {
+    let mut report = DemoSeedReport::default();
+    let mut stamps = read_demo_stamps(dir);
+
+    for (name, json) in DEMO_CONFIGS {
+        let path = config_path(dir, name);
+        let shipped = demo_fingerprint(json.as_bytes());
+        let mut refreshing = false;
+        match std::fs::read(&path) {
+            Ok(on_disk) => {
+                let current = demo_fingerprint(&on_disk);
+                if current == shipped {
+                    stamps.insert((*name).to_string(), shipped);
+                    report.kept.push((*name, DemoSkip::UpToDate));
+                    continue;
+                }
+                match stamps.get(*name) {
+                    Some(&stamped) if stamped == current => refreshing = true,
+                    Some(_) => {
+                        report.kept.push((*name, DemoSkip::Modified));
+                        continue;
+                    }
+                    None => {
+                        report.kept.push((*name, DemoSkip::Unstamped));
+                        continue;
+                    }
+                }
+            }
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => {
+                report.failed.push((*name, e));
+                continue;
+            }
+            Err(_) => {} // absent — fall through and write it
+        }
+        match std::fs::write(&path, json) {
+            Ok(()) => {
+                stamps.insert((*name).to_string(), shipped);
+                if refreshing {
+                    report.refreshed.push(*name);
+                } else {
+                    report.installed.push(*name);
+                }
+            }
+            Err(e) => report.failed.push((*name, e)),
+        }
+    }
+
+    write_demo_stamps(dir, &stamps);
+    report
+}
+
 /// List bare config names (no path, no extension) from a config directory.
 pub fn list_config_names(dir: &std::path::Path) -> anyhow::Result<Vec<String>> {
     if !dir.exists() {

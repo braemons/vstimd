@@ -21,6 +21,10 @@ cargo run --release -- --windowed 1280x720
 cargo run --release -- --null
 ```
 
+For first light, load a shipped [demo scene](demos.md) — `vstimd-client config
+load demo_first_light` puts a self-explaining scene on the display without a
+line of code.
+
 Press **D** to spawn demo stimuli, **F1–F7** to show overlay panels (Stimuli, Log,
 Virtual Trigger, Animations, System, Config, Benchmarks; Shift+F–key hides), **Esc**
 to exit.

@@ -1,0 +1,165 @@
+{
+  "version": 2,
+  "scene": {
+    "background": [
+      0.05,
+      0.05,
+      0.05,
+      1.0
+    ],
+    "default_fill": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "default_outline": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "photodiode": {
+      "enabled": false,
+      "lit": false,
+      "flicker": false,
+      "position": 0
+    },
+    "stimuli": {
+      "1": {
+        "id": "d3701003-0000-4000-8000-000000000001",
+        "name": "target",
+        "stimulus": {
+          "type": "Circle",
+          "flags": {
+            "enabled": true,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              -800.0,
+              0.0
+            ],
+            "angle": 0.0
+          },
+          "appearance": {
+            "fill_color": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "outline_color": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "stroke_width": 2.0,
+            "draw_mode": "Fill"
+          },
+          "radius": 30.0
+        }
+      },
+      "2": {
+        "id": "d3701003-0000-4000-8000-000000000002",
+        "name": "explanation",
+        "stimulus": {
+          "type": "Text",
+          "flags": {
+            "enabled": true,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              -340.0
+            ],
+            "angle": 0.0
+          },
+          "params": {
+            "color": [
+              0.9,
+              0.9,
+              0.9,
+              1.0
+            ],
+            "fill_color": [
+              0.0,
+              0.0,
+              0.0,
+              0.65
+            ],
+            "border_color": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "flip_horiz": false
+          },
+          "box_size": [
+            1500.0,
+            320.0
+          ],
+          "text_live": "demo_moving_target \u2014 motion plus an output pulse\n\nA 30 px target sweeps from x = -800 to x = +800 at 600 px/s, then restarts.\nEach completed sweep pulses out_pin36 (header pin 36) for one frame \u2014\nscope that pin against the display to measure end-to-end output latency.\nRuns on load; no input trigger needed.",
+          "font_family": "",
+          "letter_height_px": 24.0,
+          "anchor": "Center",
+          "language_style": "Ltr"
+        }
+      }
+    },
+    "next_stim_handle": 3,
+    "animations": {
+      "1": {
+        "name": "sweep_left_to_right",
+        "state": "Armed",
+        "stimuli": [
+          1
+        ],
+        "start_action": 0,
+        "start_action_trigger_line": null,
+        "final_action": 24,
+        "final_action_trigger_line": {
+          "bank": 0,
+          "bit": 36,
+          "kind": "Output"
+        },
+        "final_action_level_line": null,
+        "start_trigger": null,
+        "cancel_trigger": null,
+        "cancel_action": 0,
+        "cancel_action_trigger_line": null,
+        "animation": {
+          "MoveAlongSegments2D": {
+            "waypoints": [
+              [
+                -800.0,
+                0.0
+              ],
+              [
+                800.0,
+                0.0
+              ]
+            ],
+            "speed_px_per_sec": 600.0
+          }
+        }
+      }
+    },
+    "next_anim_handle": 2
+  },
+  "io": {
+    "vtl": {
+      "names": [
+        {
+          "name": "out_pin36",
+          "bank": 0,
+          "bit": 36,
+          "kind": "Output"
+        }
+      ]
+    }
+  }
+}

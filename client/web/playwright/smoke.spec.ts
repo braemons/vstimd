@@ -66,7 +66,12 @@ test("lists an animation and arms it", async ({ page }) => {
   await expect(page.getByText("connected")).toBeVisible();
 
   // The animation appears in the panel (polled) with its canonical type tag.
-  const row = page.locator("tr", { hasText: "fl" });
+  // Scope to the animations panel: other panels render rows too — the config
+  // list alone carries demo_photodiode_flicker — and an unscoped "fl" filter
+  // matches those as well.
+  const row = page
+    .getByTestId("animations-panel")
+    .locator("tr", { hasText: "fl" });
   await expect(row).toContainText("FlashForNFrames");
   await expect(row).toContainText("idle");
 
@@ -92,7 +97,9 @@ test("couple-visibility dialog can target an output line (kind picker)", async (
 
   // The new animation appears with its canonical type tag.
   await expect(
-    page.locator("tr", { hasText: "CoupleVisibilityToTriggerLine" }),
+    page
+      .getByTestId("animations-panel")
+      .locator("tr", { hasText: "CoupleVisibilityToTriggerLine" }),
   ).toBeVisible();
 });
 

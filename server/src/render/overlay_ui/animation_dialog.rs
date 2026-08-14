@@ -69,10 +69,16 @@ pub struct AnimationDialog {
     cancel_pulse_enabled: bool,
     cancel_pulse_bank: u32,
     cancel_pulse_bit: u32,
+    // Re-arm on completion: fire again on the next start-trigger edge.
+    rearm_on_finish: bool,
     // Final trigger: pulse a VTL output line when the animation completes.
     final_trig_enabled: bool,
     final_bank: u32,
     final_bit: u32,
+    // Done level: hold a VTL output line HIGH from completion until the next start.
+    final_level_enabled: bool,
+    final_level_bank: u32,
+    final_level_bit: u32,
     result: Option<AnimationEntry>,
 }
 
@@ -114,9 +120,13 @@ impl Default for AnimationDialog {
             cancel_pulse_enabled: false,
             cancel_pulse_bank: 0,
             cancel_pulse_bit: 0,
+            rearm_on_finish: false,
             final_trig_enabled: false,
             final_bank: 0,
             final_bit: 0,
+            final_level_enabled: false,
+            final_level_bank: 0,
+            final_level_bit: 0,
             result: None,
         }
     }
@@ -202,11 +212,22 @@ impl AnimationDialog {
             });
         }
         entry.config.cancel_action = cancel_action;
+        if self.rearm_on_finish {
+            entry.config.final_action |= FinalAction::REARM;
+        }
         if self.final_trig_enabled {
             entry.config.final_action |= FinalAction::FINAL_ACTION_TRIGGER_LINE;
             entry.config.final_action_trigger_line = Some(VtlBit {
                 bank: self.final_bank as usize,
                 bit: self.final_bit as u8,
+                kind: VtlKind::Output,
+            });
+        }
+        if self.final_level_enabled {
+            entry.config.final_action |= FinalAction::DONE_LEVEL;
+            entry.config.final_action_level_line = Some(VtlBit {
+                bank: self.final_level_bank as usize,
+                bit: self.final_level_bit as u8,
                 kind: VtlKind::Output,
             });
         }
@@ -358,12 +379,30 @@ impl AnimationDialog {
                         ui.add(egui::DragValue::new(&mut self.cancel_pulse_bit).range(0..=63));
                     });
                 }
-                ui.checkbox(&mut self.final_trig_enabled, "Pulse VTL line on completion");
+                ui.checkbox(&mut self.rearm_on_finish, "Re-arm on completion")
+                    .on_hover_text(
+                        "Wait for the start trigger again instead of finishing, so the \
+                         animation fires on every edge rather than only the first.",
+                    );
+                ui.checkbox(&mut self.final_trig_enabled, "Pulse VTL line on completion")
+                    .on_hover_text("One frame HIGH — marks the moment it finished.");
                 if self.final_trig_enabled {
                     ui.horizontal(|ui| {
                         ui.label("Bank/Bit");
                         ui.add(egui::DragValue::new(&mut self.final_bank).range(0..=bank_max));
                         ui.add(egui::DragValue::new(&mut self.final_bit).range(0..=63));
+                    });
+                }
+                ui.checkbox(&mut self.final_level_enabled, "Hold VTL line HIGH when done")
+                    .on_hover_text(
+                        "Stays HIGH from completion until the animation next starts, so \
+                         'has it finished?' can be read at any time.",
+                    );
+                if self.final_level_enabled {
+                    ui.horizontal(|ui| {
+                        ui.label("Bank/Bit");
+                        ui.add(egui::DragValue::new(&mut self.final_level_bank).range(0..=bank_max));
+                        ui.add(egui::DragValue::new(&mut self.final_level_bit).range(0..=63));
                     });
                 }
 

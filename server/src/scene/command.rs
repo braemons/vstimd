@@ -1649,7 +1649,7 @@ impl SceneState {
                 None
             };
 
-        let final_action = FinalAction::from_bits_truncate(cmd.final_action_mask as u8);
+        let final_action = FinalAction::from_bits_truncate(cmd.final_action_mask as u16);
 
         let final_action_trigger_line =
             if final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE) {
@@ -1660,6 +1660,15 @@ impl SceneState {
             } else {
                 None
             };
+
+        let final_action_level_line = if final_action.contains(FinalAction::DONE_LEVEL) {
+            match resolve_output_handle(cmd.final_action_level_line.as_ref(), vtl_names) {
+                Ok(bit) => Some(bit),
+                Err(e) => return *e,
+            }
+        } else {
+            None
+        };
 
         let start_trigger = if cmd.start_trigger.is_some() {
             match resolve_vtl_handle(cmd.start_trigger.as_ref(), vtl_names) {
@@ -1708,6 +1717,7 @@ impl SceneState {
                     start_action_trigger_line,
                     final_action,
                     final_action_trigger_line,
+                    final_action_level_line,
                     start_trigger,
                     cancel_trigger,
                     cancel_action,
@@ -1747,14 +1757,22 @@ impl SceneState {
         cmd: proto::CancelAnimationRequest,
         vtl: Option<&mut VtlState>,
     ) -> proto::Response {
-        // Seed a scratch output buffer from the current staged outputs so any
-        // cancel_action trigger-line pulse from the teardown is applied. Outside
-        // the render loop there is no per-frame output_pending, so we commit any
-        // changed banks straight through to shm.
-        let mut output_pending = vtl.as_ref().map_or([0u64; vtl::MAX_BANKS], |v| v.staged);
-        let found = self.cancel_animation(cmd.handle, &mut output_pending);
+        // Seed a scratch level buffer from the current staged outputs so any
+        // cancel_action level change from the teardown is applied, and commit
+        // changed banks straight through to shm — outside the render loop there
+        // is no per-frame commit. A pulse goes into `VtlState::pulses`, which
+        // the next commit publishes for its one frame.
+        let mut levels = vtl.as_ref().map_or([0u64; vtl::MAX_BANKS], |v| v.staged);
+        let mut pulses = [0u64; vtl::MAX_BANKS];
+        let found = self.cancel_animation(
+            cmd.handle,
+            &mut crate::vtl_state::VtlOutputs { levels: &mut levels, pulses: &mut pulses },
+        );
         if let Some(v) = vtl {
-            for (bank, &val) in output_pending.iter().enumerate() {
+            for (bank, &p) in pulses.iter().enumerate() {
+                v.pulses[bank] |= p;
+            }
+            for (bank, &val) in levels.iter().enumerate() {
                 if v.staged[bank] != val {
                     v.set_staged_bank(bank, val);
                 }
@@ -1840,6 +1858,7 @@ impl SceneState {
             start_action_trigger_line: entry.start_action_trigger_line.map(vtl_bit_to_proto),
             final_action_mask: entry.final_action.bits() as u32,
             final_action_trigger_line: entry.final_action_trigger_line.map(vtl_bit_to_proto),
+            final_action_level_line: entry.final_action_level_line.map(vtl_bit_to_proto),
             start_trigger,
             start_edge,
             cancel_trigger,

@@ -1114,3 +1114,101 @@ def test_anim_output_edge_fan_out(
     conn.stimuli.delete(sb)
     conn.stimuli.delete(sc)
     conn.stimuli.delete(lbl)
+
+
+def _line_high(conn: Connection, name: str) -> bool:
+    """Current level of a named VTL line, read back from the server."""
+    for line in conn.vtl.list_lines():
+        if line.name == name:
+            return line.high
+    raise AssertionError(f"no VTL line named {name!r}")
+
+
+def test_anim_flash_rearm_fires_on_every_trigger_edge(
+    conn: Connection, request: pytest.FixtureRequest, step_delay: float
+) -> None:
+    """REARM returns a triggered flash to ARMED, so each edge fires it again.
+
+    Without REARM the animation lands in DONE after the first edge and ignores
+    every later one — the whole trial sequence stops after trial 1.
+    """
+    tid = request.node.name
+    lbl = _label(conn, tid, "flash re-arms after each trigger")
+    s = _make_rect(conn, x=150, y=0, enabled=False)
+
+    a = conn.animations.create_flash(
+        s,
+        duration_frames=6,
+        start_trigger=VtlHandle.input(0, 12),
+        start_edge=VtlEdge.RISING,
+        final_action_mask=FinalAction.DISABLE | FinalAction.REARM,
+    )
+    conn.animations.arm(a)
+
+    for trial in range(3):
+        assert conn.animations.query(a).state == AnimationState.ARMED, (
+            f"trial {trial}: not waiting for its trigger"
+        )
+        conn.vtl.set_line(VtlHandle.input(0, 12), True)
+        conn.vtl.set_line(VtlHandle.input(0, 12), False)
+
+        # Runs, then re-arms rather than finishing in DONE.
+        back = _wait_for_state(conn, a, AnimationState.ARMED, timeout=4.0)
+        assert back == AnimationState.ARMED, f"trial {trial}: did not re-arm"
+        _update_label(conn, lbl, tid, f"trial {trial + 1} fired, re-armed")
+        time.sleep(step_delay / 3)
+
+    conn.animations.delete(a)
+    conn.stimuli.delete(s)
+    conn.stimuli.delete(lbl)
+
+
+def test_anim_done_level_holds_until_next_start(
+    conn: Connection, request: pytest.FixtureRequest, step_delay: float
+) -> None:
+    """DONE_LEVEL is the sticky counterpart to the one-frame completion pulse.
+
+    It answers "has this run finished?" at any time, and clears when the
+    animation next starts so each run answers for itself.
+    """
+    tid = request.node.name
+    lbl = _label(conn, tid, "done-level holds after completion")
+    s = _make_rect(conn, x=-150, y=0, enabled=False)
+
+    # Name the line so its level can be read back through list_lines().
+    conn.vtl.set_line_name(0, 21, VtlKind.OUTPUT, "e2e_done_level")
+
+    a = conn.animations.create_flash(
+        s,
+        duration_frames=6,
+        start_trigger=VtlHandle.input(0, 13),
+        start_edge=VtlEdge.RISING,
+        final_action_mask=FinalAction.DISABLE | FinalAction.REARM | FinalAction.DONE_LEVEL,
+        final_action_level_line=VtlHandle.output(0, 21),
+    )
+    conn.animations.arm(a)
+
+    assert not _line_high(conn, "e2e_done_level"), "level HIGH before the first run"
+
+    conn.vtl.set_line(VtlHandle.input(0, 13), True)
+    conn.vtl.set_line(VtlHandle.input(0, 13), False)
+    _wait_for_state(conn, a, AnimationState.ARMED, timeout=4.0)
+
+    # Still HIGH well after the completing frame — this is what makes it a level
+    # rather than a mark.
+    time.sleep(0.2)
+    assert _line_high(conn, "e2e_done_level"), "level did not hold after completion"
+    _update_label(conn, lbl, tid, "finished — level HIGH")
+    time.sleep(step_delay / 2)
+
+    # Starting again clears it.
+    conn.vtl.set_line(VtlHandle.input(0, 13), True)
+    conn.vtl.set_line(VtlHandle.input(0, 13), False)
+    time.sleep(0.05)
+    assert not _line_high(conn, "e2e_done_level"), "level survived the next start"
+
+    _wait_for_state(conn, a, AnimationState.ARMED, timeout=4.0)
+    conn.animations.delete(a)
+    conn.stimuli.delete(s)
+    conn.stimuli.delete(lbl)
+    conn.vtl.set_line_name(0, 21, VtlKind.OUTPUT, "")

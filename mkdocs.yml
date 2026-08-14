@@ -95,6 +95,7 @@ nav:
   - Getting started:
       - Installation: getting-started/installation.md
       - Quick start: getting-started/quick-start.md
+      - Demo scenes: getting-started/demos.md
   - Tutorials:
       - How vstimd works — setup & triggers: tutorial/index.md
       - Setup — the command API: tutorial/command-api.md

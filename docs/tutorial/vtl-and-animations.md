@@ -136,7 +136,7 @@ The action masks let you attach behaviour to each phase of the animation:
 | Phase | Mask | Useful bits |
 |---|---|---|
 | Armed → Running (start) | `StartAction` | `ENABLE`, `TOGGLE_PHOTODIODE`, `START_ACTION_TRIGGER_LINE` |
-| Completion (final) | `FinalAction` | `DISABLE`, `TOGGLE_PHOTODIODE`, `FINAL_ACTION_TRIGGER_LINE`, `RESTART`, `RESTORE_STATE`, `END_DEFERRED` |
+| Completion (final) | `FinalAction` | `DISABLE`, `REARM`, `TOGGLE_PHOTODIODE`, `FINAL_ACTION_TRIGGER_LINE`, `DONE_LEVEL`, `RESTART`, `RESTORE_STATE`, `END_DEFERRED` |
 | Cancellation | `CancelAction` | `DISABLE`, `TOGGLE_PHOTODIODE`, `CANCEL_ACTION_TRIGGER_LINE`, `RESTORE_STATE`, `END_DEFERRED` |
 
 Masks are `IntFlag`s, so combine them with `|`:
@@ -211,8 +211,40 @@ for a in conn.animations.list_animations():
 details = conn.animations.query(handle)   # full config + current state
 ```
 
-An animation with `FinalAction.RESTART` re-arms itself on completion — handy for a
-free-running flicker or a repeating cue.
+A completed animation is `DONE` and ignores further trigger edges, so a
+trigger-driven animation fires **once per arm** unless you say otherwise. Two
+bits change that:
+
+| Bit | On completion | Use it for |
+|---|---|---|
+| `FinalAction.REARM` | back to `ARMED` — waits for `start_trigger` again | one presentation per trigger edge, trial after trial |
+| `FinalAction.RESTART` | straight back to `RUNNING`, trigger ignored | a free-running flicker or a repeating cue |
+
+`RESTART` wins if both are set, and with no `start_trigger` they do the same
+thing. Neither applies to a cancelled animation — cancel is always terminal.
+
+### Marks and levels
+
+An animation can report completion on a VTL output line two ways, and they
+answer different questions:
+
+| Bit | Line | Behaviour | Answers |
+|---|---|---|---|
+| `FINAL_ACTION_TRIGGER_LINE` | `final_action_trigger_line` | HIGH for one frame | *when* did it finish |
+| `DONE_LEVEL` | `final_action_level_line` | HIGH from completion until the animation next starts | *has* it finished |
+
+The pulse is what a recording system timestamps: one rising edge per
+occurrence, so trial 2 is as visible as trial 1. The level is what a polling
+client reads — ask at any time whether this run has ended. Set both, on
+separate lines, to get both. The start and cancel action lines are pulses too.
+
+A pulse is one frame wide — 16.7 ms at 60 Hz — and is committed right after the
+vblank the stimulus becomes visible on, so it lines up with what is on screen
+rather than with GPU submission.
+
+```python
+final = FinalAction.DISABLE | FinalAction.REARM | FinalAction.FINAL_ACTION_TRIGGER_LINE
+```
 
 ## Inspecting VTL state from the shell
 

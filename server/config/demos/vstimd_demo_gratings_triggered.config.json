@@ -1,0 +1,344 @@
+{
+  "version": 2,
+  "scene": {
+    "background": [
+      0.5,
+      0.5,
+      0.5,
+      1.0
+    ],
+    "default_fill": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "default_outline": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "photodiode": {
+      "enabled": true,
+      "lit": false,
+      "flicker": false,
+      "position": 0
+    },
+    "stimuli": {
+      "1": {
+        "id": "d3701006-0000-4000-8000-000000000001",
+        "name": "grating_45deg",
+        "stimulus": {
+          "type": "Grating",
+          "flags": {
+            "enabled": false,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "angle": 45.0
+          },
+          "size": [
+            300.0,
+            300.0
+          ],
+          "params": {
+            "sf": 0.02,
+            "phase": 0.0,
+            "contrast": 1.0,
+            "waveform": "Sin",
+            "mask": "RaisedCos",
+            "mask_param": 0.2,
+            "drift_speed": 0.0,
+            "drift_coupled": true,
+            "drift_angle": 0.0,
+            "fore_color": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "back_color": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "opacity": 1.0
+          }
+        }
+      },
+      "2": {
+        "id": "d3701006-0000-4000-8000-000000000002",
+        "name": "grating_135deg",
+        "stimulus": {
+          "type": "Grating",
+          "flags": {
+            "enabled": false,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "angle": 135.0
+          },
+          "size": [
+            300.0,
+            300.0
+          ],
+          "params": {
+            "sf": 0.02,
+            "phase": 0.0,
+            "contrast": 1.0,
+            "waveform": "Sin",
+            "mask": "RaisedCos",
+            "mask_param": 0.2,
+            "drift_speed": 0.0,
+            "drift_coupled": true,
+            "drift_angle": 0.0,
+            "fore_color": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "back_color": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "opacity": 1.0
+          }
+        }
+      },
+      "3": {
+        "id": "d3701006-0000-4000-8000-000000000003",
+        "name": "fixation_dot",
+        "stimulus": {
+          "type": "Circle",
+          "flags": {
+            "enabled": true,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "angle": 0.0
+          },
+          "appearance": {
+            "fill_color": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "outline_color": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "stroke_width": 2.0,
+            "draw_mode": "FillAndStroke"
+          },
+          "radius": 6.0
+        }
+      },
+      "4": {
+        "id": "d3701006-0000-4000-8000-000000000004",
+        "name": "explanation",
+        "stimulus": {
+          "type": "Text",
+          "flags": {
+            "enabled": true,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              -340.0
+            ],
+            "angle": 0.0
+          },
+          "params": {
+            "color": [
+              0.9,
+              0.9,
+              0.9,
+              1.0
+            ],
+            "fill_color": [
+              0.0,
+              0.0,
+              0.0,
+              0.65
+            ],
+            "border_color": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "flip_horiz": false
+          },
+          "box_size": [
+            1500.0,
+            320.0
+          ],
+          "text_live": "demo_gratings_triggered \u2014 trigger in, trigger out\n\nTwo masked gratings at the centre, hidden until triggered. Each re-arms itself, so\nevery rising edge fires another 2 s presentation (120 frames @ 60 Hz).\n\nin_pin11 -> 45 deg   \u00b7   onset out_pin36   \u00b7   end out_pin37   \u00b7   done out_pin35\nin_pin12 -> 135 deg  \u00b7   onset out_pin38   \u00b7   end out_pin40   \u00b7   done out_pin32\n\nOnset and end pulse for one frame \u2014 the marks a recording system timestamps.\nThe done line instead stays HIGH until that grating's next presentation starts.",
+          "font_family": "",
+          "letter_height_px": 24.0,
+          "anchor": "Center",
+          "language_style": "Ltr"
+        }
+      }
+    },
+    "next_stim_handle": 5,
+    "animations": {
+      "1": {
+        "name": "flash_45deg_on_pin11",
+        "state": "Armed",
+        "stimuli": [
+          1
+        ],
+        "start_action": 10,
+        "start_action_trigger_line": {
+          "bank": 0,
+          "bit": 36,
+          "kind": "Output"
+        },
+        "final_action": 267,
+        "final_action_trigger_line": {
+          "bank": 0,
+          "bit": 37,
+          "kind": "Output"
+        },
+        "final_action_level_line": {
+          "bank": 0,
+          "bit": 35,
+          "kind": "Output"
+        },
+        "start_trigger": [
+          {
+            "bank": 0,
+            "bit": 11,
+            "kind": "Input"
+          },
+          "Rising"
+        ],
+        "cancel_trigger": null,
+        "cancel_action": 0,
+        "cancel_action_trigger_line": null,
+        "animation": {
+          "FlashForNFrames": {
+            "duration_frames": 120
+          }
+        }
+      },
+      "2": {
+        "name": "flash_135deg_on_pin12",
+        "state": "Armed",
+        "stimuli": [
+          2
+        ],
+        "start_action": 10,
+        "start_action_trigger_line": {
+          "bank": 0,
+          "bit": 38,
+          "kind": "Output"
+        },
+        "final_action": 267,
+        "final_action_trigger_line": {
+          "bank": 0,
+          "bit": 40,
+          "kind": "Output"
+        },
+        "final_action_level_line": {
+          "bank": 0,
+          "bit": 32,
+          "kind": "Output"
+        },
+        "start_trigger": [
+          {
+            "bank": 0,
+            "bit": 12,
+            "kind": "Input"
+          },
+          "Rising"
+        ],
+        "cancel_trigger": null,
+        "cancel_action": 0,
+        "cancel_action_trigger_line": null,
+        "animation": {
+          "FlashForNFrames": {
+            "duration_frames": 120
+          }
+        }
+      }
+    },
+    "next_anim_handle": 3
+  },
+  "io": {
+    "vtl": {
+      "names": [
+        {
+          "name": "in_pin11",
+          "bank": 0,
+          "bit": 11,
+          "kind": "Input"
+        },
+        {
+          "name": "in_pin12",
+          "bank": 0,
+          "bit": 12,
+          "kind": "Input"
+        },
+        {
+          "name": "out_pin36",
+          "bank": 0,
+          "bit": 36,
+          "kind": "Output"
+        },
+        {
+          "name": "out_pin37",
+          "bank": 0,
+          "bit": 37,
+          "kind": "Output"
+        },
+        {
+          "name": "out_pin38",
+          "bank": 0,
+          "bit": 38,
+          "kind": "Output"
+        },
+        {
+          "name": "out_pin40",
+          "bank": 0,
+          "bit": 40,
+          "kind": "Output"
+        },
+        {
+          "name": "out_pin35",
+          "bank": 0,
+          "bit": 35,
+          "kind": "Output"
+        },
+        {
+          "name": "out_pin32",
+          "bank": 0,
+          "bit": 32,
+          "kind": "Output"
+        }
+      ]
+    }
+  }
+}

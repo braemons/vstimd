@@ -194,17 +194,22 @@ impl SceneState {
     /// [`super::animation::cancel_one`]. A `Running` animation applies its
     /// configured `cancel_action` (which may be empty for a hard abort) and
     /// ends in `Done`; an `Armed` one is stopped before it starts. For
-    /// `CANCEL_ACTION_TRIGGER_LINE`, `output_pending` receives the pulse on
-    /// `cancel_action_trigger_line`; callers outside the render loop pass a
-    /// scratch buffer seeded from `VtlState::staged`. Returns false if the
-    /// handle is unknown.
+    /// `CANCEL_ACTION_TRIGGER_LINE`, `outputs.pulses` receives the pulse on
+    /// `cancel_action_trigger_line`.
+    ///
+    /// Callers outside the render loop seed `levels` from `VtlState::staged` and
+    /// start `pulses` **empty**, then OR whatever was produced into
+    /// `VtlState::pulses`. Seeding pulses from the live buffer instead would
+    /// re-publish marks that are already on their way out, stretching a
+    /// one-frame mark across two frames. Returns false if the handle is
+    /// unknown.
     /// Shared by `cmd_cancel_animation` and the overlay UI.
     pub fn cancel_animation(
         &mut self,
         handle: u32,
-        output_pending: &mut [u64; vtl::MAX_BANKS],
+        outputs: &mut crate::vtl_state::VtlOutputs<'_>,
     ) -> bool {
-        super::animation::cancel_one(handle, self, output_pending)
+        super::animation::cancel_one(handle, self, outputs)
     }
 
     /// Remove an animation, releasing any flicker hold if it was running.
@@ -238,13 +243,14 @@ impl SceneState {
     /// `input_edges`    — rising/falling/current input lines from `VtlState::poll()`
     /// `output_edges`   — rising/falling/current output lines from `VtlState::output_edges()`,
     ///                    used to start/cancel/couple animations off output-line edges
-    /// `output_pending` — `VtlState::staged` passed by value; animations set/clear bits directly;
-    ///                    written back to staged after all animations have run
+    /// `outputs`        — the two output channels: `levels` (`VtlState::staged`, held until
+    ///                    cleared) and `pulses` (one frame, then LOW). Both are passed by
+    ///                    value and written back after all animations have run.
     pub fn advance_animations(
         &mut self,
         input_edges: &crate::vtl_state::VtlEdges,
         output_edges: &crate::vtl_state::VtlEdges,
-        output_pending: &mut [u64; vtl::MAX_BANKS],
+        outputs: &mut crate::vtl_state::VtlOutputs<'_>,
     ) {
         // Snapshot the handles into a reused buffer: `advance_one` borrows the
         // whole `SceneState` mutably, so we can't iterate `self.animations`
@@ -258,7 +264,7 @@ impl SceneState {
                 self,
                 input_edges,
                 output_edges,
-                output_pending,
+                outputs,
             );
         }
         self.runtime.anim_scratch = handles;
@@ -361,7 +367,7 @@ impl SceneState {
                     for sh in &mut anim.config.stimuli {
                         *sh += stim_offset;
                     }
-                    anim.state = AnimState::Idle;
+                    anim.state = state_after_load(&anim.state);
                     anim.captured_user_enabled = None;
                     self.config.animations.insert(handle + anim_offset, anim);
                 }
@@ -378,7 +384,7 @@ impl SceneState {
             entry.stimulus.make_copy();
         }
         for anim in self.config.animations.values_mut() {
-            anim.state = AnimState::Idle;
+            anim.state = state_after_load(&anim.state);
             anim.captured_user_enabled = None;
         }
         self.config.background.make_copy();
@@ -389,6 +395,26 @@ impl SceneState {
 impl Default for SceneState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// The runtime state a loaded animation starts in.
+///
+/// A config's animation state is intent, not a resumable snapshot: `Armed`
+/// means "this scene is meant to come up waiting for its trigger", which is
+/// what makes an armed scene — a shipped demo, a rig's startup config —
+/// reproducible across a load. Dropping it (as an unconditional reset to
+/// `Idle` does) leaves an animation that never observes its trigger, so the
+/// scene looks dead while every value in the file is correct.
+///
+/// `Running` is *not* resumed: the saved `frame_counter` describes a session
+/// that is over, so a mid-run save reloads as `Armed` and starts from the
+/// beginning. `Done` reloads as `Idle` — a finished animation is not re-run
+/// behind the operator's back.
+fn state_after_load(saved: &AnimState) -> AnimState {
+    match saved {
+        AnimState::Armed | AnimState::Running { .. } => AnimState::Armed,
+        AnimState::Idle | AnimState::Done => AnimState::Idle,
     }
 }
 

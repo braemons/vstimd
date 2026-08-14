@@ -82,17 +82,29 @@ message MoveAlongSegments2D {
 //
 // final_action_mask bit values — applied when animation completes:
 //   0x01  DISABLE           — disable stimuli on completion
+//   0x02  REARM             — return to ARMED on completion, so the animation waits for
+//                             its start_trigger again and fires on every edge instead of
+//                             only the first. With no start_trigger this is RESTART, and
+//                             RESTART wins if both bits are set.
 //   0x04  TOGGLE_PHOTODIODE — toggle the photodiode indicator on completion
 //   0x08  FINAL_ACTION_TRIGGER_LINE — pulse final_action_trigger_line for one frame on completion
-//   0x10  RESTART                   — re-arm and restart the animation on completion
+//   0x10  RESTART                   — restart the animation immediately on completion,
+//                                     without waiting for start_trigger again
 //   0x20  REVERSE                   — reserved
 //   0x40  RESTORE_STATE             — restore user_enabled to its value at animation start
 //   0x80  END_DEFERRED              — call end_deferred_mode on completion
+//  0x100  DONE_LEVEL                — drive final_action_level_line HIGH on completion and
+//                                     leave it there (cleared when the animation next
+//                                     starts). Answers "has it finished since it last
+//                                     started?" at any time; FINAL_ACTION_TRIGGER_LINE marks
+//                                     the instant instead. Both may be set, on separate lines.
 message CreateAnimationRequest {
   string name              = 1;
   uint32 final_action_mask = 2;
   // Required when FINAL_ACTION_TRIGGER_LINE (0x08) is set; the output line to pulse.
   VirtualTriggerLineHandle final_action_trigger_line = 3;
+  // Required when DONE_LEVEL (0x100) is set; the output line to hold HIGH.
+  VirtualTriggerLineHandle final_action_level_line = 20;
   // Optional: if set, the animation waits for this edge before starting. The
   // handle's kind selects an input or output line — an output edge lets one
   // animation start another entirely inside the server (see the intra-server

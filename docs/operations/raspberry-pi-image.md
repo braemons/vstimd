@@ -126,6 +126,14 @@ Quickest confirmation that it is alive: browse to
 **`http://vstimd-XXXXXX.local:8080`** — the [web control UI](../client/web.md)
 is served from the rig itself and needs nothing installed locally.
 
+### Put something on the display
+
+`vstimd-client config load demo_first_light` shows a self-explaining scene; the
+other [demo scenes](../getting-started/demos.md) cover a drifting grating,
+trigger-driven flashes and a photodiode flicker. The trigger demos use the
+header pins this image's `gpiochip-daqd` config already wires up, so they drive
+real pins with nothing further to configure.
+
 ## 4. Get in
 
 ### SSH

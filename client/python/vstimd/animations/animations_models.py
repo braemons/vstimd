@@ -25,13 +25,27 @@ class StartAction(IntFlag):
 
 
 class FinalAction(IntFlag):
+    """Actions applied when an animation completes.
+
+    ``REARM`` is what makes a trigger-driven animation repeat: without it a
+    completed animation is ``DONE`` and ignores further edges until it is armed
+    again. With no ``start_trigger`` it behaves like ``RESTART``, which wins if
+    both bits are set.
+
+    Two ways to report completion on a VTL line, usable together on separate
+    lines: ``FINAL_ACTION_TRIGGER_LINE`` pulses for one frame, marking *when* it
+    finished, and ``DONE_LEVEL`` drives ``final_action_level_line`` HIGH until
+    the animation next starts, answering *whether* it has finished.
+    """
     DISABLE           = 0x01
+    REARM                     = 0x02
     TOGGLE_PHOTODIODE = 0x04
     FINAL_ACTION_TRIGGER_LINE = 0x08
     RESTART                   = 0x10
     REVERSE                   = 0x20
     RESTORE_STATE             = 0x40
     END_DEFERRED              = 0x80
+    DONE_LEVEL                = 0x100
 
 
 class CancelAction(IntFlag):

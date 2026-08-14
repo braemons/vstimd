@@ -44,7 +44,10 @@ export function AnimationsPanel({ conn, snapshot }: Props) {
   }
 
   return (
-    <div style={{ minWidth: 280 }}>
+    // The test id scopes browser-e2e row lookups to this panel: several panels
+    // render <tr>s, so an unscoped row filter matches whatever else happens to
+    // share a substring (a config named …_flicker, a stimulus called flash).
+    <div data-testid="animations-panel" style={{ minWidth: 280 }}>
       <h3>Animations</h3>
       <div style={{ marginBottom: 8 }}>
         <button disabled={!conn} onClick={() => setShowCouple(true)}>+ Couple visibility…</button>

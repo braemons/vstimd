@@ -7,7 +7,7 @@
 
 use super::{AnimState, Animation, CancelAction, FinalAction, StartAction};
 use crate::scene::SceneState;
-use crate::vtl_state::{VtlEdge, VtlBit, VtlEdges};
+use crate::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs};
 use vtl::VtlKind;
 
 /// Pick the edge set (input vs. output) that a trigger's kind addresses.
@@ -38,7 +38,7 @@ pub(crate) fn advance_one(
     scene: &mut SceneState,
     input_edges: &VtlEdges,
     output_edges: &VtlEdges,
-    output_pending: &mut [u64; vtl::MAX_BANKS],
+    outputs: &mut VtlOutputs<'_>,
 ) {
     // ── 0. Cancel trigger (Armed or Running) ──────────────────────────────────
     // Evaluated before anything else so a pending (Armed) animation can be
@@ -52,7 +52,7 @@ pub(crate) fn advance_one(
             && let Some((bit, edge)) = entry.cancel_trigger
             && edge_fired(input_edges, output_edges, bit, edge)
         {
-            cancel_one(handle, scene, output_pending);
+            cancel_one(handle, scene, outputs);
             return;
         }
     }
@@ -75,6 +75,13 @@ pub(crate) fn advance_one(
                 let stim_handles: Vec<u32> = entry.config.stimuli.clone();
                 let start_action = entry.start_action;
                 let start_action_trigger_line = entry.start_action_trigger_line;
+                // Only meaningful with DONE_LEVEL; None otherwise, so the clear
+                // below is a no-op for animations that do not use the level.
+                let done_level_line = entry
+                    .final_action
+                    .contains(FinalAction::DONE_LEVEL)
+                    .then_some(entry.final_action_level_line)
+                    .flatten();
 
                 if captures_state {
                     let captured: Vec<bool> = stim_handles
@@ -132,7 +139,12 @@ pub(crate) fn advance_one(
                 if start_action.contains(StartAction::START_ACTION_TRIGGER_LINE)
                     && let Some(bit) = start_action_trigger_line
                 {
-                    output_pending[bit.bank] |= 1u64 << bit.bit;
+                    outputs.pulse(bit);
+                }
+                // Starting clears the "finished" level from the previous run,
+                // so the line answers for this run rather than the last one.
+                if let Some(bit) = done_level_line {
+                    outputs.clear_level(bit);
                 }
 
                 if let Some(entry) = scene.config.animations.get_mut(&handle) {
@@ -305,13 +317,17 @@ pub(crate) fn advance_one(
 
     // ── 3. Final actions ──────────────────────────────────────────────────────
     if done {
-        let (action, trigger_line) = {
+        let (action, trigger_line, level_line) = {
             let Some(entry) = scene.config.animations.get(&handle) else {
                 return;
             };
-            (entry.final_action, entry.final_action_trigger_line)
+            (
+                entry.final_action,
+                entry.final_action_trigger_line,
+                entry.final_action_level_line,
+            )
         };
-        finalize(handle, scene, &stim_handles, output_pending, action, trigger_line, true, true);
+        finalize(handle, scene, &stim_handles, outputs, action, trigger_line, level_line, true, true);
     }
 }
 
@@ -326,7 +342,7 @@ pub(crate) fn advance_one(
 pub(crate) fn cancel_one(
     handle: u32,
     scene: &mut SceneState,
-    output_pending: &mut [u64; vtl::MAX_BANKS],
+    outputs: &mut VtlOutputs<'_>,
 ) -> bool {
     let Some(entry) = scene.config.animations.get(&handle) else {
         return false;
@@ -337,15 +353,18 @@ pub(crate) fn cancel_one(
             let stim_handles = entry.config.stimuli.clone();
             let action = entry.cancel_action.as_final_action();
             let trigger_line = entry.cancel_action_trigger_line;
+            // Cancel has no level of its own; DONE_LEVEL is not a cancel action.
+            let level_line = None;
             // Release the anim_enabled hold only if it was actually Running; an
             // Armed animation never grabbed it. RESTART is never honored.
             finalize(
                 handle,
                 scene,
                 &stim_handles,
-                output_pending,
+                outputs,
                 action,
                 trigger_line,
+                level_line,
                 false,
                 running,
             );
@@ -359,27 +378,32 @@ pub(crate) fn cancel_one(
 /// Shared teardown for both normal completion and cancel. Applies `action`
 /// (a [`FinalAction`] bitset — cancel converts its `CancelAction` via
 /// `as_final_action`), pulsing `trigger_line` for the trigger-line bit. When
-/// `allow_restart` is false, `RESTART` is ignored and the animation lands in
-/// `Done`. When `release_anim_hold` is false, the `anim_enabled` reset is
-/// skipped (used for Armed cancel, which never grabbed the hold).
+/// `allow_restart` is false, `RESTART` and `REARM` are both ignored and the
+/// animation lands in `Done` — cancel is always terminal. When
+/// `release_anim_hold` is false, the `anim_enabled` reset is skipped (used for
+/// Armed cancel, which never grabbed the hold).
 #[allow(clippy::too_many_arguments)]
 fn finalize(
     handle: u32,
     scene: &mut SceneState,
     stim_handles: &[u32],
-    output_pending: &mut [u64; vtl::MAX_BANKS],
+    outputs: &mut VtlOutputs<'_>,
     final_action: FinalAction,
     trigger_line: Option<VtlBit>,
+    level_line: Option<VtlBit>,
     allow_restart: bool,
     release_anim_hold: bool,
 ) {
-    let (captured, restart) = {
+    let (captured, restart, rearm) = {
         let Some(entry) = scene.config.animations.get(&handle) else {
             return;
         };
         let cap = entry.captured_user_enabled.clone();
         let restart = allow_restart && final_action.contains(FinalAction::RESTART);
-        (cap, restart)
+        // RESTART wins: it is the stronger statement (run again now), and with
+        // no start_trigger the two are the same thing anyway.
+        let rearm = allow_restart && !restart && final_action.contains(FinalAction::REARM);
+        (cap, restart, rearm)
     };
 
     if final_action.contains(FinalAction::RESTORE_STATE) {
@@ -427,7 +451,14 @@ fn finalize(
     if final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE)
         && let Some(bit) = trigger_line
     {
-        output_pending[bit.bank] |= 1u64 << bit.bit;
+        outputs.pulse(bit);
+    }
+
+    // The level says "finished"; it is cleared when the animation next starts.
+    if final_action.contains(FinalAction::DONE_LEVEL)
+        && let Some(bit) = level_line
+    {
+        outputs.set_level(bit);
     }
 
     if final_action.contains(FinalAction::END_DEFERRED) {
@@ -435,12 +466,17 @@ fn finalize(
         scene.runtime.deferred_mode = false;
     }
 
-    if restart {
-        if let Some(entry) = scene.config.animations.get_mut(&handle) {
+    if let Some(entry) = scene.config.animations.get_mut(&handle) {
+        if restart {
             entry.state = AnimState::Running { frame_counter: 0 };
             entry.captured_user_enabled = None;
+        } else if rearm {
+            // Back to waiting: with a start_trigger the animation fires again on
+            // the next edge; without one it starts again on the next frame.
+            entry.state = AnimState::Armed;
+            entry.captured_user_enabled = None;
+        } else {
+            entry.state = AnimState::Done;
         }
-    } else if let Some(entry) = scene.config.animations.get_mut(&handle) {
-        entry.state = AnimState::Done;
     }
 }

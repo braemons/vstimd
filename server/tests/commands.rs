@@ -890,3 +890,160 @@ fn test_list_stimuli_includes_id_and_name() {
         panic!("expected StimulusList");
     }
 }
+
+// ── Animations: action lines over the wire ────────────────────────────────────
+//
+// The proto path is what every client actually goes through, and an action line
+// is only resolved when its bit is set in the mask — so a mask/line mismatch is
+// the easy mistake to make and the one worth pinning down.
+
+fn out_line(bank: u32, bit: u32) -> proto::VirtualTriggerLineHandle {
+    use proto::virtual_trigger_line_handle::Handle;
+    proto::VirtualTriggerLineHandle {
+        handle: Some(Handle::BankBit(proto::VirtualTriggerLineBankBit { bank, bit })),
+        kind: proto::VirtualTriggerLineKind::Output as i32,
+    }
+}
+
+fn in_line(bank: u32, bit: u32) -> proto::VirtualTriggerLineHandle {
+    use proto::virtual_trigger_line_handle::Handle;
+    proto::VirtualTriggerLineHandle {
+        handle: Some(Handle::BankBit(proto::VirtualTriggerLineBankBit { bank, bit })),
+        kind: proto::VirtualTriggerLineKind::Input as i32,
+    }
+}
+
+fn create_flash_req(cmd: proto::CreateAnimationRequest) -> proto::Request {
+    proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::CreateAnimation(cmd)),
+    }
+}
+
+/// A rect to hang the animation on; animations with no stimuli are legal but
+/// less representative.
+fn scene_with_rect() -> (SceneState, u32) {
+    let mut scene = SceneState::new();
+    let resp = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None);
+    assert!(is_ok(&resp), "rect create failed: {}", resp.error);
+    (scene, resp.handle as u32)
+}
+
+#[test]
+fn create_animation_resolves_both_final_action_lines() {
+    let (mut scene, h) = scene_with_rect();
+
+    // DISABLE | REARM | FINAL_ACTION_TRIGGER_LINE | DONE_LEVEL
+    let resp = scene
+        .handle_request(
+            create_flash_req(proto::CreateAnimationRequest {
+                name: "flash".into(),
+                stimuli: vec![h],
+                final_action_mask: 0x01 | 0x02 | 0x08 | 0x100,
+                final_action_trigger_line: Some(out_line(0, 37)),
+                final_action_level_line: Some(out_line(0, 35)),
+                body: Some(proto::create_animation_request::Body::FlashForNFrames(
+                    proto::FlashForNFrames { duration_frames: 120 },
+                )),
+                ..Default::default()
+            }),
+            None,
+        );
+    assert!(is_ok(&resp), "create rejected: {}", resp.error);
+
+    let anim = scene.animations.values().next().expect("no animation created");
+    assert_eq!(anim.final_action_trigger_line.unwrap().bit, 37, "pulse line lost");
+    assert_eq!(anim.final_action_level_line.unwrap().bit, 35, "level line lost");
+}
+
+/// The level line is only read when DONE_LEVEL is set — a line passed without
+/// the bit is ignored rather than silently taking effect.
+#[test]
+fn level_line_without_the_done_level_bit_is_ignored() {
+    let (mut scene, h) = scene_with_rect();
+
+    scene
+        .handle_request(
+            create_flash_req(proto::CreateAnimationRequest {
+                stimuli: vec![h],
+                final_action_mask: 0x01, // DISABLE only
+                final_action_level_line: Some(out_line(0, 35)),
+                body: Some(proto::create_animation_request::Body::FlashForNFrames(
+                    proto::FlashForNFrames { duration_frames: 10 },
+                )),
+                ..Default::default()
+            }),
+            None,
+        );
+
+    let anim = scene.animations.values().next().unwrap();
+    assert!(anim.final_action_level_line.is_none());
+}
+
+/// An action line must address an output. An input-directed handle here is a
+/// wiring mistake that would otherwise have vstimd writing an input line.
+#[test]
+fn done_level_rejects_an_input_line() {
+    let (mut scene, h) = scene_with_rect();
+
+    let resp = scene
+        .handle_request(
+            create_flash_req(proto::CreateAnimationRequest {
+                stimuli: vec![h],
+                final_action_mask: 0x100, // DONE_LEVEL
+                final_action_level_line: Some(in_line(0, 11)),
+                body: Some(proto::create_animation_request::Body::FlashForNFrames(
+                    proto::FlashForNFrames { duration_frames: 10 },
+                )),
+                ..Default::default()
+            }),
+            None,
+        );
+
+    assert!(
+        !is_ok(&resp),
+        "an input line was accepted as a DONE_LEVEL output"
+    );
+    assert!(scene.animations.is_empty(), "the rejected animation was still created");
+}
+
+/// Query must report back what was created, including the new line — a client
+/// that reads its own animation back should see both.
+#[test]
+fn query_animation_reports_the_level_line() {
+    let (mut scene, h) = scene_with_rect();
+    scene
+        .handle_request(
+            create_flash_req(proto::CreateAnimationRequest {
+                stimuli: vec![h],
+                final_action_mask: 0x100,
+                final_action_level_line: Some(out_line(0, 35)),
+                body: Some(proto::create_animation_request::Body::FlashForNFrames(
+                    proto::FlashForNFrames { duration_frames: 10 },
+                )),
+                ..Default::default()
+            }),
+            None,
+        );
+    let handle = *scene.animations.keys().next().unwrap();
+
+    let resp = scene
+        .handle_request(
+            proto::Request {
+                target: Some(sys()),
+                body: Some(request::Body::QueryAnimation(proto::QueryAnimationRequest {
+                    handle,
+                })),
+            },
+            None,
+        );
+    assert!(is_ok(&resp), "query failed: {}", resp.error);
+
+    let Some(proto::response::Body::QueryAnimationResponse(q)) = resp.body else {
+        panic!("unexpected query response body");
+    };
+    let params = q.params.expect("query returned no params");
+    assert_eq!(params.final_action_mask & 0x100, 0x100, "DONE_LEVEL not reported");
+    assert!(params.final_action_level_line.is_some(), "level line not reported");
+}
