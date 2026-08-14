@@ -84,7 +84,7 @@
           "transform": {
             "pos": [
               0.0,
-              -360.0
+              -340.0
             ],
             "angle": 0.0
           },
@@ -111,11 +111,11 @@
           },
           "box_size": [
             1500.0,
-            260.0
+            320.0
           ],
           "text_live": "demo_drifting_grating \u2014 a moving stimulus every frame\n\nFull-field sinusoidal grating: 0.01 cycles/px (100 px per cycle),\nvertical stripes, drifting at 4 cycles/s perpendicular to the stripes.\nRuns on load \u2014 no trigger. Tearing or stutter here means a frame-timing problem.\nEdit sf / drift_speed / angle live, then save it under your own name.",
           "font_family": "",
-          "letter_height_px": 26.0,
+          "letter_height_px": 24.0,
           "anchor": "Center",
           "language_style": "Ltr"
         }

@@ -273,7 +273,7 @@
           "transform": {
             "pos": [
               0.0,
-              -360.0
+              -340.0
             ],
             "angle": 0.0
           },
@@ -300,11 +300,11 @@
           },
           "box_size": [
             1500.0,
-            260.0
+            320.0
           ],
           "text_live": "demo_first_light \u2014 the display works\n\nStatic scene: a centre dot and four corner squares (1800 x 960 px apart),\nso you can see at a glance that the whole display is being driven.\nNo triggers, no animations.\nNext: load demo_drifting_grating, or list all demos with config list.",
           "font_family": "",
-          "letter_height_px": 26.0,
+          "letter_height_px": 24.0,
           "anchor": "Center",
           "language_style": "Ltr"
         }

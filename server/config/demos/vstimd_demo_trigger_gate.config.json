@@ -84,7 +84,7 @@
           "transform": {
             "pos": [
               0.0,
-              -360.0
+              -340.0
             ],
             "angle": 0.0
           },
@@ -111,11 +111,11 @@
           },
           "box_size": [
             1500.0,
-            260.0
+            320.0
           ],
           "text_live": "demo_trigger_gate \u2014 visibility follows an input level\n\nThe square-wave patch is visible exactly while in_pin7 (header pin 7) is HIGH,\nand hidden while it is LOW \u2014 level-coupled, not edge-triggered, so it needs\nno re-arming and shows input wiring problems immediately.\nNo output pins are driven.",
           "font_family": "",
-          "letter_height_px": 26.0,
+          "letter_height_px": 24.0,
           "anchor": "Center",
           "language_style": "Ltr"
         }

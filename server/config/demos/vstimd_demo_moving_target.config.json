@@ -73,7 +73,7 @@
           "transform": {
             "pos": [
               0.0,
-              -360.0
+              -340.0
             ],
             "angle": 0.0
           },
@@ -100,11 +100,11 @@
           },
           "box_size": [
             1500.0,
-            260.0
+            320.0
           ],
           "text_live": "demo_moving_target \u2014 motion plus an output pulse\n\nA 30 px target sweeps from x = -800 to x = +800 at 600 px/s, then restarts.\nEach completed sweep pulses out_pin36 (header pin 36) for one frame \u2014\nscope that pin against the display to measure end-to-end output latency.\nRuns on load; no input trigger needed.",
           "font_family": "",
-          "letter_height_px": 26.0,
+          "letter_height_px": 24.0,
           "anchor": "Center",
           "language_style": "Ltr"
         }

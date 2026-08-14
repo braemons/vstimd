@@ -165,7 +165,7 @@
           "transform": {
             "pos": [
               0.0,
-              -360.0
+              -340.0
             ],
             "angle": 0.0
           },
@@ -192,11 +192,11 @@
           },
           "box_size": [
             1500.0,
-            260.0
+            320.0
           ],
-          "text_live": "demo_gratings_triggered \u2014 trigger in, trigger out\n\nTwo masked gratings at the centre, 45 deg and 135 deg, hidden until triggered.\nRising edge on in_pin11 (header pin 11) shows the 45 deg one for 2 s (120 frames @ 60 Hz),\npulsing out_pin36 at onset and out_pin37 when it ends.\nin_pin12 does the same for the 135 deg one, pulsing out_pin38 / out_pin40.\nBoth re-arm, so every trigger edge fires another 2 s presentation.\nout_pin37 / out_pin40 pulse for one frame at the end; out_pin35 / out_pin32 hold\nHIGH from the end until the next presentation starts.",
+          "text_live": "demo_gratings_triggered \u2014 trigger in, trigger out\n\nTwo masked gratings at the centre, hidden until triggered. Each re-arms itself, so\nevery rising edge fires another 2 s presentation (120 frames @ 60 Hz).\n\nin_pin11 -> 45 deg   \u00b7   onset out_pin36   \u00b7   end out_pin37   \u00b7   done out_pin35\nin_pin12 -> 135 deg  \u00b7   onset out_pin38   \u00b7   end out_pin40   \u00b7   done out_pin32\n\nOnset and end pulse for one frame \u2014 the marks a recording system timestamps.\nThe done line instead stays HIGH until that grating's next presentation starts.",
           "font_family": "",
-          "letter_height_px": 26.0,
+          "letter_height_px": 24.0,
           "anchor": "Center",
           "language_style": "Ltr"
         }

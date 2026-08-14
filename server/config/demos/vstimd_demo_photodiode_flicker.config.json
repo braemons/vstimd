@@ -76,7 +76,7 @@
           "transform": {
             "pos": [
               0.0,
-              -360.0
+              -340.0
             ],
             "angle": 0.0
           },
@@ -103,11 +103,11 @@
           },
           "box_size": [
             1500.0,
-            260.0
+            320.0
           ],
           "text_live": "demo_photodiode_flicker \u2014 frame timing\n\nThe photodiode patch (bottom-left corner) inverts on every single frame,\nso a photodiode on that corner reports the real refresh rate.\nThe big white patch flickers at 5 Hz (6 frames on / 6 off at 60 Hz) as a\nvisible cross-check. Both run on load and never stop; no triggers used.",
           "font_family": "",
-          "letter_height_px": 26.0,
+          "letter_height_px": 24.0,
           "anchor": "Center",
           "language_style": "Ltr"
         }
