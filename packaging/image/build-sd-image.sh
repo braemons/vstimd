@@ -187,7 +187,7 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y --no-install-recommends openssh-server samba avahi-daemon ethtool
+apt-get install -y --no-install-recommends openssh-server samba avahi-daemon wsdd2 ethtool
 
 # smb.conf's 'unix password sync' + 'passwd program' below already sync
 # Samba -> Unix (running smbpasswd, or changing the password from a Windows
@@ -635,7 +635,7 @@ vstimd appliance
 
 MOTD_EOF
 
-systemctl enable smbd nmbd avahi-daemon
+systemctl enable smbd nmbd avahi-daemon wsdd2
 
 systemctl enable vstimd vstimd-hostname gpiochip-daqd
 # Appliance behaviour: boot straight into vstimd.target instead of the
