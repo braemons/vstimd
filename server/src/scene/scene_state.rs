@@ -361,7 +361,7 @@ impl SceneState {
                     for sh in &mut anim.config.stimuli {
                         *sh += stim_offset;
                     }
-                    anim.state = AnimState::Idle;
+                    anim.state = state_after_load(&anim.state);
                     anim.captured_user_enabled = None;
                     self.config.animations.insert(handle + anim_offset, anim);
                 }
@@ -378,7 +378,7 @@ impl SceneState {
             entry.stimulus.make_copy();
         }
         for anim in self.config.animations.values_mut() {
-            anim.state = AnimState::Idle;
+            anim.state = state_after_load(&anim.state);
             anim.captured_user_enabled = None;
         }
         self.config.background.make_copy();
@@ -389,6 +389,26 @@ impl SceneState {
 impl Default for SceneState {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+/// The runtime state a loaded animation starts in.
+///
+/// A config's animation state is intent, not a resumable snapshot: `Armed`
+/// means "this scene is meant to come up waiting for its trigger", which is
+/// what makes an armed scene — a shipped demo, a rig's startup config —
+/// reproducible across a load. Dropping it (as an unconditional reset to
+/// `Idle` does) leaves an animation that never observes its trigger, so the
+/// scene looks dead while every value in the file is correct.
+///
+/// `Running` is *not* resumed: the saved `frame_counter` describes a session
+/// that is over, so a mid-run save reloads as `Armed` and starts from the
+/// beginning. `Done` reloads as `Idle` — a finished animation is not re-run
+/// behind the operator's back.
+fn state_after_load(saved: &AnimState) -> AnimState {
+    match saved {
+        AnimState::Armed | AnimState::Running { .. } => AnimState::Armed,
+        AnimState::Idle | AnimState::Done => AnimState::Idle,
     }
 }
 

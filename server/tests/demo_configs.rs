@@ -248,6 +248,89 @@ fn drifting_grating_demo_drifts() {
     assert!(g.params.live.drift_speed > 0.0, "the grating does not drift");
 }
 
+/// End-to-end for the demo that motivated all this: load the file the way
+/// `config load` does, fire the input edge the way the overlay's ↑ button does,
+/// and check the grating actually appears, that the onset line pulses, and that
+/// 2 s later it disappears and the done line pulses.
+///
+/// This is the test that catches a load path which drops the config's animation
+/// state — an armed animation that loads as `Idle` never observes its trigger,
+/// so the demo looks dead while every value in the file is correct.
+#[test]
+fn loading_the_gratings_demo_leaves_it_waiting_for_its_triggers() {
+    use vstimd::scene::{LoadMode, SceneState};
+    use vstimd::vtl_state::VtlEdges;
+
+    let (cfg, _io) = parse_config_json(demo("demo_gratings_triggered")).unwrap();
+    let mut scene = SceneState::new();
+    scene.load_snapshot(cfg, LoadMode::Replace);
+
+    // Handle 1 is the 45° grating, driven by in_pin11 (bank 0, bit 11); its
+    // onset line is bit 36 and its done line bit 37.
+    let enabled = |s: &SceneState| s.stimuli.get(&1).unwrap().stimulus.flags().enabled;
+    assert!(!enabled(&scene), "the grating should start hidden");
+
+    let mut out;
+    let no_edges = VtlEdges::default();
+
+    // Idle frames change nothing: the animation is waiting, not running.
+    for _ in 0..3 {
+        out = [0u64; vtl::MAX_BANKS];
+        scene.advance_animations(&no_edges, &no_edges, &mut out);
+        assert!(!enabled(&scene), "the grating appeared without a trigger");
+        assert_eq!(out[0], 0, "an output pulsed without a trigger");
+    }
+
+    // Rising edge on in_pin11 — what the overlay's ↑ button latches.
+    let mut edges = VtlEdges::default();
+    edges.rising[0] = 1 << 11;
+    edges.current[0] = 1 << 11;
+    out = [0; vtl::MAX_BANKS];
+    scene.advance_animations(&edges, &no_edges, &mut out);
+    assert!(enabled(&scene), "the trigger did not show the grating");
+    assert_eq!(out[0] & (1 << 36), 1 << 36, "the onset line did not pulse");
+    assert_eq!(out[0] & (1 << 37), 0, "the done line pulsed at onset");
+
+    // The other grating is untouched — the two triggers are independent.
+    assert!(
+        !scene.stimuli.get(&2).unwrap().stimulus.flags().enabled,
+        "in_pin11 also fired the 135° grating"
+    );
+
+    // 120 frames total; frame 0 was the trigger frame, so 119 more end it.
+    for _ in 0..118 {
+        out = [0; vtl::MAX_BANKS];
+        scene.advance_animations(&no_edges, &no_edges, &mut out);
+        assert!(enabled(&scene), "the grating vanished before 2 s were up");
+    }
+    out = [0; vtl::MAX_BANKS];
+    scene.advance_animations(&no_edges, &no_edges, &mut out);
+    assert!(!enabled(&scene), "the grating was still visible after 120 frames");
+    assert_eq!(out[0] & (1 << 37), 1 << 37, "the done line did not pulse");
+}
+
+/// The demos that carry no `start_trigger` are supposed to run the moment they
+/// are loaded — the same load-path state loss would leave them frozen too.
+#[test]
+fn loading_the_moving_target_demo_starts_it_moving() {
+    use vstimd::scene::{LoadMode, SceneState};
+    use vstimd::vtl_state::VtlEdges;
+
+    let (cfg, _io) = parse_config_json(demo("demo_moving_target")).unwrap();
+    let mut scene = SceneState::new();
+    scene.load_snapshot(cfg, LoadMode::Replace);
+
+    let pos = |s: &SceneState| s.stimuli.get(&1).unwrap().stimulus.transform().live.pos;
+    let start = pos(&scene);
+
+    let no_edges = VtlEdges::default();
+    let mut out = [0u64; vtl::MAX_BANKS];
+    for _ in 0..10 {
+        scene.advance_animations(&no_edges, &no_edges, &mut out);
+    }
+    assert_ne!(pos(&scene), start, "the target never started moving");
+}
+
 #[test]
 fn seeding_writes_every_demo_and_never_overwrites() {
     let dir = std::env::temp_dir().join(format!("vstimd-demo-seed-{}", std::process::id()));

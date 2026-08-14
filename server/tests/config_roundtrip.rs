@@ -1,5 +1,6 @@
 use uuid::Uuid;
 use vstimd::io_config::{parse_config_json, retrieve_config_json};
+use vstimd::scene::animation::AnimState;
 use vstimd::scene::{
     CircleStimulus, Deferred, LoadMode, RectStimulus, SceneConfig, SceneState, ShapeAppearance,
     ShapeCommon, Stimulus, StimulusFlags, StimulusSceneEntry, Transform2D,
@@ -185,4 +186,83 @@ fn roundtrip_replace_load() {
 fn config_version_mismatch_rejected() {
     let json = r#"{"version":99,"scene":{"background":[0,0,0,1],"default_fill":[1,1,1,1],"default_outline":[0,0,0,1],"photodiode":{"lit":false,"live":[1,1,1,1],"copy":[1,1,1,1],"position":"BottomLeft","size":0.05},"stimuli":{},"next_stim_handle":1,"animations":{},"next_anim_handle":1},"io":{"vtl":{"names":[]}}}"#;
     assert!(parse_config_json(json).is_err());
+}
+
+// ── Animation state across a load ─────────────────────────────────────────────
+//
+// A config's animation state is intent, not a resumable snapshot. `Armed` has
+// to survive a load — that is what lets a saved (or shipped) scene come up
+// waiting for its trigger — while `Running` must not resume mid-run and `Done`
+// must not silently re-run.
+
+/// Build a scene holding one animation in `state`, round-trip it through the
+/// config format, and return the state it loads back as.
+fn state_after_roundtrip(state: AnimState) -> AnimState {
+    use vstimd::scene::animation::{Animation, AnimationEntry};
+
+    let mut saved = SceneState::new();
+    let h = saved.add_stimulus(make_rect_entry());
+    let mut entry = AnimationEntry::new(
+        Animation::FlashForNFrames {
+            duration_frames: 30,
+        },
+        vec![h],
+    );
+    entry.state = state;
+    saved.add_animation(entry);
+
+    let json = retrieve_config_json(&saved.config, &VtlConfig::default()).unwrap();
+    let (snap, _io) = parse_config_json(&json).unwrap();
+    let mut scene = SceneState::new();
+    scene.load_snapshot(snap, LoadMode::Replace);
+    scene.animations.values().next().unwrap().state.clone()
+}
+
+#[test]
+fn armed_animations_load_back_armed() {
+    assert_eq!(state_after_roundtrip(AnimState::Armed), AnimState::Armed);
+}
+
+#[test]
+fn running_animations_load_back_armed_not_mid_run() {
+    assert_eq!(
+        state_after_roundtrip(AnimState::Running { frame_counter: 17 }),
+        AnimState::Armed,
+        "a mid-run save must restart from the beginning, not resume"
+    );
+}
+
+#[test]
+fn idle_and_done_animations_load_back_idle() {
+    assert_eq!(state_after_roundtrip(AnimState::Idle), AnimState::Idle);
+    assert_eq!(state_after_roundtrip(AnimState::Done), AnimState::Idle);
+}
+
+/// The additive path applies the same mapping — it remaps handles, which is no
+/// reason for an armed animation to come back idle.
+#[test]
+fn additive_load_preserves_armed_too() {
+    use vstimd::scene::animation::{Animation, AnimationEntry};
+
+    let mut saved = SceneState::new();
+    let h = saved.add_stimulus(make_rect_entry());
+    saved.add_animation(AnimationEntry::armed(
+        Animation::FlashForNFrames {
+            duration_frames: 30,
+        },
+        vec![h],
+    ));
+    let json = retrieve_config_json(&saved.config, &VtlConfig::default()).unwrap();
+    let (snap, _io) = parse_config_json(&json).unwrap();
+
+    let mut scene = SceneState::new();
+    scene.add_stimulus(make_circle_entry());
+    scene.load_snapshot(snap, LoadMode::Additive);
+
+    let anim = scene.animations.values().next().unwrap();
+    assert_eq!(anim.state, AnimState::Armed);
+    assert!(
+        scene.stimuli.contains_key(&anim.stimuli[0]),
+        "additive load left the animation pointing at a remapped-away stimulus"
+    );
 }
