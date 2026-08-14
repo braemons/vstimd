@@ -1,0 +1,166 @@
+{
+  "version": 2,
+  "scene": {
+    "background": [
+      0.5,
+      0.5,
+      0.5,
+      1.0
+    ],
+    "default_fill": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "default_outline": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "photodiode": {
+      "enabled": false,
+      "lit": false,
+      "flicker": false,
+      "position": 0
+    },
+    "stimuli": {
+      "1": {
+        "id": "d3701005-0000-4000-8000-000000000001",
+        "name": "gated_grating",
+        "stimulus": {
+          "type": "Grating",
+          "flags": {
+            "enabled": true,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              0.0
+            ],
+            "angle": 90.0
+          },
+          "size": [
+            350.0,
+            350.0
+          ],
+          "params": {
+            "sf": 0.015,
+            "phase": 0.0,
+            "contrast": 1.0,
+            "waveform": "Sqr",
+            "mask": "Circle",
+            "mask_param": 0.0,
+            "drift_speed": 0.0,
+            "drift_coupled": true,
+            "drift_angle": 0.0,
+            "fore_color": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "back_color": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "opacity": 1.0
+          }
+        }
+      },
+      "2": {
+        "id": "d3701005-0000-4000-8000-000000000002",
+        "name": "explanation",
+        "stimulus": {
+          "type": "Text",
+          "flags": {
+            "enabled": true,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              -360.0
+            ],
+            "angle": 0.0
+          },
+          "params": {
+            "color": [
+              0.9,
+              0.9,
+              0.9,
+              1.0
+            ],
+            "fill_color": [
+              0.0,
+              0.0,
+              0.0,
+              0.65
+            ],
+            "border_color": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "flip_horiz": false
+          },
+          "box_size": [
+            1500.0,
+            260.0
+          ],
+          "text_live": "demo_trigger_gate \u2014 visibility follows an input level\n\nThe square-wave patch is visible exactly while in_pin7 (header pin 7) is HIGH,\nand hidden while it is LOW \u2014 level-coupled, not edge-triggered, so it needs\nno re-arming and shows input wiring problems immediately.\nNo output pins are driven.",
+          "font_family": "",
+          "letter_height_px": 26.0,
+          "anchor": "Center",
+          "language_style": "Ltr"
+        }
+      }
+    },
+    "next_stim_handle": 3,
+    "animations": {
+      "1": {
+        "name": "gate_on_pin7",
+        "state": "Armed",
+        "stimuli": [
+          1
+        ],
+        "start_action": 0,
+        "start_action_trigger_line": null,
+        "final_action": 0,
+        "final_action_trigger_line": null,
+        "start_trigger": null,
+        "cancel_trigger": null,
+        "cancel_action": 0,
+        "cancel_action_trigger_line": null,
+        "animation": {
+          "CoupleVisibilityToTriggerLine": {
+            "trigger": {
+              "bank": 0,
+              "bit": 7,
+              "kind": "Input"
+            },
+            "polarity": true
+          }
+        }
+      }
+    },
+    "next_anim_handle": 2
+  },
+  "io": {
+    "vtl": {
+      "names": [
+        {
+          "name": "in_pin7",
+          "bank": 0,
+          "bit": 7,
+          "kind": "Input"
+        }
+      ]
+    }
+  }
+}

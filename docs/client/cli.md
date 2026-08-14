@@ -123,6 +123,10 @@ HANDLE  ENABLED  NAME       ID
 | `config get` | print the current config JSON (`-o FILE` writes it) |
 | `config upload NAME FILE` | upload a local config (`-` reads stdin) |
 
+The `demo_*` entries in `config list` are the [demo scenes](../getting-started/demos.md)
+the server installs on first start — ordinary configs, so `config load
+demo_drifting_grating` is all it takes to put one on the display.
+
 ## Scripting
 
 `--json` switches any command to machine-readable output:

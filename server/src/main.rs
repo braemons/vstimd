@@ -78,6 +78,7 @@ fn main() {
 
     let config_dir = resolve_config_dir(args.config_dir.clone());
     log::info!("vstimd: config dir: {}", config_dir.display());
+    seed_demo_configs(&config_dir);
     let scene = Arc::new(RwLock::new(SceneState::new_with_config_dir(
         config_dir.clone(),
     )));
@@ -345,6 +346,20 @@ fn resolve_config_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBu
         candidates.push(std::path::Path::new(&home).join(".local/braemons/vstimd"));
     }
     first_writable_dir(&candidates)
+}
+
+/// Write the shipped demo configs into `dir` if they are not there yet, so
+/// `config list` offers them on a fresh install (see
+/// [`vstimd::io_config::DEMO_CONFIGS`]). Never fatal: a read-only or full config
+/// dir costs the demos, not the server.
+fn seed_demo_configs(dir: &std::path::Path) {
+    let (written, failed) = vstimd::io_config::seed_demo_configs(dir);
+    if !written.is_empty() {
+        log::info!("vstimd: installed demo configs: {}", written.join(", "));
+    }
+    for (name, e) in failed {
+        log::warn!("vstimd: could not install demo config '{name}': {e}");
+    }
 }
 
 /// Automatically detect the best render target for the current platform.

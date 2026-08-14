@@ -89,6 +89,75 @@ pub fn load_config(path: &std::path::Path) -> anyhow::Result<(SceneConfig, IoCon
     parse_config_json(&s)
 }
 
+// ── Demo configs ──────────────────────────────────────────────────────────────
+
+/// Every demo name starts with this, so demos are visible as a group in
+/// `config list` and cannot be confused with user-saved configs.
+pub const DEMO_PREFIX: &str = "demo_";
+
+/// Demos shipped with the server: `(name, config JSON)`.
+///
+/// Demos are deliberately *ordinary* configs — there is no demo-specific
+/// command, load path or scene builder. They are compiled in (rather than
+/// installed as package data) so a dev checkout, a `.deb` install and the
+/// Raspberry Pi image all offer the same set, and are written into the config
+/// dir at startup by [`seed_demo_configs`]. From that point on a demo is just a
+/// file: `config load` it, edit the scene, `config save` it under your own name.
+///
+/// The trigger lines they use are the ones the Raspberry Pi 5 gpiochip-daqd
+/// example wires to physical header pins (`in_pin11`, `out_pin36`, …), so a
+/// demo does something measurable on a stock Pi 5 rig with no extra config.
+pub const DEMO_CONFIGS: &[(&str, &str)] = &[
+    (
+        "demo_first_light",
+        include_str!("../config/demos/vstimd_demo_first_light.config.json"),
+    ),
+    (
+        "demo_drifting_grating",
+        include_str!("../config/demos/vstimd_demo_drifting_grating.config.json"),
+    ),
+    (
+        "demo_gratings_triggered",
+        include_str!("../config/demos/vstimd_demo_gratings_triggered.config.json"),
+    ),
+    (
+        "demo_moving_target",
+        include_str!("../config/demos/vstimd_demo_moving_target.config.json"),
+    ),
+    (
+        "demo_photodiode_flicker",
+        include_str!("../config/demos/vstimd_demo_photodiode_flicker.config.json"),
+    ),
+    (
+        "demo_trigger_gate",
+        include_str!("../config/demos/vstimd_demo_trigger_gate.config.json"),
+    ),
+];
+
+/// Write every [`DEMO_CONFIGS`] entry that is not already present in `dir`.
+///
+/// Existing files are never touched: an operator who edited (or deleted and
+/// re-saved) a demo keeps their version, and a demo the operator deleted comes
+/// back on the next start — deleting it for good means saving something else
+/// under that name. Returns the names actually written; individual write errors
+/// are collected as `Err` names rather than aborting the rest, because failing
+/// to seed a demo must never stop the server from starting.
+pub fn seed_demo_configs(dir: &std::path::Path) -> (Vec<&'static str>, Vec<(&'static str, std::io::Error)>) {
+    let mut written = vec![];
+    let mut failed = vec![];
+    for (name, json) in DEMO_CONFIGS {
+        let path = config_path(dir, name);
+        if path.exists() {
+            continue;
+        }
+        match std::fs::write(&path, json) {
+            Ok(()) => written.push(*name),
+            Err(e) => failed.push((*name, e)),
+        }
+    }
+    (written, failed)
+}
+
 /// List bare config names (no path, no extension) from a config directory.
 pub fn list_config_names(dir: &std::path::Path) -> anyhow::Result<Vec<String>> {
     if !dir.exists() {

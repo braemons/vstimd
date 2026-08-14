@@ -1,0 +1,149 @@
+{
+  "version": 2,
+  "scene": {
+    "background": [
+      0.05,
+      0.05,
+      0.05,
+      1.0
+    ],
+    "default_fill": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "default_outline": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "photodiode": {
+      "enabled": true,
+      "lit": false,
+      "flicker": true,
+      "position": 0
+    },
+    "stimuli": {
+      "1": {
+        "id": "d3701004-0000-4000-8000-000000000001",
+        "name": "flicker_patch",
+        "stimulus": {
+          "type": "Rect",
+          "flags": {
+            "enabled": true,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              100.0
+            ],
+            "angle": 0.0
+          },
+          "appearance": {
+            "fill_color": [
+              1.0,
+              1.0,
+              1.0,
+              1.0
+            ],
+            "outline_color": [
+              0.0,
+              0.0,
+              0.0,
+              1.0
+            ],
+            "stroke_width": 2.0,
+            "draw_mode": "Fill"
+          },
+          "size": [
+            700.0,
+            300.0
+          ]
+        }
+      },
+      "2": {
+        "id": "d3701004-0000-4000-8000-000000000002",
+        "name": "explanation",
+        "stimulus": {
+          "type": "Text",
+          "flags": {
+            "enabled": true,
+            "protected": false
+          },
+          "transform": {
+            "pos": [
+              0.0,
+              -360.0
+            ],
+            "angle": 0.0
+          },
+          "params": {
+            "color": [
+              0.9,
+              0.9,
+              0.9,
+              1.0
+            ],
+            "fill_color": [
+              0.0,
+              0.0,
+              0.0,
+              0.65
+            ],
+            "border_color": [
+              0.0,
+              0.0,
+              0.0,
+              0.0
+            ],
+            "flip_horiz": false
+          },
+          "box_size": [
+            1500.0,
+            260.0
+          ],
+          "text_live": "demo_photodiode_flicker \u2014 frame timing\n\nThe photodiode patch (bottom-left corner) inverts on every single frame,\nso a photodiode on that corner reports the real refresh rate.\nThe big white patch flickers at 5 Hz (6 frames on / 6 off at 60 Hz) as a\nvisible cross-check. Both run on load and never stop; no triggers used.",
+          "font_family": "",
+          "letter_height_px": 26.0,
+          "anchor": "Center",
+          "language_style": "Ltr"
+        }
+      }
+    },
+    "next_stim_handle": 3,
+    "animations": {
+      "1": {
+        "name": "field_flicker_5hz",
+        "state": "Armed",
+        "stimuli": [
+          1
+        ],
+        "start_action": 2,
+        "start_action_trigger_line": null,
+        "final_action": 0,
+        "final_action_trigger_line": null,
+        "start_trigger": null,
+        "cancel_trigger": null,
+        "cancel_action": 0,
+        "cancel_action_trigger_line": null,
+        "animation": {
+          "FlickerForNFrames": {
+            "on_frames": 6,
+            "off_frames": 6,
+            "total_frames": null,
+            "start_on_phase": true
+          }
+        }
+      }
+    },
+    "next_anim_handle": 2
+  },
+  "io": {
+    "vtl": {
+      "names": []
+    }
+  }
+}
