@@ -100,11 +100,11 @@ months later.
 
 ## Two things worth knowing before you start
 
-!!! warning "`width`/`height` are full sizes; the config file stores halves"
+!!! note "Sizes are full sizes everywhere"
     `create_rect(width=80, height=80)` makes an 80 × 80 px square, and the
-    saved JSON records `"size": [40.0, 40.0]` — the half-extents the renderer
-    works in. The same applies to gratings and ellipses. Reading a demo config
-    to work out what to pass, remember to double.
+    saved JSON records `"size": [80.0, 80.0]`. Gratings and ellipses store
+    `size` the same way, so a demo config can be read straight off as the
+    arguments to pass. (Circles use `radius`, in both places.)
 
 !!! note "The photodiode patch has no command yet"
     `demo_photodiode_flicker` and `demo_gratings_triggered` switch on the

@@ -11,7 +11,9 @@ use super::grating_pipeline::GratingPushConstants;
 pub struct GratingConfig {
     pub flags: StimulusFlags,
     pub transform: Deferred<Transform2D>,
-    pub size: Deferred<[f32; 2]>, // [half_width, half_height] in pixels
+    /// Full patch extents in pixels: `[width, height]`, as the command API
+    /// takes and reports them.
+    pub size: Deferred<[f32; 2]>,
     pub params: Deferred<GratingParams>,
 }
 
@@ -58,7 +60,7 @@ impl GratingStimulus {
     pub fn new(
         pos: [f32; 2],
         angle: f32,
-        size: [f32; 2], // [half_width, half_height] in pixels
+        size: [f32; 2], // [width, height] in pixels (full extents)
         params: GratingParams,
     ) -> Self {
         Self {
@@ -285,7 +287,7 @@ pub fn build_grating_push_constants(
     GratingPushConstants {
         screen_half: [screen_w * 0.5, screen_h * 0.5],
         center_px: s.transform.live.pos,
-        half_size: s.size.live,
+        half_size: [s.size.live[0] * 0.5, s.size.live[1] * 0.5],
         sf: p.sf,
         phase: p.phase + s.phase_accum,
         ori_rad: s.transform.live.angle.to_radians(),

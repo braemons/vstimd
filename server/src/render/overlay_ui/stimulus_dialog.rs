@@ -97,7 +97,7 @@ impl StimulusDialog {
         let stimulus = match self.kind {
             StimulusDialogKind::Rect => Stimulus::Rect(RectStimulus {
                 common,
-                size: Deferred::new([self.rect_size[0] / 2.0, self.rect_size[1] / 2.0]),
+                size: Deferred::new(self.rect_size),
             }),
             StimulusDialogKind::Circle => Stimulus::Circle(CircleStimulus {
                 common,
@@ -105,12 +105,12 @@ impl StimulusDialog {
             }),
             StimulusDialogKind::Ellipse => Stimulus::Ellipse(EllipseStimulus {
                 common,
-                radii: Deferred::new([self.ellipse_size[0] / 2.0, self.ellipse_size[1] / 2.0]),
+                size: Deferred::new(self.ellipse_size),
             }),
             StimulusDialogKind::Grating => Stimulus::Grating(GratingStimulus::new(
                 self.pos,
                 self.angle,
-                [self.grating_size[0] / 2.0, self.grating_size[1] / 2.0],
+                self.grating_size,
                 GratingParams {
                     sf: self.grating_sf,
                     contrast: self.grating_contrast,

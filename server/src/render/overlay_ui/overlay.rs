@@ -181,18 +181,18 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                                         let pos = stim.transform().live.pos;
                                         let size_label = match stim {
                                             Stimulus::Grating(s) => {
-                                                let [hw, hh] = s.size.live;
-                                                format!("{}×{}", (hw*2.0) as i32, (hh*2.0) as i32)
+                                                let [w, h] = s.size.live;
+                                                format!("{}×{}", w as i32, h as i32)
                                             }
                                             Stimulus::Rect(s) => {
-                                                let [hw, hh] = s.size.live;
-                                                format!("{}×{}", (hw*2.0) as i32, (hh*2.0) as i32)
+                                                let [w, h] = s.size.live;
+                                                format!("{}×{}", w as i32, h as i32)
                                             }
                                             Stimulus::Circle(s) =>
                                                 format!("r={}", s.radius.live as i32),
                                             Stimulus::Ellipse(s) => {
-                                                let [rx, ry] = s.radii.live;
-                                                format!("{}×{}", (rx*2.0) as i32, (ry*2.0) as i32)
+                                                let [w, h] = s.size.live;
+                                                format!("{}×{}", w as i32, h as i32)
                                             }
                                             Stimulus::Text(s) => {
                                                 let [w, h] = s.box_size.live;

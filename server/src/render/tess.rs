@@ -60,7 +60,7 @@ pub fn tessellate_shape_stimulus(
 // ── Per-type tessellators ─────────────────────────────────────────────────────
 
 fn tessellate_rect(s: &RectStimulus, half_w: f32, half_h: f32) -> ShapeTessellationResult {
-    let [hw, hh] = s.size.live;
+    let [hw, hh] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
     let mut builder = Path::builder();
     builder.add_rectangle(
         &Box2D::new(point(-hw, -hh), point(hw, hh)),
@@ -78,7 +78,7 @@ fn tessellate_circle(s: &CircleStimulus, half_w: f32, half_h: f32) -> ShapeTesse
 }
 
 fn tessellate_ellipse(s: &EllipseStimulus, half_w: f32, half_h: f32) -> ShapeTessellationResult {
-    let [rx, ry] = s.radii.live;
+    let [rx, ry] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
     let mut builder = Path::builder();
     builder.add_ellipse(
         point(0.0, 0.0),

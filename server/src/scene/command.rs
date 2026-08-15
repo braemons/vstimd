@@ -404,7 +404,7 @@ impl SceneState {
                         ..Default::default()
                     }),
                 },
-                size: Deferred::new([width / 2.0, height / 2.0]),
+                size: Deferred::new([width, height]),
             }),
         );
         let handle = self.add_stimulus(entry);
@@ -471,7 +471,7 @@ impl SceneState {
                         ..Default::default()
                     }),
                 },
-                radii: Deferred::new([width / 2.0, height / 2.0]),
+                size: Deferred::new([width, height]),
             }),
         );
         let handle = self.add_stimulus(entry);
@@ -615,10 +615,7 @@ impl SceneState {
             None => err_not_found(handle),
             Some(entry) => match &mut entry.stimulus {
                 Stimulus::Rect(s) => {
-                    s.size.set(
-                        self.runtime.deferred_mode,
-                        [cmd.width / 2.0, cmd.height / 2.0],
-                    );
+                    s.size.set(self.runtime.deferred_mode, [cmd.width, cmd.height]);
                     if !self.runtime.deferred_mode {
                         s.common.flags.mark_dirty();
                     }
@@ -662,10 +659,7 @@ impl SceneState {
             None => err_not_found(handle),
             Some(entry) => match &mut entry.stimulus {
                 Stimulus::Ellipse(s) => {
-                    s.radii.set(
-                        self.runtime.deferred_mode,
-                        [cmd.width / 2.0, cmd.height / 2.0],
-                    );
+                    s.size.set(self.runtime.deferred_mode, [cmd.width, cmd.height]);
                     if !self.runtime.deferred_mode {
                         s.common.flags.mark_dirty();
                     }
@@ -1217,8 +1211,8 @@ impl SceneState {
                         proto::StimulusType::Rect as i32,
                         Some(proto::StimulusParams {
                             shape: Some(proto::stimulus_params::Shape::Rect(proto::RectParams {
-                                width: r.size.live[0] * 2.0,
-                                height: r.size.live[1] * 2.0,
+                                width: r.size.live[0],
+                                height: r.size.live[1],
                             })),
                         }),
                     ),
@@ -1237,8 +1231,8 @@ impl SceneState {
                         Some(proto::StimulusParams {
                             shape: Some(proto::stimulus_params::Shape::Ellipse(
                                 proto::EllipseParams {
-                                    width: e.radii.live[0] * 2.0,
-                                    height: e.radii.live[1] * 2.0,
+                                    width: e.size.live[0],
+                                    height: e.size.live[1],
                                 },
                             )),
                         }),

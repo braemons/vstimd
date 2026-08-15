@@ -75,8 +75,8 @@ pub fn grating_query_params(s: &GratingStimulus) -> proto::StimulusParams {
     let p = s.params.live;
     proto::StimulusParams {
         shape: Some(proto::stimulus_params::Shape::Grating(proto::GratingParams {
-            width: s.size.live[0] * 2.0,
-            height: s.size.live[1] * 2.0,
+            width: s.size.live[0],
+            height: s.size.live[1],
             sf: p.sf,
             phase: p.phase,
             contrast: p.contrast,

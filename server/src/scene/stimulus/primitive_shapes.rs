@@ -32,7 +32,9 @@ impl ShapeCommon {
 pub struct RectStimulus {
     #[serde(flatten)]
     pub common: ShapeCommon,
-    pub size: Deferred<[f32; 2]>, // [half_width, half_height]
+    /// Full extents in pixels: `[width, height]` — the same numbers the
+    /// command API takes and reports.
+    pub size: Deferred<[f32; 2]>,
 }
 
 impl RectStimulus {
@@ -53,7 +55,9 @@ impl RectStimulus {
 pub struct EllipseStimulus {
     #[serde(flatten)]
     pub common: ShapeCommon,
-    pub radii: Deferred<[f32; 2]>, // [rx, ry]
+    /// Full extents in pixels: `[width, height]` (i.e. twice the semi-axes),
+    /// matching the command API.
+    pub size: Deferred<[f32; 2]>,
 }
 
 impl EllipseStimulus {
@@ -61,12 +65,12 @@ impl EllipseStimulus {
 
     pub fn make_copy(&mut self) {
         self.common.make_copy();
-        self.radii.make_copy();
+        self.size.make_copy();
     }
 
     pub fn flip(&mut self) {
         self.common.flip();
-        self.radii.flip();
+        self.size.flip();
     }
 }
 

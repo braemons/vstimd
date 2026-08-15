@@ -22,6 +22,18 @@ fn demo(name: &str) -> &'static str {
         })
 }
 
+/// A byte-different but semantically identical stand-in for "the version of
+/// this demo an older server shipped". Only the whitespace around the config
+/// version changes, so the test does not have to be edited whenever
+/// `CONFIG_VERSION` is bumped.
+fn older_stand_in(shipped: &str) -> String {
+    let from = format!("\"version\": {}", vstimd::io_config::CONFIG_VERSION);
+    let to = format!("\"version\":  {}", vstimd::io_config::CONFIG_VERSION);
+    let older = shipped.replace(&from, &to);
+    assert_ne!(older, shipped, "the stand-in for an older demo is not different");
+    older
+}
+
 #[test]
 fn every_demo_parses() {
     for (name, json) in DEMO_CONFIGS {
@@ -444,8 +456,7 @@ fn seeding_refreshes_an_untouched_demo_that_changed_upstream() {
 
     // Simulate "the server shipped an older version of this demo": rewrite the
     // file with different content and stamp it as ours.
-    let older = shipped.replace("\"version\": 2", "\"version\":  2");
-    assert_ne!(older, shipped, "the stand-in for an older demo is not different");
+    let older = older_stand_in(shipped);
     std::fs::write(&path, &older).unwrap();
     stamp_as_installed(&dir, name, &older);
 
@@ -511,7 +522,7 @@ fn seeding_adopts_a_file_identical_to_the_shipped_one() {
     );
 
     // Now that it is stamped, an upstream change reaches it.
-    let older = shipped.replace("\"version\": 2", "\"version\":  2");
+    let older = older_stand_in(shipped);
     std::fs::write(&path, &older).unwrap();
     stamp_as_installed(&dir, name, &older);
     let report = vstimd::io_config::seed_demo_configs(&dir);

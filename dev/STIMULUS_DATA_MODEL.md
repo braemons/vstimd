@@ -252,7 +252,7 @@ pub struct RectStimulus {
     pub flags:      StimulusFlags,
     pub transform:  Deferred<Transform2D>,
     pub appearance: Deferred<Appearance>,
-    pub size:       Deferred<[f32; 2]>,    // [half_width, half_height]
+    pub size:       Deferred<[f32; 2]>,    // [width, height] (full extents)
 }
 ```
 
@@ -324,7 +324,7 @@ pub struct BitmapStimulus {
     pub phi_accum:  f32,                    // accumulated rotation angle (not deferred)
     // GPU resource handle — index into a separate texture atlas or Vec<wgpu::Texture>
     pub texture_id: u32,
-    pub size:       [f32; 2],               // half-extents, set at load time, never deferred
+    pub size:       [f32; 2],               // [width, height], set at load time, never deferred
 }
 ```
 

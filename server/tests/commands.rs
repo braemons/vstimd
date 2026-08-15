@@ -108,7 +108,7 @@ fn test_create_rect_defaults() {
     let entry = scene.stimuli.get_mut(&h).unwrap();
 
     let Stimulus::Rect(r) = &mut entry.stimulus else { panic!("expected Rect stimulus") };
-    assert_eq!(r.size.live, [50.0, 50.0]);
+    assert_eq!(r.size.live, [100.0, 100.0]); // width=0 → server default 100
     assert_eq!(r.common.appearance.live.fill_color, default_fill);
 }
 
@@ -226,7 +226,7 @@ fn test_create_ellipse() {
     let Stimulus::Ellipse(e) = &scene.stimuli[&h].stimulus else {
         panic!("expected Ellipse stimulus");
     };
-    assert_eq!(e.radii.live, [60.0, 30.0]);
+    assert_eq!(e.size.live, [120.0, 60.0]);
     assert_eq!(e.common.transform.live.angle, 45.0);
 }
 
@@ -444,7 +444,7 @@ fn test_set_rect_size() {
     }, None);
     assert!(is_ok(&resp));
     let Stimulus::Rect(r) = &scene.stimuli[&h].stimulus else { panic!("expected Rect") };
-    assert_eq!(r.size.live, [40.0, 20.0]);
+    assert_eq!(r.size.live, [80.0, 40.0]);
 }
 
 #[test]

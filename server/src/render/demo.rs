@@ -58,7 +58,7 @@ pub(crate) fn spawn_demo_stimuli(
                         ..Default::default()
                     }),
                 },
-                size: Deferred::new([120.0, 50.0]),
+                size: Deferred::new([240.0, 100.0]),
             }),
         ),
     );

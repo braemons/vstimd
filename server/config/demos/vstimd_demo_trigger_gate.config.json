@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "scene": {
     "background": [
       0.5,
@@ -43,8 +43,8 @@
             "angle": 90.0
           },
           "size": [
-            350.0,
-            350.0
+            700.0,
+            700.0
           ],
           "params": {
             "sf": 0.015,

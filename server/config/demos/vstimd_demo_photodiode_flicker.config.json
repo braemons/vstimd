@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "scene": {
     "background": [
       0.05,
@@ -59,8 +59,8 @@
             "draw_mode": "Fill"
           },
           "size": [
-            700.0,
-            300.0
+            1400.0,
+            600.0
           ]
         }
       },
