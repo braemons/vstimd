@@ -116,6 +116,14 @@ Photodiode patch on and inverting every frame.
 - Turn `flicker` off but leave `enabled` on, and use the patch as a static
   luminance reference for a photometer calibration.
 
+## The complete script
+
+??? example "`client/python/examples/demos/photodiode_flicker.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/photodiode_flicker.py"
+    ```
+
 ## Next
 
 - **[Frame timing](../../concepts/frame-timing.md)** — what the numbers you just measured mean.

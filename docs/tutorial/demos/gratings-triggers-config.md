@@ -292,6 +292,14 @@ Both fired. On a wired rig those edges come from the DAQ instead.
 - Set `duration_ms=250` instead of `duration_frames=120` and query the
   animation to see what frame count the client picked for your display.
 
+## The complete script
+
+??? example "`client/python/examples/demos/gratings_triggered.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/gratings_triggered.py"
+    ```
+
 ## Next
 
 - **[Moving target](moving-target.md)** — an animation that repeats itself with no trigger at all.

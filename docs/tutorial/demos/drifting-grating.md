@@ -103,6 +103,14 @@ Saved as 'my_drifting_grating' — it starts drifting the moment it is loaded.
 - Set `drift_speed` to half the frame rate in cycles/s at `sf` high enough to
   alias, and watch the motion reverse — a spatial-aliasing demo you get for free.
 
+## The complete script
+
+??? example "`client/python/examples/demos/drifting_grating.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/drifting_grating.py"
+    ```
+
 ## Next
 
 - **[Gratings, triggers & a saved config](gratings-triggers-config.md)** — masked gratings that appear on an external trigger.

@@ -124,6 +124,14 @@ Saved as 'my_trigger_gate'.
 - Add a second, independent gate on another line and check the two do not
   interfere.
 
+## The complete script
+
+??? example "`client/python/examples/demos/trigger_gate.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/trigger_gate.py"
+    ```
+
 ## Next
 
 - **[Gratings, triggers & a saved config](gratings-triggers-config.md)** — the edge-triggered counterpart, and how to persist a rig-ready setup.

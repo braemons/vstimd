@@ -128,6 +128,14 @@ Saved as 'my_first_light' — load it again with conn.config.load('my_first_ligh
   non-uniform scaling.
 - Re-save under a second name and use `conn.config.list_configs()` to see both.
 
+## The complete script
+
+??? example "`client/python/examples/demos/first_light.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/first_light.py"
+    ```
+
 ## Next
 
 - **[Drifting grating](drifting-grating.md)** — the same static-scene skills, plus motion the server owns.

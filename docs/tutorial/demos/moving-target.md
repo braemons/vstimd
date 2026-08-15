@@ -103,6 +103,14 @@ Saved as 'my_moving_target' — sweeping now, and again on every load.
 - Slow it to 60 px/s and check with a photodiode that the target really moves
   one pixel per frame, rather than two pixels every second frame.
 
+## The complete script
+
+??? example "`client/python/examples/demos/moving_target.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/moving_target.py"
+    ```
+
 ## Next
 
 - **[Photodiode & flicker](photodiode-flicker.md)** — measuring what the display is really doing.

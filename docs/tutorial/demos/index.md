@@ -23,7 +23,9 @@ into it with no client attached.
 | [Trigger gate](trigger-gate.md) | `demo_trigger_gate` | level-coupled visibility, driving a line from software |
 
 Each page has a companion script in `client/python/examples/demos/`, runnable
-as-is:
+as-is, and ends with that script in full under **The complete script** — the
+real file, included at build time, so it cannot drift from what the page walks
+through:
 
 ```console
 $ cd client/python
