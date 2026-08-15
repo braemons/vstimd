@@ -6,10 +6,17 @@ use crate::vtl_state::{VtlEdge, VtlBit};
 
 /// What an animation drives.
 ///
-/// A list of stimuli today. The 3-D camera is an animatable scene object in its
-/// own right (dev/3D_ROADMAP.md §11.1), so it becomes a second variant here
-/// rather than a second animation type — `MoveAlongPath2D` driving a viewpoint
-/// is the same animation, pointed somewhere else.
+/// A list of stimuli today. The 3-D camera is the candidate second variant: it
+/// is worth arming, triggering and cancelling exactly like any other animation,
+/// and duplicating that machinery for a camera-only animation type would be the
+/// worse trade (dev/3D_ROADMAP.md §11.1).
+///
+/// It would not be a target for *every* animation, though. Only the kinds that
+/// drive a transform (`MoveAlongPath2D`, `MoveAlongSegments2D`,
+/// `ExternalPosition2D`) mean anything for a camera; the four that drive
+/// visibility have nothing to act on, and nor do the `ENABLE` / `DISABLE` /
+/// `RESTORE_STATE` action bits. Adding the variant means adding the rule that
+/// rejects those combinations at create time — see the roadmap.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind")]
 pub enum AnimationTarget {

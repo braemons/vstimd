@@ -36,9 +36,9 @@ def _target_stimuli(params: animations_pb2.CreateAnimationRequest) -> list[int]:
 def _target(stimuli: Stimuli) -> animations_pb2.AnimationTarget:
     """Wrap stimulus handles as the animation's target.
 
-    Targets are a oneof on the wire because stimuli are not the only thing an
-    animation can drive — the 3-D camera is an animatable scene object too — so
-    the same animation types will point at a viewpoint without a new API.
+    Targets are a oneof on the wire because stimuli may not stay the only thing
+    an animation can drive — the 3-D camera is the candidate — though only the
+    animations that move something would accept one.
     """
     return animations_pb2.AnimationTarget(
         stimuli=animations_pb2.AnimationStimuli(handles=_to_stimuli(stimuli)),

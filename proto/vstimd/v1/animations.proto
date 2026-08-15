@@ -84,12 +84,19 @@ message AnimationStimuli {
 
 // The thing an animation drives.
 //
-// This is a oneof rather than a bare `repeated uint32` because the stimulus list
-// is not the only possible target: the 3-D camera is itself an animatable scene
-// object (dev/3D_ROADMAP.md §11.1), so `MoveAlongPath2D` and friends will drive
-// a viewpoint through this same field instead of needing camera-specific
-// animation types. Adding that arm then costs one field number and no break
-// here.
+// A oneof rather than a bare `repeated uint32` because the stimulus list is not
+// the only plausible target — the 3-D camera is a scene object one would want to
+// move on a trigger, with the same arming, cancelling and done-signalling as any
+// other animation (dev/3D_ROADMAP.md §11.1). Adding that arm costs one field
+// number and no break here.
+//
+// It would not be a general-purpose target. Only the animations that drive a
+// *transform* mean anything for a camera: MoveAlongPath2D, MoveAlongSegments2D
+// and ExternalPosition2D. The four that drive visibility — Flash, Flicker,
+// CoupleVisibilityToTriggerLine, EnableOnTriggerEdge — have nothing to act on,
+// and neither do the ENABLE / DISABLE / RESTORE_STATE action bits. A target arm
+// that is not stimuli therefore has to be rejected for those at create time,
+// not silently ignored.
 message AnimationTarget {
   oneof target {
     AnimationStimuli stimuli = 1;

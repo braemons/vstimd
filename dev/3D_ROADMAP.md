@@ -1226,9 +1226,53 @@ the `copy` slot so they flip atomically with stimulus updates (§13.4).
 
 ### 11.1 The camera as an animation target
 
-The camera participates in the animation system, so that no new animation types are needed just
-for camera control. `ExternalPosition2D` (shared memory), `MoveAlongPath2D`,
-`MoveAlongSegments2D` and the rest work on the camera out of the box.
+The camera is worth putting in the animation system for its *lifecycle*, not for its
+animation kinds: arming, waiting on a trigger edge, cancelling, pulsing a line when done and
+holding a DONE level are all things a camera movement wants, and all things this system already
+does. Duplicating that machinery inside a camera-only animation type is the worse trade.
+
+**But the camera is not a general-purpose target, and an earlier draft of this section claimed it
+was** — *"`ExternalPosition2D`, `MoveAlongPath2D`, `MoveAlongSegments2D` and the rest work on the
+camera out of the box"*. "The rest" is exactly wrong. Of the seven animation kinds, three drive a
+transform and mean something for a camera:
+
+| kind | drives | camera? |
+|---|---|---|
+| `MoveAlongPath2D` | transform | ✅ |
+| `MoveAlongSegments2D` | transform | ✅ |
+| `ExternalPosition2D` | transform | ✅ |
+| `FlashForNFrames` | visibility | ❌ nothing to show or hide |
+| `FlickerForNFrames` | visibility | ❌ |
+| `CoupleVisibilityToTriggerLine` | visibility | ❌ |
+| `EnableOnTriggerEdge` | visibility | ❌ |
+
+The action masks have the same split, and they apply to *every* animation regardless of kind:
+`ENABLE`, `DISABLE` and `RESTORE_STATE` act on stimulus visibility and are meaningless for a
+camera, while `TOGGLE_PHOTODIODE`, the trigger-line pulses, `REARM` / `RESTART`, `END_DEFERRED`
+and `DONE_LEVEL` are target-independent.
+
+So adding the `Camera` arm means adding the rule that goes with it. Rather than a
+kind × target matrix that every new animation kind has to be added to, have each kind declare
+what it drives:
+
+```rust
+pub enum Drives { Visibility, Transform }
+
+impl Animation {
+    pub fn drives(&self) -> Drives { … }
+}
+```
+
+Then the rule is one line — a non-stimulus target is valid iff `drives() == Transform` — and it
+stays correct as kinds are added, because a new kind cannot compile without answering the
+question. Reject the invalid combinations at create time with `ERROR_CODE_INVALID_ARGUMENT`;
+silently ignoring a `DISABLE` on a camera animation is the failure mode to avoid. The
+classification is worth having for its own sake, too: it is what a UI needs to group animations,
+and what `RESTORE_STATE` semantics hang off.
+
+This also reconciles with §11.2: `Flythrough3D` and `LinearNav3D` are proposed there because
+keyframed camera paths and treadmill-velocity navigation are genuinely new *behaviours*, not
+because the camera needs its own copy of Flash and Flicker.
 
 > ⚠ **Do not implement the `CAMERA_HANDLE` sentinel this section used to propose.** It read:
 > *"`CAMERA_HANDLE = 0x0000_FFFE` (below the animation range `0x8000` but safely outside the
