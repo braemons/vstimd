@@ -90,12 +90,19 @@ Phase C avoid a scene graph entirely (§6).
 
 Two conventions were settled for 2-D and bind the 3-D variants as well.
 
-**`StimulusCommon` is the state every stimulus has** — `flags` and `opacity` — flattened into
-each variant's struct and its config JSON (`server/src/scene/stimulus/stimulus_common.rs`).
-`transform` is deliberately *not* in it: it is the one common-looking field that is
-dimension-specific, so it stays on each variant as `Deferred<Transform2D>` or
-`Deferred<Transform3D>`, reached through the split accessors in §9.3. A 3-D variant therefore
-gets flags and opacity for free and must not redeclare either.
+**`StimulusCommon` is the state every stimulus has**, flattened into each variant's struct and
+its config JSON (`server/src/scene/stimulus/stimulus_common.rs`). Today it is
+`{ flags, transform: Deferred<Transform2D>, opacity }` — every stimulus is 2-D, so all three
+genuinely are common. A 3-D variant gets `flags` and `opacity` for free and must not redeclare
+either.
+
+`transform` is the field that does not survive the move to 3-D: a position, an orientation and a
+scale in world space cannot be a `Vec2` and one angle. **Adding the first 3-D variant means
+taking it out of `StimulusCommon`** and onto each variant as `Deferred<Transform2D>` or
+`Deferred<Transform3D>`, behind the split accessors in §9.3, leaving `{ flags, opacity }` shared.
+That is a small edit today and a wide one after three 3-D variants exist, so do it as the first
+step of Phase B rather than after. The wire is already shaped for it:
+`QueryStimulusResponse.placement` is a `oneof` with a single `transform_2d` arm.
 
 **Opacity is a multiplier, not a colour.** `effective_a = color.a * opacity`, clamped to
 `[0, 1]`, and it is set by the shared `SetAlpha` command for every stimulus type. For 3-D that
@@ -504,7 +511,7 @@ The first slice ships **`Cube3D` and `Sphere3D` only**. `Plane3D` arrives with t
 ```rust
 pub struct Cube3DStimulus {
     #[serde(flatten)]
-    pub common:       StimulusCommon,         // flags + opacity, shared with every 2-D variant
+    pub common:       StimulusCommon,         // flags + opacity (transform moved out — §1.7)
     pub transform:    Deferred<Transform3D>,
     pub material:     Deferred<Material3D>,
     pub size:         Deferred<glam::Vec3>,   // FULL extents in cm → folded into model scale
@@ -726,7 +733,7 @@ pub struct CorridorParams {
 
 pub struct CorridorStimulus {
     #[serde(flatten)]
-    pub common:    StimulusCommon,          // flags + opacity (§1.7)
+    pub common:    StimulusCommon,          // flags + opacity, transform below (§1.7)
     pub transform: Deferred<Transform3D>,   // position/orientation of corridor entrance
     pub params:    Deferred<CorridorParams>,
     pub rebuild:   bool,
@@ -1045,10 +1052,10 @@ drift actually happens.
 
 ### 9.3 The `transform()` accessor splits into 2-D and 3-D variants
 
-`StimulusCommon` (§1.7) already holds what is genuinely common — `flags` and `opacity` — and
-`Stimulus::flags()` / `opacity()` / `set_opacity()` stay single-line delegations that need no
-change when 3-D variants arrive. `transform` is the field that does not generalise, so adding
-the first 3-D variant means replacing today's `transform()` / `transform_mut()` with:
+`StimulusCommon` (§1.7) holds `flags`, `transform` and `opacity` today. `flags` and `opacity`
+stay there — `Stimulus::flags()` / `opacity()` / `set_opacity()` are single-line delegations that
+need no change when 3-D variants arrive. `transform` moves out onto each variant, and today's
+`transform()` / `transform_mut()` are replaced with:
 
 ```rust
 impl Stimulus {

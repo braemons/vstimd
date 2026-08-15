@@ -79,11 +79,17 @@ impl Stimulus {
         &self.common().opacity
     }
 
-    /// Set the shared opacity, clamped to `[0, 1]`. Marks the stimulus dirty
-    /// outside deferred mode so the change reaches the next frame.
+    /// Set the shared opacity, clamped to `[0, 1]`.
+    ///
+    /// Only shapes are marked dirty. `dirty` means "the cached mesh is stale",
+    /// and only the shape pipeline bakes opacity into vertex colours
+    /// (`render::tess`); grating and text carry it in push constants, which are
+    /// rebuilt from live state every frame anyway. Marking text dirty here
+    /// would re-shape and re-rasterize every glyph on each opacity change — a
+    /// fade would pay for a full text re-layout per frame, for nothing.
     pub fn set_opacity(&mut self, deferred: bool, opacity: f32) {
         self.common_mut().opacity.set(deferred, opacity.clamp(0.0, 1.0));
-        if !deferred {
+        if !deferred && self.is_shape() {
             self.flags_mut().mark_dirty();
         }
     }

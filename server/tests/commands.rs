@@ -1117,9 +1117,33 @@ fn test_set_alpha_applies_to_every_stimulus_type() {
     for (name, h) in one_of_each(&mut scene) {
         let resp = set_alpha(&mut scene, h, 0.25);
         assert!(is_ok(&resp), "SetAlpha on a {name} was rejected: {}", resp.error);
+        assert_eq!(
+            scene.stimuli[&h].stimulus.opacity().live,
+            0.25,
+            "{name} did not take the opacity",
+        );
+    }
+}
+
+/// Only shapes re-tessellate on an opacity change: they bake it into their
+/// vertex colours, while grating and text read it from live state into push
+/// constants every frame. Marking text dirty here would re-shape and
+/// re-rasterize every glyph, so a fade would cost a full text layout per frame.
+#[test]
+fn test_set_alpha_only_dirties_what_has_to_be_retessellated() {
+    let mut scene = SceneState::new();
+    for (name, h) in one_of_each(&mut scene) {
+        // Stimuli are born dirty (nothing has drawn them yet); clear it the way
+        // the render thread does after uploading a mesh.
+        scene.stimuli.get_mut(&h).unwrap().stimulus.flags_mut().dirty = false;
+        assert!(is_ok(&set_alpha(&mut scene, h, 0.5)));
+
         let stim = &scene.stimuli[&h].stimulus;
-        assert_eq!(stim.opacity().live, 0.25, "{name} did not take the opacity");
-        assert!(stim.flags().dirty, "{name} was not marked dirty");
+        assert_eq!(
+            stim.flags().dirty,
+            stim.is_shape(),
+            "{name}: dirty should be set only for shapes",
+        );
     }
 }
 
