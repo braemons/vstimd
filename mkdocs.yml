@@ -70,7 +70,11 @@ markdown_extensions:
       line_spans: __span
       pygments_lang_class: true
   - pymdownx.inlinehilite
-  - pymdownx.snippets
+  - pymdownx.snippets:
+      # so pages can include real source files (e.g. the demo example scripts)
+      # by their repo-relative path, rather than carrying a copy that drifts
+      base_path: ["."]
+      check_paths: true
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid

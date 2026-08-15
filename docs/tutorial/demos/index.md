@@ -23,7 +23,9 @@ into it with no client attached.
 | [Trigger gate](trigger-gate.md) | `demo_trigger_gate` | level-coupled visibility, driving a line from software |
 
 Each page has a companion script in `client/python/examples/demos/`, runnable
-as-is:
+as-is, and ends with that script in full under **The complete script** — the
+real file, included at build time, so it cannot drift from what the page walks
+through:
 
 ```console
 $ cd client/python
@@ -45,6 +47,15 @@ the same, which is how they are tested.
 
     ```console
     $ cd client/python && make test-e2e-null
+    ```
+
+!!! note "Reading the snippets"
+    Each page shows the calls one section at a time, unindented. In the script
+    itself they all sit inside a single connection:
+
+    ```python
+    with Connection("tcp://localhost:5555") as conn:
+        ...
     ```
 
 ## What every script does first

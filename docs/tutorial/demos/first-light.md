@@ -26,6 +26,9 @@ with Connection("tcp://localhost:5555") as conn:
     conn.system.set_background(0.05, 0.05, 0.05)
 ```
 
+Every snippet from here on runs inside that `with` block; they are shown
+unindented so each one stands on its own.
+
 Near-black rather than black: a true 0.0 background hides the difference between
 "the display is showing a black frame" and "the display is off", which is
 precisely the distinction this scene exists to make. Note that
@@ -34,14 +37,14 @@ precisely the distinction this scene exists to make. Note that
 ## 2. A title
 
 ```python
-    conn.stimuli.text.create_text(
-        text="vstimd — first light",
-        pos=Vec2(0, 220),
-        box_width=1600, box_height=120,
-        letter_height=80,
-        color=Color(1.0, 1.0, 1.0),
-        name="title",
-    )
+conn.stimuli.text.create_text(
+    text="vstimd — first light",
+    pos=Vec2(0, 220),
+    box_width=1600, box_height=120,
+    letter_height=80,
+    color=Color(1.0, 1.0, 1.0),
+    name="title",
+)
 ```
 
 Text is laid out inside a box: `box_width`/`box_height` set the box,
@@ -53,11 +56,11 @@ the middle.
 ## 3. A centre dot
 
 ```python
-    conn.stimuli.shapes.create_circle(
-        pos=Vec2(0, 60), radius=8,
-        color=Color(1.0, 1.0, 1.0),
-        name="fixation_dot",
-    )
+conn.stimuli.shapes.create_circle(
+    pos=Vec2(0, 60), radius=8,
+    color=Color(1.0, 1.0, 1.0),
+    name="fixation_dot",
+)
 ```
 
 Circles take a radius, so this one is 16 px across. It sits slightly above
@@ -73,12 +76,12 @@ CORNERS = [
     ("corner_br",  900.0, -480.0),
 ]
 
-    for name, x, y in CORNERS:
-        conn.stimuli.shapes.create_rect(
-            pos=Vec2(x, y), width=80, height=80,
-            color=Color(1.0, 1.0, 1.0),
-            name=name,
-        )
+for name, x, y in CORNERS:
+    conn.stimuli.shapes.create_rect(
+        pos=Vec2(x, y), width=80, height=80,
+        color=Color(1.0, 1.0, 1.0),
+        name=name,
+    )
 ```
 
 Their centres are 1800 × 960 px apart, which leaves a margin inside a
@@ -93,8 +96,8 @@ compositor in the way.
 ## 5. The caption, and save
 
 ```python
-    add_explanation(conn, EXPLANATION)         # see the overview page
-    conn.config.save("my_first_light")
+add_explanation(conn, EXPLANATION)         # see the overview page
+conn.config.save("my_first_light")
 ```
 
 `save` writes `my_first_light.config.json` into the server's config directory
@@ -102,7 +105,7 @@ and raises `ConfigAlreadyExistsError` if that name is taken — pass
 `overwrite=True` to replace it. From then on:
 
 ```python
-    conn.config.load("my_first_light")
+conn.config.load("my_first_light")
 ```
 
 restores the whole scene, on this server or any other one you upload the file
@@ -124,6 +127,14 @@ Saved as 'my_first_light' — load it again with conn.config.load('my_first_ligh
 - Add a fifth square at the exact centre of each edge to check for
   non-uniform scaling.
 - Re-save under a second name and use `conn.config.list_configs()` to see both.
+
+## The complete script
+
+??? example "`client/python/examples/demos/first_light.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/first_light.py"
+    ```
 
 ## Next
 

@@ -17,8 +17,8 @@ lines, opposite model. There, an *edge* started a timed presentation; here, a
 ```python
 from vstimd import Connection, VtlHandle, VtlKind
 
-    conn.vtl.set_line_name(0, 7, VtlKind.INPUT, name="in_pin7")
-    gate = VtlHandle.input(0, 7)
+conn.vtl.set_line_name(0, 7, VtlKind.INPUT, name="in_pin7")
+gate = VtlHandle.input(0, 7)
 ```
 
 ## 2. A patch you cannot miss
@@ -26,16 +26,16 @@ from vstimd import Connection, VtlHandle, VtlKind
 ```python
 from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 
-    patch = conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0),
-        width=700, height=700,
-        sf=0.015,
-        angle=90.0,                     # horizontal stripes
-        contrast=1.0,
-        waveform=GratingTexture.SQR,
-        mask=GratingMask.CIRCLE,
-        name="gated_grating",
-    )
+patch = conn.stimuli.grating.create_grating(
+    pos=Vec2(0, 0),
+    width=700, height=700,
+    sf=0.015,
+    angle=90.0,                     # horizontal stripes
+    contrast=1.0,
+    waveform=GratingTexture.SQR,
+    mask=GratingMask.CIRCLE,
+    name="gated_grating",
+)
 ```
 
 A square wave through a hard circular mask: maximum contrast at a sharp edge, so
@@ -46,12 +46,12 @@ mask used for the triggered gratings, because here you want the edge.
 ## 3. Couple visibility to the level
 
 ```python
-    gated = conn.animations.create_couple_visibility_to_trigger_line(
-        gate, patch,
-        polarity=True,
-        name="gate_on_pin7",
-    )
-    conn.animations.arm(gated)
+gated = conn.animations.create_couple_visibility_to_trigger_line(
+    gate, patch,
+    polarity=True,
+    name="gate_on_pin7",
+)
+conn.animations.arm(gated)
 ```
 
 This animation never completes. Every frame it copies the line's level onto the
@@ -71,7 +71,7 @@ input, which is what you usually have when a TTL line idles high.
 ## 4. Save, then prove the wiring
 
 ```python
-    conn.config.save("my_trigger_gate")
+conn.config.save("my_trigger_gate")
 ```
 
 With the config saved, the useful part starts. Drive the line from software
@@ -80,11 +80,11 @@ first, to confirm the *scene* is right:
 ```python
 import time
 
-    for _ in range(3):
-        conn.vtl.set_line(gate, True)      # patch visible
-        time.sleep(0.7)
-        conn.vtl.set_line(gate, False)     # patch hidden
-        time.sleep(0.7)
+for _ in range(3):
+    conn.vtl.set_line(gate, True)      # patch visible
+    time.sleep(0.7)
+    conn.vtl.set_line(gate, False)     # patch hidden
+    time.sleep(0.7)
 ```
 
 `set_line` on an INPUT handle writes the same bit a DAQ edge would, so this
@@ -97,8 +97,8 @@ just eliminated.
 the quickest way to see whether an edge is arriving at all:
 
 ```python
-    for line in conn.vtl.list_lines():
-        print(line.name, line.kind, "HIGH" if line.high else "LOW")
+for line in conn.vtl.list_lines():
+    print(line.name, line.kind, "HIGH" if line.high else "LOW")
 ```
 
 ## Run it
@@ -123,6 +123,14 @@ Saved as 'my_trigger_gate'.
   a pulse vstimd itself is emitting — a debugging aid for output timing.
 - Add a second, independent gate on another line and check the two do not
   interfere.
+
+## The complete script
+
+??? example "`client/python/examples/demos/trigger_gate.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/trigger_gate.py"
+    ```
 
 ## Next
 

@@ -13,11 +13,11 @@ setting that is not a stimulus.
 ## 1. The visible patch
 
 ```python
-    patch = conn.stimuli.shapes.create_rect(
-        pos=Vec2(0, 100), width=1400, height=600,
-        color=Color(1.0, 1.0, 1.0),
-        name="flicker_patch",
-    )
+patch = conn.stimuli.shapes.create_rect(
+    pos=Vec2(0, 100), width=1400, height=600,
+    color=Color(1.0, 1.0, 1.0),
+    name="flicker_patch",
+)
 ```
 
 Big and white on a near-black background: you want to see this from across the
@@ -28,14 +28,14 @@ room, and a photometer wants a lot of it.
 ```python
 from vstimd import StartAction
 
-    flicker = conn.animations.create_flicker(
-        patch,
-        on_frames=6, off_frames=6,
-        start_on_phase=True,
-        name="field_flicker_5hz",
-        start_action_mask=StartAction.ENABLE,
-    )
-    conn.animations.arm(flicker)
+flicker = conn.animations.create_flicker(
+    patch,
+    on_frames=6, off_frames=6,
+    start_on_phase=True,
+    name="field_flicker_5hz",
+    start_action_mask=StartAction.ENABLE,
+)
+conn.animations.arm(flicker)
 ```
 
 Six frames on plus six off is a 12-frame period — 5 Hz at 60 Hz, and something
@@ -60,11 +60,11 @@ ways to set it are the on-device overlay, or the config JSON:
 ```python
 import json
 
-    scene = json.loads(conn.config.retrieve())
-    scene["scene"]["photodiode"]["enabled"] = True
-    scene["scene"]["photodiode"]["flicker"] = True
-    conn.config.upload("my_photodiode_flicker", json.dumps(scene),
-                       overwrite=True, apply_now=True)
+scene = json.loads(conn.config.retrieve())
+scene["scene"]["photodiode"]["enabled"] = True
+scene["scene"]["photodiode"]["flicker"] = True
+conn.config.upload("my_photodiode_flicker", json.dumps(scene),
+                   overwrite=True, apply_now=True)
 ```
 
 `retrieve` hands you the current scene as JSON — the exact format of a
@@ -115,6 +115,14 @@ Photodiode patch on and inverting every frame.
 - Set `total_frames=600` and watch the flicker stop after 10 s at 60 Hz.
 - Turn `flicker` off but leave `enabled` on, and use the patch as a static
   luminance reference for a photometer calibration.
+
+## The complete script
+
+??? example "`client/python/examples/demos/photodiode_flicker.py`"
+
+    ```python
+    --8<-- "client/python/examples/demos/photodiode_flicker.py"
+    ```
 
 ## Next
 
