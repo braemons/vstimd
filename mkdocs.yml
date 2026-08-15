@@ -26,7 +26,10 @@ theme:
   features:
     - navigation.instant
     - navigation.tracking
-    - navigation.sections
+    # No `navigation.sections`: top-level groups stay collapsible, so only the
+    # section you are reading is expanded and long ones (Developer guide) do not
+    # push the sidebar into a scroll.
+    - navigation.prune
     - navigation.top
     - navigation.footer
     - content.code.copy
@@ -100,24 +103,22 @@ nav:
       - Installation: getting-started/installation.md
       - Quick start: getting-started/quick-start.md
       - Demo scenes: getting-started/demos.md
-  - Tutorials:
-      - How vstimd works — setup & triggers: tutorial/index.md
-      - Setup — the command API: tutorial/command-api.md
-      - Execution — triggers & animations (VTL): tutorial/vtl-and-animations.md
-      - Build the demos yourself:
-          - Overview: tutorial/demos/index.md
-          - First light: tutorial/demos/first-light.md
-          - Drifting grating: tutorial/demos/drifting-grating.md
-          - Gratings, triggers & a saved config: tutorial/demos/gratings-triggers-config.md
-          - Moving target: tutorial/demos/moving-target.md
-          - Photodiode & flicker: tutorial/demos/photodiode-flicker.md
-          - Trigger gate: tutorial/demos/trigger-gate.md
-      - Integrating recording systems: tutorial/recording-integration.md
   - Concepts:
-      - Frame timing: concepts/frame-timing.md
+      - How vstimd works — setup & triggers: concepts/how-vstimd-works.md
+      - Setup — the command API: concepts/command-api.md
+      - Execution — triggers & animations (VTL): concepts/vtl-and-animations.md
       - Coordinate system: concepts/coordinate-system.md
       - Deferred mode: concepts/deferred-mode.md
       - Saving & loading: concepts/saving-loading.md
+      - Integrating recording systems: concepts/recording-integration.md
+  - Tutorials:
+      - Overview: tutorials/index.md
+      - First light: tutorials/first-light.md
+      - Drifting grating: tutorials/drifting-grating.md
+      - Gratings, triggers & a saved config: tutorials/gratings-triggers-config.md
+      - Moving target: tutorials/moving-target.md
+      - Photodiode & flicker: tutorials/photodiode-flicker.md
+      - Trigger gate: tutorials/trigger-gate.md
   - Client library:
       - Python client: client/python.md
       - Command-line client: client/cli.md
@@ -130,6 +131,7 @@ nav:
       - Manual appliance setup: operations/appliance-setup.md
   - Developer guide:
       - Architecture: developer/architecture.md
+      - Frame timing: developer/frame-timing.md
       - Rendering & DRM internals: developer/rendering.md
       - Wire protocol: developer/protocol.md
       - Server API: developer/server-api.md

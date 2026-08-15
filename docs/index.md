@@ -6,9 +6,11 @@
     or data collection. Use it for evaluation and development only — **do not rely on it
     in production yet**.
 
-**vstimd** is a visual stimulus server for neuroscience experiments. It runs on dedicated
-hardware and accepts commands from experiment scripts over the network, rendering stimuli with
-precise, vsync-locked frame timing.
+**vstimd** is a visual stimulus server for neuroscience experiments — a
+[daemon](https://en.wikipedia.org/wiki/Daemon_%28computing%29), a background process with no
+user interface of its own, which is what the trailing **d** in the name stands for. It runs
+on dedicated hardware and accepts commands from experiment scripts over the network,
+rendering stimuli with precise, vsync-locked frame timing.
 
 vstimd is a **trigger-driven** stimulus engine. You *set up* a scene ahead of time —
 stimuli plus small on-device **animations** — using the **command API**
@@ -22,8 +24,10 @@ conventional command-based stimulus software.
 !!! tip "New here? Start with these"
     - **[Why vstimd?](why-vstimd.md)** — what a dedicated timing device buys you over
       PsychoPy / Psychtoolbox / MWorks, and how it fuses with ephys and imaging.
-    - **[How vstimd works](tutorial/index.md)** — how setup (command / config APIs) and
-      trigger-driven execution fit together, with hands-on tutorials.
+    - **[How vstimd works](concepts/how-vstimd-works.md)** — how setup (command / config APIs) and
+      trigger-driven execution fit together.
+    - **[Build the demos yourself](tutorials/index.md)** — hands-on tutorials that
+      rebuild each shipped demo scene, script by script.
 
 ```mermaid
 flowchart TB
@@ -108,7 +112,7 @@ entirely inside the server**, staying synchronised to the display and to DAQ mar
 | Grating | Analytical sinusoidal grating with aperture masks and drift |
 | Text | Rendered text with configurable font, size, colour, and anchor |
 
-## Quick start
+## Driving it from a client
 
 === "Python"
 

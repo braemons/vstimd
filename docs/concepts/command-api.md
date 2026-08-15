@@ -1,15 +1,15 @@
-# Tutorial: The command API
+# The command API
 
 <span class="wip-badge">WIP</span>
 
 The command API is the **imperative** path: your client sends a command, the server
 applies it on the next frame and replies. Use it to build the scene, run your trial
-logic, and query state. This tutorial walks from a first stimulus to atomic
+logic, and query state. This page walks from a first stimulus to atomic
 multi-stimulus updates.
 
 !!! info "Prerequisites"
     A running server (`cargo run --release`, or `--null` for a headless test — see
-    [Quick start](../getting-started/quick-start.md)) and the Python client
+    [Installation](../getting-started/installation.md)) and the Python client
     (`cd client/python && uv sync`). The examples use Python; the same commands
     exist in the PsychoPy layer (a MATLAB client is planned).
 
@@ -38,7 +38,7 @@ with Connection("tcp://stimulus-pc:5555") as conn:
 
 Creating a stimulus returns a **handle** — an opaque id you use to address that
 stimulus in later commands. Positions are in **pixels from the screen centre, Y
-up** (see [Coordinate system](../concepts/coordinate-system.md)); colours are RGBA
+up** (see [Coordinate system](coordinate-system.md)); colours are RGBA
 in 0–1.
 
 ```python
@@ -105,7 +105,7 @@ with Connection() as conn:
     conn.system.set_deferred_mode(active=False)   # both appear on the same frame
 ```
 
-See [Deferred mode](../concepts/deferred-mode.md) for the full semantics,
+See [Deferred mode](deferred-mode.md) for the full semantics,
 including cancelling a batch.
 
 ## 6. Scene-wide and query commands
@@ -173,7 +173,7 @@ win.flip()
 
 - **[Triggers & animations](vtl-and-animations.md)** — the frame-accurate,
   on-device path.
-- **[Build the demos yourself](demos/index.md)** — the shipped demo scenes,
+- **[Build the demos yourself](../tutorials/index.md)** — the shipped demo scenes,
   rebuilt call by call in runnable scripts.
 - **[Python client reference](../client/python.md)** — the full command surface.
-- **[Deferred mode](../concepts/deferred-mode.md)** — atomic frame flips in depth.
+- **[Deferred mode](deferred-mode.md)** — atomic frame flips in depth.

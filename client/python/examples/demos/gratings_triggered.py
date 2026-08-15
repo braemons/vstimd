@@ -19,7 +19,7 @@ line, and holds a third line high while it is finished.
 `--fire` drives the input lines from software afterwards, which stands in for a
 real DAQ edge so the script is useful on a machine with no wiring at all.
 
-See docs/tutorial/demos/gratings-triggers-config.md for the walkthrough.
+See docs/tutorials/gratings-triggers-config.md for the walkthrough.
 """
 
 import json

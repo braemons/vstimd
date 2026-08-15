@@ -1,109 +1,28 @@
 # Quick Start
 
-<span class="wip-badge">WIP</span>
+<span class="wip-badge">Planned</span>
 
-This page drives a server you started yourself, from a source checkout. If you
-have a packaged rig or a flashed [Raspberry Pi 5 image](../operations/raspberry-pi-image.md),
-it is already running — skip to step 2 and point the client at it
-(`vstimd-client discover` finds it, see
-[Discovery & hostnames](../operations/discovery.md)).
+!!! warning "This page is a placeholder"
+    The quick start is being rewritten as a **screenshot-led walkthrough** — first
+    light on a real display in a few minutes, without a source checkout and without
+    a detour through the client API. It is not written yet, because the screenshots
+    have to be taken on real hardware first.
 
-## 1. Start the server
+    Tracked in [issue #117](https://github.com/braemons/vstimd/issues/117).
 
-```sh
-# Fullscreen (auto-detects DRM or desktop)
-cargo run --release
+What it will cover, on two paths:
 
-# Windowed, for development
-cargo run --release -- --windowed 1280x720
+- **A Raspberry Pi 5 rig** — flash the [image](../operations/raspberry-pi-image.md),
+  power it on, find it on the network, and put a demo scene on the display.
+- **A developer machine** — install vstimd, run it windowed, and do the same.
+  Ideally a single `cargo install vstimd`, once the crate is published to
+  [crates.io](https://crates.io/).
 
-# No display — ZMQ server only (for testing without a monitor)
-cargo run --release -- --null
-```
+Until then, use these:
 
-For first light, load a shipped [demo scene](demos.md) — `vstimd-client config
-load demo_first_light` puts a self-explaining scene on the display without a
-line of code.
-
-Press **D** to spawn demo stimuli, **F1–F7** to show overlay panels (Stimuli, Log,
-Virtual Trigger, Animations, System, Config, Benchmarks; Shift+F–key hides), **Esc**
-to exit.
-
-## 2. Send your first stimulus
-
-=== "Python"
-
-    ```sh
-    cd client/python
-    uv run examples/flash_rects.py
-    ```
-
-    Or from a script:
-
-    ```python
-    from vstimd import Connection
-    from vstimd.stimuli import Vec2, Color
-
-    with Connection() as conn:         # default: tcp://localhost:5555
-        # Create a red rectangle centred on screen
-        h = conn.stimuli.shapes.create_rect(
-            pos=Vec2(0, 0), width=300, height=150,
-            color=Color(1.0, 0.0, 0.0),
-        )
-        input("Press Enter to remove...")
-        conn.stimuli.delete(h)
-    ```
-
-=== "MATLAB (planned)"
-
-    !!! note "The MATLAB client is planned — it does not exist yet."
-
-    ```matlab
-    conn = vstimd.Connection();   % default: tcp://localhost:5555
-    h = conn.stimuli.create_rect('x', 0, 'y', 0, ...
-                                 'width', 300, 'height', 150, ...
-                                 'r', 1.0, 'g', 0.0, 'b', 0.0);
-    input('Press Enter to remove...');
-    conn.stimuli.delete(h);
-    conn.close();
-    ```
-
-## 3. Deferred mode
-
-Use deferred mode to make multiple changes visible on the exact same frame:
-
-=== "Python"
-
-    ```python
-    from vstimd.stimuli import Vec2, Color
-
-    with Connection() as conn:
-        h1 = conn.stimuli.shapes.create_rect(pos=Vec2(-200, 0), width=100, height=100,
-                                             color=Color(1, 0, 0))
-        h2 = conn.stimuli.shapes.create_rect(pos=Vec2(200, 0), width=100, height=100,
-                                             color=Color(0, 0, 1))
-
-        conn.system.set_deferred_mode(active=True)
-        conn.stimuli.set_enabled(h1, True)
-        conn.stimuli.set_enabled(h2, True)
-        conn.system.set_deferred_mode(active=False)
-        # Both stimuli appear on the same frame
-    ```
-
-## 4. Query server info
-
-=== "Python"
-
-    ```python
-    with Connection() as conn:
-        info = conn.system.query_server_info()
-        print(info.width, info.height, info.frame_rate)
-    ```
-
-## Next steps
-
-- [Coordinate system](../concepts/coordinate-system.md) — pixel space, origin, Y-up
-- [Deferred mode](../concepts/deferred-mode.md) — atomic multi-stimulus frame flips
-- [The command API](../tutorial/command-api.md) — driving vstimd from Python step by step
-- [Bare-metal Linux](../operations/bare-metal.md) — running without a compositor on Jetson/Pi
-- [Raspberry Pi 5 image](../operations/raspberry-pi-image.md) — turn a Pi into a rig in ten minutes
+- **[Installation](installation.md)** — every way to get a server running today.
+- **[Demo scenes](demos.md)** — the shipped scenes, loadable with one command and
+  the fastest way to see vstimd do something.
+- **[How vstimd works](../concepts/how-vstimd-works.md)** — setup versus
+  trigger-driven execution, the idea the rest of the docs build on.
+- **[Build the demos yourself](../tutorials/index.md)** — the hands-on tutorials.

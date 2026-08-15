@@ -2,7 +2,7 @@
 
 The `vstimd` Python package is the reference client. It opens a ZMQ connection to a
 server and exposes typed command namespaces, so you never touch protobuf or sockets
-directly. For step-by-step walkthroughs see the [tutorials](../tutorial/index.md);
+directly. For step-by-step walkthroughs see the [tutorials](../tutorials/index.md);
 this page is the reference for the client's shape.
 
 ## Install
@@ -163,7 +163,7 @@ win.flip()
     The PsychoPy-compatible layer drives updates through Python round-trips and does
     **not** expose the animation or VTL systems. For timing-critical reactions, use
     the command API directly and move them into
-    [animations](../tutorial/vtl-and-animations.md).
+    [animations](../concepts/vtl-and-animations.md).
 
 ## Examples
 

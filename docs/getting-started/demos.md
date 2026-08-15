@@ -84,7 +84,7 @@ for a trigger that never arrives.
 
 Output pulses are one frame wide and are committed right after the vblank the
 stimulus becomes visible on, which is what makes them usable as event marks —
-see [Frame timing](../concepts/frame-timing.md). The `out_pin35` / `out_pin32`
+see [Frame timing](../developer/frame-timing.md). The `out_pin35` / `out_pin32`
 lines show the other mode: a level that holds the "finished" state until the
 next presentation starts, for a client that polls rather than timestamps.
 
@@ -120,18 +120,18 @@ with Connection() as conn:
 
 Every demo has a tutorial that rebuilds it from an empty scene with the Python
 command API, and a runnable script to go with it — see
-[Build the demos yourself](../tutorial/demos/index.md). Reading a demo backwards
+[Build the demos yourself](../tutorials/index.md). Reading a demo backwards
 into the calls that would produce it is the fastest way to learn the API, and
 the scripts are a better starting point for your own scene than a JSON file is.
 
 | Demo | Tutorial | Script |
 |---|---|---|
-| `demo_first_light` | [First light](../tutorial/demos/first-light.md) | `examples/demos/first_light.py` |
-| `demo_drifting_grating` | [Drifting grating](../tutorial/demos/drifting-grating.md) | `examples/demos/drifting_grating.py` |
-| `demo_gratings_triggered` | [Gratings, triggers & a saved config](../tutorial/demos/gratings-triggers-config.md) | `examples/demos/gratings_triggered.py` |
-| `demo_moving_target` | [Moving target](../tutorial/demos/moving-target.md) | `examples/demos/moving_target.py` |
-| `demo_photodiode_flicker` | [Photodiode & flicker](../tutorial/demos/photodiode-flicker.md) | `examples/demos/photodiode_flicker.py` |
-| `demo_trigger_gate` | [Trigger gate](../tutorial/demos/trigger-gate.md) | `examples/demos/trigger_gate.py` |
+| `demo_first_light` | [First light](../tutorials/first-light.md) | `examples/demos/first_light.py` |
+| `demo_drifting_grating` | [Drifting grating](../tutorials/drifting-grating.md) | `examples/demos/drifting_grating.py` |
+| `demo_gratings_triggered` | [Gratings, triggers & a saved config](../tutorials/gratings-triggers-config.md) | `examples/demos/gratings_triggered.py` |
+| `demo_moving_target` | [Moving target](../tutorials/moving-target.md) | `examples/demos/moving_target.py` |
+| `demo_photodiode_flicker` | [Photodiode & flicker](../tutorials/photodiode-flicker.md) | `examples/demos/photodiode_flicker.py` |
+| `demo_trigger_gate` | [Trigger gate](../tutorials/trigger-gate.md) | `examples/demos/trigger_gate.py` |
 
 ## Making your own
 

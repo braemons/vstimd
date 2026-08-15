@@ -15,7 +15,7 @@ the end of every sweep. The two ideas here are motion the server owns (rather
 than a Python loop setting positions) and an animation that both repeats itself
 and reports each repeat on a pin.
 
-See docs/tutorial/demos/moving-target.md for the walkthrough.
+See docs/tutorials/moving-target.md for the walkthrough.
 """
 
 import sys

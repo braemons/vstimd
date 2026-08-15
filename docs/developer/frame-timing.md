@@ -18,7 +18,7 @@ to when the corresponding change appears on screen.
 | Display panel response | 1–10 ms |
 | **Total (60 Hz)** | **~2–30 ms** |
 
-The dominant term is the vsync wait. Use [deferred mode](deferred-mode.md) to control exactly
+The dominant term is the vsync wait. Use [deferred mode](../concepts/deferred-mode.md) to control exactly
 which frame a batch of changes becomes visible.
 
 ## Vblank synchronisation
@@ -27,7 +27,7 @@ The server uses the following priority chain to lock to the display vblank. Each
 is tried in order; on error the source is permanently disabled and the next is used.
 The active source is shown in the **System** panel of the overlay (F5). For the full
 init requirements and module-level details, see
-[Rendering & DRM internals](../developer/rendering.md).
+[Rendering & DRM internals](rendering.md).
 
 ### Priority chain
 
@@ -70,7 +70,7 @@ For input-latency-sensitive applications (neuroscience, psychophysics) the DRM /
 | Any platform | GpuCompletion | Last resort if no vblank source is available |
 
 The `VK_EXT_display_control` init prerequisites and the module-level implementation
-are documented in [Rendering & DRM internals](../developer/rendering.md).
+are documented in [Rendering & DRM internals](rendering.md).
 
 ## Present mode
 

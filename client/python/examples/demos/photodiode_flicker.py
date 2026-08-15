@@ -14,7 +14,7 @@ patch inverting on every single frame, plus a large patch flickering at 5 Hz as
 a visible cross-check. This is the scene you load to measure what the display is
 actually doing, rather than what it claims to do.
 
-See docs/tutorial/demos/photodiode-flicker.md for the walkthrough.
+See docs/tutorials/photodiode-flicker.md for the walkthrough.
 """
 
 import json

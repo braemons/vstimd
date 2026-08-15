@@ -118,7 +118,7 @@ startup scene is a file edit from your own machine — no SSH session and no
 An explicit `--config <path>` CLI flag overrides `[startup] load_config`. A missing
 last-session slot on first boot is a no-op (the rig starts with an empty scene), not
 an error. See [Deployment](../operations/deployment.md) for the wider boot flow, and
-[Gratings, triggers & a saved config](../tutorial/demos/gratings-triggers-config.md)
+[Gratings, triggers & a saved config](../tutorials/gratings-triggers-config.md)
 for a worked example that ends with exactly this step.
 
 ### Where configs live, and save-on-quit archives
@@ -141,8 +141,8 @@ accumulate in one directory, as a nudge to clean up.
 
 ## See also
 
-- **[How vstimd works](../tutorial/index.md)** — where config files fit as a setup
+- **[How vstimd works](how-vstimd-works.md)** — where config files fit as a setup
   API alongside the command API, ahead of trigger-driven execution.
 - **[Deferred mode](deferred-mode.md)** — atomic frame flips for coordinated changes.
-- **[Build the demos yourself](../tutorial/demos/index.md)** — six scripts that each
+- **[Build the demos yourself](../tutorials/index.md)** — six scripts that each
   end by saving the scene they built.

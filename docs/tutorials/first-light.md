@@ -12,7 +12,7 @@ This page builds it from an empty scene.
 !!! info "Prerequisites"
     A running server (`cargo run --release`, or `--null` for a headless check)
     and the Python client (`cd client/python && uv sync`). If you have not met
-    handles and `create_*` yet, read [the command API](../command-api.md)
+    handles and `create_*` yet, read [the command API](../concepts/command-api.md)
     first.
 
 ## 1. Clear the scene and set the background
@@ -50,7 +50,7 @@ conn.stimuli.text.create_text(
 Text is laid out inside a box: `box_width`/`box_height` set the box,
 `letter_height` sets the glyph size in pixels, and `pos` places the box centre.
 Positions are pixels from the screen centre with **Y up** — see
-[Coordinate system](../../concepts/coordinate-system.md) — so `y=220` is above
+[Coordinate system](../concepts/coordinate-system.md) — so `y=220` is above
 the middle.
 
 ## 3. A centre dot
