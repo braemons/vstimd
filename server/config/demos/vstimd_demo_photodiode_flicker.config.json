@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "scene": {
     "background": [
       0.05,
@@ -42,6 +42,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "appearance": {
             "fill_color": [
               1.0,
@@ -59,8 +60,8 @@
             "draw_mode": "Fill"
           },
           "size": [
-            700.0,
-            300.0
+            1400.0,
+            600.0
           ]
         }
       },
@@ -80,6 +81,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "params": {
             "color": [
               0.9,
@@ -118,9 +120,12 @@
       "1": {
         "name": "field_flicker_5hz",
         "state": "Armed",
-        "stimuli": [
-          1
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            1
+          ]
+        },
         "start_action": 2,
         "start_action_trigger_line": null,
         "final_action": 0,

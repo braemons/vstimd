@@ -41,12 +41,32 @@ export class SystemClient {
     return toServerInfo(resp.body.case === "serverInfo" ? resp.body.value : undefined);
   }
 
-  /** Remove all stimuli from the scene. */
-  async deleteAll(): Promise<void> {
+  /** Remove every unprotected stimulus. Animations are left alone. */
+  async clearStimuli(): Promise<void> {
     await this.send(
       create(RequestSchema, {
         target: { case: "system", value: {} },
-        body: { case: "deleteAll", value: {} },
+        body: { case: "clearStimuli", value: {} },
+      }),
+    );
+  }
+
+  /** Remove every animation. Stimuli are left alone. */
+  async clearAnimations(): Promise<void> {
+    await this.send(
+      create(RequestSchema, {
+        target: { case: "system", value: {} },
+        body: { case: "clearAnimations", value: {} },
+      }),
+    );
+  }
+
+  /** Clear the scene: every animation, then every unprotected stimulus. */
+  async clearAll(): Promise<void> {
+    await this.send(
+      create(RequestSchema, {
+        target: { case: "system", value: {} },
+        body: { case: "clearAll", value: {} },
       }),
     );
   }

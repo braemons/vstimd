@@ -46,7 +46,7 @@ pub fn language_style_to_proto(ls: LanguageStyle) -> i32 {
 // ── CreateTextRequest → scene types ───────────────────────────────────────────
 
 pub fn text_render_params_from_proto(cmd: &proto::CreateTextRequest) -> TextRenderParams {
-    let color = cmd.color.as_ref()
+    let color = cmd.text_color.as_ref()
         .map(|c| crate::Color::new(c.r, c.g, c.b, c.a))
         .unwrap_or(crate::Color::WHITE);
     let fill_color = cmd.fill_color.as_ref()
@@ -72,7 +72,7 @@ pub fn text_query_params(s: &TextStimulus) -> proto::StimulusParams {
             text:          s.text_live.clone(),
             font:          s.font_family.clone(),
             letter_height: s.letter_height_px,
-            size: Some(proto::Vec2 {
+            box_size: Some(proto::Vec2 {
                 x: s.box_size.live[0],
                 y: s.box_size.live[1],
             }),

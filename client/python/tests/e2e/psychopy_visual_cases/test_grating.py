@@ -181,7 +181,10 @@ def test_grating_color_setters(win: visual.Window, step_delay: float, request: p
     win.flip()
     time.sleep(step_delay)
     info = win._conn.stimuli.query(grat._handle)
-    assert info.params.opacity == pytest.approx(0.5, abs=0.01)
+    assert isinstance(info.params, GratingParams)
+    # Opacity is the shared per-stimulus property; the carrier colours keep
+    # their own alphas underneath it.
+    assert info.opacity == pytest.approx(0.5, abs=0.01)
     assert info.params.fore_color[3] == pytest.approx(1.0, abs=0.01)
     assert info.params.back_color[3] == pytest.approx(1.0, abs=0.01)
 

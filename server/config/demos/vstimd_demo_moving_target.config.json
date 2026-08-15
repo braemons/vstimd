@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "scene": {
     "background": [
       0.05,
@@ -42,6 +42,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "appearance": {
             "fill_color": [
               1.0,
@@ -77,6 +78,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "params": {
             "color": [
               0.9,
@@ -115,9 +117,12 @@
       "1": {
         "name": "sweep_left_to_right",
         "state": "Armed",
-        "stimuli": [
-          1
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            1
+          ]
+        },
         "start_action": 0,
         "start_action_trigger_line": null,
         "final_action": 24,

@@ -775,7 +775,7 @@ Protobuf stubs generated from `proto/vstimd/v1/` live in `vstimd/_proto/`.
 
 **Implemented:**
 - `StimuliClient`: `create_rect`, `create_circle`, `create_ellipse`, `create_grating`; full set of mutation commands including all grating-specific ones; `query(handle)`
-- `SystemClient`: `query_server_info`, `set_background`, `set_deferred_mode`, `delete_all`, `set_all_enabled`
+- `SystemClient`: `query_server_info`, `set_background`, `set_deferred_mode`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_all_enabled`
 - `vstimd.psychopy` compat layer: `Window`, `Rect`, `Circle`, `GratingStim` — drop-in replacement for `psychopy.visual`
 - E2E tests against the null renderer; unit/API-signature tests
 

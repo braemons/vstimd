@@ -260,12 +260,10 @@ def test_grating_mutate_back_color(conn: Connection) -> None:
 
 
 def test_grating_mutate_opacity(conn: Connection) -> None:
+    """Opacity is the shared property, set with the shared command."""
     handle = conn.stimuli.grating.create_grating()
-    conn.stimuli.grating.set_opacity(handle, 0.4)
-    info = conn.stimuli.query(handle)
-    assert isinstance(info.params, GratingParams)
-    assert info.params.opacity == pytest.approx(0.4, abs=0.01)
-    assert info.opacity == pytest.approx(0.4, abs=0.01)
+    conn.stimuli.set_alpha(handle, 0.4)
+    assert conn.stimuli.query(handle).opacity == pytest.approx(0.4, abs=0.01)
     conn.stimuli.delete(handle)
 
 
@@ -292,9 +290,9 @@ def test_grating_per_color_alpha(conn: Connection) -> None:
     handle = conn.stimuli.grating.create_grating(
         fore_color=Color(1.0, 0.0, 0.0, 0.5),
         back_color=Color(0.0, 0.0, 1.0, 0.0),
-        opacity=0.8,
     )
     assert handle > 0
+    conn.stimuli.set_alpha(handle, 0.8)
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
     assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
@@ -308,9 +306,10 @@ def test_grating_per_color_alpha(conn: Connection) -> None:
 def test_grating_opacity(conn: Connection) -> None:
     handle = conn.stimuli.grating.create_grating(
         pos=Vec2(0, 0), width=200, height=200,
-        fore_color=Color(1.0, 0.0, 0.0), opacity=0.5,
+        fore_color=Color(1.0, 0.0, 0.0),
     )
     assert handle > 0
+    conn.stimuli.set_alpha(handle, 0.5)
     info = conn.stimuli.query(handle)
     assert info.stimulus_type == StimulusType.GRATING
     assert isinstance(info.params, GratingParams)

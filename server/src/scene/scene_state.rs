@@ -27,8 +27,14 @@ pub struct SceneRuntimeState {
     pub deferred_mode: bool,
     /// Set by `DeferredMode{start:false}`; cleared by the render thread after flip.
     pub pending_flip: bool,
-    /// Measured frame rate, updated by the render thread each frame.
+    /// Rolling mean of measured frame durations, updated by the render thread
+    /// each frame. Telemetry only — it jitters, so nothing whose result has to
+    /// be reproducible may compute with it (#120).
     pub frame_rate: f32,
+    /// Nominal refresh rate of the display mode, set once by the render loop.
+    /// The rate animations convert against: a fixed property of the rig, so a
+    /// config plays back the same way on every run.
+    pub nominal_frame_rate: f32,
     /// Set by the render thread on each frame. `None` until the first frame completes.
     pub screen_size: Option<(u32, u32)>,
     /// Screen size at which meshes were last tessellated. When this changes all
@@ -59,6 +65,7 @@ impl SceneRuntimeState {
             deferred_mode: false,
             pending_flip: false,
             frame_rate: 60.0,
+            nominal_frame_rate: 60.0,
             screen_size: None,
             last_uploaded_size: (0, 0),
             error_mask: 0,
@@ -182,7 +189,7 @@ impl SceneState {
             None => return false,
         };
         let was_running = matches!(entry.state, AnimState::Running { .. });
-        let stim_handles = entry.stimuli.clone();
+        let stim_handles = entry.target.stimuli().to_vec();
         entry.state = AnimState::Idle;
         if was_running {
             self.release_anim_hold(&stim_handles);
@@ -221,7 +228,7 @@ impl SceneState {
             None => return false,
         };
         if matches!(entry.state, AnimState::Running { .. }) {
-            self.release_anim_hold(&entry.config.stimuli);
+            self.release_anim_hold(&entry.config.target.stimuli().to_vec());
         }
         true
     }
@@ -301,12 +308,32 @@ impl SceneState {
 
     // ── Scene commands ────────────────────────────────────────────────────────
 
-    pub fn clear_all(&mut self, protected_too: bool) {
+    /// Remove every stimulus (except protected ones, unless `protected_too`).
+    /// Animations are untouched — see [`Self::clear_animations`].
+    pub fn clear_stimuli(&mut self, protected_too: bool) {
         if protected_too {
             self.stimuli.clear();
         } else {
             self.stimuli.retain(|_, e| e.stimulus.flags().protected);
         }
+    }
+
+    /// Remove every animation, whatever its state. Goes through
+    /// [`Self::delete_animation`] so a running one releases the `anim_enabled`
+    /// hold it placed on its stimuli.
+    pub fn clear_animations(&mut self) {
+        let handles: Vec<u32> = self.animations.keys().copied().collect();
+        for h in handles {
+            self.delete_animation(h);
+        }
+    }
+
+    /// Clear the whole scene: animations first, then stimuli, so no animation
+    /// is left driving a stimulus that no longer exists. Scene-wide settings
+    /// (background, default colours, photodiode, VTL names) are not touched.
+    pub fn clear_scene(&mut self, protected_too: bool) {
+        self.clear_animations();
+        self.clear_stimuli(protected_too);
     }
 
     pub fn set_all_enabled(&mut self, enabled: bool, protected_too: bool) {
@@ -364,7 +391,7 @@ impl SceneState {
                         .insert(new_handle, make_entry_dirty(entry));
                 }
                 for (handle, mut anim) in cfg.animations {
-                    for sh in &mut anim.config.stimuli {
+                    for sh in anim.config.target.stimuli_mut() {
                         *sh += stim_offset;
                     }
                     anim.state = state_after_load(&anim.state);

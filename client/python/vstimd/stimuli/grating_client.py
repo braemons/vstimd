@@ -41,7 +41,6 @@ class GratingClient:
         contrast: float = 1.0,
         fore_color: Color = Color(1.0, 1.0, 1.0),
         back_color: Color = Color(0.0, 0.0, 0.0),
-        opacity: float = 1.0,
         waveform: GratingTexture = GratingTexture.SIN,
         mask: GratingMask = GratingMask.NONE,
         mask_param: float = 0.0,
@@ -54,7 +53,8 @@ class GratingClient:
         """Create a grating stimulus and return its handle.
 
         The grating interpolates between back_color (carrier = -1) and fore_color
-        (carrier = +1), modulated by contrast.  opacity sets global transparency.
+        (carrier = +1), modulated by contrast.  For transparency use the shared
+        ``conn.stimuli.set_alpha(handle, opacity)``.
 
         mask_param interpretation (0 = use default):
           - MASK_TYPE_GAUSS:      SD in normalized units where patch radius = 1 (default 1/3)
@@ -72,7 +72,6 @@ class GratingClient:
                 contrast=contrast,
                 fore_color=color_pb2.Color(r=fore_color.r, g=fore_color.g, b=fore_color.b, a=fore_color.a),
                 back_color=color_pb2.Color(r=back_color.r, g=back_color.g, b=back_color.b, a=back_color.a),
-                opacity=opacity,
                 waveform=_WAVEFORM_TO_PROTO[waveform],
                 mask=_MASK_TO_PROTO[mask],
                 mask_param=mask_param,
@@ -155,8 +154,5 @@ class GratingClient:
             ),
         )))
 
-    def set_opacity(self, handle: StimulusHandle, opacity: float) -> ServerResponse:
-        return ServerResponse._from_proto(self._send(service_pb2.Request(
-            stimulus=handle,
-            set_grating_opacity=grating_pb2.SetGratingOpacityRequest(opacity=opacity),
-        )))
+    # Opacity is a shared property: use ``conn.stimuli.set_alpha`` — it works on
+    # gratings, shapes and text alike.

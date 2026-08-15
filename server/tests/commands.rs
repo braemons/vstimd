@@ -46,8 +46,27 @@ fn set_deferred_mode_req(active: bool, cancel: bool) -> proto::Request {
     }
 }
 
+/// Proto animation target for a list of stimulus handles.
+fn anim_target(handles: Vec<u32>) -> proto::AnimationTarget {
+    proto::AnimationTarget {
+        target: Some(proto::animation_target::Target::Stimuli(
+            proto::AnimationStimuli { handles },
+        )),
+    }
+}
+
 fn is_ok(resp: &proto::Response) -> bool {
     resp.code == proto::ErrorCode::Ok as i32
+}
+
+
+/// The 2-D placement out of a query response, or panic — every stimulus in
+/// these tests is 2-D.
+fn placement_2d(info: &proto::QueryStimulusResponse) -> proto::Transform2D {
+    match info.placement.clone() {
+        Some(proto::query_stimulus_response::Placement::Transform2d(t)) => t,
+        None => panic!("query response carried no placement"),
+    }
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -108,8 +127,8 @@ fn test_create_rect_defaults() {
     let entry = scene.stimuli.get_mut(&h).unwrap();
 
     let Stimulus::Rect(r) = &mut entry.stimulus else { panic!("expected Rect stimulus") };
-    assert_eq!(r.size.live, [50.0, 50.0]);
-    assert_eq!(r.common.appearance.live.fill_color, default_fill);
+    assert_eq!(r.size.live, [100.0, 100.0]); // width=0 → server default 100
+    assert_eq!(r.appearance.live.fill_color, default_fill);
 }
 
 #[test]
@@ -226,7 +245,7 @@ fn test_create_ellipse() {
     let Stimulus::Ellipse(e) = &scene.stimuli[&h].stimulus else {
         panic!("expected Ellipse stimulus");
     };
-    assert_eq!(e.radii.live, [60.0, 30.0]);
+    assert_eq!(e.size.live, [120.0, 60.0]);
     assert_eq!(e.common.transform.live.angle, 45.0);
 }
 
@@ -318,7 +337,9 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     assert_eq!(t.live.angle, 30.0);
 
     let app = stim.shape_appearance().expect("expected shape");
-    assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.9));
+    // SetAlpha writes the shared opacity and leaves the fill's own alpha alone.
+    assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
+    assert_eq!(stim.opacity().live, 0.9);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert_eq!(app.live.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
     assert_eq!(app.live.stroke_width, 7.0);
@@ -402,7 +423,9 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(app.live.outline_color, Color::new(0.21, 0.22, 0.23, 0.24));
     assert_eq!(app.live.stroke_width, 2.5);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::FillAndStroke);
-    assert_eq!(app.copy.fill_color, Color::new(0.1, 0.2, 0.3, 0.9));
+    assert_eq!(app.copy.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
+    assert_eq!(stim.opacity().copy, 0.9);
+    assert_eq!(stim.opacity().live, 1.0, "opacity is staged, not live, in deferred mode");
     assert_eq!(app.copy.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
     assert_eq!(app.copy.stroke_width, 7.0);
     assert!(app.copy.draw_mode == vstimd::scene::DrawMode::Stroke);
@@ -422,10 +445,11 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(t.live.pos, [15.0, 25.0]);
     assert_eq!(t.live.angle, 30.0);
     let app = stim.shape_appearance().expect("expected shape");
-    assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.9));
+    assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
     assert_eq!(app.live.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
     assert_eq!(app.live.stroke_width, 7.0);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
+    assert_eq!(stim.opacity().live, 0.9, "the staged opacity flipped with the rest");
     assert!(stim.flags().dirty);
 }
 
@@ -444,7 +468,7 @@ fn test_set_rect_size() {
     }, None);
     assert!(is_ok(&resp));
     let Stimulus::Rect(r) = &scene.stimuli[&h].stimulus else { panic!("expected Rect") };
-    assert_eq!(r.size.live, [40.0, 20.0]);
+    assert_eq!(r.size.live, [80.0, 40.0]);
 }
 
 #[test]
@@ -485,14 +509,14 @@ fn test_query_stimulus() {
     if let Some(proto::response::Body::StimulusInfo(info)) = resp.body {
         assert_eq!(info.stimulus_type, proto::StimulusType::Rect as i32);
         assert!(info.enabled);
-        let pos = info.pos.unwrap();
+        let pos = placement_2d(&info).pos.unwrap();
         assert_eq!(pos.x, 5.0);
         assert_eq!(pos.y, 10.0);
-        let fc = info.fill_color.unwrap();
-        assert_eq!(fc.r, 1.0);
         if let Some(proto::stimulus_params::Shape::Rect(rp)) = info.params.unwrap().shape {
             assert_eq!(rp.width, 200.0);
             assert_eq!(rp.height, 100.0);
+            // Appearance is shape state, reported with the shape's own params.
+            assert_eq!(rp.appearance.unwrap().fill_color.unwrap().r, 1.0);
         } else {
             panic!("expected Rect params");
         }
@@ -540,7 +564,7 @@ fn test_query_server_info() {
 }
 
 #[test]
-fn test_delete_all() {
+fn test_clear_stimuli() {
     let mut scene = SceneState::new();
     scene.handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None);
     scene.handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None);
@@ -548,7 +572,7 @@ fn test_delete_all() {
 
     let resp = scene.handle_request(proto::Request {
         target: Some(sys()),
-        body: Some(request::Body::DeleteAll(proto::DeleteAllRequest {})),
+        body: Some(request::Body::ClearStimuli(proto::ClearStimuliRequest {})),
     }, None);
     assert!(is_ok(&resp));
     assert_eq!(scene.stimuli.len(), 0);
@@ -630,10 +654,10 @@ fn test_create_text() {
             text: "hello".into(),
             font: "Open Sans".into(),
             letter_height: 32.0,
-            size: Some(proto::Vec2 { x: 400.0, y: 80.0 }),
+            box_size: Some(proto::Vec2 { x: 400.0, y: 80.0 }),
             pos: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
             anchor: "center".into(),
-            color: Some(proto::Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }),
+            text_color: Some(proto::Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }),
             ..Default::default()
         })),
     }, None);
@@ -649,7 +673,7 @@ fn test_create_text() {
     assert_eq!(t.font_family, "Open Sans");
     assert_eq!(t.letter_height_px, 32.0);
     assert_eq!(t.box_size.live, [400.0, 80.0]);
-    assert_eq!(t.transform.live.pos, [10.0, -20.0]);
+    assert_eq!(t.common.transform.live.pos, [10.0, -20.0]);
     assert_eq!(t.params.live.color, Color::new(1.0, 1.0, 0.0, 1.0));
     assert_eq!(t.params.live.fill_color.a, 0.0); // transparent by default
 }
@@ -694,7 +718,7 @@ fn test_set_text() {
     let Stimulus::Text(t) = &scene.stimuli[&h].stimulus else { panic!() };
     assert_eq!(t.text_live, "after");
     assert_eq!(t.text_copy, "after");
-    assert!(t.flags.dirty);
+    assert!(t.common.flags.dirty);
 }
 
 #[test]
@@ -763,10 +787,10 @@ fn test_query_text_stimulus() {
             text: "hello".into(),
             font: "Cairo".into(),
             letter_height: 24.0,
-            size: Some(proto::Vec2 { x: 300.0, y: 60.0 }),
+            box_size: Some(proto::Vec2 { x: 300.0, y: 60.0 }),
             pos: Some(proto::Vec2 { x: 5.0, y: -10.0 }),
             anchor: "top-left".into(),
-            color: Some(proto::Color { r: 0.5, g: 0.5, b: 1.0, a: 1.0 }),
+            text_color: Some(proto::Color { r: 0.5, g: 0.5, b: 1.0, a: 1.0 }),
             ..Default::default()
         })),
     }, None).handle as u32;
@@ -780,14 +804,14 @@ fn test_query_text_stimulus() {
     if let Some(proto::response::Body::StimulusInfo(info)) = resp.body {
         assert_eq!(info.stimulus_type, proto::StimulusType::Text as i32);
         assert!(info.enabled);
-        let pos = info.pos.unwrap();
+        let pos = placement_2d(&info).pos.unwrap();
         assert_eq!((pos.x, pos.y), (5.0, -10.0));
         if let Some(proto::stimulus_params::Shape::Text(tp)) = info.params.unwrap().shape {
             assert_eq!(tp.text, "hello");
             assert_eq!(tp.font, "Cairo");
             assert_eq!(tp.letter_height, 24.0);
             assert_eq!(tp.anchor, "top-left");
-            let size = tp.size.unwrap();
+            let size = tp.box_size.unwrap();
             assert_eq!((size.x, size.y), (300.0, 60.0));
         } else {
             panic!("expected Text params");
@@ -939,7 +963,7 @@ fn create_animation_resolves_both_final_action_lines() {
         .handle_request(
             create_flash_req(proto::CreateAnimationRequest {
                 name: "flash".into(),
-                stimuli: vec![h],
+                target: Some(anim_target(vec![h])),
                 final_action_mask: 0x01 | 0x02 | 0x08 | 0x100,
                 final_action_trigger_line: Some(out_line(0, 37)),
                 final_action_level_line: Some(out_line(0, 35)),
@@ -966,7 +990,7 @@ fn level_line_without_the_done_level_bit_is_ignored() {
     scene
         .handle_request(
             create_flash_req(proto::CreateAnimationRequest {
-                stimuli: vec![h],
+                target: Some(anim_target(vec![h])),
                 final_action_mask: 0x01, // DISABLE only
                 final_action_level_line: Some(out_line(0, 35)),
                 body: Some(proto::create_animation_request::Body::FlashForNFrames(
@@ -990,7 +1014,7 @@ fn done_level_rejects_an_input_line() {
     let resp = scene
         .handle_request(
             create_flash_req(proto::CreateAnimationRequest {
-                stimuli: vec![h],
+                target: Some(anim_target(vec![h])),
                 final_action_mask: 0x100, // DONE_LEVEL
                 final_action_level_line: Some(in_line(0, 11)),
                 body: Some(proto::create_animation_request::Body::FlashForNFrames(
@@ -1016,7 +1040,7 @@ fn query_animation_reports_the_level_line() {
     scene
         .handle_request(
             create_flash_req(proto::CreateAnimationRequest {
-                stimuli: vec![h],
+                target: Some(anim_target(vec![h])),
                 final_action_mask: 0x100,
                 final_action_level_line: Some(out_line(0, 35)),
                 body: Some(proto::create_animation_request::Body::FlashForNFrames(
@@ -1046,4 +1070,259 @@ fn query_animation_reports_the_level_line() {
     let params = q.params.expect("query returned no params");
     assert_eq!(params.final_action_mask & 0x100, 0x100, "DONE_LEVEL not reported");
     assert!(params.final_action_level_line.is_some(), "level line not reported");
+}
+
+// ── Shared opacity ────────────────────────────────────────────────────────────
+
+/// One stimulus of every type, so the shared-property tests can loop.
+fn one_of_each(scene: &mut SceneState) -> Vec<(&'static str, u32)> {
+    let mut out = vec![];
+    for (name, body) in [
+        ("Rect", request::Body::CreateRect(proto::CreateRectRequest::default())),
+        ("Circle", request::Body::CreateCircle(proto::CreateCircleRequest::default())),
+        ("Ellipse", request::Body::CreateEllipse(proto::CreateEllipseRequest::default())),
+        ("Grating", request::Body::CreateGrating(proto::CreateGratingRequest::default())),
+        (
+            "Text",
+            request::Body::CreateText(proto::CreateTextRequest {
+                text: "hello".into(),
+                ..Default::default()
+            }),
+        ),
+    ] {
+        let resp = scene.handle_request(
+            proto::Request { target: Some(sys()), body: Some(body) },
+            None,
+        );
+        assert!(is_ok(&resp), "creating a {name} failed: {}", resp.error);
+        out.push((name, resp.handle as u32));
+    }
+    out
+}
+
+fn set_alpha(scene: &mut SceneState, handle: u32, opacity: f32) -> proto::Response {
+    scene.handle_request(
+        proto::Request {
+            target: Some(stim(handle)),
+            body: Some(request::Body::SetAlpha(proto::SetAlphaRequest { opacity })),
+        },
+        None,
+    )
+}
+
+/// Opacity is shared state: SetAlpha works on every type, not just shapes.
+#[test]
+fn test_set_alpha_applies_to_every_stimulus_type() {
+    let mut scene = SceneState::new();
+    for (name, h) in one_of_each(&mut scene) {
+        let resp = set_alpha(&mut scene, h, 0.25);
+        assert!(is_ok(&resp), "SetAlpha on a {name} was rejected: {}", resp.error);
+        assert_eq!(
+            scene.stimuli[&h].stimulus.opacity().live,
+            0.25,
+            "{name} did not take the opacity",
+        );
+    }
+}
+
+/// Only shapes re-tessellate on an opacity change: they bake it into their
+/// vertex colours, while grating and text read it from live state into push
+/// constants every frame. Marking text dirty here would re-shape and
+/// re-rasterize every glyph, so a fade would cost a full text layout per frame.
+#[test]
+fn test_set_alpha_only_dirties_what_has_to_be_retessellated() {
+    let mut scene = SceneState::new();
+    for (name, h) in one_of_each(&mut scene) {
+        // Stimuli are born dirty (nothing has drawn them yet); clear it the way
+        // the render thread does after uploading a mesh.
+        scene.stimuli.get_mut(&h).unwrap().stimulus.flags_mut().dirty = false;
+        assert!(is_ok(&set_alpha(&mut scene, h, 0.5)));
+
+        let stim = &scene.stimuli[&h].stimulus;
+        assert_eq!(
+            stim.flags().dirty,
+            stim.is_shape(),
+            "{name}: dirty should be set only for shapes",
+        );
+    }
+}
+
+/// Opacity multiplies the colours rather than replacing any one of them, so a
+/// half-transparent fill under an opaque outline keeps that relationship.
+#[test]
+fn test_set_alpha_leaves_per_colour_alpha_alone() {
+    let mut scene = SceneState::new();
+    let h = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None)
+        .handle as u32;
+    for (body, _) in [
+        (request::Body::SetFillColor(proto::SetFillColorRequest {
+            color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 0.5 }),
+        }), ()),
+        (request::Body::SetOutlineColor(proto::SetOutlineColorRequest {
+            color: Some(proto::Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 }),
+        }), ()),
+    ] {
+        let resp = scene.handle_request(
+            proto::Request { target: Some(stim(h)), body: Some(body) },
+            None,
+        );
+        assert!(is_ok(&resp));
+    }
+    assert!(is_ok(&set_alpha(&mut scene, h, 0.5)));
+
+    let stim = &scene.stimuli[&h].stimulus;
+    let app = stim.shape_appearance().expect("expected a shape");
+    assert_eq!(app.live.fill_color.a, 0.5, "the fill's own alpha was overwritten");
+    assert_eq!(app.live.outline_color.a, 1.0, "the outline's own alpha was overwritten");
+    assert_eq!(stim.opacity().live, 0.5);
+}
+
+#[test]
+fn test_set_alpha_clamps() {
+    let mut scene = SceneState::new();
+    let h = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None)
+        .handle as u32;
+
+    assert!(is_ok(&set_alpha(&mut scene, h, 4.0)));
+    assert_eq!(scene.stimuli[&h].stimulus.opacity().live, 1.0);
+    assert!(is_ok(&set_alpha(&mut scene, h, -1.0)));
+    assert_eq!(scene.stimuli[&h].stimulus.opacity().live, 0.0);
+}
+
+#[test]
+fn test_set_alpha_is_deferred_with_everything_else() {
+    let mut scene = SceneState::new();
+    let h = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None)
+        .handle as u32;
+
+    assert!(is_ok(&scene.handle_request(set_deferred_mode_req(true, false), None)));
+    assert!(is_ok(&set_alpha(&mut scene, h, 0.3)));
+    assert_eq!(scene.stimuli[&h].stimulus.opacity().live, 1.0, "opacity changed before the flip");
+
+    assert!(is_ok(&scene.handle_request(set_deferred_mode_req(false, false), None)));
+    scene.apply_flip();
+    assert_eq!(scene.stimuli[&h].stimulus.opacity().live, 0.3);
+}
+
+/// The query reports the shared property, for every type — not a per-type
+/// synthesis out of whichever colour that type happens to have.
+#[test]
+fn test_query_reports_shared_opacity() {
+    let mut scene = SceneState::new();
+    for (name, h) in one_of_each(&mut scene) {
+        assert!(is_ok(&set_alpha(&mut scene, h, 0.4)));
+        let resp = scene.handle_request(
+            proto::Request {
+                target: Some(stim(h)),
+                body: Some(request::Body::QueryStimulus(proto::QueryStimulusRequest {})),
+            },
+            None,
+        );
+        let Some(proto::response::Body::StimulusInfo(q)) = resp.body else {
+            panic!("{name}: unexpected query response body");
+        };
+        assert_eq!(q.opacity, 0.4, "{name} reported the wrong opacity");
+    }
+}
+
+// ── Sizes are full extents, end to end ────────────────────────────────────────
+
+/// Every create command takes full width/height and the scene stores exactly
+/// that, with no halving anywhere in between. This is the invariant the v3
+/// config format rests on, and it was missing for gratings — CreateGrating kept
+/// halving into the scene while the query multiplied back, so the wire looked
+/// right and the saved config was half size.
+#[test]
+fn test_create_stores_full_extents() {
+    let mut scene = SceneState::new();
+
+    let h = scene
+        .handle_request(create_rect_req(
+            sys(),
+            proto::CreateRectRequest { width: 200.0, height: 100.0, ..Default::default() },
+        ), None)
+        .handle as u32;
+    let Stimulus::Rect(r) = &scene.stimuli[&h].stimulus else { panic!("expected Rect") };
+    assert_eq!(r.size.live, [200.0, 100.0]);
+
+    let h = scene
+        .handle_request(proto::Request {
+            target: Some(sys()),
+            body: Some(request::Body::CreateEllipse(proto::CreateEllipseRequest {
+                width: 300.0, height: 120.0, ..Default::default()
+            })),
+        }, None)
+        .handle as u32;
+    let Stimulus::Ellipse(e) = &scene.stimuli[&h].stimulus else { panic!("expected Ellipse") };
+    assert_eq!(e.size.live, [300.0, 120.0]);
+
+    let h = scene
+        .handle_request(proto::Request {
+            target: Some(sys()),
+            body: Some(request::Body::CreateGrating(proto::CreateGratingRequest {
+                width: 400.0, height: 250.0, ..Default::default()
+            })),
+        }, None)
+        .handle as u32;
+    let Stimulus::Grating(g) = &scene.stimuli[&h].stimulus else { panic!("expected Grating") };
+    assert_eq!(g.size.live, [400.0, 250.0]);
+}
+
+/// …and a query reports the same numbers the create took, for every sized type.
+#[test]
+fn test_query_reports_the_size_that_was_asked_for() {
+    let mut scene = SceneState::new();
+    let cases: Vec<(&str, request::Body, fn(&proto::StimulusParams) -> (f32, f32))> = vec![
+        (
+            "rect",
+            request::Body::CreateRect(proto::CreateRectRequest {
+                width: 200.0, height: 100.0, ..Default::default()
+            }),
+            |p| match p.shape.as_ref().unwrap() {
+                proto::stimulus_params::Shape::Rect(r) => (r.width, r.height),
+                _ => panic!("wrong params type"),
+            },
+        ),
+        (
+            "ellipse",
+            request::Body::CreateEllipse(proto::CreateEllipseRequest {
+                width: 200.0, height: 100.0, ..Default::default()
+            }),
+            |p| match p.shape.as_ref().unwrap() {
+                proto::stimulus_params::Shape::Ellipse(e) => (e.width, e.height),
+                _ => panic!("wrong params type"),
+            },
+        ),
+        (
+            "grating",
+            request::Body::CreateGrating(proto::CreateGratingRequest {
+                width: 200.0, height: 100.0, ..Default::default()
+            }),
+            |p| match p.shape.as_ref().unwrap() {
+                proto::stimulus_params::Shape::Grating(g) => (g.width, g.height),
+                _ => panic!("wrong params type"),
+            },
+        ),
+    ];
+
+    for (name, body, extract) in cases {
+        let h = scene
+            .handle_request(proto::Request { target: Some(sys()), body: Some(body) }, None)
+            .handle as u32;
+        let resp = scene.handle_request(proto::Request {
+            target: Some(stim(h)),
+            body: Some(request::Body::QueryStimulus(proto::QueryStimulusRequest {})),
+        }, None);
+        let Some(proto::response::Body::StimulusInfo(info)) = resp.body else {
+            panic!("{name}: unexpected query response");
+        };
+        assert_eq!(
+            extract(&info.params.unwrap()),
+            (200.0, 100.0),
+            "{name}: query did not report the size it was created with",
+        );
+    }
 }

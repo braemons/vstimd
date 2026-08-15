@@ -81,7 +81,7 @@ pub struct LaidOutGlyph {
 /// skipped). Screen positions are in Y-down pixel space with the origin at the
 /// top-left corner of the screen.
 ///
-/// Call this whenever `stim.flags.dirty` is set. Pass the resulting slice to
+/// Call this whenever `stim.common.flags.dirty` is set. Pass the resulting slice to
 /// the glyph atlas to upload new bitmaps and obtain atlas UV coordinates.
 pub fn layout_and_rasterize(
     stim: &TextStimulus,
@@ -90,7 +90,7 @@ pub fn layout_and_rasterize(
     font_system: &mut TextFontSystem,
     swash_cache: &mut TextSwashCache,
 ) -> Vec<LaidOutGlyph> {
-    let pos = stim.transform.live.pos;
+    let pos = stim.common.transform.live.pos;
     let [box_w, box_h] = stim.box_size.live;
     let size_px = stim.letter_height_px.max(1.0);
     let line_height = size_px * 1.25;

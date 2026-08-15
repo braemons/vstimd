@@ -76,6 +76,25 @@ function kindOf(t: StimulusType): StimulusKind {
   }
 }
 
+/** The colour to draw a stimulus with on the map — per type, since only shapes
+ * have a fill. Gratings show their peak colour, text its glyph colour. */
+function fillColorOf(s: QueryStimulusResponse): Color | undefined {
+  const shape = s.params?.shape;
+  switch (shape?.case) {
+    case "rect":
+    case "ellipse":
+    case "circle":
+    case "polygon":
+      return shape.value.appearance?.fillColor;
+    case "grating":
+      return shape.value.foreColor;
+    case "text":
+      return shape.value.textColor;
+    default:
+      return undefined;
+  }
+}
+
 /** Bounding-box size in stimulus-space pixels from the shape params. */
 function sizeOf(s: QueryStimulusResponse): { width: number; height: number } {
   const shape = s.params?.shape;
@@ -87,10 +106,9 @@ function sizeOf(s: QueryStimulusResponse): { width: number; height: number } {
     case "circle":
       return { width: shape.value.radius * 2, height: shape.value.radius * 2 };
     case "text":
-      // No box in TextParams; estimate from text length × letter height.
       return {
-        width: Math.max(20, shape.value.text.length * shape.value.letterHeight * 0.6),
-        height: Math.max(10, shape.value.letterHeight),
+        width: shape.value.boxSize?.x ?? 0,
+        height: shape.value.boxSize?.y ?? 0,
       };
     default:
       return { width: 20, height: 20 };
@@ -105,11 +123,17 @@ export function toSceneSnapshot(p: ProtoSnapshot): SceneSnapshot {
       name: s.name,
       handle: s.handle,
       kind: kindOf(s.stimulusType),
-      pos: { x: s.pos?.x ?? 0, y: s.pos?.y ?? 0 },
+      // Placement is a oneof, per dimension. Only 2-D stimuli exist today; a
+      // 3-D one would report a transform this map cannot draw, so it falls back
+      // to the origin rather than inventing coordinates.
+      pos: {
+        x: s.placement.case === "transform2d" ? (s.placement.value.pos?.x ?? 0) : 0,
+        y: s.placement.case === "transform2d" ? (s.placement.value.pos?.y ?? 0) : 0,
+      },
       size: sizeOf(s),
-      orientation: s.orientation,
+      orientation: s.placement.case === "transform2d" ? s.placement.value.rotationDeg : 0,
       opacity: s.opacity,
-      fillColor: s.fillColor,
+      fillColor: fillColorOf(s),
       enabled: s.enabled,
       drawOrder: s.drawOrder,
     })),

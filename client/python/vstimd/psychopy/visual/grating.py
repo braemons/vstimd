@@ -165,7 +165,6 @@ class GratingStim:
             contrast=self._contrast,
             fore_color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0),
             back_color=to_color(backColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0),
-            opacity=self._opacity,
             waveform=waveform_enum,
             mask=mask_enum,
             mask_param=mask_param,
@@ -173,6 +172,9 @@ class GratingStim:
             drift_decoupled=self._drift_decoupled,
             drift_angle=self._drift_angle,
         )
+
+        if self._opacity != 1.0:
+            win._conn.stimuli.set_alpha(self._handle, self._opacity)
 
         if autoDraw:
             self.autoDraw = True
@@ -303,7 +305,7 @@ class GratingStim:
     @opacity.setter
     def opacity(self, value: float) -> None:
         self._opacity = float(value)
-        self._win._dispatch(self._win._conn.stimuli.grating.set_opacity, self._handle, self._opacity)
+        self._win._dispatch(self._win._conn.stimuli.set_alpha, self._handle, self._opacity)
 
     def setOpacity(self, value: float, log: bool | None = None) -> None:
         self.opacity = value

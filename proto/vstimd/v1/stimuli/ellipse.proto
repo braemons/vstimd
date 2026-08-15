@@ -3,6 +3,7 @@ package vstimd.v1;
 
 import "vstimd/v1/color.proto";
 import "vstimd/v1/vec2.proto";
+import "vstimd/v1/stimuli/shapes.proto";
 
 // System command: create an ellipse stimulus.
 // Returns the new handle in Response.handle and the UUID in Response.id.
@@ -26,4 +27,5 @@ message SetEllipseSizeRequest {
 message EllipseParams {
   float width = 1;
   float height = 2;
+  ShapeAppearance appearance = 3;
 }

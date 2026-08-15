@@ -15,9 +15,9 @@ use super::stimulus::text::{
     text_render_params_from_proto,
 };
 use super::stimulus::{
-    CircleStimulus, EllipseStimulus, RectStimulus, ShapeCommon, Stimulus, StimulusSceneEntry,
+    CircleStimulus, EllipseStimulus, RectStimulus, StimulusCommon, Stimulus, StimulusSceneEntry,
 };
-use super::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance, StimulusFlags, Transform2D};
+use super::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance};
 use crate::Color;
 use crate::io_config::{
     archive_timestamp_name, config_path, count_archive_configs, is_format_error, is_not_found,
@@ -70,7 +70,9 @@ fn command_summary(req: &proto::Request) -> String {
                 "SetDeferredMode(end/flip)".into()
             }
         }
-        Some(request::Body::DeleteAll(_)) => "DeleteAll".into(),
+        Some(request::Body::ClearStimuli(_)) => "ClearStimuli".into(),
+        Some(request::Body::ClearAnimations(_)) => "ClearAnimations".into(),
+        Some(request::Body::ClearAll(_)) => "ClearAll".into(),
         Some(request::Body::SetAllEnabled(c)) => {
             format!("SetAllEnabled({})", if c.enabled { "on" } else { "off" })
         }
@@ -114,7 +116,6 @@ fn command_summary(req: &proto::Request) -> String {
         }
         Some(request::Body::SetGratingForeColor(_)) => "SetGratingForeColor".into(),
         Some(request::Body::SetGratingBackColor(_)) => "SetGratingBackColor".into(),
-        Some(request::Body::SetGratingOpacity(c)) => format!("SetGratingOpacity({:.2})", c.opacity),
         Some(request::Body::QueryServerInfo(_)) => "QueryServerInfo".into(),
         Some(request::Body::QueryStimulus(_)) => "QueryStimulus".into(),
         Some(request::Body::ListStimuli(_)) => "ListStimuli".into(),
@@ -175,6 +176,16 @@ fn scene_draw_mode_to_proto(mode: SceneDrawMode) -> i32 {
         SceneDrawMode::Fill => proto::ShapeDrawMode::Filled as i32,
         SceneDrawMode::Stroke => proto::ShapeDrawMode::Outlined as i32,
         SceneDrawMode::FillAndStroke => proto::ShapeDrawMode::FilledAndOutlined as i32,
+    }
+}
+
+/// Shape fill/outline state → proto, for the per-shape query params.
+fn shape_appearance_to_proto(a: &ShapeAppearance) -> proto::ShapeAppearance {
+    proto::ShapeAppearance {
+        fill_color: Some(a.fill_color.into()),
+        outline_color: Some(a.outline_color.into()),
+        outline_width: a.stroke_width,
+        draw_mode: scene_draw_mode_to_proto(a.draw_mode),
     }
 }
 
@@ -242,7 +253,9 @@ impl SceneState {
             ),
             request::Body::SetBackground(cmd) => self.cmd_set_background(cmd),
             request::Body::SetDeferredMode(cmd) => self.cmd_set_deferred_mode(cmd),
-            request::Body::DeleteAll(_) => self.cmd_delete_all(),
+            request::Body::ClearStimuli(_) => self.cmd_clear_stimuli(),
+            request::Body::ClearAnimations(_) => self.cmd_clear_animations(),
+            request::Body::ClearAll(_) => self.cmd_clear_all(),
             request::Body::SetAllEnabled(cmd) => self.cmd_set_all_enabled(cmd),
             request::Body::QueryServerInfo(_) => self.cmd_query_server_info(),
             request::Body::ListStimuli(_) => self.cmd_list_stimuli(),
@@ -302,7 +315,9 @@ impl SceneState {
             | request::Body::CreatePolygon(_)
             | request::Body::SetBackground(_)
             | request::Body::SetDeferredMode(_)
-            | request::Body::DeleteAll(_)
+            | request::Body::ClearStimuli(_)
+            | request::Body::ClearAnimations(_)
+            | request::Body::ClearAll(_)
             | request::Body::SetAllEnabled(_)
             | request::Body::QueryServerInfo(_)
             | request::Body::ListStimuli(_)
@@ -359,7 +374,6 @@ impl SceneState {
             }
             request::Body::SetGratingForeColor(cmd) => self.cmd_set_grating_fore_color(handle, cmd),
             request::Body::SetGratingBackColor(cmd) => self.cmd_set_grating_back_color(handle, cmd),
-            request::Body::SetGratingOpacity(cmd) => self.cmd_set_grating_opacity(handle, cmd),
             request::Body::SetText(cmd) => self.cmd_set_text(handle, cmd),
             request::Body::SetTextColor(cmd) => self.cmd_set_text_color(handle, cmd),
             request::Body::SetPolygonVertices(_) => err(
@@ -393,19 +407,13 @@ impl SceneState {
             id,
             nonempty(cmd.name),
             Stimulus::Rect(RectStimulus {
-                common: ShapeCommon {
-                    flags: StimulusFlags::enabled(true),
-                    transform: Deferred::new(Transform2D {
-                        pos: [center.x, center.y],
-                        angle: 0.0,
-                    }),
-                    appearance: Deferred::new(ShapeAppearance {
-                        fill_color: fill,
-                        outline_color: self.config.default_outline,
-                        ..Default::default()
-                    }),
-                },
-                size: Deferred::new([width / 2.0, height / 2.0]),
+                common: StimulusCommon::new([center.x, center.y], 0.0),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color: fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
+                size: Deferred::new([width, height]),
             }),
         );
         let handle = self.add_stimulus(entry);
@@ -426,18 +434,12 @@ impl SceneState {
             id,
             nonempty(cmd.name),
             Stimulus::Circle(CircleStimulus {
-                common: ShapeCommon {
-                    flags: StimulusFlags::enabled(true),
-                    transform: Deferred::new(Transform2D {
-                        pos: [center.x, center.y],
-                        angle: 0.0,
-                    }),
-                    appearance: Deferred::new(ShapeAppearance {
-                        fill_color: fill,
-                        outline_color: self.config.default_outline,
-                        ..Default::default()
-                    }),
-                },
+                common: StimulusCommon::new([center.x, center.y], 0.0),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color: fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
                 radius: Deferred::new(radius),
             }),
         );
@@ -460,19 +462,13 @@ impl SceneState {
             id,
             nonempty(cmd.name),
             Stimulus::Ellipse(EllipseStimulus {
-                common: ShapeCommon {
-                    flags: StimulusFlags::enabled(true),
-                    transform: Deferred::new(Transform2D {
-                        pos: [center.x, center.y],
-                        angle: cmd.angle,
-                    }),
-                    appearance: Deferred::new(ShapeAppearance {
-                        fill_color: fill,
-                        outline_color: self.config.default_outline,
-                        ..Default::default()
-                    }),
-                },
-                radii: Deferred::new([width / 2.0, height / 2.0]),
+                common: StimulusCommon::new([center.x, center.y], cmd.angle),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color: fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
+                size: Deferred::new([width, height]),
             }),
         );
         let handle = self.add_stimulus(entry);
@@ -585,21 +581,12 @@ impl SceneState {
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
             Some(entry) => {
-                let stim = &mut entry.stimulus;
-                if !stim.is_shape() {
-                    return err(
-                        proto::ErrorCode::WrongStimulusType,
-                        format!("SetAlpha is not supported for {} stimuli", stim.type_name()),
-                    );
-                }
-                let deferred = self.runtime.deferred_mode;
-                let app = stim.shape_appearance_mut().expect("is_shape checked");
-                let mut prev = if deferred { app.copy } else { app.live };
-                prev.fill_color.a = cmd.opacity;
-                app.set(deferred, prev);
-                if !deferred {
-                    stim.flags_mut().mark_dirty();
-                }
+                // Valid for every stimulus type: opacity is shared state, and
+                // multiplies the alpha of whatever colours the stimulus carries
+                // rather than overwriting any one of them.
+                entry
+                    .stimulus
+                    .set_opacity(self.runtime.deferred_mode, cmd.opacity);
                 ok_ack()
             }
         }
@@ -616,10 +603,7 @@ impl SceneState {
             None => err_not_found(handle),
             Some(entry) => match &mut entry.stimulus {
                 Stimulus::Rect(s) => {
-                    s.size.set(
-                        self.runtime.deferred_mode,
-                        [cmd.width / 2.0, cmd.height / 2.0],
-                    );
+                    s.size.set(self.runtime.deferred_mode, [cmd.width, cmd.height]);
                     if !self.runtime.deferred_mode {
                         s.common.flags.mark_dirty();
                     }
@@ -663,10 +647,7 @@ impl SceneState {
             None => err_not_found(handle),
             Some(entry) => match &mut entry.stimulus {
                 Stimulus::Ellipse(s) => {
-                    s.radii.set(
-                        self.runtime.deferred_mode,
-                        [cmd.width / 2.0, cmd.height / 2.0],
-                    );
+                    s.size.set(self.runtime.deferred_mode, [cmd.width, cmd.height]);
                     if !self.runtime.deferred_mode {
                         s.common.flags.mark_dirty();
                     }
@@ -827,7 +808,7 @@ impl SceneState {
                 Stimulus::Grating(GratingStimulus::new(
                     [center.x, center.y],
                     angle,
-                    [width / 2.0, height / 2.0],
+                    [width, height],
                     params,
                 )),
             ),
@@ -1015,23 +996,6 @@ impl SceneState {
         }
     }
 
-    fn cmd_set_grating_opacity(
-        &mut self,
-        handle: u32,
-        cmd: proto::SetGratingOpacityRequest,
-    ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_opacity(self.runtime.deferred_mode, cmd.opacity);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingOpacity", "Grating"),
-            },
-        }
-    }
-
     // ── CreateText ────────────────────────────────────────────────────────────
 
     fn cmd_create_text(&mut self, cmd: proto::CreateTextRequest) -> proto::Response {
@@ -1040,10 +1004,10 @@ impl SceneState {
             Err(resp) => return *resp,
         };
         let pos = cmd.pos.unwrap_or_default();
-        let size = cmd.size.unwrap_or_default();
+        let requested = cmd.box_size.unwrap_or_default();
         let box_size = [
-            if size.x == 0.0 { 200.0 } else { size.x },
-            if size.y == 0.0 { 100.0 } else { size.y },
+            if requested.x == 0.0 { 200.0 } else { requested.x },
+            if requested.y == 0.0 { 100.0 } else { requested.y },
         ];
         let letter_height_px = if cmd.letter_height == 0.0 {
             32.0
@@ -1142,10 +1106,20 @@ impl SceneState {
         ok_ack()
     }
 
-    // ── DeleteAll ─────────────────────────────────────────────────────────────
+    // ── ClearStimuli / ClearAnimations / ClearAll ─────────────────────────────
 
-    fn cmd_delete_all(&mut self) -> proto::Response {
-        self.clear_all(false);
+    fn cmd_clear_stimuli(&mut self) -> proto::Response {
+        self.clear_stimuli(false);
+        ok_ack()
+    }
+
+    fn cmd_clear_animations(&mut self) -> proto::Response {
+        self.clear_animations();
+        ok_ack()
+    }
+
+    fn cmd_clear_all(&mut self) -> proto::Response {
+        self.clear_scene(false);
         ok_ack()
     }
 
@@ -1166,7 +1140,11 @@ impl SceneState {
             proto::QueryServerInfoResponse {
                 width: w,
                 height: h,
-                frame_rate: self.runtime.frame_rate,
+                // Nominal, not measured: this is what clients convert durations
+                // against, and a measurement would make the same script produce
+                // a different frame count on every run (#120).
+                frame_rate: self.runtime.nominal_frame_rate,
+                measured_frame_rate: self.runtime.frame_rate,
                 background_color: Some(bg.into()),
                 backend: proto::RenderBackend::Unspecified as i32,
                 version: Some(version),
@@ -1207,110 +1185,66 @@ impl SceneState {
     ) -> proto::QueryStimulusResponse {
         let stim = &entry.stimulus;
 
+        // Everything that is true of any stimulus stays at the top level;
+        // per-type state goes in `params`, per-dimension placement in
+        // `placement`. Nothing is synthesised to fill a field that does not
+        // apply — a grating has no outline, and says so by omitting it.
+        let (stimulus_type, params) = match stim {
+            Stimulus::Rect(r) => (
+                proto::StimulusType::Rect,
+                proto::stimulus_params::Shape::Rect(proto::RectParams {
+                    width: r.size.live[0],
+                    height: r.size.live[1],
+                    appearance: Some(shape_appearance_to_proto(&r.appearance.live)),
+                }),
+            ),
+            Stimulus::Circle(c) => (
+                proto::StimulusType::Circle,
+                proto::stimulus_params::Shape::Circle(proto::CircleParams {
+                    radius: c.radius.live,
+                    appearance: Some(shape_appearance_to_proto(&c.appearance.live)),
+                }),
+            ),
+            Stimulus::Ellipse(e) => (
+                proto::StimulusType::Ellipse,
+                proto::stimulus_params::Shape::Ellipse(proto::EllipseParams {
+                    width: e.size.live[0],
+                    height: e.size.live[1],
+                    appearance: Some(shape_appearance_to_proto(&e.appearance.live)),
+                }),
+            ),
+            Stimulus::Grating(g) => (
+                proto::StimulusType::Grating,
+                grating_query_params(g)
+                    .shape
+                    .expect("grating_query_params always sets a shape"),
+            ),
+            Stimulus::Text(t) => (
+                proto::StimulusType::Text,
+                text_query_params(t)
+                    .shape
+                    .expect("text_query_params always sets a shape"),
+            ),
+        };
+
         let pos = stim.get_pos();
-        let angle = stim.transform().live.angle;
-
-        let (stimulus_type, params, fill_color, outline_color, outline_width, draw_mode, opacity) =
-            if let Some(app) = stim.shape_appearance() {
-                let a = app.live;
-                let (st, p) = match stim {
-                    Stimulus::Rect(r) => (
-                        proto::StimulusType::Rect as i32,
-                        Some(proto::StimulusParams {
-                            shape: Some(proto::stimulus_params::Shape::Rect(proto::RectParams {
-                                width: r.size.live[0] * 2.0,
-                                height: r.size.live[1] * 2.0,
-                            })),
-                        }),
-                    ),
-                    Stimulus::Circle(d) => (
-                        proto::StimulusType::Circle as i32,
-                        Some(proto::StimulusParams {
-                            shape: Some(proto::stimulus_params::Shape::Circle(
-                                proto::CircleParams {
-                                    radius: d.radius.live,
-                                },
-                            )),
-                        }),
-                    ),
-                    Stimulus::Ellipse(e) => (
-                        proto::StimulusType::Ellipse as i32,
-                        Some(proto::StimulusParams {
-                            shape: Some(proto::stimulus_params::Shape::Ellipse(
-                                proto::EllipseParams {
-                                    width: e.radii.live[0] * 2.0,
-                                    height: e.radii.live[1] * 2.0,
-                                },
-                            )),
-                        }),
-                    ),
-                    _ => unreachable!("shape_appearance() is Some only for shapes"),
-                };
-                (
-                    st,
-                    p,
-                    Some(a.fill_color.into()),
-                    Some(a.outline_color.into()),
-                    a.stroke_width,
-                    scene_draw_mode_to_proto(a.draw_mode),
-                    a.fill_color.a,
-                )
-            } else {
-                match stim {
-                    Stimulus::Grating(s) => {
-                        let fc = s.params.live.fore_color;
-                        let op = s.params.live.opacity;
-                        (
-                            proto::StimulusType::Grating as i32,
-                            Some(grating_query_params(s)),
-                            Some(proto::Color {
-                                r: fc.r,
-                                g: fc.g,
-                                b: fc.b,
-                                a: op,
-                            }),
-                            None,
-                            0.0,
-                            proto::ShapeDrawMode::Filled as i32,
-                            op,
-                        )
-                    }
-                    Stimulus::Text(s) => {
-                        let c = s.params.live.color;
-                        (
-                            proto::StimulusType::Text as i32,
-                            Some(text_query_params(s)),
-                            Some(c.into()),
-                            None,
-                            0.0,
-                            proto::ShapeDrawMode::Filled as i32,
-                            c.a,
-                        )
-                    }
-                    _ => unreachable!("shapes handled in the if-branch"),
-                }
-            };
-
         let draw_order = self.config.stimuli.get_index_of(&handle).unwrap_or(0) as u32;
         proto::QueryStimulusResponse {
-            stimulus_type,
+            stimulus_type: stimulus_type as i32,
             enabled: stim.flags().enabled,
             anim_enabled: stim.flags().anim_enabled,
-            pos: Some(proto::Vec2 {
-                x: pos[0],
-                y: pos[1],
-            }),
-            orientation: angle,
-            opacity,
-            fill_color,
-            outline_color,
-            outline_width,
-            draw_mode,
-            params,
+            opacity: stim.opacity().live,
+            params: Some(proto::StimulusParams { shape: Some(params) }),
             id: entry.id.to_string(),
             name: entry.name.clone().unwrap_or_default(),
             draw_order,
             handle,
+            placement: Some(proto::query_stimulus_response::Placement::Transform2d(
+                proto::Transform2D {
+                    pos: Some(proto::Vec2 { x: pos[0], y: pos[1] }),
+                    rotation_deg: stim.transform().live.angle,
+                },
+            )),
         }
     }
 
@@ -1713,7 +1647,13 @@ impl SceneState {
                 config: super::animation::AnimationConfig {
                     name: cmd.name,
                     state: AnimState::Idle,
-                    stimuli: cmd.stimuli,
+                    target: super::animation::AnimationTarget::Stimuli {
+                        handles: cmd
+                            .target
+                            .and_then(|t| t.target)
+                            .map(|proto::animation_target::Target::Stimuli(s)| s.handles)
+                            .unwrap_or_default(),
+                    },
                     start_action,
                     start_action_trigger_line,
                     final_action,
@@ -1866,7 +1806,11 @@ impl SceneState {
             cancel_edge,
             cancel_action_mask: entry.cancel_action.bits() as u32,
             cancel_action_trigger_line: entry.cancel_action_trigger_line.map(vtl_bit_to_proto),
-            stimuli: entry.stimuli.clone(),
+            target: Some(proto::AnimationTarget {
+                target: Some(proto::animation_target::Target::Stimuli(
+                    proto::AnimationStimuli { handles: entry.target.stimuli().to_vec() },
+                )),
+            }),
             body: Some(animation_to_proto_body(&entry.animation)),
         };
 
@@ -2050,11 +1994,17 @@ fn proto_to_animation(
                 speed_px_per_sec: c.speed_px_per_sec,
             })
         }
-        Some(PBody::ExternalPosition2d(c)) => Ok(Animation::ExternalPosition2D {
-            shm_name: c.shm_name.clone(),
-            x_offset: c.x_offset,
-            y_offset: c.y_offset,
-        }),
+        // Refused rather than accepted-and-ignored: `advance_one` never opens the
+        // segment, so an accepted ExternalPosition2D arms, runs forever and moves
+        // nothing while reporting success — the stimulus silently stays put for a
+        // whole session. Returning NOT_SUPPORTED until #84 lands is the honest
+        // answer; the fields are kept so the message does not have to change.
+        Some(PBody::ExternalPosition2d(_)) => Err(Box::new(err(
+            proto::ErrorCode::NotSupported,
+            "ExternalPosition2D is not implemented yet (see \
+             https://github.com/braemons/vstimd/issues/84): the shared-memory \
+             segment is never read, so the stimulus would not move",
+        ))),
         None => Err(Box::new(err(
             proto::ErrorCode::InvalidArgument,
             "animation body must be set",

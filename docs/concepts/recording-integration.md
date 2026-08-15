@@ -125,6 +125,13 @@ float array and vstimd reads it **every frame**:
 The position update is applied on the render loop, so it is as timely as the
 display allows — no per-sample network round-trip.
 
+!!! warning "Not implemented yet"
+    The server refuses `create_external_position_2d` with `NotSupportedError`: it
+    never opens the segment, so accepting it would report success and leave the
+    stimulus where it was. Follow
+    [#84](https://github.com/braemons/vstimd/issues/84) — this section describes
+    the intended design, not current behaviour.
+
 ## Why this beats aligning logs after the fact
 
 Software-only toolkits typically record stimulus events in the experiment PC's

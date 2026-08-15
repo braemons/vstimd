@@ -154,6 +154,9 @@ pub fn render_frame(
     let t_tess_start = std::time::Instant::now();
     {
         let fps = rs.timing.stats.summary().fps as f32;
+        // Nominal, not measured — everything whose result has to be the same on
+        // every run of a config computes against this (#120).
+        let nominal_fps = rs.timing.stats.nominal_hz() as f32;
         let screen_size = (ctx.extent.width, ctx.extent.height);
         let screen_w = ctx.extent.width as f32;
         let screen_h = ctx.extent.height as f32;
@@ -169,6 +172,7 @@ pub fn render_frame(
         let _ = sc.runtime.frame_notifier.send(sc.runtime.frame_count);
         sc.runtime.screen_size = Some(screen_size);
         sc.runtime.frame_rate = fps;
+        sc.runtime.nominal_frame_rate = nominal_fps;
         if sc.runtime.last_uploaded_size != screen_size {
             sc.runtime.last_uploaded_size = screen_size;
             for entry in sc.stimuli.values_mut() {
@@ -190,17 +194,17 @@ pub fn render_frame(
         for (&handle, entry) in sc.stimuli.iter_mut() {
             match &mut entry.stimulus {
                 Stimulus::Grating(s) => {
-                    if s.flags.is_visible() && s.params.live.drift_speed != 0.0 {
-                        s.phase_accum += grating_phase_inc(s, fps);
+                    if s.common.flags.is_visible() && s.params.live.drift_speed != 0.0 {
+                        s.phase_accum += grating_phase_inc(s, nominal_fps);
                     }
                 }
 
                 Stimulus::Text(text) => {
                     let has_mesh = cache.text.meshes.contains_key(&handle);
-                    if !text.flags.dirty && (text.flags.is_visible() == has_mesh) {
+                    if !text.common.flags.dirty && (text.common.flags.is_visible() == has_mesh) {
                         continue;
                     }
-                    let glyphs = if text.flags.is_visible() {
+                    let glyphs = if text.common.flags.is_visible() {
                         layout_and_rasterize(
                             text,
                             screen_w,
@@ -261,7 +265,7 @@ pub fn render_frame(
                     cache
                         .text
                         .upload(handle, &ctx.device, bytemuck::cast_slice(&verts), &idxs);
-                    text.flags.dirty = false;
+                    text.common.flags.dirty = false;
                 }
 
                 shape @ (Stimulus::Rect(_) | Stimulus::Ellipse(_) | Stimulus::Circle(_)) => {
@@ -483,7 +487,7 @@ pub fn render_frame(
                     vk::ShaderStageFlags::FRAGMENT,
                     0,
                     bytemuck::bytes_of(&TextPushConstants {
-                        color: t.params.live.color.into(),
+                        color: t.params.live.color.scaled_alpha(t.common.opacity.live).into(),
                     }),
                 );
                 if let Some(mesh) = rs

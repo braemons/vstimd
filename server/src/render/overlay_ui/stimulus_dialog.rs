@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::Color;
 use crate::scene::{
     CircleStimulus, Deferred, EllipseStimulus, GratingParams, GratingStimulus, RectStimulus,
-    ShapeAppearance, ShapeCommon, Stimulus, StimulusFlags, StimulusSceneEntry, Transform2D,
+    ShapeAppearance, StimulusCommon, Stimulus, StimulusSceneEntry,
     Waveform,
 };
 
@@ -80,37 +80,31 @@ impl StimulusDialog {
     }
 
     fn build_entry(&self) -> StimulusSceneEntry {
-        let flags = StimulusFlags::enabled(true);
-        let transform = Deferred::new(Transform2D {
-            pos: self.pos,
-            angle: self.angle,
-        });
+        let common = StimulusCommon::new(self.pos, self.angle);
         let appearance = Deferred::new(ShapeAppearance {
             fill_color: Color::new(self.fill[0], self.fill[1], self.fill[2], self.fill[3]),
             ..Default::default()
         });
-        let common = ShapeCommon {
-            flags,
-            transform,
-            appearance,
-        };
         let stimulus = match self.kind {
             StimulusDialogKind::Rect => Stimulus::Rect(RectStimulus {
                 common,
-                size: Deferred::new([self.rect_size[0] / 2.0, self.rect_size[1] / 2.0]),
+                appearance,
+                size: Deferred::new(self.rect_size),
             }),
             StimulusDialogKind::Circle => Stimulus::Circle(CircleStimulus {
                 common,
+                appearance,
                 radius: Deferred::new(self.circle_radius),
             }),
             StimulusDialogKind::Ellipse => Stimulus::Ellipse(EllipseStimulus {
                 common,
-                radii: Deferred::new([self.ellipse_size[0] / 2.0, self.ellipse_size[1] / 2.0]),
+                appearance,
+                size: Deferred::new(self.ellipse_size),
             }),
             StimulusDialogKind::Grating => Stimulus::Grating(GratingStimulus::new(
                 self.pos,
                 self.angle,
-                [self.grating_size[0] / 2.0, self.grating_size[1] / 2.0],
+                self.grating_size,
                 GratingParams {
                     sf: self.grating_sf,
                     contrast: self.grating_contrast,

@@ -91,7 +91,9 @@ _COMMAND_GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
         "Change the scene",
         (
             ("background", "set the background clear colour (R G B [A], 0-1)"),
-            ("delete-all", "remove every unprotected stimulus"),
+            ("clear-stimuli", "remove every unprotected stimulus"),
+            ("clear-animations", "remove every animation"),
+            ("clear-all", "remove every animation and unprotected stimulus"),
             ("enable-all", "enable every unprotected stimulus"),
             ("disable-all", "disable every unprotected stimulus"),
         ),
@@ -213,8 +215,16 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("a", type=float, nargs="?", default=1.0)
     p.set_defaults(func=cmd_background)
 
-    p = sub.add_parser("delete-all", help="remove every (unprotected) stimulus")
-    p.set_defaults(func=cmd_delete_all)
+    p = sub.add_parser("clear-stimuli", help="remove every (unprotected) stimulus")
+    p.set_defaults(func=cmd_clear_stimuli)
+
+    p = sub.add_parser("clear-animations", help="remove every animation")
+    p.set_defaults(func=cmd_clear_animations)
+
+    p = sub.add_parser(
+        "clear-all", help="remove every animation and every (unprotected) stimulus"
+    )
+    p.set_defaults(func=cmd_clear_all)
 
     p = sub.add_parser("enable-all", help="enable every (unprotected) stimulus")
     p.set_defaults(func=lambda conn, args: _set_all_enabled(conn, args, True))
@@ -361,9 +371,19 @@ def cmd_background(conn: Connection, args: argparse.Namespace) -> int:
     return _ok(args, f"background set to {args.r} {args.g} {args.b} {args.a}")
 
 
-def cmd_delete_all(conn: Connection, args: argparse.Namespace) -> int:
-    conn.system.delete_all()
-    return _ok(args, "all stimuli deleted")
+def cmd_clear_stimuli(conn: Connection, args: argparse.Namespace) -> int:
+    conn.system.clear_stimuli()
+    return _ok(args, "all stimuli cleared")
+
+
+def cmd_clear_animations(conn: Connection, args: argparse.Namespace) -> int:
+    conn.system.clear_animations()
+    return _ok(args, "all animations cleared")
+
+
+def cmd_clear_all(conn: Connection, args: argparse.Namespace) -> int:
+    conn.system.clear_all()
+    return _ok(args, "scene cleared")
 
 
 def _set_all_enabled(conn: Connection, args: argparse.Namespace, enabled: bool) -> int:

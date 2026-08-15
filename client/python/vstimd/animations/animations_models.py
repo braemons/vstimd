@@ -53,7 +53,7 @@ class FinalAction(IntFlag):
     FINAL_ACTION_TRIGGER_LINE = 0x08
     RESTART                   = 0x10
     REVERSE                   = 0x20
-    RESTORE_STATE             = 0x40
+    RESTORE_VISIBILITY             = 0x40
     END_DEFERRED              = 0x80
     DONE_LEVEL                = 0x100
 
@@ -68,7 +68,7 @@ class CancelAction(IntFlag):
     DISABLE                    = 0x01
     TOGGLE_PHOTODIODE          = 0x04
     CANCEL_ACTION_TRIGGER_LINE = 0x08
-    RESTORE_STATE              = 0x40
+    RESTORE_VISIBILITY              = 0x40
     END_DEFERRED               = 0x80
 
 

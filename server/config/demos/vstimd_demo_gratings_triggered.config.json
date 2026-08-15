@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "scene": {
     "background": [
       0.5,
@@ -42,9 +42,10 @@
             ],
             "angle": 45.0
           },
+          "opacity": 1.0,
           "size": [
-            300.0,
-            300.0
+            600.0,
+            600.0
           ],
           "params": {
             "sf": 0.02,
@@ -67,8 +68,7 @@
               0.0,
               0.0,
               1.0
-            ],
-            "opacity": 1.0
+            ]
           }
         }
       },
@@ -88,9 +88,10 @@
             ],
             "angle": 135.0
           },
+          "opacity": 1.0,
           "size": [
-            300.0,
-            300.0
+            600.0,
+            600.0
           ],
           "params": {
             "sf": 0.02,
@@ -113,8 +114,7 @@
               0.0,
               0.0,
               1.0
-            ],
-            "opacity": 1.0
+            ]
           }
         }
       },
@@ -134,6 +134,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "appearance": {
             "fill_color": [
               0.0,
@@ -169,6 +170,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "params": {
             "color": [
               0.9,
@@ -207,9 +209,12 @@
       "1": {
         "name": "flash_45deg_on_pin11",
         "state": "Armed",
-        "stimuli": [
-          1
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            1
+          ]
+        },
         "start_action": 10,
         "start_action_trigger_line": {
           "bank": 0,
@@ -247,9 +252,12 @@
       "2": {
         "name": "flash_135deg_on_pin12",
         "state": "Armed",
-        "stimuli": [
-          2
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            2
+          ]
+        },
         "start_action": 10,
         "start_action_trigger_line": {
           "bank": 0,

@@ -1,5 +1,6 @@
 use super::grating::GratingStimulus;
 use super::primitive_shapes::{CircleStimulus, EllipseStimulus, RectStimulus};
+use super::stimulus_common::StimulusCommon;
 use super::stimulus_flags::StimulusFlags;
 use super::text::TextStimulus;
 use crate::scene::deferred::Deferred;
@@ -36,43 +37,60 @@ pub enum Stimulus {
 impl Stimulus {
     // ── Common field accessors ────────────────────────────────────────────────
 
-    pub fn flags(&self) -> &StimulusFlags {
+    /// The state every variant shares — flags, transform, opacity.
+    pub fn common(&self) -> &StimulusCommon {
         match self {
-            Stimulus::Rect(s) => &s.common.flags,
-            Stimulus::Ellipse(s) => &s.common.flags,
-            Stimulus::Circle(s) => &s.common.flags,
-            Stimulus::Grating(s) => &s.flags,
-            Stimulus::Text(s) => &s.flags,
+            Stimulus::Rect(s) => &s.common,
+            Stimulus::Ellipse(s) => &s.common,
+            Stimulus::Circle(s) => &s.common,
+            Stimulus::Grating(s) => &s.common,
+            Stimulus::Text(s) => &s.common,
         }
+    }
+
+    pub fn common_mut(&mut self) -> &mut StimulusCommon {
+        match self {
+            Stimulus::Rect(s) => &mut s.common,
+            Stimulus::Ellipse(s) => &mut s.common,
+            Stimulus::Circle(s) => &mut s.common,
+            Stimulus::Grating(s) => &mut s.common,
+            Stimulus::Text(s) => &mut s.common,
+        }
+    }
+
+    pub fn flags(&self) -> &StimulusFlags {
+        &self.common().flags
     }
 
     pub fn flags_mut(&mut self) -> &mut StimulusFlags {
-        match self {
-            Stimulus::Rect(s) => &mut s.common.flags,
-            Stimulus::Ellipse(s) => &mut s.common.flags,
-            Stimulus::Circle(s) => &mut s.common.flags,
-            Stimulus::Grating(s) => &mut s.flags,
-            Stimulus::Text(s) => &mut s.flags,
-        }
+        &mut self.common_mut().flags
     }
 
     pub fn transform(&self) -> &Deferred<Transform2D> {
-        match self {
-            Stimulus::Rect(s) => &s.common.transform,
-            Stimulus::Ellipse(s) => &s.common.transform,
-            Stimulus::Circle(s) => &s.common.transform,
-            Stimulus::Grating(s) => &s.transform,
-            Stimulus::Text(s) => &s.transform,
-        }
+        &self.common().transform
     }
 
     pub fn transform_mut(&mut self) -> &mut Deferred<Transform2D> {
-        match self {
-            Stimulus::Rect(s) => &mut s.common.transform,
-            Stimulus::Ellipse(s) => &mut s.common.transform,
-            Stimulus::Circle(s) => &mut s.common.transform,
-            Stimulus::Grating(s) => &mut s.transform,
-            Stimulus::Text(s) => &mut s.transform,
+        &mut self.common_mut().transform
+    }
+
+    /// Whole-stimulus opacity, a multiplier on every colour's own alpha.
+    pub fn opacity(&self) -> &Deferred<f32> {
+        &self.common().opacity
+    }
+
+    /// Set the shared opacity, clamped to `[0, 1]`.
+    ///
+    /// Only shapes are marked dirty. `dirty` means "the cached mesh is stale",
+    /// and only the shape pipeline bakes opacity into vertex colours
+    /// (`render::tess`); grating and text carry it in push constants, which are
+    /// rebuilt from live state every frame anyway. Marking text dirty here
+    /// would re-shape and re-rasterize every glyph on each opacity change — a
+    /// fade would pay for a full text re-layout per frame, for nothing.
+    pub fn set_opacity(&mut self, deferred: bool, opacity: f32) {
+        self.common_mut().opacity.set(deferred, opacity.clamp(0.0, 1.0));
+        if !deferred && self.is_shape() {
+            self.flags_mut().mark_dirty();
         }
     }
 
@@ -80,7 +98,7 @@ impl Stimulus {
     pub fn shape_appearance(&self) -> Option<&Deferred<ShapeAppearance>> {
         match self {
             Stimulus::Rect(_) | Stimulus::Ellipse(_) | Stimulus::Circle(_) => {
-                Some(shape_arm!(self, s => &s.common.appearance))
+                Some(shape_arm!(self, s => &s.appearance))
             }
             _ => None,
         }
@@ -89,7 +107,7 @@ impl Stimulus {
     pub fn shape_appearance_mut(&mut self) -> Option<&mut Deferred<ShapeAppearance>> {
         match self {
             Stimulus::Rect(_) | Stimulus::Ellipse(_) | Stimulus::Circle(_) => {
-                Some(shape_arm!(self, s => &mut s.common.appearance))
+                Some(shape_arm!(self, s => &mut s.appearance))
             }
             _ => None,
         }

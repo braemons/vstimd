@@ -68,11 +68,11 @@ pub(crate) fn advance_one(
                 Some((bit, edge)) => edge_fired(input_edges, output_edges, *bit, *edge),
             };
             if fires {
-                // Snapshot user_enabled for RESTORE_STATE before modifying anything.
-                // Either a final-action or cancel-action RESTORE_STATE needs the capture.
-                let captures_state = entry.final_action.contains(FinalAction::RESTORE_STATE)
-                    || entry.cancel_action.contains(CancelAction::RESTORE_STATE);
-                let stim_handles: Vec<u32> = entry.config.stimuli.clone();
+                // Snapshot user_enabled for RESTORE_VISIBILITY before modifying anything.
+                // Either a final-action or cancel-action RESTORE_VISIBILITY needs the capture.
+                let captures_state = entry.final_action.contains(FinalAction::RESTORE_VISIBILITY)
+                    || entry.cancel_action.contains(CancelAction::RESTORE_VISIBILITY);
+                let stim_handles: Vec<u32> = entry.config.target.stimuli().to_vec();
                 let start_action = entry.start_action;
                 let start_action_trigger_line = entry.start_action_trigger_line;
                 // Only meaningful with DONE_LEVEL; None otherwise, so the clear
@@ -160,7 +160,9 @@ pub(crate) fn advance_one(
             return;
         };
         match entry.state {
-            AnimState::Running { frame_counter } => (frame_counter, entry.config.stimuli.clone()),
+            AnimState::Running { frame_counter } => {
+                (frame_counter, entry.config.target.stimuli().to_vec())
+            }
             _ => return,
         }
     };
@@ -258,8 +260,12 @@ pub(crate) fn advance_one(
                         })
                         .collect();
                     let total_len: f32 = seg_lens.iter().sum();
-                    let total_frames =
-                        (total_len / speed_px_per_sec * scene.runtime.frame_rate).ceil() as u32;
+                    // Nominal rate, not the measured one: the measurement drifts,
+                    // and this is recomputed every tick, so a jittering divisor
+                    // would move the stimulus differently on each run (#120).
+                    let total_frames = (total_len / speed_px_per_sec
+                        * scene.runtime.nominal_frame_rate)
+                        .ceil() as u32;
                     let total_frames = total_frames.max(1);
 
                     // How far along the path are we at this frame?
@@ -333,11 +339,11 @@ pub(crate) fn advance_one(
 
 /// Cancel an animation: distinct from disarm. Applies the animation's
 /// `cancel_action` (independent of `final_action`) — leaving visibility in a
-/// defined state via `RESTORE_STATE` / `DISABLE`, pulsing any cancel trigger
+/// defined state via `RESTORE_VISIBILITY` / `DISABLE`, pulsing any cancel trigger
 /// line, toggling the photodiode — and always ends in `Done` (`RESTART` is not a
 /// cancel action). An empty `cancel_action` is a hard abort that leaves state
 /// as-is. Works while `Running` (the `anim_enabled` hold is released) or `Armed`
-/// (never started: no hold to release, and `RESTORE_STATE` is a no-op with no
+/// (never started: no hold to release, and `RESTORE_VISIBILITY` is a no-op with no
 /// capture). `Idle`/`Done` are a no-op. Returns false if the handle is unknown.
 pub(crate) fn cancel_one(
     handle: u32,
@@ -350,7 +356,7 @@ pub(crate) fn cancel_one(
     match entry.state {
         AnimState::Running { .. } | AnimState::Armed => {
             let running = matches!(entry.state, AnimState::Running { .. });
-            let stim_handles = entry.config.stimuli.clone();
+            let stim_handles = entry.config.target.stimuli().to_vec();
             let action = entry.cancel_action.as_final_action();
             let trigger_line = entry.cancel_action_trigger_line;
             // Cancel has no level of its own; DONE_LEVEL is not a cancel action.
@@ -406,7 +412,7 @@ fn finalize(
         (cap, restart, rearm)
     };
 
-    if final_action.contains(FinalAction::RESTORE_STATE) {
+    if final_action.contains(FinalAction::RESTORE_VISIBILITY) {
         if let Some(caps) = &captured {
             for (&sh, &was_enabled) in stim_handles.iter().zip(caps.iter()) {
                 if let Some(e) = scene.config.stimuli.get_mut(&sh) {

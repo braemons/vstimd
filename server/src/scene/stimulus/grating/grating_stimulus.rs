@@ -1,5 +1,5 @@
 use crate::scene::deferred::Deferred;
-use crate::scene::stimulus::{StimulusFlags, Transform2D};
+use crate::scene::stimulus::StimulusCommon;
 
 use super::grating_params::{GratingMask, GratingParams, Waveform};
 use super::grating_pipeline::GratingPushConstants;
@@ -9,9 +9,11 @@ use super::grating_pipeline::GratingPushConstants;
 /// Serializable grating configuration (all Deferred fields serialize as their live value).
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct GratingConfig {
-    pub flags: StimulusFlags,
-    pub transform: Deferred<Transform2D>,
-    pub size: Deferred<[f32; 2]>, // [half_width, half_height] in pixels
+    #[serde(flatten)]
+    pub common: StimulusCommon,
+    /// Full patch extents in pixels: `[width, height]`, as the command API
+    /// takes and reports them.
+    pub size: Deferred<[f32; 2]>,
     pub params: Deferred<GratingParams>,
 }
 
@@ -58,13 +60,12 @@ impl GratingStimulus {
     pub fn new(
         pos: [f32; 2],
         angle: f32,
-        size: [f32; 2], // [half_width, half_height] in pixels
+        size: [f32; 2], // [width, height] in pixels (full extents)
         params: GratingParams,
     ) -> Self {
         Self {
             config: GratingConfig {
-                flags: StimulusFlags::enabled(true),
-                transform: Deferred::new(Transform2D { pos, angle }),
+                common: StimulusCommon::new(pos, angle),
                 size: Deferred::new(size),
                 params: Deferred::new(params),
             },
@@ -88,7 +89,7 @@ impl GratingStimulus {
             },
         );
         if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -106,19 +107,7 @@ impl GratingStimulus {
             },
         );
         if !deferred {
-            self.flags.mark_dirty();
-        }
-    }
-
-    pub fn set_opacity(&mut self, deferred: bool, opacity: f32) {
-        let prev = if deferred {
-            self.params.copy
-        } else {
-            self.params.live
-        };
-        self.params.set(deferred, GratingParams { opacity, ..prev });
-        if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -131,7 +120,7 @@ impl GratingStimulus {
         self.params.set(deferred, GratingParams { phase, ..prev });
         if !deferred {
             self.phase_accum = 0.0;
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -143,7 +132,7 @@ impl GratingStimulus {
         };
         self.params.set(deferred, GratingParams { sf, ..prev });
         if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -156,7 +145,7 @@ impl GratingStimulus {
         self.params
             .set(deferred, GratingParams { contrast, ..prev });
         if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -169,7 +158,7 @@ impl GratingStimulus {
         self.params
             .set(deferred, GratingParams { waveform, ..prev });
         if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -181,7 +170,7 @@ impl GratingStimulus {
         };
         self.params.set(deferred, GratingParams { mask, ..prev });
         if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -202,7 +191,7 @@ impl GratingStimulus {
             if speed == 0.0 {
                 self.phase_accum = 0.0;
             }
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -221,7 +210,7 @@ impl GratingStimulus {
             },
         );
         if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -239,7 +228,7 @@ impl GratingStimulus {
             },
         );
         if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -248,16 +237,13 @@ impl GratingStimulus {
     }
 
     pub fn make_copy(&mut self) {
-        self.flags.make_copy();
-        self.transform.make_copy();
+        self.common.make_copy();
         self.size.make_copy();
         self.params.make_copy();
     }
 
     pub fn flip(&mut self) {
-        self.flags.get_copy();
-        self.flags.mark_dirty();
-        self.transform.flip();
+        self.common.flip();
         self.size.flip();
         self.params.flip();
     }
@@ -269,7 +255,7 @@ pub fn grating_phase_inc(s: &GratingStimulus, fps: f32) -> f32 {
     if p.drift_coupled {
         p.drift_speed / fps
     } else {
-        let grating_rad = s.transform.live.angle.to_radians();
+        let grating_rad = s.common.transform.live.angle.to_radians();
         let drift_rad = p.drift_angle.to_radians();
         p.drift_speed * (drift_rad - grating_rad).cos() / fps
     }
@@ -284,13 +270,13 @@ pub fn build_grating_push_constants(
     let p = &s.params.live;
     GratingPushConstants {
         screen_half: [screen_w * 0.5, screen_h * 0.5],
-        center_px: s.transform.live.pos,
-        half_size: s.size.live,
+        center_px: s.common.transform.live.pos,
+        half_size: [s.size.live[0] * 0.5, s.size.live[1] * 0.5],
         sf: p.sf,
         phase: p.phase + s.phase_accum,
-        ori_rad: s.transform.live.angle.to_radians(),
+        ori_rad: s.common.transform.live.angle.to_radians(),
         contrast: p.contrast,
-        global_opacity: p.opacity,
+        global_opacity: s.common.opacity.live,
         _pad_color: 0,
         fore_color: p.fore_color.into(),
         back_color: p.back_color.into(),
@@ -332,7 +318,7 @@ mod tests {
         assert_eq!(s.params.copy.phase, 0.5);
     }
 
-    // ── set_fore_color / set_back_color / set_opacity ─────────────────────────
+    // ── set_fore_color / set_back_color ───────────────────────────────────────
 
     #[test]
     fn set_fore_color_immediate() {
@@ -365,18 +351,13 @@ mod tests {
         );
     }
 
-    #[test]
-    fn set_opacity_immediate() {
-        let mut s = default_stim();
-        s.set_opacity(false, 0.5);
-        assert_eq!(s.params.live.opacity, 0.5);
-    }
-
+    /// Opacity is shared state now, so the grating reads it from `common`
+    /// rather than from its own params — the push constant must follow.
     #[test]
     fn push_constants_colors_and_opacity() {
         let mut s = default_stim();
         s.set_fore_color(false, crate::Color::new(1.0, 0.5, 0.25, 0.8));
-        s.set_opacity(false, 0.75);
+        s.common.opacity.set(false, 0.75);
         s.set_back_color(false, crate::Color::new(0.1, 0.2, 0.3, 0.0));
         let pc = build_grating_push_constants(&s, 800.0, 600.0);
         assert_eq!(pc.fore_color, [1.0, 0.5, 0.25, 0.8]);

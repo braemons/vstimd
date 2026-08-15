@@ -83,9 +83,9 @@ if present it waits for the specified edge on a VTL input line before starting.
 any number of stimuli simultaneously.  The original StimServer had one animation per
 stimulus (`m_pStimulus`).
 
-**`RESTORE_STATE` final action**
+**`RESTORE_VISIBILITY` final action**
 
-`FinalAction::RESTORE_STATE` (0x40) captures `user_enabled` for each controlled
+`FinalAction::RESTORE_VISIBILITY` (0x40) captures `user_enabled` for each controlled
 stimulus at the moment the animation first transitions to Running, then restores it
 on completion.  Allows "flash and restore" without needing to know the prior state.
 
@@ -129,14 +129,14 @@ TOGGLE_PHOTODIODE       (0x04)  toggle photodiode lit state
 FINAL_ACTION_TRIGGER_LINE (0x08)  set configured output VTL bit for one frame
 RESTART                 (0x10)  reset to Running { frame_counter: 0 }
 REVERSE                 (0x20)  reserved
-RESTORE_STATE           (0x40)  restore user_enabled snapshot captured at start
+RESTORE_VISIBILITY           (0x40)  restore user_enabled snapshot captured at start
 END_DEFERRED            (0x80)  call end_deferred_mode
 ```
 
 **Not carried forward from StimServer** (may be added later):
 - `Harmonic` — sinusoidal oscillation (A·sin(φ), φ increments per frame)
 - `LinearRange` / `IntegerRange` — linearly interpolate any numeric parameter
-- `initialState` final action (equivalent to RESTORE_STATE above)
+- `initialState` final action (equivalent to RESTORE_VISIBILITY above)
 - `FrameOnsetOutput`, `StimulusVisibleOut` — output-driving animations
 
 ---
@@ -170,11 +170,11 @@ END_DEFERRED            (0x80)  call end_deferred_mode
 - `stimuli: repeated uint32` on `CreateAnimationRequest` (not per-variant)
 - `TriggerFlash`/`Flash` merged into `FlashForNFrames`; `TriggerFlicker`/`Flicker` into `FlickerForNFrames`
 - `SIGNAL_EVENT` renamed to `FINAL_ACTION_TRIGGER_LINE`; field renamed `final_action_trigger_line`
-- `RESTORE_STATE` (0x40) added
+- `RESTORE_VISIBILITY` (0x40) added
 - `MoveAlongPath2D`, `MoveAlongSegments2D` added
 - `FlickerForNFrames.total_frames`: proto3 `optional uint32` (absent = infinite; was 0-sentinel)
 - `FlickerForNFrames.start_on_phase`: bool, allows starting in off-phase
-- `AnimationEntry.captured_user_enabled`: Option<Vec<bool>> for RESTORE_STATE
+- `AnimationEntry.captured_user_enabled`: Option<Vec<bool>> for RESTORE_VISIBILITY
 - `QueryAnimationRequest`/`QueryAnimationResponse` added
 
 ---
@@ -204,7 +204,7 @@ the core visibility variants and all final actions.
 - `FlickerForNFrames`: alternate `anim_enabled`; Done after `total_frames` if set
 - `start_trigger` logic: Armed → Running when specified edge fires (or immediately if absent)
 - All `FinalAction` bits: DISABLE, TOGGLE_PHOTODIODE, FINAL_ACTION_TRIGGER_LINE, RESTART,
-  RESTORE_STATE, END_DEFERRED
+  RESTORE_VISIBILITY, END_DEFERRED
 
 **Review gate:** Python script:
 1. Creates a `FlashForNFrames(5 frames, DISABLE)`, arms it, confirms stimulus appears

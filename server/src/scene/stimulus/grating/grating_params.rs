@@ -42,7 +42,6 @@ pub struct GratingParams {
     pub drift_angle: f32, // degrees CCW; used only when !drift_coupled
     pub fore_color: crate::Color, // rgba peak colour (carrier = +1)
     pub back_color: crate::Color, // rgba trough colour (carrier = −1)
-    pub opacity: f32,
 }
 
 impl Default for GratingParams {
@@ -59,7 +58,6 @@ impl Default for GratingParams {
             drift_angle: 0.0,
             fore_color: crate::Color::WHITE,
             back_color: crate::Color::BLACK,
-            opacity: 1.0,
         }
     }
 }

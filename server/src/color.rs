@@ -17,6 +17,13 @@ impl Color {
         Self { r, g, b, a }
     }
 
+    /// This colour with its alpha scaled by `opacity`. How the shared
+    /// per-stimulus opacity reaches an individual colour: a half-transparent
+    /// fill and an opaque outline both scale, and keep their relationship.
+    pub fn scaled_alpha(self, opacity: f32) -> Self {
+        Self { a: self.a * opacity, ..self }
+    }
+
     pub const WHITE:       Self = Self::new(1.0, 1.0, 1.0, 1.0);
     pub const BLACK:       Self = Self::new(0.0, 0.0, 0.0, 1.0);
     pub const TRANSPARENT: Self = Self::new(0.0, 0.0, 0.0, 0.0);

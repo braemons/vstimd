@@ -103,7 +103,8 @@ message Request {
     SetGratingDriftAngleRequest set_grating_drift_angle = 57;
     SetGratingForeColorRequest set_grating_fore_color = 58;
     SetGratingBackColorRequest set_grating_back_color = 59;
-    SetGratingOpacityRequest set_grating_opacity = 60;
+    // Field 60 was SetGratingOpacity — superseded by the shared SetAlpha (35).
+    // oneofs cannot carry `reserved`, so the number is simply left unused.
 
     // ── Text-specific mutations (stimulus target only) ──────────────────────
     SetTextRequest set_text = 61;
@@ -116,7 +117,9 @@ message Request {
     SwapDrawOrderRequest swap_draw_order = 74;
     SetBackgroundRequest set_background = 70;
     SetDeferredModeRequest set_deferred_mode = 71;
-    DeleteAllRequest delete_all = 72;
+    ClearStimuliRequest clear_stimuli = 72;
+    ClearAnimationsRequest clear_animations = 75;
+    ClearAllRequest clear_all = 76;
     SetAllEnabledRequest set_all_enabled = 73;
 
     // ── Queries ─────────────────────────────────────────────────────────────

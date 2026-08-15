@@ -15,6 +15,18 @@ message SetDrawModeRequest {
   ShapeDrawMode mode = 1;
 }
 
+// Fill / outline state of a shape stimulus (rect, circle, ellipse, polygon),
+// mirroring the server's ShapeAppearance. Reported inside the per-shape params
+// of a query, because it is shape state: a grating or a text stimulus has no
+// outline, and a 3-D stimulus has a material instead. The alphas here are the
+// colours' own; the shared per-stimulus opacity multiplies them.
+message ShapeAppearance {
+  Color         fill_color    = 1;
+  Color         outline_color = 2;
+  float         outline_width = 3; // stroke width in pixels
+  ShapeDrawMode draw_mode     = 4;
+}
+
 // Stimulus command: set outline colour.
 message SetOutlineColorRequest {
   Color color = 1;

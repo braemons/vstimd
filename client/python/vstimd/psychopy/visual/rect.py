@@ -65,8 +65,10 @@ class Rect:
         ph = self._scalar_px(self._height)
         self._handle: StimulusHandle = win._conn.stimuli.shapes.create_rect(
             pos=StimulusVec2(px, py), width=pw, height=ph,
-            color=to_color(fillColor, colorSpace, opacity) or StimulusColor(0.0, 0.0, 0.0, 0.0),
+            color=to_color(fillColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
         )
+        if self._opacity != 1.0:
+            win._conn.stimuli.set_alpha(self._handle, self._opacity)
 
         if autoDraw:
             self.autoDraw = True
@@ -168,7 +170,7 @@ class Rect:
     @opacity.setter
     def opacity(self, value: float) -> None:
         self._opacity = float(value)
-        self._resend_color()
+        self._send_opacity()
 
     def setOpacity(self, value: float, log: bool | None = None) -> None:
         self.opacity = value
@@ -190,8 +192,13 @@ class Rect:
     def setColor(self, value: PsychoPyColor, colorSpace: str | None = None, log: bool | None = None) -> None:
         self.setFillColor(value, colorSpace, log)
 
+    def _send_opacity(self) -> None:
+        # Opacity is a shared server-side property, kept out of the colour so
+        # `fillColor`'s own alpha and `opacity` stay independent.
+        self._win._dispatch(self._win._conn.stimuli.set_alpha, self._handle, self._opacity)
+
     def _resend_color(self) -> None:
         self._win._dispatch(
             self._win._conn.stimuli.set_fill_color,
-            self._handle, to_color(self._fill_color, self._color_space, self._opacity) or StimulusColor(0.0, 0.0, 0.0, 0.0),
+            self._handle, to_color(self._fill_color, self._color_space, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
         )

@@ -64,14 +64,22 @@ applied on the next frame:
 ```python
 conn.stimuli.set_position(rect, Vec2(-200, 100))
 conn.stimuli.set_fill_color(rect, Color(0, 0, 1))     # blue
+conn.stimuli.set_alpha(rect, 0.5)                     # half transparent
 conn.stimuli.set_enabled(rect, True)                  # show it
 
 state = conn.stimuli.query(rect)                       # full current state
-print(state.enabled, state.pos)
+print(state.enabled, state.pos, state.opacity)
 ```
 
 `set_enabled(handle, False)` hides a stimulus without deleting it; `delete(handle)`
 removes it entirely.
+
+!!! note "Opacity is shared, and multiplies the colours"
+    `set_alpha` works on every stimulus type — shapes, gratings and text alike —
+    and sets one whole-stimulus opacity in `[0, 1]`. It does not overwrite any
+    colour: the effective alpha of a colour is `color.a × opacity`. So a shape
+    whose fill is half transparent and whose outline is opaque keeps that
+    relationship as you fade the whole thing in or out.
 
 ## 4. The request/response rhythm
 
@@ -115,7 +123,9 @@ The `system` namespace holds commands that are not addressed to one stimulus:
 ```python
 conn.system.set_background(0.5, 0.5, 0.5)          # grey background (r, g, b, a=1.0)
 conn.system.set_all_enabled(False)                 # hide everything
-conn.system.delete_all()                           # clear the scene
+conn.system.clear_all()                            # animations + stimuli
+conn.system.clear_stimuli()                        # stimuli only
+conn.system.clear_animations()                     # animations only
 
 for entry in conn.system.list_stimuli():           # inventory of the scene
     print(entry.handle, entry.type, entry.name, entry.enabled)

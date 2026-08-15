@@ -7,6 +7,58 @@ versioned independently of the vstimd server.
 
 ## [Unreleased]
 
+### Changed — breaking
+
+The API-consistency pass before the first release. No aliases are kept: the
+server and the client move together, and nothing has shipped yet.
+
+- **Sizes are full extents everywhere.** The command API always took full
+  `width`/`height`; the saved config JSON stored half-extents (`size` for rects
+  and gratings, `radii` for ellipses). Config now records the same numbers the
+  commands take, so a config can be read straight off as the arguments to pass.
+  Config format 2 → 3; a v2 file is rejected rather than silently loaded at half
+  size.
+- **`delete_all` splits into three.** `conn.system.clear_stimuli()`,
+  `clear_animations()` and `clear_all()` — an animation outlives the stimuli it
+  drives, so "clear everything" needed to be sayable in one call. Scene-wide
+  settings (background, default colours, photodiode, VTL names) survive all
+  three.
+- **Opacity is a shared property.** `conn.stimuli.set_alpha(handle, opacity)`
+  now works on every stimulus type, not just shapes, and multiplies the alpha of
+  whatever colours the stimulus carries instead of overwriting the fill's. A
+  half-transparent fill under an opaque outline keeps that relationship at every
+  opacity. `conn.stimuli.grating.set_opacity` and `create_grating(opacity=...)`
+  are gone — use `set_alpha`. The PsychoPy shims send it as its own command, so
+  `fillColor`'s alpha and `opacity` are independent.
+- **`query()` reports honest fields.** `StimulusInfo.fill_color`,
+  `outline_color`, `outline_width` and `draw_mode` were synthesised per type — a
+  grating reported its fore colour as "fill" with an outline width of 0 that
+  meant nothing. They are now properties reading the shape's own
+  `params.appearance`, and `None` for gratings and text, which have no such
+  thing. `pos` and `orientation` come from the 2-D placement and are typed
+  optional, ready for stimuli placed in 3-D space.
+- **Animations name what they drive.** `CreateAnimationRequest.stimuli` becomes
+  a `target` oneof on the wire. The Python signatures are unchanged — you still
+  pass a handle or a list — but a saved config records
+  `"target": {"kind": "Stimuli", "handles": [...]}`.
+- **`RESTORE_STATE` is now `RESTORE_VISIBILITY`.** It restores `enabled` and
+  nothing else — an animation that moved a stimulus leaves it where the motion
+  ended — so the name said more than the bit did.
+- **`create_external_position_2d` is refused** with `NotSupportedError` instead of
+  being accepted. The server never opens the shared-memory segment, so an accepted
+  animation armed, ran forever, reported success and never moved anything
+  ([#84](https://github.com/braemons/vstimd/issues/84)).
+- **`query_server_info().frame_rate` is the display's nominal refresh rate**, not a
+  rolling measurement. It is the rate `duration_ms` is converted against, so the
+  same script now yields the same frame counts on every run; the measurement moved
+  to `measured_frame_rate` for monitoring
+  ([#120](https://github.com/braemons/vstimd/issues/120)).
+
+- **Text field names agree across the three places they appear.**
+  `CreateTextRequest.size` → `box_size` (matching the config field and the
+  `box_width`/`box_height` arguments), and its `color` → `text_color` (matching
+  what a query already called it). `TextParams.size` → `TextParams.box_size`.
+
 ## [0.1.0rc3] — 2026-08-13
 
 ### Added

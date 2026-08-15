@@ -43,10 +43,10 @@ class TextClient:
                 text=text,
                 font=font,
                 letter_height=letter_height,
-                size=vec2_pb2.Vec2(x=box_width, y=box_height),
+                box_size=vec2_pb2.Vec2(x=box_width, y=box_height),
                 pos=vec2_pb2.Vec2(x=pos.x, y=pos.y),
                 anchor=anchor,
-                color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+                text_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
                 fill_color=color_pb2.Color(
                     r=fill_color.r, g=fill_color.g, b=fill_color.b, a=fill_color.a
                 ),

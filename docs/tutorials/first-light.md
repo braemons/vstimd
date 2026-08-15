@@ -89,9 +89,9 @@ Their centres are 1800 × 960 px apart, which leaves a margin inside a
 the display is not showing you the whole frame — overscan, a wrong mode, or a
 compositor in the way.
 
-!!! warning "Sizes are halved in the saved config"
-    `width=80` becomes `"size": [40.0, 40.0]` in the config JSON, because the
-    renderer stores half-extents. The command API always speaks full sizes.
+!!! note "The saved config uses the same numbers as the command"
+    `width=80, height=80` is recorded as `"size": [80.0, 80.0]` in the config
+    JSON — full width and height, exactly what you passed.
 
 ## 5. The caption, and save
 

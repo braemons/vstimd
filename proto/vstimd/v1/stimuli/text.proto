@@ -19,7 +19,7 @@ enum LanguageStyle {
 // System command: create a text stimulus.
 // Returns the new handle in Response.handle and the UUID in Response.id.
 //
-// Text is laid out inside the bounding box defined by `size`, with word-wrap.
+// Text is laid out inside the bounding box defined by `box_size`, with word-wrap.
 // The box is positioned at `pos` (centre in pixel-space, Y-up).
 // `anchor` controls which point of the box is placed at `pos`:
 //   "center" (default), "top-left", "top-right", "bottom-left", "bottom-right"
@@ -27,10 +27,12 @@ message CreateTextRequest {
   string        text           = 1;  // UTF-8 content
   string        font           = 2;  // font family name (e.g. "Open Sans")
   float         letter_height  = 3;  // cap-height in pixels (0 → default 32)
-  Vec2          size           = 4;  // bounding box [width, height] in pixels
+  // Named box_size, not size: `size` next to letter_height reads as the font
+  // size, and the config field and the client argument are box-named already.
+  Vec2          box_size       = 4;  // bounding box [width, height] in pixels
   Vec2          pos            = 5;  // centre in pixel-space (Y-up)
   string        anchor         = 6;  // "center"|"top-left"|"top-right"|"bottom-left"|"bottom-right"
-  Color         color          = 7;  // text colour (absent → white)
+  Color         text_color     = 7;  // glyph colour (absent → white); same property SetTextColor sets
   Color         fill_color     = 8;  // background fill (absent → transparent)
   Color         border_color   = 9;  // box border (absent → no border)
   bool          flip_horiz     = 10; // mirror text horizontally
@@ -59,11 +61,11 @@ message TextParams {
   string        text           = 1;
   string        font           = 2;
   float         letter_height  = 3;
-  Vec2          size           = 4;
+  Vec2          box_size       = 4;
   string        anchor         = 5;
   Color         fill_color     = 6;  // background box fill colour
   Color         border_color   = 7;  // box border colour
   bool          flip_horiz     = 8;
   LanguageStyle language_style = 9;
-  Color         text_color     = 10; // foreground text colour (set by SetTextColorRequest)
+  Color         text_color     = 10; // glyph colour (set by SetTextColorRequest)
 }

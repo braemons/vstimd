@@ -3,8 +3,8 @@ use crate::geom::Vertex;
 use super::grating_stimulus::GratingStimulus;
 
 pub fn tessellate_grating(s: &GratingStimulus, half_w: f32, half_h: f32) -> (Vec<Vertex>, Vec<u32>) {
-    let [hw, hh] = s.size.live;
-    let [cx, cy] = s.transform.live.pos;
+    let [hw, hh] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
+    let [cx, cy] = s.common.transform.live.pos;
     // Axis-aligned quad in NDC — the fragment shader handles orientation internally.
     let corners = [
         (cx - hw, cy - hh),
@@ -28,8 +28,10 @@ mod tests {
     use super::*;
     use super::super::grating_params::GratingParams;
 
+    /// `hw`/`hh` are half-extents, as the geometry below is written; the
+    /// stimulus itself stores full extents.
     fn stim_at(cx: f32, cy: f32, hw: f32, hh: f32) -> GratingStimulus {
-        GratingStimulus::new([cx, cy], 0.0, [hw, hh], GratingParams::default())
+        GratingStimulus::new([cx, cy], 0.0, [hw * 2.0, hh * 2.0], GratingParams::default())
     }
 
     #[test]

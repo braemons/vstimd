@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "scene": {
     "background": [
       0.5,
@@ -42,9 +42,10 @@
             ],
             "angle": 90.0
           },
+          "opacity": 1.0,
           "size": [
-            350.0,
-            350.0
+            700.0,
+            700.0
           ],
           "params": {
             "sf": 0.015,
@@ -67,8 +68,7 @@
               0.0,
               0.0,
               1.0
-            ],
-            "opacity": 1.0
+            ]
           }
         }
       },
@@ -88,6 +88,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "params": {
             "color": [
               0.9,
@@ -126,9 +127,12 @@
       "1": {
         "name": "gate_on_pin7",
         "state": "Armed",
-        "stimuli": [
-          1
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            1
+          ]
+        },
         "start_action": 0,
         "start_action_trigger_line": null,
         "final_action": 0,

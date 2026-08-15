@@ -22,6 +22,29 @@ def _to_stimuli(s: Stimuli) -> list[StimulusHandle]:
     return [s] if isinstance(s, int) else list(s)
 
 
+def _target_stimuli(params: animations_pb2.CreateAnimationRequest) -> list[int]:
+    """The stimulus handles out of an animation's target, or none.
+
+    Empty for a target that is not stimuli — no such target exists yet, but the
+    field is a oneof so that the 3-D camera can become one without a wire break.
+    """
+    if params.target.WhichOneof("target") != "stimuli":
+        return []
+    return list(params.target.stimuli.handles)
+
+
+def _target(stimuli: Stimuli) -> animations_pb2.AnimationTarget:
+    """Wrap stimulus handles as the animation's target.
+
+    Targets are a oneof on the wire because stimuli may not stay the only thing
+    an animation can drive — the 3-D camera is the candidate — though only the
+    animations that move something would accept one.
+    """
+    return animations_pb2.AnimationTarget(
+        stimuli=animations_pb2.AnimationStimuli(handles=_to_stimuli(stimuli)),
+    )
+
+
 def _sys() -> service_pb2.SystemTarget:
     return service_pb2.SystemTarget()
 
@@ -148,7 +171,7 @@ class AnimationClient:
             name=p.name,
             state=AnimationState(r.state),
             type_name=r.type_name,
-            stimuli=tuple(StimulusHandle(s) for s in p.stimuli),
+            stimuli=tuple(StimulusHandle(s) for s in _target_stimuli(p)),
             final_action=FinalAction(p.final_action_mask),
             cancel_action=CancelAction(p.cancel_action_mask),
         )
@@ -189,7 +212,7 @@ class AnimationClient:
             cancel_edge=int(cancel_edge),
             cancel_action_mask=int(cancel_action_mask),
             cancel_action_trigger_line=cancel_action_trigger_line._to_proto() if cancel_action_trigger_line else None,
-            stimuli=_to_stimuli(stimuli),
+            target=_target(stimuli),
             **body_kwargs,
         )
 
@@ -472,6 +495,10 @@ class AnimationClient:
         self,
         stimuli: Stimuli,
         shm_name: str,
+        # NOT IMPLEMENTED — the server refuses this with NotSupportedError. The
+        # shared-memory segment is never read, so an accepted animation would
+        # report success and never move the stimulus. See
+        # https://github.com/braemons/vstimd/issues/84.
         *,
         x_offset: float = 0.0,
         y_offset: float = 0.0,

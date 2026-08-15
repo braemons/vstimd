@@ -94,9 +94,9 @@ def test_exception_carries_code_detail_and_context():
 
 
 def test_system_command_has_no_handle_in_its_message():
-    exc = error_for_code(ErrorCode.NOT_READY, "still starting", command="delete_all")
+    exc = error_for_code(ErrorCode.NOT_READY, "still starting", command="clear_all")
     assert exc.handle is None
-    assert str(exc) == "still starting (delete_all)"
+    assert str(exc) == "still starting (clear_all)"
 
 
 def test_exception_knows_its_own_code_when_raised_by_hand():

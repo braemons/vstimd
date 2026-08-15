@@ -13,8 +13,8 @@ use vstimd::io_config::{
     is_not_found, LAST_SESSION_CONFIG,
 };
 use vstimd::scene::{
-    Deferred, RectStimulus, SceneState, ShapeAppearance, ShapeCommon, Stimulus, StimulusFlags,
-    StimulusSceneEntry, Transform2D,
+    Deferred, RectStimulus, SceneState, ShapeAppearance, StimulusCommon, Stimulus,
+    StimulusSceneEntry,
 };
 
 /// A unique scratch directory that is removed when dropped, so each test gets
@@ -50,14 +50,8 @@ fn scene_with_rect(dir: &std::path::Path) -> SceneState {
         Uuid::new_v4(),
         Some("target".into()),
         Stimulus::Rect(RectStimulus {
-            common: ShapeCommon {
-                flags: StimulusFlags::enabled(true),
-                transform: Deferred::new(Transform2D {
-                    pos: [10.0, 20.0],
-                    angle: 0.0,
-                }),
-                appearance: Deferred::new(ShapeAppearance::default()),
-            },
+            common: StimulusCommon::new([10.0, 20.0], 0.0),
+            appearance: Deferred::new(ShapeAppearance::default()),
             size: Deferred::new([100.0, 50.0]),
         }),
     ));

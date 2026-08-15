@@ -35,7 +35,7 @@ export function GratingDialog({ conn, defaultName, onClose }: Props) {
   const [mask, setMask] = useState<GratingMask>("none");
 
   async function submit() {
-    await conn.stimuli.grating.create({
+    const handle = await conn.stimuli.grating.create({
       name,
       pos: { x, y },
       width,
@@ -45,12 +45,14 @@ export function GratingDialog({ conn, defaultName, onClose }: Props) {
       phase,
       angle,
       driftSpeed,
-      opacity,
       waveform,
       mask,
       foreColor: rgb(1, 1, 1),
       backColor: rgb(0, 0, 0),
     });
+    // Opacity is a shared property, so it is a second command rather than a
+    // field on create.
+    if (opacity !== 1) await conn.stimuli.setAlpha(handle, opacity);
     onClose();
   }
 

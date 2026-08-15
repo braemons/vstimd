@@ -4,12 +4,50 @@
 use super::{AnimState, Animation, CancelAction, FinalAction, StartAction};
 use crate::vtl_state::{VtlEdge, VtlBit};
 
+/// What an animation drives.
+///
+/// A list of stimuli today. The 3-D camera is the candidate second variant: it
+/// is worth arming, triggering and cancelling exactly like any other animation,
+/// and duplicating that machinery for a camera-only animation type would be the
+/// worse trade (dev/3D_ROADMAP.md §11.1).
+///
+/// It would not be a target for *every* animation, though. Only the kinds that
+/// drive a transform (`MoveAlongPath2D`, `MoveAlongSegments2D`,
+/// `ExternalPosition2D`) mean anything for a camera; the four that drive
+/// visibility have nothing to act on, and nor do the `ENABLE` / `DISABLE` /
+/// `RESTORE_VISIBILITY` action bits. Adding the variant means adding the rule that
+/// rejects those combinations at create time — see the roadmap.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind")]
+pub enum AnimationTarget {
+    Stimuli { handles: Vec<u32> },
+}
+
+impl AnimationTarget {
+    /// Mutable access to the stimulus handles, for the additive-load handle
+    /// rebase. Empty slice for targets that are not stimuli.
+    pub fn stimuli_mut(&mut self) -> &mut [u32] {
+        match self {
+            AnimationTarget::Stimuli { handles } => handles,
+        }
+    }
+
+    /// The stimuli this animation drives — empty for targets that are not
+    /// stimuli, so a caller that only knows how to move stimuli can iterate
+    /// unconditionally.
+    pub fn stimuli(&self) -> &[u32] {
+        match self {
+            AnimationTarget::Stimuli { handles } => handles,
+        }
+    }
+}
+
 /// Serializable animation configuration.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct AnimationConfig {
     pub name: String,
     pub state: AnimState,
-    pub stimuli: Vec<u32>,
+    pub target: AnimationTarget,
     /// Bitflags applied when the animation transitions Armed → Running.
     pub start_action: StartAction,
     /// Output line to pulse for one frame when `START_ACTION_TRIGGER_LINE` is set.
@@ -48,7 +86,7 @@ pub struct AnimationConfig {
 pub struct AnimationEntry {
     pub config: AnimationConfig,
     /// Snapshot of each stimulus's `user_enabled` taken when the animation first
-    /// transitions to Running. Used by `RESTORE_STATE` to undo visibility changes.
+    /// transitions to Running. Used by `RESTORE_VISIBILITY` to undo visibility changes.
     /// Not serialized — always None in saved configs.
     pub captured_user_enabled: Option<Vec<bool>>,
 }
@@ -80,7 +118,7 @@ impl AnimationEntry {
             config: AnimationConfig {
                 name: String::new(),
                 state: AnimState::Idle,
-                stimuli,
+                target: AnimationTarget::Stimuli { handles: stimuli },
                 start_action: StartAction::empty(),
                 start_action_trigger_line: None,
                 final_action: FinalAction::empty(),

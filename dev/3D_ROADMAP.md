@@ -77,7 +77,7 @@ require rewriting them.
 
 **The mesh (shared geometry) is separate from the instance (transform + material).** Primitives
 are tessellated at *unit* size — a unit cube, a unit sphere, a unit quad — and their nominal size
-(`radius`, `half_size`) is folded into the model matrix as scale. The GPU mesh cache is keyed by a
+(`radius`, `size`) is folded into the model matrix as scale. The GPU mesh cache is keyed by a
 **geometry descriptor**, not by stimulus handle, so one cube mesh and one sphere mesh serve every
 instance in the scene.
 
@@ -86,14 +86,43 @@ codebase (`SolidMeshCache`, `TextMeshCache`) is keyed by stimulus handle; copyin
 here would make a corridor of N tiles allocate N identical vertex buffers. It is also what lets
 Phase C avoid a scene graph entirely (§6).
 
-### 1.7 There is no scene graph, and the corridor does not need one
+### 1.7 Shared stimulus properties stay shared, and sizes are full extents
+
+Two conventions were settled for 2-D and bind the 3-D variants as well.
+
+**`StimulusCommon` is the state every stimulus has**, flattened into each variant's struct and
+its config JSON (`server/src/scene/stimulus/stimulus_common.rs`). Today it is
+`{ flags, transform: Deferred<Transform2D>, opacity }` — every stimulus is 2-D, so all three
+genuinely are common. A 3-D variant gets `flags` and `opacity` for free and must not redeclare
+either.
+
+`transform` is the field that does not survive the move to 3-D: a position, an orientation and a
+scale in world space cannot be a `Vec2` and one angle. **Adding the first 3-D variant means
+taking it out of `StimulusCommon`** and onto each variant as `Deferred<Transform2D>` or
+`Deferred<Transform3D>`, behind the split accessors in §9.3, leaving `{ flags, opacity }` shared.
+That is a small edit today and a wide one after three 3-D variants exist, so do it as the first
+step of Phase B rather than after. The wire is already shaped for it:
+`QueryStimulusResponse.placement` is a `oneof` with a single `transform_2d` arm.
+
+**Opacity is a multiplier, not a colour.** `effective_a = color.a * opacity`, clamped to
+`[0, 1]`, and it is set by the shared `SetAlpha` command for every stimulus type. For 3-D that
+means `material.albedo.a * opacity` — see §B.5 for where it enters the push constants and §B.6
+for what the renderer owes in return.
+
+**Sizes on the wire and in the config are full extents.** `CreateRect{width, height}` and the
+saved `"size": [w, h]` are the same numbers; the renderer halves them at tessellation. 3-D
+follows: a cube carries `size: Vec3` (full extents in cm) and folds `size * 0.5` into the model
+scale. A sphere keeps `radius`, matching `Circle`, where API and config already agree. Do not
+reintroduce a `half_size` field — that split is exactly what the v3 config format removed.
+
+### 1.8 There is no scene graph, and the corridor does not need one
 
 `SceneState` holds a flat `IndexMap<u32, Stimulus>`. An endless corridor is built from **periodic
 geometry and a wrapped camera** (§C.0), not from tiles recycled past the camera — only the latter
 requires parent transforms. A one-level `Group` becomes worth its cost when the **maze** arrives
 (§C.2), and at that point it is purely additive.
 
-### 1.8 Target platforms for 3-D
+### 1.9 Target platforms for 3-D
 
 3-D targets **Jetson Orin Nano** and **x86 desktops with a discrete GPU**. **Raspberry Pi 4/5 is
 not a 3-D target** — if its tile-based V3D cannot hold frame timing, we do not chase it.
@@ -137,7 +166,7 @@ SceneState
 ├── stimuli:       IndexMap<u32, Stimulus>   (2-D and 3-D variants)
 ├── camera:        Deferred<Camera3D>
 ├── ambient_light / sun_direction / sun_colour
-└── (no world/scene-graph object — see §1.7)
+└── (no world/scene-graph object — see §1.8)
 
 Render thread  (ash / raw Vulkan)
 ├── depth_image: vk::Image (D32_SFLOAT)   ← allocated lazily, only if a 3-D stimulus exists
@@ -294,7 +323,7 @@ frame and needs one set per in-flight frame slot, or an explicit fence wait.
 ### A.3 Depth image
 
 A `vk::Image`, same extent as the swapchain. **Allocated lazily** — on the first frame a 3-D
-stimulus exists, not at startup (§1.8). Recreated on swapchain resize. Attached only by the 3-D
+stimulus exists, not at startup (§1.9). Recreated on swapchain resize. Attached only by the 3-D
 render pass.
 
 Select the format by querying support rather than hardcoding; `D32_SFLOAT` is not universally
@@ -328,7 +357,7 @@ constants (§B.5), `cmd_draw_indexed`. Extend `render_frame.rs`'s existing `Boun
 
 Because the 3-D pass is created lazily and skipped when absent, **a pure-2-D scene records a
 byte-identical command buffer to the pre-3-D code.** That, not a benchmark, is what discharges
-§1.1 (§1.8).
+§1.1 (§1.9).
 
 ⚠ Allocating the depth image and render pass on the first 3-D frame means a device allocation on
 the render thread, which must never block. Pre-create them on the ZMQ thread inside
@@ -393,7 +422,7 @@ message QueryCameraRequest {}
 ```
 
 There is no `SystemCmd` message. Add these to the single `oneof body` in `service.proto`, with a
-`SystemTarget` target: `set_camera = 75`, `query_camera = 85`. See §10.2 for the full field-number
+`SystemTarget` target: `set_camera = 77`, `query_camera = 85`. See §10.2 for the full field-number
 allocation, and register every new `.proto` in **both** lists in `server/build.rs` (the
 `rerun-if-changed` block *and* the `compile_protos` call — forgetting the second is a silent
 no-op).
@@ -460,6 +489,8 @@ pub enum Shading3D {
 ```
 
 Both `Transform3D` and `Material3D` are wrapped in `Deferred<T>` on each stimulus struct.
+Neither carries visibility or opacity: those come from the shared `StimulusCommon` (§1.7), so
+`Material3D` has no alpha of its own beyond `albedo.a`, which the shared opacity multiplies.
 
 Two deliberate choices:
 
@@ -479,15 +510,17 @@ The first slice ships **`Cube3D` and `Sphere3D` only**. `Plane3D` arrives with t
 
 ```rust
 pub struct Cube3DStimulus {
-    pub flags:        StimulusFlags,
+    #[serde(flatten)]
+    pub common:       StimulusCommon,         // flags + opacity (transform moved out — §1.7)
     pub transform:    Deferred<Transform3D>,
     pub material:     Deferred<Material3D>,
-    pub half_size:    Deferred<glam::Vec3>,   // half-extents in cm → folded into model scale
+    pub size:         Deferred<glam::Vec3>,   // FULL extents in cm → folded into model scale
     pub texture_path: Option<String>,         // server-side path; None = untextured
 }
 
 pub struct Sphere3DStimulus {
-    pub flags:        StimulusFlags,
+    #[serde(flatten)]
+    pub common:       StimulusCommon,
     pub transform:    Deferred<Transform3D>,
     pub material:     Deferred<Material3D>,
     pub radius:       Deferred<f32>,          // cm → folded into model scale
@@ -497,12 +530,14 @@ pub struct Sphere3DStimulus {
 }
 ```
 
-Per §1.6, `radius` and `half_size` do **not** change the mesh. They are pre-multiplied into the
+Per §1.6, `radius` and `size` do **not** change the mesh. They are pre-multiplied into the
 model matrix:
 
 ```rust
 Mat4::from_scale_rotation_translation(
-    transform.scale * radius,     // sphere; cube uses transform.scale * half_size
+    transform.scale * radius,         // sphere
+    // cube: transform.scale * size * 0.5 — `size` is the full extent (§1.7), and the unit
+    // cube is 2 units across, so the halving happens here rather than in the API or config.
     transform.orientation,
     transform.position,
 )
@@ -541,6 +576,10 @@ Vulkan guarantees 128 bytes of push constants. Budget:
 | `emissive: vec3<f32>` + `shading: u32` | 16 |
 | **total** | **96** |
 
+The shared opacity (§1.7) needs **no field of its own**: multiply it into `albedo.a` when
+building the push constants, the way `build_grating_push_constants` already folds state into its
+constants. Budget unchanged.
+
 Fits, with 32 spare. Follow the `GratingPushConstants` precedent
 (`scene/stimulus/grating/grating_pipeline.rs`): `#[repr(C)]`, `bytemuck::Pod`, and a doc comment
 giving the byte offset of every field.
@@ -550,7 +589,7 @@ and match how `grating` and `text` already work. Revisit only if per-instance co
 thousands, at which point per-instance data belongs in a storage buffer indexed by
 `@builtin(instance_index)` anyway.
 
-**Normals.** Because `radius` / `half_size` become scale (§B.3), **non-uniform scale is the normal
+**Normals.** Because `radius` / `size` become scale (§B.3), **non-uniform scale is the normal
 case, not an edge case** — any cube with unequal half-extents, and any ellipsoid, has it. Deriving
 the normal matrix as `mat3(model)` shades both visibly wrong. An inverse-transpose `mat3` does not
 fit in push constants (48 B under std430; 96 + 48 = 144 > 128), so compute it in the vertex shader:
@@ -596,9 +635,28 @@ features only) and uploaded as `R8G8B8A8_SRGB` so the sampler linearises for fre
 thread must never block or heap-allocate. A missing or undecodable path returns
 `ERROR_CODE_FILE_NOT_FOUND` / `ERROR_CODE_FILE_FORMAT`.
 
-**Alpha-blended 3-D geometry is not supported.** Opaque only; a translucent `albedo.a < 1.0`
-produces order-dependent artefacts, since draws are issued in `IndexMap` order and correctness
-comes from the depth buffer.
+### B.6 Transparency
+
+`SetAlpha` is a shared command that every stimulus type accepts (§1.7), so a 3-D stimulus can
+be told to be half transparent before the renderer knows what to do about it. The scene
+state is trivially correct; the ordering is not. Draws are issued in `IndexMap` order and
+correctness comes from the depth buffer, which is order-independent only for opaque geometry.
+
+Phase B therefore owes a two-bucket draw:
+
+1. **Opaque** (`albedo.a * opacity == 1.0`): current behaviour — any order, depth test and depth
+   write on.
+2. **Transparent** (`< 1.0`): drawn after the opaque bucket, sorted back-to-front by distance
+   from `Camera3D.position`, depth test on and **depth write off**.
+
+That is the standard pragmatic answer and it is right for the stimuli this server draws
+(a handful of convex primitives). It is still wrong for intersecting or concave transparent
+geometry, and for those the honest fix is order-independent transparency — out of scope. Say so
+in the user docs rather than pretending otherwise.
+
+Until the two-bucket draw lands, a 3-D stimulus with `opacity < 1` renders order-dependently:
+accept the command, document the limitation, and do not special-case `SetAlpha` to reject 3-D —
+a shared property that silently is not shared is worse than one with a known caveat.
 
 ---
 
@@ -626,7 +684,7 @@ is built once, covering enough tiles to fill the frustum, and **never moves agai
 mutates per frame except the camera pose.
 
 **Take the second.** Fewer moving parts, exactly periodic by construction, keeps `f32` world
-coordinates small — and, per §1.7, it removes the need for a `Node` abstraction entirely. With the
+coordinates small — and, per §1.8, it removes the need for a `Node` abstraction entirely. With the
 geometry-keyed mesh cache (§1.6), drawing the same wall panel at eleven `z` offsets costs eleven
 push-constant writes and one vertex-buffer bind.
 
@@ -674,7 +732,8 @@ pub struct CorridorParams {
 }
 
 pub struct CorridorStimulus {
-    pub flags:     StimulusFlags,
+    #[serde(flatten)]
+    pub common:    StimulusCommon,          // flags + opacity, transform below (§1.7)
     pub transform: Deferred<Transform3D>,   // position/orientation of corridor entrance
     pub params:    Deferred<CorridorParams>,
     pub rebuild:   bool,
@@ -703,7 +762,8 @@ pub struct MazeCorridor {
 }
 
 pub struct MazeStimulus {
-    pub flags:      StimulusFlags,
+    #[serde(flatten)]
+    pub common:     StimulusCommon,
     pub transform:  Deferred<Transform3D>,
     pub nodes:      Vec<MazeNode>,       // not deferrable individually — rebuild on change
     pub corridors:  Vec<MazeCorridor>,
@@ -772,7 +832,8 @@ Load and render static or animated 3-D mesh models from files. The primary use c
 
 ```rust
 pub struct MeshStimulus {
-    pub flags:      StimulusFlags,
+    #[serde(flatten)]
+    pub common:     StimulusCommon,
     pub transform:  Deferred<Transform3D>,
     pub material_override: Deferred<Option<Material3D>>,  // None = use material from file
     pub anim_frame: Deferred<f32>,   // for glTF skeletal animation: time in seconds
@@ -852,7 +913,7 @@ The following decisions in earlier phases keep the door open:
 1. **Vulkan compute is available.** The sorting and splatting passes need a
    `VK_PIPELINE_BIND_POINT_COMPUTE` pipeline and storage buffers. `ash` exposes both; naga emits
    compute SPIR-V from WGSL, so the existing `build.rs` shader pipeline extends unchanged. Nothing
-   in Phase A forecloses it. (3-D targets — Jetson, discrete x86 GPUs, §1.8 — all support compute
+   in Phase A forecloses it. (3-D targets — Jetson, discrete x86 GPUs, §1.9 — all support compute
    comfortably; the Pi is out of scope regardless.)
 
 2. **The 3-D render pass can be replaced or augmented.** The Phase A architecture separates
@@ -872,12 +933,15 @@ The following decisions in earlier phases keep the door open:
 
 ```rust
 pub struct GaussianSplatStimulus {
-    pub flags:      StimulusFlags,
+    #[serde(flatten)]
+    pub common:     StimulusCommon,
     // The camera is the viewpoint; the splat itself has no transform
     // (the scene is world-aligned at training time).
     // A global offset can be applied via the transform if needed.
     pub transform:  Deferred<Transform3D>,
-    pub opacity_scale: Deferred<f32>,   // global opacity multiplier for fade-in/out
+    // No `opacity_scale` field: fade-in/out is the shared `common.opacity` (§1.7), which
+    // multiplies each Gaussian's own alpha during compositing. 3DGS is the one variant where
+    // the sorted alpha blend it needs (§E.2) is already required for its own sake.
     pub sh_degree:  u32,                // 0–3; lower = faster, less view-dependent colour
     // GPU resource handle — points to a GaussianSplatScene in the 3-D caches
     pub scene_id:   u32,
@@ -988,6 +1052,11 @@ drift actually happens.
 
 ### 9.3 The `transform()` accessor splits into 2-D and 3-D variants
 
+`StimulusCommon` (§1.7) holds `flags`, `transform` and `opacity` today. `flags` and `opacity`
+stay there — `Stimulus::flags()` / `opacity()` / `set_opacity()` are single-line delegations that
+need no change when 3-D variants arrive. `transform` moves out onto each variant, and today's
+`transform()` / `transform_mut()` are replaced with:
+
 ```rust
 impl Stimulus {
     /// Returns the 2-D transform for 2-D stimuli. None for 3-D stimuli.
@@ -1039,6 +1108,18 @@ Lighting parameters are global scene properties, not per-stimulus, matching the 
 of most real-time rendering systems. An experiment that uses only `Shading3D::Unlit` stimuli
 can ignore them entirely.
 
+**These are scene settings, so the clear commands leave them alone.** `ClearStimuli`,
+`ClearAnimations` and `ClearAll` take scene *content*; the camera and the lighting survive them,
+exactly as the background colour, the default fill/outline and the photodiode patch do. A
+`ClearAll` that silently reset the camera would move the viewpoint out from under an experiment
+that was only clearing stimuli between trials. Resetting the camera is `SetCamera` with default
+values — an explicit act.
+
+What `ClearStimuli` *must* do for 3-D is evict the render-thread caches keyed by the handles it
+removed, the way text meshes are already swept (`cache.text.meshes.retain(...)` in
+`render_frame.rs`). The geometry-keyed mesh cache (§1.6) is deliberately *not* per-handle, so it
+is unaffected — but per-handle texture and splat-scene resources are.
+
 ### 10.2 Protobuf additions
 
 There is no `SystemCmd` / `StimulusCmd` split. `service.proto` has a single `Request` with a
@@ -1046,6 +1127,11 @@ There is no `SystemCmd` / `StimulusCmd` split. `service.proto` has a single `Req
 numbers below are the ones actually claimed by
 [#72](https://github.com/braemons/vstimd/issues/72), verified free on `main`. **Field numbers are
 the wire contract — never reuse.**
+
+`Request.body` **75 and 76 are taken** by `clear_animations` / `clear_all`, which belong beside
+`clear_stimuli = 72` in the system-mutation block. `set_camera` / `set_lighting` move to 77/78
+below — nothing has shipped either number, and the clear commands are real today while the
+camera is not. 79 is the next free one in that block.
 
 `proto/vstimd/v1/vec3.proto` (`message Vec3 { float x = 1; float y = 2; float z = 3; }`) already
 exists in unmerged commit `6311d41`, which also reserved `Request.body` **20–29 for 3-D creation**.
@@ -1055,15 +1141,15 @@ Resurrect it rather than reinventing it.
 // Request.body — system target
 CreateSphere3DRequest create_sphere_3d = 20;
 CreateCube3DRequest   create_cube_3d   = 21;
-SetCameraRequest      set_camera       = 75;
-SetLightingRequest    set_lighting     = 76;
+SetCameraRequest      set_camera       = 77;
+SetLightingRequest    set_lighting     = 78;
 QueryCameraRequest    query_camera     = 85;
 
 // Request.body — stimulus target
 SetTransform3DRequest      set_transform_3d      = 64;
 SetMaterial3DRequest       set_material_3d       = 65;
 SetSphere3DRadiusRequest   set_sphere_3d_radius  = 66;
-SetCube3DHalfSizeRequest   set_cube_3d_half_size = 67;
+SetCube3DSizeRequest       set_cube_3d_size      = 67;   // full extents, per §1.7
 
 // Response.body
 QueryCameraResponse camera_info = 19;
@@ -1093,6 +1179,9 @@ message Material3D {
 
 enum Shading3D { SHADING_3D_UNLIT = 0; SHADING_3D_PHONG = 1; }
 
+// Note the absence of an `opacity` field, deliberately: opacity is a shared property set with
+// SetAlpha after creation, exactly as for the 2-D types (CreateGrating lost its own field for
+// this reason). Cube's counterpart carries `Vec3 size` — full extents, never half.
 message CreateSphere3DRequest {
     string id = 1; string name = 2;          // id is a client-supplied UUID, per convention
     Transform3D transform = 3;
@@ -1101,6 +1190,10 @@ message CreateSphere3DRequest {
     uint32 rings = 6; uint32 sectors = 7;    // 0 → default 32
     string texture_path = 8;                 // server-side path; empty → untextured
 }
+
+// Opacity needs no 3-D message: the shared SetAlpha (body field 35) already applies.
+// Sizes are full extents, matching CreateRect{width,height} and the v3 config format.
+message SetCube3DSizeRequest  { Vec3 size = 1; }   // cm, full extents
 
 message SetCameraRequest   { Vec3 position=1; float yaw_deg=2; float pitch_deg=3; float roll_deg=4;
                              float fov_y_deg=5; float near_cm=6; float far_cm=7; }
@@ -1133,9 +1226,102 @@ the `copy` slot so they flip atomically with stimulus updates (§13.4).
 
 ### 11.1 The camera as an animation target
 
-The camera participates in the animation system, so that no new animation types are needed just
-for camera control. `ExternalPosition2D` (shared memory), `MoveAlongPath2D`,
-`MoveAlongSegments2D` and the rest work on the camera out of the box.
+The camera is worth putting in the animation system for its *lifecycle*, not for its
+animation kinds: arming, waiting on a trigger edge, cancelling, pulsing a line when done and
+holding a DONE level are all things a camera movement wants, and all things this system already
+does. Duplicating that machinery inside a camera-only animation type is the worse trade.
+
+**But the camera is not a general-purpose target, and an earlier draft of this section claimed it
+was** — *"`ExternalPosition2D`, `MoveAlongPath2D`, `MoveAlongSegments2D` and the rest work on the
+camera out of the box"*. "The rest" is exactly wrong. Of the seven animation kinds, three drive a
+transform and mean something for a camera:
+
+| kind | drives | camera? |
+|---|---|---|
+| `MoveAlongPath2D` | transform | ✅ |
+| `MoveAlongSegments2D` | transform | ✅ |
+| `ExternalPosition2D` | transform | ✅ |
+| `FlashForNFrames` | visibility | ❌ nothing to show or hide |
+| `FlickerForNFrames` | visibility | ❌ |
+| `CoupleVisibilityToTriggerLine` | visibility | ❌ |
+| `EnableOnTriggerEdge` | visibility | ❌ |
+
+The action masks have the same split, and they apply to *every* animation regardless of kind:
+`ENABLE`, `DISABLE` and `RESTORE_VISIBILITY` act on stimulus visibility and are meaningless for a
+camera, while `TOGGLE_PHOTODIODE`, the trigger-line pulses, `REARM` / `RESTART`, `END_DEFERRED`
+and `DONE_LEVEL` are target-independent.
+
+So adding the `Camera` arm means adding the rule that goes with it. Rather than a
+kind × target matrix that every new animation kind has to be added to, have each kind declare
+what it writes, and each target what it has:
+
+```rust
+bitflags::bitflags! {
+    /// A category of scene state an animation can write — and, read from the
+    /// other side, a category a target has to offer. Bitflags, not an enum:
+    /// one animation may write several (a fade that also moves), and a target
+    /// has several at once.
+    ///
+    /// Named for the state itself rather than for the animation, because both
+    /// sides use it. Singular, matching `StartAction` / `FinalAction` /
+    /// `CancelAction` (`scene/animation/animation_action.rs`), which are the
+    /// bitflag types already in this domain.
+    pub struct AnimatableProperty: u32 {
+        const VISIBILITY  = 0x01;  // the enabled flag
+        const TRANSFORM   = 0x02;  // position / orientation
+        const APPEARANCE  = 0x04;  // colours and the shared opacity
+        const GEOMETRY    = 0x08;  // size, radius, vertices
+        const TYPE_PARAMS = 0x10;  // state only one stimulus type has: grating sf,
+                                   //   text content, shader uniforms
+    }
+}
+
+impl Animation       { pub fn writes(&self)   -> AnimatableProperty { … } }
+impl AnimationTarget { pub fn provides(&self) -> AnimatableProperty { … } }
+```
+
+Today: the four visibility kinds write `VISIBILITY`, the three motion kinds write `TRANSFORM`,
+and `AnimationTarget::Stimuli` provides everything. `Camera` would provide `TRANSFORM` alone. The
+rule is then one line and stays correct as kinds are added, because a new kind cannot compile
+without answering the question:
+
+```rust
+anim.writes().difference(target.provides()).is_empty()
+```
+
+A fade writes `APPEARANCE` — one kind rather than three per-type ones, now that opacity is a
+single shared property (#111). A looming stimulus writes `GEOMETRY`. A contrast ramp writes
+`TYPE_PARAMS`. An animation that moves *and* fades declares both, and the check still holds.
+
+Avoid `Params` in the type name — `GratingParams`, `TextParams` and `StimulusParams` already mean
+something narrower in this codebase, and one of the bits *is* the type-specific params. Avoid
+naming it after the animation (`ParamsAffectedByAnimation` and friends): the target side reads
+backwards, since a camera's transform is not "affected by animation" until something animates it.
+The methods carry the direction; the type names the state.
+
+Reject invalid combinations at create time with `ERROR_CODE_INVALID_ARGUMENT`; silently ignoring
+a `DISABLE` on a camera animation is the failure mode to avoid. The classification is worth
+having for its own sake, too: it is what a UI needs to group animations by, and what
+`RESTORE_VISIBILITY` semantics hang off.
+
+**Where this deliberately stops.** `AnimatableProperty` answers *"does the target have this kind
+of state at all?"* — a coarse question with few possible targets, which is exactly the question
+the target `oneof` creates. It does not answer *"does this particular stimulus have this particular
+property?"*: a contrast ramp writes `TYPE_PARAMS` whether it is pointed at a grating or at a text
+stimulus, and `TYPE_PARAMS` cannot tell them apart. That second question already has a mechanism
+— `err_wrong_type` / `ERROR_CODE_WRONG_STIMULUS_TYPE`, which is how `SetGratingSf` rejects a rect
+—
+and animations that write type-specific state should use it, per stimulus, at create time.
+
+Custom shader uniforms are the case that proves the boundary: an animation driving a uniform by
+name can only be validated by looking the name up in that stimulus' shader. No enum, set or
+otherwise, can answer it, and one that appeared to would be lying. Keep `AnimatableProperty` coarse, keep
+per-type validation where it already lives, and let a named-parameter animation validate its name
+at create time against the stimulus it addresses.
+
+This also reconciles with §11.2: `Flythrough3D` and `LinearNav3D` are proposed there because
+keyframed camera paths and treadmill-velocity navigation are genuinely new *behaviours*, not
+because the camera needs its own copy of Flash and Flicker.
 
 > ⚠ **Do not implement the `CAMERA_HANDLE` sentinel this section used to propose.** It read:
 > *"`CAMERA_HANDLE = 0x0000_FFFE` (below the animation range `0x8000` but safely outside the
@@ -1291,7 +1477,7 @@ scenes, especially corridors with sharp wall edges, aliasing can be distracting.
   a confound (e.g. optic flow experiments with textures rather than edges).
 
 **MSAA is more attractive than this section originally judged**, for two reasons that emerged
-later. First, 3-D is scoped to Jetson and discrete-GPU x86 (§1.8), where 4× MSAA is cheap — the
+later. First, 3-D is scoped to Jetson and discrete-GPU x86 (§1.9), where 4× MSAA is cheap — the
 cost objection applied mainly to the Pi's tile-based V3D, now out of scope. Second, because the
 3-D pass owns its own attachments (§2.2), it can be multisampled **without the 2-D pass changing
 sample count**: render-pass compatibility is per-pass, so the 2-D pipelines stay at `TYPE_1` and

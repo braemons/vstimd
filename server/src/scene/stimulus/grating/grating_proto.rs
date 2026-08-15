@@ -50,7 +50,6 @@ pub fn mask_to_proto(m: GratingMask) -> proto::MaskType {
 pub fn grating_params_from_proto(cmd: &proto::CreateGratingRequest) -> GratingParams {
     let sf       = if cmd.sf       == 0.0 { 0.05 } else { cmd.sf };
     let contrast = if cmd.contrast == 0.0 { 1.0  } else { cmd.contrast };
-    let opacity  = if cmd.opacity  == 0.0 { 1.0  } else { cmd.opacity };
     let fore = cmd.fore_color.map_or(crate::Color::WHITE, |c| crate::Color::new(c.r, c.g, c.b, c.a));
     let back = cmd.back_color.map_or(crate::Color::BLACK, |c| crate::Color::new(c.r, c.g, c.b, c.a));
     GratingParams {
@@ -65,7 +64,6 @@ pub fn grating_params_from_proto(cmd: &proto::CreateGratingRequest) -> GratingPa
         drift_angle:  cmd.drift_angle,
         fore_color:   fore,
         back_color:   back,
-        opacity,
     }
 }
 
@@ -75,8 +73,8 @@ pub fn grating_query_params(s: &GratingStimulus) -> proto::StimulusParams {
     let p = s.params.live;
     proto::StimulusParams {
         shape: Some(proto::stimulus_params::Shape::Grating(proto::GratingParams {
-            width: s.size.live[0] * 2.0,
-            height: s.size.live[1] * 2.0,
+            width: s.size.live[0],
+            height: s.size.live[1],
             sf: p.sf,
             phase: p.phase,
             contrast: p.contrast,
@@ -88,7 +86,6 @@ pub fn grating_query_params(s: &GratingStimulus) -> proto::StimulusParams {
             drift_angle: p.drift_angle,
             fore_color: Some(proto::Color { r: p.fore_color.r, g: p.fore_color.g, b: p.fore_color.b, a: p.fore_color.a }),
             back_color: Some(proto::Color { r: p.back_color.r, g: p.back_color.g, b: p.back_color.b, a: p.back_color.a }),
-            opacity: p.opacity,
         })),
     }
 }

@@ -206,7 +206,7 @@ impl AnimationDialog {
         let mut cancel_action = CancelAction::empty();
         if self.cancel_disable { cancel_action |= CancelAction::DISABLE; }
         if self.cancel_toggle_pd { cancel_action |= CancelAction::TOGGLE_PHOTODIODE; }
-        if self.cancel_restore { cancel_action |= CancelAction::RESTORE_STATE; }
+        if self.cancel_restore { cancel_action |= CancelAction::RESTORE_VISIBILITY; }
         if self.cancel_pulse_enabled {
             cancel_action |= CancelAction::CANCEL_ACTION_TRIGGER_LINE;
             entry.config.cancel_action_trigger_line = Some(VtlBit {
