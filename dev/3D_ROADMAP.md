@@ -1253,54 +1253,69 @@ and `DONE_LEVEL` are target-independent.
 
 So adding the `Camera` arm means adding the rule that goes with it. Rather than a
 kind × target matrix that every new animation kind has to be added to, have each kind declare
-what it writes, and each target what it has, as **sets** rather than as one label:
+what it writes, and each target what it has:
 
 ```rust
-bitflags! {
-    /// The state an animation writes, and — for a target — the state it has.
-    pub struct Drives: u32 {
-        const VISIBILITY = 0x01;  // the enabled flag
-        const TRANSFORM  = 0x02;  // position / orientation
-        const APPEARANCE = 0x04;  // colours and the shared opacity
-        const GEOMETRY   = 0x08;  // size, radius, vertices
-        const PARAMS     = 0x10;  // type-specific parameters (grating sf, shader uniforms)
+bitflags::bitflags! {
+    /// A category of scene state an animation can write — and, read from the
+    /// other side, a category a target has to offer. Bitflags, not an enum:
+    /// one animation may write several (a fade that also moves), and a target
+    /// has several at once.
+    ///
+    /// Named for the state itself rather than for the animation, because both
+    /// sides use it. Singular, matching `StartAction` / `FinalAction` /
+    /// `CancelAction` (`scene/animation/animation_action.rs`), which are the
+    /// bitflag types already in this domain.
+    pub struct AnimatableProperty: u32 {
+        const VISIBILITY  = 0x01;  // the enabled flag
+        const TRANSFORM   = 0x02;  // position / orientation
+        const APPEARANCE  = 0x04;  // colours and the shared opacity
+        const GEOMETRY    = 0x08;  // size, radius, vertices
+        const TYPE_PARAMS = 0x10;  // state only one stimulus type has: grating sf,
+                                   //   text content, shader uniforms
     }
 }
 
-impl Animation      { pub fn drives(&self) -> Drives { … } }
-impl AnimationTarget { pub fn provides(&self) -> Drives { … } }
+impl Animation       { pub fn writes(&self)   -> AnimatableProperty { … } }
+impl AnimationTarget { pub fn provides(&self) -> AnimatableProperty { … } }
 ```
 
-Today: the four visibility kinds are `VISIBILITY`, the three motion kinds are `TRANSFORM`, and
-`AnimationTarget::Stimuli` provides everything. `Camera` would provide `TRANSFORM` alone. The
+Today: the four visibility kinds write `VISIBILITY`, the three motion kinds write `TRANSFORM`,
+and `AnimationTarget::Stimuli` provides everything. `Camera` would provide `TRANSFORM` alone. The
 rule is then one line and stays correct as kinds are added, because a new kind cannot compile
 without answering the question:
 
 ```rust
-anim.drives().difference(target.provides()).is_empty()
+anim.writes().difference(target.provides()).is_empty()
 ```
 
-A set, not an enum, because the axes are not exclusive and the list will grow. A fade is
-`APPEARANCE` — natural now that opacity is one shared property (#111). A looming stimulus is
-`GEOMETRY`. A contrast ramp is `PARAMS`. An animation that moves *and* fades declares both, and
-the check still holds.
+A fade writes `APPEARANCE` — one kind rather than three per-type ones, now that opacity is a
+single shared property (#111). A looming stimulus writes `GEOMETRY`. A contrast ramp writes
+`TYPE_PARAMS`. An animation that moves *and* fades declares both, and the check still holds.
+
+Avoid `Params` in the type name — `GratingParams`, `TextParams` and `StimulusParams` already mean
+something narrower in this codebase, and one of the bits *is* the type-specific params. Avoid
+naming it after the animation (`ParamsAffectedByAnimation` and friends): the target side reads
+backwards, since a camera's transform is not "affected by animation" until something animates it.
+The methods carry the direction; the type names the state.
 
 Reject invalid combinations at create time with `ERROR_CODE_INVALID_ARGUMENT`; silently ignoring
 a `DISABLE` on a camera animation is the failure mode to avoid. The classification is worth
 having for its own sake, too: it is what a UI needs to group animations by, and what
 `RESTORE_STATE` semantics hang off.
 
-**Where this deliberately stops.** `Drives` answers *"does the target have this kind of state at
-all?"* — a coarse question with few possible targets, which is exactly the question the target
-`oneof` creates. It does not answer *"does this particular stimulus have this particular
-property?"*: a contrast ramp is `PARAMS` whether it is pointed at a grating or at a text
-stimulus, and `PARAMS` cannot tell them apart. That second question already has a mechanism —
-`err_wrong_type` / `ERROR_CODE_WRONG_STIMULUS_TYPE`, which is how `SetGratingSf` rejects a rect —
+**Where this deliberately stops.** `AnimatableProperty` answers *"does the target have this kind
+of state at all?"* — a coarse question with few possible targets, which is exactly the question
+the target `oneof` creates. It does not answer *"does this particular stimulus have this particular
+property?"*: a contrast ramp writes `TYPE_PARAMS` whether it is pointed at a grating or at a text
+stimulus, and `TYPE_PARAMS` cannot tell them apart. That second question already has a mechanism
+— `err_wrong_type` / `ERROR_CODE_WRONG_STIMULUS_TYPE`, which is how `SetGratingSf` rejects a rect
+—
 and animations that write type-specific state should use it, per stimulus, at create time.
 
 Custom shader uniforms are the case that proves the boundary: an animation driving a uniform by
 name can only be validated by looking the name up in that stimulus' shader. No enum, set or
-otherwise, can answer it, and one that appeared to would be lying. Keep `Drives` coarse, keep
+otherwise, can answer it, and one that appeared to would be lying. Keep `AnimatableProperty` coarse, keep
 per-type validation where it already lives, and let a named-parameter animation validate its name
 at create time against the stimulus it addresses.
 
