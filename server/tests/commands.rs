@@ -540,7 +540,7 @@ fn test_query_server_info() {
 }
 
 #[test]
-fn test_delete_all() {
+fn test_clear_stimuli() {
     let mut scene = SceneState::new();
     scene.handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None);
     scene.handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None);
@@ -548,7 +548,7 @@ fn test_delete_all() {
 
     let resp = scene.handle_request(proto::Request {
         target: Some(sys()),
-        body: Some(request::Body::DeleteAll(proto::DeleteAllRequest {})),
+        body: Some(request::Body::ClearStimuli(proto::ClearStimuliRequest {})),
     }, None);
     assert!(is_ok(&resp));
     assert_eq!(scene.stimuli.len(), 0);

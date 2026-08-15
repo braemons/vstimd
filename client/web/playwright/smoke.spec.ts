@@ -12,7 +12,7 @@ const BACKEND = "ws://127.0.0.1:8138";
 
 test.beforeEach(async () => {
   const conn = await Connection.connect(BACKEND);
-  await conn.system.deleteAll();
+  await conn.system.clearAll();
   for (const a of await conn.animations.list()) await conn.animations.delete(a.handle);
   conn.close();
 });
@@ -133,7 +133,7 @@ test("config: save then load restores the scene", async ({ page }) => {
   await expect(page.locator("tr", { hasText: "ui_test_cfg" })).toBeVisible();
 
   // Clear the scene, then Load must restore the stimulus.
-  await conn.system.deleteAll();
+  await conn.system.clearAll();
   await expect(page.locator("tr", { hasText: "cfg-rect" })).toHaveCount(0);
 
   await page

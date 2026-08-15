@@ -115,7 +115,9 @@ The `system` namespace holds commands that are not addressed to one stimulus:
 ```python
 conn.system.set_background(0.5, 0.5, 0.5)          # grey background (r, g, b, a=1.0)
 conn.system.set_all_enabled(False)                 # hide everything
-conn.system.delete_all()                           # clear the scene
+conn.system.clear_all()                            # animations + stimuli
+conn.system.clear_stimuli()                        # stimuli only
+conn.system.clear_animations()                     # animations only
 
 for entry in conn.system.list_stimuli():           # inventory of the scene
     print(entry.handle, entry.type, entry.name, entry.enabled)

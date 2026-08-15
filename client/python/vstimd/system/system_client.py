@@ -79,10 +79,31 @@ class SystemClient:
         )
         return ServerResponse._from_proto(self._send(req))
 
-    def delete_all(self) -> ServerResponse:
+    def clear_stimuli(self) -> ServerResponse:
+        """Remove every unprotected stimulus. Animations are left alone."""
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
-            delete_all=system_pb2.DeleteAllRequest(),
+            clear_stimuli=system_pb2.ClearStimuliRequest(),
+        )
+        return ServerResponse._from_proto(self._send(req))
+
+    def clear_animations(self) -> ServerResponse:
+        """Remove every animation, whatever its state. Stimuli are left alone."""
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            clear_animations=system_pb2.ClearAnimationsRequest(),
+        )
+        return ServerResponse._from_proto(self._send(req))
+
+    def clear_all(self) -> ServerResponse:
+        """Clear the scene: every animation, then every unprotected stimulus.
+
+        Scene-wide settings survive — background and default colours, the
+        photodiode patch, and the VTL name map.
+        """
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            clear_all=system_pb2.ClearAllRequest(),
         )
         return ServerResponse._from_proto(self._send(req))
 

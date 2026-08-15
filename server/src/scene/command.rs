@@ -69,7 +69,9 @@ fn command_summary(req: &proto::Request) -> String {
                 "SetDeferredMode(end/flip)".into()
             }
         }
-        Some(request::Body::DeleteAll(_)) => "DeleteAll".into(),
+        Some(request::Body::ClearStimuli(_)) => "ClearStimuli".into(),
+        Some(request::Body::ClearAnimations(_)) => "ClearAnimations".into(),
+        Some(request::Body::ClearAll(_)) => "ClearAll".into(),
         Some(request::Body::SetAllEnabled(c)) => {
             format!("SetAllEnabled({})", if c.enabled { "on" } else { "off" })
         }
@@ -241,7 +243,9 @@ impl SceneState {
             ),
             request::Body::SetBackground(cmd) => self.cmd_set_background(cmd),
             request::Body::SetDeferredMode(cmd) => self.cmd_set_deferred_mode(cmd),
-            request::Body::DeleteAll(_) => self.cmd_delete_all(),
+            request::Body::ClearStimuli(_) => self.cmd_clear_stimuli(),
+            request::Body::ClearAnimations(_) => self.cmd_clear_animations(),
+            request::Body::ClearAll(_) => self.cmd_clear_all(),
             request::Body::SetAllEnabled(cmd) => self.cmd_set_all_enabled(cmd),
             request::Body::QueryServerInfo(_) => self.cmd_query_server_info(),
             request::Body::ListStimuli(_) => self.cmd_list_stimuli(),
@@ -301,7 +305,9 @@ impl SceneState {
             | request::Body::CreatePolygon(_)
             | request::Body::SetBackground(_)
             | request::Body::SetDeferredMode(_)
-            | request::Body::DeleteAll(_)
+            | request::Body::ClearStimuli(_)
+            | request::Body::ClearAnimations(_)
+            | request::Body::ClearAll(_)
             | request::Body::SetAllEnabled(_)
             | request::Body::QueryServerInfo(_)
             | request::Body::ListStimuli(_)
@@ -1135,10 +1141,20 @@ impl SceneState {
         ok_ack()
     }
 
-    // ── DeleteAll ─────────────────────────────────────────────────────────────
+    // ── ClearStimuli / ClearAnimations / ClearAll ─────────────────────────────
 
-    fn cmd_delete_all(&mut self) -> proto::Response {
-        self.clear_all(false);
+    fn cmd_clear_stimuli(&mut self) -> proto::Response {
+        self.clear_stimuli(false);
+        ok_ack()
+    }
+
+    fn cmd_clear_animations(&mut self) -> proto::Response {
+        self.clear_animations();
+        ok_ack()
+    }
+
+    fn cmd_clear_all(&mut self) -> proto::Response {
+        self.clear_scene(false);
         ok_ack()
     }
 

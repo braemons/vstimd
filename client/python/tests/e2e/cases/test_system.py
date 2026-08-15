@@ -40,14 +40,46 @@ def test_list_stimuli(conn: Connection) -> None:
     conn.stimuli.delete(h2)
 
 
-def test_delete_all(conn: Connection) -> None:
+def test_clear_stimuli(conn: Connection) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_circle()
-    conn.system.delete_all()
+    conn.system.clear_stimuli()
 
     handles = {e.handle for e in conn.system.list_stimuli()}
     assert h1 not in handles
     assert h2 not in handles
+
+
+def test_clear_stimuli_leaves_animations(conn: Connection) -> None:
+    """The three clear commands are separable: this one takes stimuli only."""
+    h = conn.stimuli.shapes.create_rect()
+    a = conn.animations.create_flash(h, duration_frames=60)
+    conn.system.clear_stimuli()
+
+    assert h not in {e.handle for e in conn.system.list_stimuli()}
+    assert a in {e.handle for e in conn.animations.list_animations()}
+
+    conn.system.clear_animations()
+
+
+def test_clear_animations_leaves_stimuli(conn: Connection) -> None:
+    h = conn.stimuli.shapes.create_rect()
+    a = conn.animations.create_flash(h, duration_frames=60)
+    conn.system.clear_animations()
+
+    assert a not in {e.handle for e in conn.animations.list_animations()}
+    assert h in {e.handle for e in conn.system.list_stimuli()}
+
+    conn.system.clear_stimuli()
+
+
+def test_clear_all_takes_both(conn: Connection) -> None:
+    h = conn.stimuli.shapes.create_rect()
+    a = conn.animations.create_flash(h, duration_frames=60)
+    conn.system.clear_all()
+
+    assert h not in {e.handle for e in conn.system.list_stimuli()}
+    assert a not in {e.handle for e in conn.animations.list_animations()}
 
 
 def test_set_all_enabled(conn: Connection) -> None:
@@ -68,7 +100,7 @@ def test_set_all_enabled(conn: Connection) -> None:
 
 def test_server_response_fields(conn: Connection) -> None:
     """Every mutation returns a ServerResponse with sensible metadata."""
-    resp = conn.system.delete_all()
+    resp = conn.system.clear_all()
     assert isinstance(resp, ServerResponse)
     assert resp.code == ErrorCode.OK
     assert resp.error == ""

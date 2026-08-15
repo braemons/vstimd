@@ -28,7 +28,21 @@ message SetDeferredModeRequest {
 }
 
 // System command: remove all stimuli from the scene (except protected ones).
-message DeleteAllRequest {}
+// Animations are left alone — see ClearAnimationsRequest and ClearAllRequest.
+message ClearStimuliRequest {}
+
+// System command: remove all animations, whatever their state. Running
+// animations are cancelled; the stimuli they drive keep whatever value they
+// were last given.
+message ClearAnimationsRequest {}
+
+// System command: clear the whole scene — every animation, then every stimulus
+// except protected ones. Equivalent to ClearAnimations followed by
+// ClearStimuli, in that order, so no animation outlives the stimuli it drives.
+//
+// Scene-wide settings are *not* touched: background and default colours, the
+// photodiode patch and the VTL name map all survive.
+message ClearAllRequest {}
 
 // System command: enable or disable all stimuli (except protected ones).
 message SetAllEnabledRequest {

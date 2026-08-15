@@ -63,18 +63,22 @@ the same, which is how they are tested.
 Three things repeat in all six, so they live in
 `examples/demos/_common.py` rather than in each script.
 
-**Start from nothing.** `delete_all` removes the stimuli, but an animation
-outlives the stimuli it drives and the VTL name map is separate again, so
-reproducibility takes all three:
+**Start from nothing.** `clear_all` takes the animations and the stimuli
+together — an animation outlives the stimuli it drives, so clearing one without
+the other leaves half a scene. The VTL name map is I/O config rather than scene
+content and survives, so the names go separately:
 
 ```python
 def clean_slate(conn):
-    conn.system.delete_all()
-    for anim in conn.animations.list_animations():
-        conn.animations.delete(anim.handle)
+    conn.system.clear_all()
     for line in conn.vtl.list_lines():
         conn.vtl.set_line_name(line.bank, line.bit, line.kind, name="")
 ```
+
+!!! tip "Three clear commands"
+    `clear_stimuli()` and `clear_animations()` do one each; `clear_all()` does
+    both, animations first. None of them touch the background, the default
+    colours, the photodiode patch or the VTL names.
 
 **Explain yourself on screen.** Every demo carries a caption across the bottom
 of the frame, so a rig with no client attached still says what it is doing. It

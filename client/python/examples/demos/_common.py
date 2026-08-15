@@ -48,14 +48,14 @@ def demo_parser(description: str, default_name: str) -> argparse.ArgumentParser:
 def clean_slate(conn: Connection) -> None:
     """Empty the scene so the script builds on nothing.
 
-    ``delete_all`` removes the stimuli but **not** the animations — an animation
-    outlives the stimuli it drives — and it does not touch the VTL name map
-    either. Clearing all three is what makes these scripts reproducible: run one
-    twice and you get the same scene, not the same scene twice over.
+    ``clear_all`` takes the animations and the stimuli together — an animation
+    outlives the stimuli it drives, so clearing only one of the two leaves the
+    scene half-built. The VTL name map is scene-wide I/O config and survives it,
+    so the names are cleared separately. Together that is what makes these
+    scripts reproducible: run one twice and you get the same scene, not the same
+    scene twice over.
     """
-    conn.system.delete_all()
-    for anim in conn.animations.list_animations():
-        conn.animations.delete(anim.handle)
+    conn.system.clear_all()
     for line in conn.vtl.list_lines():
         conn.vtl.set_line_name(line.bank, line.bit, line.kind, name="")
 

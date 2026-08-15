@@ -1,5 +1,5 @@
 // Scene-wide controls: background colour, show/hide all, deferred-mode batching,
-// and delete-all. Mirrors the egui System overlay (minus the photodiode toggle,
+// and the clear commands. Mirrors the egui System overlay (minus the photodiode toggle,
 // which has no runtime command yet — see PLAN).
 
 import type { Color, Connection, SceneSnapshot } from "../index.js";
@@ -52,15 +52,34 @@ export function SystemPanel({ conn, snapshot }: Props) {
         <button disabled={!conn} onClick={() => conn?.system.setDeferredMode(false, true)}>Cancel</button>
       </div>
 
-      <button
-        disabled={!conn}
-        style={{ color: "#e88" }}
-        onClick={() => {
-          if (confirm("Delete all stimuli?")) conn?.system.deleteAll();
-        }}
-      >
-        Delete all
-      </button>
+      <div style={{ fontSize: 13, color: "#888", marginBottom: 4 }}>Clear</div>
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          disabled={!conn}
+          onClick={() => {
+            if (confirm("Remove all stimuli?")) conn?.system.clearStimuli();
+          }}
+        >
+          Stimuli
+        </button>
+        <button
+          disabled={!conn}
+          onClick={() => {
+            if (confirm("Remove all animations?")) conn?.system.clearAnimations();
+          }}
+        >
+          Animations
+        </button>
+        <button
+          disabled={!conn}
+          style={{ color: "#e88" }}
+          onClick={() => {
+            if (confirm("Remove all animations and stimuli?")) conn?.system.clearAll();
+          }}
+        >
+          Everything
+        </button>
+      </div>
     </div>
   );
 }

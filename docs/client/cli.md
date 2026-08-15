@@ -112,7 +112,9 @@ HANDLE  ENABLED  NAME       ID
 | `info` | display properties and server version |
 | `ls` (`list`) | list the stimuli in the scene |
 | `background R G B [A]` | set the clear colour, components in 0–1 |
-| `delete-all` | remove every unprotected stimulus |
+| `clear-stimuli` | remove every unprotected stimulus |
+| `clear-animations` | remove every animation |
+| `clear-all` | remove every animation, then every unprotected stimulus |
 | `enable-all` / `disable-all` | toggle every unprotected stimulus |
 | `wait-frames [N]` | block until N more frames are rendered |
 | `wait-ready` | block until the server answers and has drawn a frame |

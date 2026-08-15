@@ -122,7 +122,7 @@ def scene_cleanup(conn: Connection):
     """Leave the server as we found it — these scripts build a whole scene."""
     _reset_photodiode(conn)
     yield
-    conn.system.delete_all()
+    conn.system.clear_all()
     for anim in conn.animations.list_animations():
         conn.animations.delete(anim.handle)
     for line in conn.vtl.list_lines():
@@ -192,7 +192,7 @@ def test_demo_script_saves_a_loadable_config(
     name = _run_demo_script("gratings_triggered", "gratings_triggered", server_address)
     assert name in conn.config.list_configs()
 
-    conn.system.delete_all()
+    conn.system.clear_all()
     for anim in conn.animations.list_animations():
         conn.animations.delete(anim.handle)
     assert conn.system.list_stimuli() == []

@@ -51,7 +51,7 @@ def test_upload_and_load_roundtrip(conn: Connection) -> None:
     # Create a rect, save config, delete everything, load back.
     h = conn.stimuli.shapes.create_rect(width=50, height=50, name="cfg_roundtrip_rect")
     conn.config.save("e2e_test_roundtrip", overwrite=True)
-    conn.system.delete_all()
+    conn.system.clear_all()
 
     stim_handles_before = {e.handle for e in conn.system.list_stimuli()}
     assert h not in stim_handles_before
@@ -64,7 +64,7 @@ def test_upload_and_load_roundtrip(conn: Connection) -> None:
 
 def test_load_additive(conn: Connection) -> None:
     """load(additive=True) appends to the existing scene without clearing it."""
-    conn.system.delete_all()
+    conn.system.clear_all()
     h_existing = conn.stimuli.shapes.create_rect(name="existing_stim")
 
     conn.config.save("e2e_test_additive", overwrite=True)
@@ -79,7 +79,7 @@ def test_load_additive(conn: Connection) -> None:
     count = sum(1 for e in conn.system.list_stimuli() if e.name == "existing_stim")
     assert count == 2
 
-    conn.system.delete_all()
+    conn.system.clear_all()
 
 
 def test_upload_overwrite_false_raises(conn: Connection) -> None:
@@ -104,15 +104,15 @@ def test_upload_invalid_json_raises(conn: Connection) -> None:
 
 def test_upload_apply_now(conn: Connection) -> None:
     """upload(apply_now=True) applies the config immediately."""
-    conn.system.delete_all()
+    conn.system.clear_all()
     h = conn.stimuli.shapes.create_rect(name="apply_now_rect")
     raw = conn.config.retrieve()
 
-    conn.system.delete_all()
+    conn.system.clear_all()
     assert len(conn.system.list_stimuli()) == 0
 
     conn.config.upload("e2e_test_apply_now", raw, overwrite=True, apply_now=True)
     names = {e.name for e in conn.system.list_stimuli()}
     assert "apply_now_rect" in names
 
-    conn.system.delete_all()
+    conn.system.clear_all()
