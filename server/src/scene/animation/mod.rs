@@ -9,7 +9,7 @@ mod animation_state;
 
 pub use animation_action::{CancelAction, FinalAction, StartAction};
 pub(crate) use animation_advance::{advance_one, cancel_one};
-pub use animation_entry::{AnimationConfig, AnimationEntry};
+pub use animation_entry::{AnimationConfig, AnimationEntry, AnimationTarget};
 pub use animation_kind::Animation;
 pub use animation_state::AnimState;
 

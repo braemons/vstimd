@@ -120,9 +120,12 @@
       "1": {
         "name": "field_flicker_5hz",
         "state": "Armed",
-        "stimuli": [
-          1
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            1
+          ]
+        },
         "start_action": 2,
         "start_action_trigger_line": null,
         "final_action": 0,

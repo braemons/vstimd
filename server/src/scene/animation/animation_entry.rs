@@ -4,12 +4,43 @@
 use super::{AnimState, Animation, CancelAction, FinalAction, StartAction};
 use crate::vtl_state::{VtlEdge, VtlBit};
 
+/// What an animation drives.
+///
+/// A list of stimuli today. The 3-D camera is an animatable scene object in its
+/// own right (dev/3D_ROADMAP.md §11.1), so it becomes a second variant here
+/// rather than a second animation type — `MoveAlongPath2D` driving a viewpoint
+/// is the same animation, pointed somewhere else.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind")]
+pub enum AnimationTarget {
+    Stimuli { handles: Vec<u32> },
+}
+
+impl AnimationTarget {
+    /// Mutable access to the stimulus handles, for the additive-load handle
+    /// rebase. Empty slice for targets that are not stimuli.
+    pub fn stimuli_mut(&mut self) -> &mut [u32] {
+        match self {
+            AnimationTarget::Stimuli { handles } => handles,
+        }
+    }
+
+    /// The stimuli this animation drives — empty for targets that are not
+    /// stimuli, so a caller that only knows how to move stimuli can iterate
+    /// unconditionally.
+    pub fn stimuli(&self) -> &[u32] {
+        match self {
+            AnimationTarget::Stimuli { handles } => handles,
+        }
+    }
+}
+
 /// Serializable animation configuration.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct AnimationConfig {
     pub name: String,
     pub state: AnimState,
-    pub stimuli: Vec<u32>,
+    pub target: AnimationTarget,
     /// Bitflags applied when the animation transitions Armed → Running.
     pub start_action: StartAction,
     /// Output line to pulse for one frame when `START_ACTION_TRIGGER_LINE` is set.
@@ -80,7 +111,7 @@ impl AnimationEntry {
             config: AnimationConfig {
                 name: String::new(),
                 state: AnimState::Idle,
-                stimuli,
+                target: AnimationTarget::Stimuli { handles: stimuli },
                 start_action: StartAction::empty(),
                 start_action_trigger_line: None,
                 final_action: FinalAction::empty(),

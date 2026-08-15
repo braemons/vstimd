@@ -33,7 +33,7 @@ class TextParams:
     text: str = ""
     font: str = ""
     letter_height: float = 0.0
-    size: Vec2 = field(default_factory=lambda: Vec2(0.0, 0.0))
+    box_size: Vec2 = field(default_factory=lambda: Vec2(0.0, 0.0))
     anchor: str = "center"
     text_color: Color = field(default_factory=lambda: Color(1.0, 1.0, 1.0, 1.0))
     fill_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0, 0.0))
@@ -47,7 +47,9 @@ class TextParams:
             text=proto.text,
             font=proto.font,
             letter_height=proto.letter_height,
-            size=Vec2.from_proto(proto.size) if proto.HasField("size") else Vec2(0.0, 0.0),
+            box_size=Vec2.from_proto(proto.box_size)
+            if proto.HasField("box_size")
+            else Vec2(0.0, 0.0),
             anchor=proto.anchor,
             text_color=Color.from_proto(proto.text_color)
             if proto.HasField("text_color")

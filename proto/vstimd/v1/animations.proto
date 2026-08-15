@@ -74,6 +74,29 @@ message MoveAlongSegments2D {
   float          speed_px_per_sec = 3;
 }
 
+// ── What an animation drives ──────────────────────────────────────────────────
+
+// The set of stimuli an animation drives. Every animation type fans out over
+// this list; an empty list is accepted and simply drives nothing.
+message AnimationStimuli {
+  repeated uint32 handles = 1;
+}
+
+// The thing an animation drives.
+//
+// This is a oneof rather than a bare `repeated uint32` because the stimulus list
+// is not the only possible target: the 3-D camera is itself an animatable scene
+// object (dev/3D_ROADMAP.md §11.1), so `MoveAlongPath2D` and friends will drive
+// a viewpoint through this same field instead of needing camera-specific
+// animation types. Adding that arm then costs one field number and no break
+// here.
+message AnimationTarget {
+  oneof target {
+    AnimationStimuli stimuli = 1;
+    // CameraTarget camera = 2;  — arrives with the 3-D camera (Phase A)
+  }
+}
+
 // ── Animation management ──────────────────────────────────────────────────────
 
 // start_action_mask bit values — applied when animation transitions Armed → Running:
@@ -128,8 +151,10 @@ message CreateAnimationRequest {
   uint32                   cancel_action_mask = 17;
   // Required when CANCEL_ACTION_TRIGGER_LINE (0x08) is set; the output line to pulse.
   VirtualTriggerLineHandle cancel_action_trigger_line = 19;
-  // Stimuli affected by this animation (shared across all body types).
-  repeated uint32          stimuli       = 6;
+  // What this animation drives (shared across all body types). Field 6 was a
+  // bare `repeated uint32 stimuli`; it is reserved rather than reused.
+  AnimationTarget          target        = 21;
+  reserved 6;
   // Actions applied when animation transitions Armed → Running (see bit values above).
   uint32                   start_action_mask = 7;
   // Required when START_ACTION_TRIGGER_LINE (0x08) is set; the output line to pulse.

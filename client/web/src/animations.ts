@@ -233,7 +233,7 @@ export class AnimationsClient {
       name: p?.name ?? "",
       state: stateOf(r.state),
       typeName: r.typeName as AnimationTypeName,
-      stimuli: p?.stimuli ?? [],
+      stimuli: p?.target?.target?.case === "stimuli" ? p.target.target.value.handles : [],
       finalActions: decodeFinalActions(p?.finalActionMask ?? 0),
       cancelActions: decodeCancelActions(p?.cancelActionMask ?? 0),
     };
@@ -355,7 +355,8 @@ export class AnimationsClient {
       cancelEdge: EDGE[opts.cancelEdge ?? "rising"],
       cancelActionMask: maskOf(opts.cancelActions, CANCEL_ACTION),
       cancelActionTriggerLine: opts.cancelActionTriggerLine ? vtlHandleProto(opts.cancelActionTriggerLine) : undefined,
-      stimuli: toStimuli(stimuli),
+      // Targets are a oneof: stimuli today, the 3-D camera later.
+      target: { target: { case: "stimuli" as const, value: { handles: toStimuli(stimuli) } } },
     };
   }
 

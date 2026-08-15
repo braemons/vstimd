@@ -415,7 +415,7 @@ message QueryCameraRequest {}
 ```
 
 There is no `SystemCmd` message. Add these to the single `oneof body` in `service.proto`, with a
-`SystemTarget` target: `set_camera = 75`, `query_camera = 85`. See §10.2 for the full field-number
+`SystemTarget` target: `set_camera = 77`, `query_camera = 85`. See §10.2 for the full field-number
 allocation, and register every new `.proto` in **both** lists in `server/build.rs` (the
 `rerun-if-changed` block *and* the `compile_protos` call — forgetting the second is a silent
 no-op).
@@ -1121,9 +1121,10 @@ numbers below are the ones actually claimed by
 [#72](https://github.com/braemons/vstimd/issues/72), verified free on `main`. **Field numbers are
 the wire contract — never reuse.**
 
-`Request.body` **77 and 78 are now taken** by `clear_animations` / `clear_all`, which were moved
-off 75/76 precisely so `set_camera` / `set_lighting` below keep the numbers this document
-claimed. 79 is the next free one in that block.
+`Request.body` **75 and 76 are taken** by `clear_animations` / `clear_all`, which belong beside
+`clear_stimuli = 72` in the system-mutation block. `set_camera` / `set_lighting` move to 77/78
+below — nothing has shipped either number, and the clear commands are real today while the
+camera is not. 79 is the next free one in that block.
 
 `proto/vstimd/v1/vec3.proto` (`message Vec3 { float x = 1; float y = 2; float z = 3; }`) already
 exists in unmerged commit `6311d41`, which also reserved `Request.body` **20–29 for 3-D creation**.
@@ -1133,8 +1134,8 @@ Resurrect it rather than reinventing it.
 // Request.body — system target
 CreateSphere3DRequest create_sphere_3d = 20;
 CreateCube3DRequest   create_cube_3d   = 21;
-SetCameraRequest      set_camera       = 75;
-SetLightingRequest    set_lighting     = 76;
+SetCameraRequest      set_camera       = 77;
+SetLightingRequest    set_lighting     = 78;
 QueryCameraRequest    query_camera     = 85;
 
 // Request.body — stimulus target

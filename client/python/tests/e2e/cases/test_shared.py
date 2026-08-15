@@ -105,7 +105,7 @@ def test_set_alpha_leaves_fill_alpha_alone(conn: Connection) -> None:
     the shared opacity multiplies both rather than overwriting either."""
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_fill_color(handle, Color(1.0, 0.0, 0.0, 0.5))
-    conn.stimuli.set_outline_color(handle, Color(0.0, 0.0, 1.0, 1.0))
+    conn.stimuli.shapes.set_outline_color(handle, Color(0.0, 0.0, 1.0, 1.0))
     conn.stimuli.set_alpha(handle, 0.5)
 
     info = conn.stimuli.query(handle)

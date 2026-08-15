@@ -10,7 +10,7 @@ import "vstimd/v1/stimuli/rect.proto";
 import "vstimd/v1/stimuli/shapes.proto";
 import "vstimd/v1/stimuli/stimulus_type.proto";
 import "vstimd/v1/stimuli/text.proto";
-import "vstimd/v1/vec2.proto";
+import "vstimd/v1/transform.proto";
 
 // Stimulus command: query current properties.
 // Returns QueryStimulusResponse in Response.body.
@@ -29,20 +29,35 @@ message StimulusParams {
 }
 
 // Response payload for QueryStimulusRequest.
+//
+// The top-level fields are the ones every stimulus genuinely has, whatever it
+// draws and in however many dimensions. Anything type-specific lives in
+// `params`; anything dimension-specific lives in `placement`. Fields 3/4 and
+// 6-9 used to break that rule — `pos`/`orientation` could only describe a 2-D
+// stimulus, and `fill_color`/`outline_color`/`outline_width`/`draw_mode` were
+// synthesised per type (a grating reported its fore_color as "fill", a text
+// stimulus its text colour, both with an outline width of 0 that meant nothing).
+// A reader could not tell a real value from a filler one. They are reserved
+// rather than reused: field numbers are the wire contract.
 message QueryStimulusResponse {
   StimulusType stimulus_type = 1;
   bool enabled = 2; // user-level enable (ZMQ SetEnabled)
-  Vec2 pos = 3;
-  float orientation = 4; // degrees CCW
+  reserved 3, 4;    // were `pos` / `orientation` — now `placement.transform_2d`
   float opacity = 5; // shared per-stimulus opacity, [0, 1]
-  Color fill_color = 6;
-  Color outline_color = 7;
-  float outline_width = 8;
-  ShapeDrawMode draw_mode = 9;
+  reserved 6, 7, 8, 9; // were fill_color / outline_color / outline_width / draw_mode
+                       // — now ShapeAppearance inside the per-shape `params`
   StimulusParams params = 10;
   string id = 11; // stable UUID assigned at creation
   string name = 12; // human-readable label (empty if not set)
   bool anim_enabled = 13; // animation-level enable (set by animation system)
-  uint32 draw_order = 14; // 0-based position in scene draw order (0 = drawn first / behind)
+  uint32 draw_order = 14; // 0-based position in scene draw order (0 = drawn first / behind).
+                          // Meaningful within the 2-D pass, where draw order decides occlusion;
+                          // 3-D stimuli are ordered by the depth buffer instead.
   uint32 handle = 15; // server handle (map key). Set in snapshots; addresses mutations like SetPosition.
+
+  // Where the stimulus sits. One arm per dimension — `transform_3d` joins it
+  // with the 3-D stimulus types (dev/3D_ROADMAP.md §B.2).
+  oneof placement {
+    Transform2D transform_2d = 16;
+  }
 }

@@ -117,9 +117,12 @@
       "1": {
         "name": "sweep_left_to_right",
         "state": "Armed",
-        "stimuli": [
-          1
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            1
+          ]
+        },
         "start_action": 0,
         "start_action_trigger_line": null,
         "final_action": 24,

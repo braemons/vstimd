@@ -252,7 +252,7 @@ fn additive_load_preserves_armed_too() {
     let anim = scene.animations.values().next().unwrap();
     assert_eq!(anim.state, AnimState::Armed);
     assert!(
-        scene.stimuli.contains_key(&anim.stimuli[0]),
+        scene.stimuli.contains_key(&anim.target.stimuli()[0]),
         "additive load left the animation pointing at a remapped-away stimulus"
     );
 }

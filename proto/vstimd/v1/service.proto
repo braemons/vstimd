@@ -118,11 +118,8 @@ message Request {
     SetBackgroundRequest set_background = 70;
     SetDeferredModeRequest set_deferred_mode = 71;
     ClearStimuliRequest clear_stimuli = 72;
-    // 75/76 are claimed by the 3-D roadmap (set_camera, set_lighting) — see
-    // dev/3D_ROADMAP.md §10.2. Field numbers are the wire contract, so the
-    // clear commands take the next free pair instead.
-    ClearAnimationsRequest clear_animations = 77;
-    ClearAllRequest clear_all = 78;
+    ClearAnimationsRequest clear_animations = 75;
+    ClearAllRequest clear_all = 76;
     SetAllEnabledRequest set_all_enabled = 73;
 
     // ── Queries ─────────────────────────────────────────────────────────────

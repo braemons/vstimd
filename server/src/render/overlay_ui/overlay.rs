@@ -336,7 +336,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                                     } else { format!("#{h} {}", entry.name) };
                                     ui.horizontal(|ui| {
                                         ui.colored_label(state_col, format!("● {state_txt}"));
-                                        ui.label(format!("{name}  ({} stim)", entry.stimuli.len()));
+                                        ui.label(format!("{name}  ({} stim)", entry.target.stimuli().len()));
                                     });
                                     ui.horizontal(|ui| {
                                         if ui.small_button("Arm").clicked() { arm = Some(*h); }

@@ -3,6 +3,7 @@ package vstimd.v1;
 
 import "vstimd/v1/color.proto";
 import "vstimd/v1/vec2.proto";
+import "vstimd/v1/stimuli/shapes.proto";
 
 // System command: create a rectangle stimulus.
 // Returns the new handle in Response.handle and the UUID in Response.id.
@@ -25,4 +26,5 @@ message SetRectSizeRequest {
 message RectParams {
   float width = 1;
   float height = 2;
+  ShapeAppearance appearance = 3;
 }

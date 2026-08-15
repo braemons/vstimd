@@ -209,9 +209,12 @@
       "1": {
         "name": "flash_45deg_on_pin11",
         "state": "Armed",
-        "stimuli": [
-          1
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            1
+          ]
+        },
         "start_action": 10,
         "start_action_trigger_line": {
           "bank": 0,
@@ -249,9 +252,12 @@
       "2": {
         "name": "flash_135deg_on_pin12",
         "state": "Armed",
-        "stimuli": [
-          2
-        ],
+        "target": {
+          "kind": "Stimuli",
+          "handles": [
+            2
+          ]
+        },
         "start_action": 10,
         "start_action_trigger_line": {
           "bank": 0,

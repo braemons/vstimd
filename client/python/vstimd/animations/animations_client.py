@@ -22,6 +22,18 @@ def _to_stimuli(s: Stimuli) -> list[StimulusHandle]:
     return [s] if isinstance(s, int) else list(s)
 
 
+def _target(stimuli: Stimuli) -> animations_pb2.AnimationTarget:
+    """Wrap stimulus handles as the animation's target.
+
+    Targets are a oneof on the wire because stimuli are not the only thing an
+    animation can drive — the 3-D camera is an animatable scene object too — so
+    the same animation types will point at a viewpoint without a new API.
+    """
+    return animations_pb2.AnimationTarget(
+        stimuli=animations_pb2.AnimationStimuli(handles=_to_stimuli(stimuli)),
+    )
+
+
 def _sys() -> service_pb2.SystemTarget:
     return service_pb2.SystemTarget()
 
@@ -189,7 +201,7 @@ class AnimationClient:
             cancel_edge=int(cancel_edge),
             cancel_action_mask=int(cancel_action_mask),
             cancel_action_trigger_line=cancel_action_trigger_line._to_proto() if cancel_action_trigger_line else None,
-            stimuli=_to_stimuli(stimuli),
+            target=_target(stimuli),
             **body_kwargs,
         )
 

@@ -55,7 +55,7 @@ fn every_demo_parses() {
         );
         // Every animation must drive stimuli that exist in the same file.
         for (h, anim) in &scene.animations {
-            for sh in &anim.stimuli {
+            for sh in anim.target.stimuli() {
                 assert!(
                     scene.stimuli.contains_key(sh),
                     "demo '{name}': animation {h} drives unknown stimulus {sh}"

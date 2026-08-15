@@ -179,6 +179,16 @@ fn scene_draw_mode_to_proto(mode: SceneDrawMode) -> i32 {
     }
 }
 
+/// Shape fill/outline state → proto, for the per-shape query params.
+fn shape_appearance_to_proto(a: &ShapeAppearance) -> proto::ShapeAppearance {
+    proto::ShapeAppearance {
+        fill_color: Some(a.fill_color.into()),
+        outline_color: Some(a.outline_color.into()),
+        outline_width: a.stroke_width,
+        draw_mode: scene_draw_mode_to_proto(a.draw_mode),
+    }
+}
+
 // ── Main dispatcher ───────────────────────────────────────────────────────────
 
 impl SceneState {
@@ -798,7 +808,7 @@ impl SceneState {
                 Stimulus::Grating(GratingStimulus::new(
                     [center.x, center.y],
                     angle,
-                    [width / 2.0, height / 2.0],
+                    [width, height],
                     params,
                 )),
             ),
@@ -994,10 +1004,10 @@ impl SceneState {
             Err(resp) => return *resp,
         };
         let pos = cmd.pos.unwrap_or_default();
-        let size = cmd.size.unwrap_or_default();
+        let requested = cmd.box_size.unwrap_or_default();
         let box_size = [
-            if size.x == 0.0 { 200.0 } else { size.x },
-            if size.y == 0.0 { 100.0 } else { size.y },
+            if requested.x == 0.0 { 200.0 } else { requested.x },
+            if requested.y == 0.0 { 100.0 } else { requested.y },
         ];
         let letter_height_px = if cmd.letter_height == 0.0 {
             32.0
@@ -1171,98 +1181,66 @@ impl SceneState {
     ) -> proto::QueryStimulusResponse {
         let stim = &entry.stimulus;
 
+        // Everything that is true of any stimulus stays at the top level;
+        // per-type state goes in `params`, per-dimension placement in
+        // `placement`. Nothing is synthesised to fill a field that does not
+        // apply — a grating has no outline, and says so by omitting it.
+        let (stimulus_type, params) = match stim {
+            Stimulus::Rect(r) => (
+                proto::StimulusType::Rect,
+                proto::stimulus_params::Shape::Rect(proto::RectParams {
+                    width: r.size.live[0],
+                    height: r.size.live[1],
+                    appearance: Some(shape_appearance_to_proto(&r.appearance.live)),
+                }),
+            ),
+            Stimulus::Circle(c) => (
+                proto::StimulusType::Circle,
+                proto::stimulus_params::Shape::Circle(proto::CircleParams {
+                    radius: c.radius.live,
+                    appearance: Some(shape_appearance_to_proto(&c.appearance.live)),
+                }),
+            ),
+            Stimulus::Ellipse(e) => (
+                proto::StimulusType::Ellipse,
+                proto::stimulus_params::Shape::Ellipse(proto::EllipseParams {
+                    width: e.size.live[0],
+                    height: e.size.live[1],
+                    appearance: Some(shape_appearance_to_proto(&e.appearance.live)),
+                }),
+            ),
+            Stimulus::Grating(g) => (
+                proto::StimulusType::Grating,
+                grating_query_params(g)
+                    .shape
+                    .expect("grating_query_params always sets a shape"),
+            ),
+            Stimulus::Text(t) => (
+                proto::StimulusType::Text,
+                text_query_params(t)
+                    .shape
+                    .expect("text_query_params always sets a shape"),
+            ),
+        };
+
         let pos = stim.get_pos();
-        let angle = stim.transform().live.angle;
-
-        // `opacity` is the shared property; the per-colour alphas it scales stay
-        // visible in fill_color/outline_color.
-        let opacity = stim.opacity().live;
-        let (stimulus_type, params, fill_color, outline_color, outline_width, draw_mode) =
-            if let Some(app) = stim.shape_appearance() {
-                let a = app.live;
-                let (st, p) = match stim {
-                    Stimulus::Rect(r) => (
-                        proto::StimulusType::Rect as i32,
-                        Some(proto::StimulusParams {
-                            shape: Some(proto::stimulus_params::Shape::Rect(proto::RectParams {
-                                width: r.size.live[0],
-                                height: r.size.live[1],
-                            })),
-                        }),
-                    ),
-                    Stimulus::Circle(d) => (
-                        proto::StimulusType::Circle as i32,
-                        Some(proto::StimulusParams {
-                            shape: Some(proto::stimulus_params::Shape::Circle(
-                                proto::CircleParams {
-                                    radius: d.radius.live,
-                                },
-                            )),
-                        }),
-                    ),
-                    Stimulus::Ellipse(e) => (
-                        proto::StimulusType::Ellipse as i32,
-                        Some(proto::StimulusParams {
-                            shape: Some(proto::stimulus_params::Shape::Ellipse(
-                                proto::EllipseParams {
-                                    width: e.size.live[0],
-                                    height: e.size.live[1],
-                                },
-                            )),
-                        }),
-                    ),
-                    _ => unreachable!("shape_appearance() is Some only for shapes"),
-                };
-                (
-                    st,
-                    p,
-                    Some(a.fill_color.into()),
-                    Some(a.outline_color.into()),
-                    a.stroke_width,
-                    scene_draw_mode_to_proto(a.draw_mode),
-                )
-            } else {
-                match stim {
-                    Stimulus::Grating(s) => (
-                        proto::StimulusType::Grating as i32,
-                        Some(grating_query_params(s)),
-                        Some(s.params.live.fore_color.into()),
-                        None,
-                        0.0,
-                        proto::ShapeDrawMode::Filled as i32,
-                    ),
-                    Stimulus::Text(s) => (
-                        proto::StimulusType::Text as i32,
-                        Some(text_query_params(s)),
-                        Some(s.params.live.color.into()),
-                        None,
-                        0.0,
-                        proto::ShapeDrawMode::Filled as i32,
-                    ),
-                    _ => unreachable!("shapes handled in the if-branch"),
-                }
-            };
-
         let draw_order = self.config.stimuli.get_index_of(&handle).unwrap_or(0) as u32;
         proto::QueryStimulusResponse {
-            stimulus_type,
+            stimulus_type: stimulus_type as i32,
             enabled: stim.flags().enabled,
             anim_enabled: stim.flags().anim_enabled,
-            pos: Some(proto::Vec2 {
-                x: pos[0],
-                y: pos[1],
-            }),
-            orientation: angle,
-            opacity,
-            fill_color,
-            outline_color,
-            outline_width,
-            draw_mode,
-            params,
+            opacity: stim.opacity().live,
+            params: Some(proto::StimulusParams { shape: Some(params) }),
             id: entry.id.to_string(),
             name: entry.name.clone().unwrap_or_default(),
             draw_order,
             handle,
+            placement: Some(proto::query_stimulus_response::Placement::Transform2d(
+                proto::Transform2D {
+                    pos: Some(proto::Vec2 { x: pos[0], y: pos[1] }),
+                    rotation_deg: stim.transform().live.angle,
+                },
+            )),
         }
     }
 
@@ -1665,7 +1643,13 @@ impl SceneState {
                 config: super::animation::AnimationConfig {
                     name: cmd.name,
                     state: AnimState::Idle,
-                    stimuli: cmd.stimuli,
+                    target: super::animation::AnimationTarget::Stimuli {
+                        handles: cmd
+                            .target
+                            .and_then(|t| t.target)
+                            .map(|proto::animation_target::Target::Stimuli(s)| s.handles)
+                            .unwrap_or_default(),
+                    },
                     start_action,
                     start_action_trigger_line,
                     final_action,
@@ -1818,7 +1802,11 @@ impl SceneState {
             cancel_edge,
             cancel_action_mask: entry.cancel_action.bits() as u32,
             cancel_action_trigger_line: entry.cancel_action_trigger_line.map(vtl_bit_to_proto),
-            stimuli: entry.stimuli.clone(),
+            target: Some(proto::AnimationTarget {
+                target: Some(proto::animation_target::Target::Stimuli(
+                    proto::AnimationStimuli { handles: entry.target.stimuli().to_vec() },
+                )),
+            }),
             body: Some(animation_to_proto_body(&entry.animation)),
         };
 

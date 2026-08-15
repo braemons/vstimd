@@ -1,0 +1,18 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/vec2.proto";
+
+// Placement of a 2-D stimulus: centre in pixel-space (origin = screen centre,
+// Y-up) plus a rotation about that centre.
+//
+// This is one half of a pair. A stimulus' placement is the one "common-looking"
+// property that is *not* dimension-independent — a 3-D stimulus needs a
+// position, an orientation and a scale in world space, and cannot be described
+// by a Vec2 and one angle. So placement travels as a `oneof`, per dimension,
+// rather than as bare fields that only ever fit 2-D. `Transform3D` joins it when
+// 3-D stimuli arrive (dev/3D_ROADMAP.md §B.2).
+message Transform2D {
+  Vec2  pos          = 1; // centre in pixel-space
+  float rotation_deg = 2; // counter-clockwise degrees
+}

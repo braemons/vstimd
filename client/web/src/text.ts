@@ -22,7 +22,7 @@ export class TextClient {
         target: { case: "system", value: {} },
         body: {
           case: "createText",
-          value: { text, font, letterHeight, pos, color, name },
+          value: { text, font, letterHeight, pos, textColor: color, name },
         },
       }),
     );

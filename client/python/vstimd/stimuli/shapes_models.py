@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Sequence
 
 from vstimd._proto.vstimd.v1.stimuli import shapes_pb2
 
+from .color import Color
 from .vec import Vec2
 
 
@@ -29,23 +30,62 @@ _SHAPE_DRAW_MODE_TO_PROTO: dict[ShapeDrawMode, shapes_pb2.ShapeDrawMode] = {
 
 
 @dataclass
+class ShapeAppearance:
+    """Fill/outline state of a shape stimulus.
+
+    Reported with the shape's own params rather than at the top level of a
+    query, because only shapes have it: a grating has fore/back colours, text
+    has a glyph colour, and neither has an outline. The alphas here are the
+    colours' own — the shared ``StimulusInfo.opacity`` multiplies them.
+    """
+
+    fill_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0))
+    outline_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0))
+    outline_width: float = 0.0
+    draw_mode: ShapeDrawMode = ShapeDrawMode.FILLED
+
+    @classmethod
+    def from_proto(cls, proto: shapes_pb2.ShapeAppearance) -> ShapeAppearance:
+        return cls(
+            fill_color=Color.from_proto(proto.fill_color)
+            if proto.HasField("fill_color")
+            else Color(0.0, 0.0, 0.0),
+            outline_color=Color.from_proto(proto.outline_color)
+            if proto.HasField("outline_color")
+            else Color(0.0, 0.0, 0.0),
+            outline_width=proto.outline_width,
+            draw_mode=_PROTO_TO_DRAW_MODE.get(proto.draw_mode, ShapeDrawMode.FILLED),
+        )
+
+
+def _appearance_or_default(params: object) -> ShapeAppearance:
+    """`appearance` off a shape params message, defaulted when absent."""
+    proto = getattr(params, "appearance", None)
+    return ShapeAppearance.from_proto(proto) if proto is not None else ShapeAppearance()
+
+
+@dataclass
 class RectParams:
     width: float
     height: float
+    appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
 
 @dataclass
 class CircleParams:
     radius: float
+    appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
 
 @dataclass
 class EllipseParams:
     width: float
     height: float
+    appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
 
 @dataclass
 class PolygonParams:
     vertices: list[Vec2]
     close_shape: bool = True
+    appearance: ShapeAppearance = field(default_factory=ShapeAppearance)

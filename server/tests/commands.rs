@@ -46,8 +46,27 @@ fn set_deferred_mode_req(active: bool, cancel: bool) -> proto::Request {
     }
 }
 
+/// Proto animation target for a list of stimulus handles.
+fn anim_target(handles: Vec<u32>) -> proto::AnimationTarget {
+    proto::AnimationTarget {
+        target: Some(proto::animation_target::Target::Stimuli(
+            proto::AnimationStimuli { handles },
+        )),
+    }
+}
+
 fn is_ok(resp: &proto::Response) -> bool {
     resp.code == proto::ErrorCode::Ok as i32
+}
+
+
+/// The 2-D placement out of a query response, or panic — every stimulus in
+/// these tests is 2-D.
+fn placement_2d(info: &proto::QueryStimulusResponse) -> proto::Transform2D {
+    match info.placement.clone() {
+        Some(proto::query_stimulus_response::Placement::Transform2d(t)) => t,
+        None => panic!("query response carried no placement"),
+    }
 }
 
 // ── tests ─────────────────────────────────────────────────────────────────────
@@ -490,14 +509,14 @@ fn test_query_stimulus() {
     if let Some(proto::response::Body::StimulusInfo(info)) = resp.body {
         assert_eq!(info.stimulus_type, proto::StimulusType::Rect as i32);
         assert!(info.enabled);
-        let pos = info.pos.unwrap();
+        let pos = placement_2d(&info).pos.unwrap();
         assert_eq!(pos.x, 5.0);
         assert_eq!(pos.y, 10.0);
-        let fc = info.fill_color.unwrap();
-        assert_eq!(fc.r, 1.0);
         if let Some(proto::stimulus_params::Shape::Rect(rp)) = info.params.unwrap().shape {
             assert_eq!(rp.width, 200.0);
             assert_eq!(rp.height, 100.0);
+            // Appearance is shape state, reported with the shape's own params.
+            assert_eq!(rp.appearance.unwrap().fill_color.unwrap().r, 1.0);
         } else {
             panic!("expected Rect params");
         }
@@ -635,10 +654,10 @@ fn test_create_text() {
             text: "hello".into(),
             font: "Open Sans".into(),
             letter_height: 32.0,
-            size: Some(proto::Vec2 { x: 400.0, y: 80.0 }),
+            box_size: Some(proto::Vec2 { x: 400.0, y: 80.0 }),
             pos: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
             anchor: "center".into(),
-            color: Some(proto::Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }),
+            text_color: Some(proto::Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }),
             ..Default::default()
         })),
     }, None);
@@ -768,10 +787,10 @@ fn test_query_text_stimulus() {
             text: "hello".into(),
             font: "Cairo".into(),
             letter_height: 24.0,
-            size: Some(proto::Vec2 { x: 300.0, y: 60.0 }),
+            box_size: Some(proto::Vec2 { x: 300.0, y: 60.0 }),
             pos: Some(proto::Vec2 { x: 5.0, y: -10.0 }),
             anchor: "top-left".into(),
-            color: Some(proto::Color { r: 0.5, g: 0.5, b: 1.0, a: 1.0 }),
+            text_color: Some(proto::Color { r: 0.5, g: 0.5, b: 1.0, a: 1.0 }),
             ..Default::default()
         })),
     }, None).handle as u32;
@@ -785,14 +804,14 @@ fn test_query_text_stimulus() {
     if let Some(proto::response::Body::StimulusInfo(info)) = resp.body {
         assert_eq!(info.stimulus_type, proto::StimulusType::Text as i32);
         assert!(info.enabled);
-        let pos = info.pos.unwrap();
+        let pos = placement_2d(&info).pos.unwrap();
         assert_eq!((pos.x, pos.y), (5.0, -10.0));
         if let Some(proto::stimulus_params::Shape::Text(tp)) = info.params.unwrap().shape {
             assert_eq!(tp.text, "hello");
             assert_eq!(tp.font, "Cairo");
             assert_eq!(tp.letter_height, 24.0);
             assert_eq!(tp.anchor, "top-left");
-            let size = tp.size.unwrap();
+            let size = tp.box_size.unwrap();
             assert_eq!((size.x, size.y), (300.0, 60.0));
         } else {
             panic!("expected Text params");
@@ -944,7 +963,7 @@ fn create_animation_resolves_both_final_action_lines() {
         .handle_request(
             create_flash_req(proto::CreateAnimationRequest {
                 name: "flash".into(),
-                stimuli: vec![h],
+                target: Some(anim_target(vec![h])),
                 final_action_mask: 0x01 | 0x02 | 0x08 | 0x100,
                 final_action_trigger_line: Some(out_line(0, 37)),
                 final_action_level_line: Some(out_line(0, 35)),
@@ -971,7 +990,7 @@ fn level_line_without_the_done_level_bit_is_ignored() {
     scene
         .handle_request(
             create_flash_req(proto::CreateAnimationRequest {
-                stimuli: vec![h],
+                target: Some(anim_target(vec![h])),
                 final_action_mask: 0x01, // DISABLE only
                 final_action_level_line: Some(out_line(0, 35)),
                 body: Some(proto::create_animation_request::Body::FlashForNFrames(
@@ -995,7 +1014,7 @@ fn done_level_rejects_an_input_line() {
     let resp = scene
         .handle_request(
             create_flash_req(proto::CreateAnimationRequest {
-                stimuli: vec![h],
+                target: Some(anim_target(vec![h])),
                 final_action_mask: 0x100, // DONE_LEVEL
                 final_action_level_line: Some(in_line(0, 11)),
                 body: Some(proto::create_animation_request::Body::FlashForNFrames(
@@ -1021,7 +1040,7 @@ fn query_animation_reports_the_level_line() {
     scene
         .handle_request(
             create_flash_req(proto::CreateAnimationRequest {
-                stimuli: vec![h],
+                target: Some(anim_target(vec![h])),
                 final_action_mask: 0x100,
                 final_action_level_line: Some(out_line(0, 35)),
                 body: Some(proto::create_animation_request::Body::FlashForNFrames(
@@ -1182,5 +1201,104 @@ fn test_query_reports_shared_opacity() {
             panic!("{name}: unexpected query response body");
         };
         assert_eq!(q.opacity, 0.4, "{name} reported the wrong opacity");
+    }
+}
+
+// ── Sizes are full extents, end to end ────────────────────────────────────────
+
+/// Every create command takes full width/height and the scene stores exactly
+/// that, with no halving anywhere in between. This is the invariant the v3
+/// config format rests on, and it was missing for gratings — CreateGrating kept
+/// halving into the scene while the query multiplied back, so the wire looked
+/// right and the saved config was half size.
+#[test]
+fn test_create_stores_full_extents() {
+    let mut scene = SceneState::new();
+
+    let h = scene
+        .handle_request(create_rect_req(
+            sys(),
+            proto::CreateRectRequest { width: 200.0, height: 100.0, ..Default::default() },
+        ), None)
+        .handle as u32;
+    let Stimulus::Rect(r) = &scene.stimuli[&h].stimulus else { panic!("expected Rect") };
+    assert_eq!(r.size.live, [200.0, 100.0]);
+
+    let h = scene
+        .handle_request(proto::Request {
+            target: Some(sys()),
+            body: Some(request::Body::CreateEllipse(proto::CreateEllipseRequest {
+                width: 300.0, height: 120.0, ..Default::default()
+            })),
+        }, None)
+        .handle as u32;
+    let Stimulus::Ellipse(e) = &scene.stimuli[&h].stimulus else { panic!("expected Ellipse") };
+    assert_eq!(e.size.live, [300.0, 120.0]);
+
+    let h = scene
+        .handle_request(proto::Request {
+            target: Some(sys()),
+            body: Some(request::Body::CreateGrating(proto::CreateGratingRequest {
+                width: 400.0, height: 250.0, ..Default::default()
+            })),
+        }, None)
+        .handle as u32;
+    let Stimulus::Grating(g) = &scene.stimuli[&h].stimulus else { panic!("expected Grating") };
+    assert_eq!(g.size.live, [400.0, 250.0]);
+}
+
+/// …and a query reports the same numbers the create took, for every sized type.
+#[test]
+fn test_query_reports_the_size_that_was_asked_for() {
+    let mut scene = SceneState::new();
+    let cases: Vec<(&str, request::Body, fn(&proto::StimulusParams) -> (f32, f32))> = vec![
+        (
+            "rect",
+            request::Body::CreateRect(proto::CreateRectRequest {
+                width: 200.0, height: 100.0, ..Default::default()
+            }),
+            |p| match p.shape.as_ref().unwrap() {
+                proto::stimulus_params::Shape::Rect(r) => (r.width, r.height),
+                _ => panic!("wrong params type"),
+            },
+        ),
+        (
+            "ellipse",
+            request::Body::CreateEllipse(proto::CreateEllipseRequest {
+                width: 200.0, height: 100.0, ..Default::default()
+            }),
+            |p| match p.shape.as_ref().unwrap() {
+                proto::stimulus_params::Shape::Ellipse(e) => (e.width, e.height),
+                _ => panic!("wrong params type"),
+            },
+        ),
+        (
+            "grating",
+            request::Body::CreateGrating(proto::CreateGratingRequest {
+                width: 200.0, height: 100.0, ..Default::default()
+            }),
+            |p| match p.shape.as_ref().unwrap() {
+                proto::stimulus_params::Shape::Grating(g) => (g.width, g.height),
+                _ => panic!("wrong params type"),
+            },
+        ),
+    ];
+
+    for (name, body, extract) in cases {
+        let h = scene
+            .handle_request(proto::Request { target: Some(sys()), body: Some(body) }, None)
+            .handle as u32;
+        let resp = scene.handle_request(proto::Request {
+            target: Some(stim(h)),
+            body: Some(request::Body::QueryStimulus(proto::QueryStimulusRequest {})),
+        }, None);
+        let Some(proto::response::Body::StimulusInfo(info)) = resp.body else {
+            panic!("{name}: unexpected query response");
+        };
+        assert_eq!(
+            extract(&info.params.unwrap()),
+            (200.0, 100.0),
+            "{name}: query did not report the size it was created with",
+        );
     }
 }

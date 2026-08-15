@@ -36,6 +36,7 @@ message SetPolygonVerticesRequest {
 // ── Polygon query params ──────────────────────────────────────────────────────
 
 message PolygonParams {
-  repeated Vec2 vertices    = 1;
-  bool          close_shape = 2;
+  repeated Vec2   vertices    = 1;
+  bool            close_shape = 2;
+  ShapeAppearance appearance  = 3;
 }

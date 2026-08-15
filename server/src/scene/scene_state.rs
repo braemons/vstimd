@@ -182,7 +182,7 @@ impl SceneState {
             None => return false,
         };
         let was_running = matches!(entry.state, AnimState::Running { .. });
-        let stim_handles = entry.stimuli.clone();
+        let stim_handles = entry.target.stimuli().to_vec();
         entry.state = AnimState::Idle;
         if was_running {
             self.release_anim_hold(&stim_handles);
@@ -221,7 +221,7 @@ impl SceneState {
             None => return false,
         };
         if matches!(entry.state, AnimState::Running { .. }) {
-            self.release_anim_hold(&entry.config.stimuli);
+            self.release_anim_hold(&entry.config.target.stimuli().to_vec());
         }
         true
     }
@@ -384,7 +384,7 @@ impl SceneState {
                         .insert(new_handle, make_entry_dirty(entry));
                 }
                 for (handle, mut anim) in cfg.animations {
-                    for sh in &mut anim.config.stimuli {
+                    for sh in anim.config.target.stimuli_mut() {
                         *sh += stim_offset;
                     }
                     anim.state = state_after_load(&anim.state);

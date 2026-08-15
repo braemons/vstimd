@@ -72,7 +72,7 @@ pub(crate) fn advance_one(
                 // Either a final-action or cancel-action RESTORE_STATE needs the capture.
                 let captures_state = entry.final_action.contains(FinalAction::RESTORE_STATE)
                     || entry.cancel_action.contains(CancelAction::RESTORE_STATE);
-                let stim_handles: Vec<u32> = entry.config.stimuli.clone();
+                let stim_handles: Vec<u32> = entry.config.target.stimuli().to_vec();
                 let start_action = entry.start_action;
                 let start_action_trigger_line = entry.start_action_trigger_line;
                 // Only meaningful with DONE_LEVEL; None otherwise, so the clear
@@ -160,7 +160,9 @@ pub(crate) fn advance_one(
             return;
         };
         match entry.state {
-            AnimState::Running { frame_counter } => (frame_counter, entry.config.stimuli.clone()),
+            AnimState::Running { frame_counter } => {
+                (frame_counter, entry.config.target.stimuli().to_vec())
+            }
             _ => return,
         }
     };
@@ -350,7 +352,7 @@ pub(crate) fn cancel_one(
     match entry.state {
         AnimState::Running { .. } | AnimState::Armed => {
             let running = matches!(entry.state, AnimState::Running { .. });
-            let stim_handles = entry.config.stimuli.clone();
+            let stim_handles = entry.config.target.stimuli().to_vec();
             let action = entry.cancel_action.as_final_action();
             let trigger_line = entry.cancel_action_trigger_line;
             // Cancel has no level of its own; DONE_LEVEL is not a cancel action.
