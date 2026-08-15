@@ -170,6 +170,24 @@ pub enum VtlEdge {
     Falling,
 }
 
+/// Which level a level-sensitive animation treats as asserted.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum VtlPolarity {
+    #[default]
+    ActiveHigh,
+    ActiveLow,
+}
+
+impl VtlPolarity {
+    /// Whether `level` (the line's current level) counts as asserted.
+    pub fn is_asserted(self, level: bool) -> bool {
+        match self {
+            VtlPolarity::ActiveHigh => level,
+            VtlPolarity::ActiveLow => !level,
+        }
+    }
+}
+
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct VtlNameEntry {
     pub name:      String,

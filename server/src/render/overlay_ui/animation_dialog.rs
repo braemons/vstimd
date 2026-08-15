@@ -6,7 +6,7 @@
 //! intentionally omitted from v1.
 
 use crate::scene::animation::{Animation, CancelAction, FinalAction, StartAction};
-use crate::scene::{AnimState, AnimationEntry, VtlEdge, VtlBit};
+use crate::scene::{AnimState, AnimationEntry, VtlEdge, VtlPolarity, VtlBit};
 use vtl::VtlKind;
 
 /// A VTL line offered as a trigger choice: display label + resolved address.
@@ -46,7 +46,7 @@ pub struct AnimationDialog {
     line_idx: usize,
     edge_rising: bool,
     enable_to: bool,
-    polarity: bool,
+    visible_when_high: bool,
     // Move
     waypoints_text: String,
     speed: f32,
@@ -101,7 +101,7 @@ impl Default for AnimationDialog {
             line_idx: 0,
             edge_rising: true,
             enable_to: true,
-            polarity: true,
+            visible_when_high: true,
             waypoints_text: "0,0; 200,0; 200,200".to_string(),
             speed: 300.0,
             start_trig_enabled: false,
@@ -173,7 +173,11 @@ impl AnimationDialog {
             },
             AnimationDialogKind::CoupleVisibility => Animation::CoupleVisibilityToTriggerLine {
                 trigger: trigger.unwrap_or(VtlBit { bank: 0, bit: 0, kind: VtlKind::Input }),
-                polarity: self.polarity,
+                polarity: if self.visible_when_high {
+                    VtlPolarity::ActiveHigh
+                } else {
+                    VtlPolarity::ActiveLow
+                },
             },
             AnimationDialogKind::MoveSegments => Animation::MoveAlongSegments2D {
                 waypoints: Self::parse_waypoints(&self.waypoints_text),
@@ -315,7 +319,7 @@ impl AnimationDialog {
                             });
                             ui.checkbox(&mut self.enable_to, "Set enabled = true");
                         } else {
-                            ui.checkbox(&mut self.polarity, "Visible when line high");
+                            ui.checkbox(&mut self.visible_when_high, "Visible when line high");
                         }
                     }
                     AnimationDialogKind::MoveSegments => {

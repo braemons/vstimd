@@ -48,7 +48,7 @@ mask used for the triggered gratings, because here you want the edge.
 ```python
 gated = conn.animations.create_couple_visibility_to_trigger_line(
     gate, patch,
-    polarity=True,
+    polarity=VtlPolarity.ACTIVE_HIGH,
     name="gate_on_pin7",
 )
 conn.animations.arm(gated)
@@ -58,8 +58,9 @@ This animation never completes. Every frame it copies the line's level onto the
 stimulus's visibility, and it keeps doing that until you disarm or delete it.
 There is no `duration`, no `FinalAction`, and nothing to re-arm.
 
-`polarity=True` means HIGH shows the patch. Pass `False` for an active-low
-input, which is what you usually have when a TTL line idles high.
+`VtlPolarity.ACTIVE_HIGH` means HIGH shows the patch. Pass
+`VtlPolarity.ACTIVE_LOW` for an active-low input, which is what you usually have
+when a TTL line idles high.
 
 !!! tip "Level or edge?"
     Couple a level when the *external* system owns the timing and you want the
@@ -115,8 +116,8 @@ Saved as 'my_trigger_gate'.
 
 ## Try changing it
 
-- Flip `polarity` to `False` and confirm the patch inverts its behaviour — the
-  fastest test of an active-low input.
+- Flip `polarity` to `VtlPolarity.ACTIVE_LOW` and confirm the patch inverts its
+  behaviour — the fastest test of an active-low input.
 - Couple *two* stimuli to the same line by passing a list: one gate, several
   things appearing together.
 - Couple visibility to an **output** line instead, so a marker on screen follows

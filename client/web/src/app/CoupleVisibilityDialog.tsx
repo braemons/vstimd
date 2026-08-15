@@ -26,7 +26,7 @@ export function CoupleVisibilityDialog({ conn, snapshot, defaultName, onClose }:
   const [kind, setKind] = useState<VtlKind>("input");
   const [bank, setBank] = useState(0);
   const [bit, setBit] = useState(0);
-  const [polarity, setPolarity] = useState(true);
+  const [visibleWhenHigh, setVisibleWhenHigh] = useState(true);
   const [selected, setSelected] = useState<StimulusHandle[]>([]);
 
   function pickNamedLine(value: string) {
@@ -44,7 +44,10 @@ export function CoupleVisibilityDialog({ conn, snapshot, defaultName, onClose }:
   async function submit() {
     const trigger =
       kind === "input" ? VtlHandle.input(bank, bit) : VtlHandle.output(bank, bit);
-    await conn.animations.coupleVisibilityToTriggerLine(trigger, selected, { name, polarity });
+    await conn.animations.coupleVisibilityToTriggerLine(trigger, selected, {
+      name,
+      polarity: visibleWhenHigh ? "activeHigh" : "activeLow",
+    });
     onClose();
   }
 
@@ -85,7 +88,11 @@ export function CoupleVisibilityDialog({ conn, snapshot, defaultName, onClose }:
       </div>
       <Field label="Polarity">
         <label style={{ fontSize: 13 }}>
-          <input type="checkbox" checked={polarity} onChange={(e) => setPolarity(e.target.checked)} />{" "}
+          <input
+            type="checkbox"
+            checked={visibleWhenHigh}
+            onChange={(e) => setVisibleWhenHigh(e.target.checked)}
+          />{" "}
           visible when line high
         </label>
       </Field>

@@ -146,7 +146,7 @@
               "bit": 7,
               "kind": "Input"
             },
-            "polarity": true
+            "polarity": "ActiveHigh"
           }
         }
       }

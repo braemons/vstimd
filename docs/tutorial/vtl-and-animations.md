@@ -153,7 +153,9 @@ behaviours:
 
 ```python
 # Couple visibility directly to a line's level (on while HIGH):
-conn.animations.create_couple_visibility_to_trigger_line(trial_start, target, polarity=True)
+conn.animations.create_couple_visibility_to_trigger_line(
+    trial_start, target, polarity=VtlPolarity.ACTIVE_HIGH
+)
 
 # Set enabled once, on a specific edge:
 conn.animations.create_enable_on_trigger_edge(trial_start, target,
@@ -174,6 +176,11 @@ conn.animations.create_external_position_2d(target, shm_name="/vstimd_pos_myobj"
 All of them accept the same `start_trigger` / `*_action_mask` / `cancel_trigger`
 options as `flash`, so any of them can be armed on a hardware edge and can emit
 markers.
+
+`VtlPolarity` picks which level counts as asserted — `ACTIVE_HIGH` shows the
+stimulus while the line is HIGH, `ACTIVE_LOW` while it is LOW (what you want for
+a TTL line that idles high). Like `VtlEdge` it is an `IntEnum`, numbered so that
+`ACTIVE_HIGH` is truthy and `ACTIVE_LOW` falsy.
 
 ## 6. Chaining reactions on the device
 

@@ -7,6 +7,7 @@ from .animations_models import (
     FinalAction,
     StartAction,
     VtlEdge,
+    VtlPolarity,
 )
 from vstimd._handles import AnimationHandle
 
@@ -21,5 +22,6 @@ __all__ = [
     "StartAction",
     "Stimuli",
     "VtlEdge",
+    "VtlPolarity",
     "VtlHandle",
 ]

@@ -9,6 +9,7 @@ use vstimd::io_config::{
 };
 use vstimd::scene::animation::{Animation, StartAction};
 use vstimd::scene::{AnimState, FinalAction};
+use vstimd::vtl_state::VtlPolarity;
 
 /// Find a demo by name, or panic with the list of names that do exist.
 fn demo(name: &str) -> &'static str {
@@ -234,7 +235,11 @@ fn trigger_gate_follows_an_input_level() {
     let Animation::CoupleVisibilityToTriggerLine { trigger, polarity } = anim.animation else {
         panic!("demo_trigger_gate is not level-coupled");
     };
-    assert!(polarity, "HIGH should show the stimulus");
+    assert_eq!(
+        polarity,
+        VtlPolarity::ActiveHigh,
+        "HIGH should show the stimulus"
+    );
     assert_eq!(trigger.kind, vtl::VtlKind::Input);
     assert!(io.vtl.names.iter().any(|n| n.bit == trigger.bit && n.kind == trigger.kind));
 }
