@@ -24,7 +24,9 @@ bitflags::bitflags! {
         const FINAL_ACTION_TRIGGER_LINE = 0x08;
         const RESTART                 = 0x10;
         const REVERSE                 = 0x20;
-        const RESTORE_STATE           = 0x40;
+        /// Restore `enabled` to the value captured at start. Visibility only —
+        /// a motion animation leaves the stimulus where the motion ended.
+        const RESTORE_VISIBILITY         = 0x40;
         const END_DEFERRED            = 0x80;
         /// Drive `final_action_level_line` HIGH on completion and leave it
         /// there — a level answering "has this finished since it last
@@ -49,7 +51,7 @@ bitflags::bitflags! {
         /// Pulse `cancel_action_trigger_line` for one frame on cancel.
         const CANCEL_ACTION_TRIGGER_LINE = 0x08;
         /// Restore `user_enabled` captured at start (Running only; no-op if Armed).
-        const RESTORE_STATE              = 0x40;
+        const RESTORE_VISIBILITY              = 0x40;
         const END_DEFERRED               = 0x80;
     }
 }

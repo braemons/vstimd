@@ -27,8 +27,14 @@ pub struct SceneRuntimeState {
     pub deferred_mode: bool,
     /// Set by `DeferredMode{start:false}`; cleared by the render thread after flip.
     pub pending_flip: bool,
-    /// Measured frame rate, updated by the render thread each frame.
+    /// Rolling mean of measured frame durations, updated by the render thread
+    /// each frame. Telemetry only — it jitters, so nothing whose result has to
+    /// be reproducible may compute with it (#120).
     pub frame_rate: f32,
+    /// Nominal refresh rate of the display mode, set once by the render loop.
+    /// The rate animations convert against: a fixed property of the rig, so a
+    /// config plays back the same way on every run.
+    pub nominal_frame_rate: f32,
     /// Set by the render thread on each frame. `None` until the first frame completes.
     pub screen_size: Option<(u32, u32)>,
     /// Screen size at which meshes were last tessellated. When this changes all
@@ -59,6 +65,7 @@ impl SceneRuntimeState {
             deferred_mode: false,
             pending_flip: false,
             frame_rate: 60.0,
+            nominal_frame_rate: 60.0,
             screen_size: None,
             last_uploaded_size: (0, 0),
             error_mask: 0,

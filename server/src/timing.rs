@@ -126,6 +126,20 @@ impl FrameStats {
         Self::with_pacing(target_hz, Pacing::Vblank)
     }
 
+    /// The nominal refresh rate of the display mode, in Hz — what the rig is
+    /// paced to, as opposed to [`FrameSummary::fps`], which is what it measured.
+    ///
+    /// Anything whose result must be reproducible computes against this: a
+    /// measurement jitters, so a duration derived from it differs between runs
+    /// of the same config (#120).
+    pub fn nominal_hz(&self) -> f64 {
+        if self.expected_frame_ns == 0 {
+            0.0
+        } else {
+            1_000_000_000.0 / self.expected_frame_ns as f64
+        }
+    }
+
     /// See [`Pacing::AveragedRate`].
     pub fn new_rate_averaged(target_hz: f64) -> Self {
         Self::with_pacing(target_hz, Pacing::AveragedRate)

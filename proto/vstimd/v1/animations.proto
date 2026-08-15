@@ -94,7 +94,7 @@ message AnimationStimuli {
 // *transform* mean anything for a camera: MoveAlongPath2D, MoveAlongSegments2D
 // and ExternalPosition2D. The four that drive visibility — Flash, Flicker,
 // CoupleVisibilityToTriggerLine, EnableOnTriggerEdge — have nothing to act on,
-// and neither do the ENABLE / DISABLE / RESTORE_STATE action bits. A target arm
+// and neither do the ENABLE / DISABLE / RESTORE_VISIBILITY action bits. A target arm
 // that is not stimuli therefore has to be rejected for those at create time,
 // not silently ignored.
 message AnimationTarget {
@@ -122,7 +122,9 @@ message AnimationTarget {
 //   0x10  RESTART                   — restart the animation immediately on completion,
 //                                     without waiting for start_trigger again
 //   0x20  REVERSE                   — reserved
-//   0x40  RESTORE_STATE             — restore user_enabled to its value at animation start
+//   0x40  RESTORE_VISIBILITY        — restore `enabled` to its value at animation start.
+//                             Visibility only: an animation that moved the stimulus leaves
+//                             it where the motion ended.
 //   0x80  END_DEFERRED              — call end_deferred_mode on completion
 //  0x100  DONE_LEVEL                — drive final_action_level_line HIGH on completion and
 //                                     leave it there (cleared when the animation next
@@ -152,7 +154,7 @@ message CreateAnimationRequest {
   //   0x01  DISABLE                    — disable stimuli on cancel
   //   0x04  TOGGLE_PHOTODIODE          — toggle the photodiode indicator on cancel
   //   0x08  CANCEL_ACTION_TRIGGER_LINE — pulse cancel_action_trigger_line for one frame
-  //   0x40  RESTORE_STATE              — restore user_enabled captured at start (Running only)
+  //   0x40  RESTORE_VISIBILITY              — restore user_enabled captured at start (Running only)
   //   0x80  END_DEFERRED               — end deferred mode on cancel
   // 0 (default) = hard abort: leave visibility as-is.
   uint32                   cancel_action_mask = 17;
@@ -180,7 +182,7 @@ message CreateAnimationRequest {
 
 message ArmAnimationRequest    { uint32 handle = 1; }
 message DisarmAnimationRequest { uint32 handle = 1; }
-// Cancel an animation: applies its cancel_action_mask (DISABLE / RESTORE_STATE /
+// Cancel an animation: applies its cancel_action_mask (DISABLE / RESTORE_VISIBILITY /
 // trigger-line pulse / photodiode), releases any anim_enabled hold, and ends in
 // DONE. Unlike disarm (which just returns to IDLE), cancel is terminal; an empty
 // cancel_action_mask is a hard abort that leaves visibility as-is.

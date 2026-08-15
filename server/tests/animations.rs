@@ -787,18 +787,18 @@ fn disarm_while_armed_does_not_touch_anim_enabled() {
     );
 }
 
-// ── FinalAction::RESTORE_STATE ────────────────────────────────────────────────
+// ── FinalAction::RESTORE_VISIBILITY ────────────────────────────────────────────────
 
 #[test]
-fn restore_state_restores_user_enabled() {
+fn restore_visibility_restores_user_enabled() {
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
-    set_enabled(&mut scene, s, false); // start disabled; flash enables, RESTORE_STATE restores
+    set_enabled(&mut scene, s, false); // start disabled; flash enables, RESTORE_VISIBILITY restores
 
     let a = scene.add_animation({
         let mut e =
             AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 2 }, vec![s]);
-        e.final_action = FinalAction::RESTORE_STATE;
+        e.final_action = FinalAction::RESTORE_VISIBILITY;
         e
     });
 
@@ -807,13 +807,13 @@ fn restore_state_restores_user_enabled() {
     advance(&mut scene); // frame 0: captures enabled=false, enables stim
     assert!(is_enabled(&scene, s), "frame 0: stim enabled by flash");
 
-    advance(&mut scene); // frame 1: done, RESTORE_STATE restores enabled=false
+    advance(&mut scene); // frame 1: done, RESTORE_VISIBILITY restores enabled=false
     assert_eq!(anim_state(&scene, a), &AnimState::Done);
-    assert!(!is_enabled(&scene, s), "RESTORE_STATE restores disabled");
+    assert!(!is_enabled(&scene, s), "RESTORE_VISIBILITY restores disabled");
 }
 
 #[test]
-fn restore_state_captures_at_armed_to_running() {
+fn restore_visibility_captures_at_armed_to_running() {
     // The snapshot is taken when Armed→Running fires (first advance),
     // not at create or arm time.
     let mut scene = SceneState::new();
@@ -823,7 +823,7 @@ fn restore_state_captures_at_armed_to_running() {
     let a = scene.add_animation({
         let mut e =
             AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
-        e.final_action = FinalAction::RESTORE_STATE;
+        e.final_action = FinalAction::RESTORE_VISIBILITY;
         e
     });
 
@@ -835,18 +835,18 @@ fn restore_state_captures_at_armed_to_running() {
     assert!(scene.animations[&a].captured_user_enabled.is_none());
 
     // Advance: transition fires, captures enabled=false, flash sets enabled=true,
-    // then done → RESTORE_STATE restores enabled=false.
+    // then done → RESTORE_VISIBILITY restores enabled=false.
     advance(&mut scene);
     assert_eq!(anim_state(&scene, a), &AnimState::Done);
     assert!(
         !is_enabled(&scene, s),
-        "RESTORE_STATE restores the value captured at transition"
+        "RESTORE_VISIBILITY restores the value captured at transition"
     );
 }
 
 #[test]
-fn restore_state_takes_priority_over_disable() {
-    // RESTORE_STATE + DISABLE both set — RESTORE_STATE wins.
+fn restore_visibility_takes_priority_over_disable() {
+    // RESTORE_VISIBILITY + DISABLE both set — RESTORE_VISIBILITY wins.
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
     set_enabled(&mut scene, s, true);
@@ -854,7 +854,7 @@ fn restore_state_takes_priority_over_disable() {
     let a = scene.add_animation({
         let mut e =
             AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 1 }, vec![s]);
-        e.final_action = FinalAction::RESTORE_STATE | FinalAction::DISABLE;
+        e.final_action = FinalAction::RESTORE_VISIBILITY | FinalAction::DISABLE;
         e
     });
 
@@ -863,7 +863,7 @@ fn restore_state_takes_priority_over_disable() {
     // captured=true → restored to true; DISABLE branch skipped.
     assert!(
         is_enabled(&scene, s),
-        "RESTORE_STATE takes priority over DISABLE"
+        "RESTORE_VISIBILITY takes priority over DISABLE"
     );
 }
 
@@ -1291,8 +1291,8 @@ fn flicker_anim_enabled_restored_on_delete() {
 // ── Cancel: trigger edge + software command ───────────────────────────────────
 
 #[test]
-fn cancel_trigger_runs_cancel_action_restore_state() {
-    // Flash(10) with cancel_action=RESTORE_STATE; a cancel edge while Running
+fn cancel_trigger_runs_cancel_action_restore_visibility() {
+    // Flash(10) with cancel_action=RESTORE_VISIBILITY; a cancel edge while Running
     // restores the captured enabled=false and ends Done — well before duration.
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
@@ -1301,7 +1301,7 @@ fn cancel_trigger_runs_cancel_action_restore_state() {
     let a = scene.add_animation({
         let mut e =
             AnimationEntry::armed(Animation::FlashForNFrames { duration_frames: 10 }, vec![s]);
-        e.cancel_action = CancelAction::RESTORE_STATE;
+        e.cancel_action = CancelAction::RESTORE_VISIBILITY;
         e.cancel_trigger = Some((bit(0, 4), VtlEdge::Rising));
         e
     });
@@ -1310,10 +1310,10 @@ fn cancel_trigger_runs_cancel_action_restore_state() {
     assert!(is_enabled(&scene, s));
     assert!(matches!(anim_state(&scene, a), &AnimState::Running { .. }));
 
-    // Cancel edge fires → RESTORE_STATE restores enabled=false, Done.
+    // Cancel edge fires → RESTORE_VISIBILITY restores enabled=false, Done.
     advance_with(&mut scene, &rising_edge(0, 4));
     assert_eq!(anim_state(&scene, a), &AnimState::Done);
-    assert!(!is_enabled(&scene, s), "cancel runs RESTORE_STATE teardown");
+    assert!(!is_enabled(&scene, s), "cancel runs RESTORE_VISIBILITY teardown");
 }
 
 #[test]
@@ -1653,4 +1653,63 @@ fn output_edge_cancels_running_animation() {
     advance_with_edges(&mut scene, &no_edges(), &out_rising_edge(1, 3));
     assert_eq!(anim_state(&scene, a), &AnimState::Done, "output edge cancels A");
     assert!(!is_enabled(&scene, s), "cancel_action DISABLE applied");
+}
+
+// ── Reproducibility (#120) ────────────────────────────────────────────────────
+
+/// The same config, advanced the same number of frames, must put the stimulus in
+/// the same place — whatever the render thread happened to *measure* the frame
+/// rate as. `MoveAlongSegments2D` recomputes its duration every tick, so a
+/// jittering divisor used to move the trajectory underneath the animation.
+#[test]
+fn move_along_segments_ignores_the_measured_frame_rate() {
+    // Two runs of an identical scene, with wildly different measurements.
+    let positions_at = |measured_fps: f32| -> Vec<[f32; 2]> {
+        let mut scene = SceneState::new();
+        scene.runtime.nominal_frame_rate = 60.0;
+        scene.runtime.frame_rate = measured_fps;
+        let stim = create_rect(&mut scene);
+        let h = scene.add_animation(AnimationEntry::armed(
+            Animation::MoveAlongSegments2D {
+                waypoints: vec![[-300.0, 0.0], [300.0, 0.0]],
+                speed_px_per_sec: 600.0,
+            },
+            vec![stim],
+        ));
+        assert!(scene.animations.contains_key(&h));
+
+        (0..30)
+            .map(|_| {
+                advance(&mut scene);
+                scene.stimuli[&stim].stimulus.get_pos()
+            })
+            .collect()
+    };
+
+    let steady = positions_at(60.0);
+    let jittery = positions_at(143.9);
+    assert_eq!(
+        steady, jittery,
+        "trajectory depends on the measured frame rate — the same config plays back \
+         differently between runs (#120)",
+    );
+    // And the run must actually have moved, or the comparison proves nothing.
+    assert_ne!(steady.first(), steady.last(), "the stimulus never moved");
+}
+
+/// Grating drift accumulates per frame; it must accumulate against the nominal
+/// rate for the same reason.
+#[test]
+fn grating_drift_uses_the_nominal_frame_rate() {
+    use vstimd::scene::stimulus::{GratingParams, GratingStimulus};
+    use vstimd::scene::stimulus::grating::grating_phase_inc;
+
+    let s = GratingStimulus::new(
+        [0.0, 0.0],
+        0.0,
+        [100.0, 100.0],
+        GratingParams { drift_speed: 2.0, ..Default::default() },
+    );
+    // 2 cycles/s at 60 Hz is 1/30 cycle per frame, whatever the rig measured.
+    assert!((grating_phase_inc(&s, 60.0) - 2.0 / 60.0).abs() < 1e-6);
 }

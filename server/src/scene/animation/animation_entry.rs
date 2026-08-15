@@ -15,7 +15,7 @@ use crate::vtl_state::{VtlEdge, VtlBit};
 /// drive a transform (`MoveAlongPath2D`, `MoveAlongSegments2D`,
 /// `ExternalPosition2D`) mean anything for a camera; the four that drive
 /// visibility have nothing to act on, and nor do the `ENABLE` / `DISABLE` /
-/// `RESTORE_STATE` action bits. Adding the variant means adding the rule that
+/// `RESTORE_VISIBILITY` action bits. Adding the variant means adding the rule that
 /// rejects those combinations at create time — see the roadmap.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind")]
@@ -86,7 +86,7 @@ pub struct AnimationConfig {
 pub struct AnimationEntry {
     pub config: AnimationConfig,
     /// Snapshot of each stimulus's `user_enabled` taken when the animation first
-    /// transitions to Running. Used by `RESTORE_STATE` to undo visibility changes.
+    /// transitions to Running. Used by `RESTORE_VISIBILITY` to undo visibility changes.
     /// Not serialized — always None in saved configs.
     pub captured_user_enabled: Option<Vec<bool>>,
 }

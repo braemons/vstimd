@@ -1140,7 +1140,11 @@ impl SceneState {
             proto::QueryServerInfoResponse {
                 width: w,
                 height: h,
-                frame_rate: self.runtime.frame_rate,
+                // Nominal, not measured: this is what clients convert durations
+                // against, and a measurement would make the same script produce
+                // a different frame count on every run (#120).
+                frame_rate: self.runtime.nominal_frame_rate,
+                measured_frame_rate: self.runtime.frame_rate,
                 background_color: Some(bg.into()),
                 backend: proto::RenderBackend::Unspecified as i32,
                 version: Some(version),
@@ -1990,11 +1994,17 @@ fn proto_to_animation(
                 speed_px_per_sec: c.speed_px_per_sec,
             })
         }
-        Some(PBody::ExternalPosition2d(c)) => Ok(Animation::ExternalPosition2D {
-            shm_name: c.shm_name.clone(),
-            x_offset: c.x_offset,
-            y_offset: c.y_offset,
-        }),
+        // Refused rather than accepted-and-ignored: `advance_one` never opens the
+        // segment, so an accepted ExternalPosition2D arms, runs forever and moves
+        // nothing while reporting success — the stimulus silently stays put for a
+        // whole session. Returning NOT_SUPPORTED until #84 lands is the honest
+        // answer; the fields are kept so the message does not have to change.
+        Some(PBody::ExternalPosition2d(_)) => Err(Box::new(err(
+            proto::ErrorCode::NotSupported,
+            "ExternalPosition2D is not implemented yet (see \
+             https://github.com/braemons/vstimd/issues/84): the shared-memory \
+             segment is never read, so the stimulus would not move",
+        ))),
         None => Err(Box::new(err(
             proto::ErrorCode::InvalidArgument,
             "animation body must be set",

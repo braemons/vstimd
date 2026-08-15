@@ -495,6 +495,10 @@ class AnimationClient:
         self,
         stimuli: Stimuli,
         shm_name: str,
+        # NOT IMPLEMENTED — the server refuses this with NotSupportedError. The
+        # shared-memory segment is never read, so an accepted animation would
+        # report success and never move the stimulus. See
+        # https://github.com/braemons/vstimd/issues/84.
         *,
         x_offset: float = 0.0,
         y_offset: float = 0.0,

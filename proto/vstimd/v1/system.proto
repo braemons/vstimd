@@ -88,10 +88,17 @@ message Version {
 message QueryServerInfoResponse {
   uint32  width            = 1;   // display width in pixels
   uint32  height           = 2;   // display height in pixels
-  float   frame_rate       = 3;   // measured frame rate in Hz
-  Color   background_color = 4;
-  RenderBackend backend    = 5;
-  Version version          = 6;
+  // Nominal refresh rate of the display mode, in Hz. This is the rate to
+  // convert durations against: it is a fixed property of the rig, so the same
+  // script produces the same frame counts on every run. Use
+  // `measured_frame_rate` to *monitor* the rig, never to compute with.
+  float   frame_rate          = 3;
+  Color   background_color    = 4;
+  RenderBackend backend       = 5;
+  Version version             = 6;
+  // Rolling mean of actual frame durations, in Hz. Telemetry: it jitters, so a
+  // duration computed from it differs run to run.
+  float   measured_frame_rate = 7;
 }
 
 // One row in a ListStimuliResponse.

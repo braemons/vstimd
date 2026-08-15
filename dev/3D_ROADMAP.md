@@ -1247,7 +1247,7 @@ transform and mean something for a camera:
 | `EnableOnTriggerEdge` | visibility | ❌ |
 
 The action masks have the same split, and they apply to *every* animation regardless of kind:
-`ENABLE`, `DISABLE` and `RESTORE_STATE` act on stimulus visibility and are meaningless for a
+`ENABLE`, `DISABLE` and `RESTORE_VISIBILITY` act on stimulus visibility and are meaningless for a
 camera, while `TOGGLE_PHOTODIODE`, the trigger-line pulses, `REARM` / `RESTART`, `END_DEFERRED`
 and `DONE_LEVEL` are target-independent.
 
@@ -1302,7 +1302,7 @@ The methods carry the direction; the type names the state.
 Reject invalid combinations at create time with `ERROR_CODE_INVALID_ARGUMENT`; silently ignoring
 a `DISABLE` on a camera animation is the failure mode to avoid. The classification is worth
 having for its own sake, too: it is what a UI needs to group animations by, and what
-`RESTORE_STATE` semantics hang off.
+`RESTORE_VISIBILITY` semantics hang off.
 
 **Where this deliberately stops.** `AnimatableProperty` answers *"does the target have this kind
 of state at all?"* — a coarse question with few possible targets, which is exactly the question

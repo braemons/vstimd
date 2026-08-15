@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from vstimd import Connection
+from vstimd import Connection, NotSupportedError
 from vstimd.animations import AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
 from vstimd.stimuli.stimuli_models import Color, Vec2
 from vstimd.vtl import VtlKind, VtlHandle
@@ -664,16 +664,16 @@ def test_anim_move_along_segments_2d(
     conn.stimuli.delete(lbl)
 
 
-def test_anim_final_action_restore_state(
+def test_anim_final_action_restore_visibility(
     conn: Connection, request: pytest.FixtureRequest, step_delay: float
 ) -> None:
-    """RESTORE_STATE final action returns stimulus to its pre-animation enabled state."""
+    """RESTORE_VISIBILITY final action returns stimulus to its pre-animation enabled state."""
     tid = request.node.name
-    lbl = _label(conn, tid, "flash — restore_state restores disabled rect")
+    lbl = _label(conn, tid, "flash — restore_visibility restores disabled rect")
     s = _make_rect(conn, x=0, y=150, enabled=False)
 
     a = conn.animations.create_flash(
-        s, duration_frames=20, final_action_mask=FinalAction.RESTORE_STATE
+        s, duration_frames=20, final_action_mask=FinalAction.RESTORE_VISIBILITY
     )
     conn.animations.arm(a)
 
@@ -689,7 +689,7 @@ def test_anim_final_action_restore_state(
     assert final == AnimationState.DONE
 
     assert conn.stimuli.query(s).enabled is False, (
-        "RESTORE_STATE should restore pre-animation disabled state"
+        "RESTORE_VISIBILITY should restore pre-animation disabled state"
     )
 
     _update_label(conn, lbl, tid, "rect OFF (restored)")
@@ -943,17 +943,16 @@ def test_anim_moving_bar_rf_mapping(
     conn.stimuli.delete(lbl)
 
 
-def test_anim_external_position_2d(conn: Connection) -> None:
-    """create_external_position_2d registers the animation and returns a valid handle."""
+def test_anim_external_position_2d_is_refused(conn: Connection) -> None:
+    """Unimplemented, and refused rather than silently doing nothing (#84).
+
+    The server never opens the shared-memory segment, so accepting this would arm
+    an animation that reports success and leaves the stimulus where it was for the
+    whole session. Tighten this to the behavioural test when #84 lands.
+    """
     s = conn.stimuli.shapes.create_rect()
-    a = conn.animations.create_external_position_2d(s, shm_name="/vstimd_test_ext_pos")
-    assert a > 0
-
-    details = conn.animations.query(a)
-    assert details.handle == a
-    assert s in details.stimuli
-
-    conn.animations.delete(a)
+    with pytest.raises(NotSupportedError):
+        conn.animations.create_external_position_2d(s, shm_name="/vstimd_test_ext_pos")
     conn.stimuli.delete(s)
 
 

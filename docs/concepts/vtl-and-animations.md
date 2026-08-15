@@ -136,8 +136,8 @@ The action masks let you attach behaviour to each phase of the animation:
 | Phase | Mask | Useful bits |
 |---|---|---|
 | Armed → Running (start) | `StartAction` | `ENABLE`, `TOGGLE_PHOTODIODE`, `START_ACTION_TRIGGER_LINE` |
-| Completion (final) | `FinalAction` | `DISABLE`, `REARM`, `TOGGLE_PHOTODIODE`, `FINAL_ACTION_TRIGGER_LINE`, `DONE_LEVEL`, `RESTART`, `RESTORE_STATE`, `END_DEFERRED` |
-| Cancellation | `CancelAction` | `DISABLE`, `TOGGLE_PHOTODIODE`, `CANCEL_ACTION_TRIGGER_LINE`, `RESTORE_STATE`, `END_DEFERRED` |
+| Completion (final) | `FinalAction` | `DISABLE`, `REARM`, `TOGGLE_PHOTODIODE`, `FINAL_ACTION_TRIGGER_LINE`, `DONE_LEVEL`, `RESTART`, `RESTORE_VISIBILITY`, `END_DEFERRED` |
+| Cancellation | `CancelAction` | `DISABLE`, `TOGGLE_PHOTODIODE`, `CANCEL_ACTION_TRIGGER_LINE`, `RESTORE_VISIBILITY`, `END_DEFERRED` |
 
 Masks are `IntFlag`s, so combine them with `|`:
 
@@ -170,8 +170,15 @@ conn.animations.create_move_along_segments_2d(target, x=[0, 300], y=[0, 0],
                                               speed_px_per_sec=400)
 
 # Read position from a shared-memory float array each frame (closed-loop):
+# NOT IMPLEMENTED YET — the server refuses this with NotSupportedError.
 conn.animations.create_external_position_2d(target, shm_name="/vstimd_pos_myobj")
 ```
+
+!!! warning "`create_external_position_2d` is not implemented"
+    The server never opens the shared-memory segment, so it refuses the command
+    rather than accepting an animation that would report success and leave the
+    stimulus where it was. Follow
+    [#84](https://github.com/braemons/vstimd/issues/84).
 
 All of them accept the same `start_trigger` / `*_action_mask` / `cancel_trigger`
 options as `flash`, so any of them can be armed on a hardware edge and can emit

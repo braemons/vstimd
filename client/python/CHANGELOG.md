@@ -41,6 +41,19 @@ server and the client move together, and nothing has shipped yet.
   a `target` oneof on the wire. The Python signatures are unchanged — you still
   pass a handle or a list — but a saved config records
   `"target": {"kind": "Stimuli", "handles": [...]}`.
+- **`RESTORE_STATE` is now `RESTORE_VISIBILITY`.** It restores `enabled` and
+  nothing else — an animation that moved a stimulus leaves it where the motion
+  ended — so the name said more than the bit did.
+- **`create_external_position_2d` is refused** with `NotSupportedError` instead of
+  being accepted. The server never opens the shared-memory segment, so an accepted
+  animation armed, ran forever, reported success and never moved anything
+  ([#84](https://github.com/braemons/vstimd/issues/84)).
+- **`query_server_info().frame_rate` is the display's nominal refresh rate**, not a
+  rolling measurement. It is the rate `duration_ms` is converted against, so the
+  same script now yields the same frame counts on every run; the measurement moved
+  to `measured_frame_rate` for monitoring
+  ([#120](https://github.com/braemons/vstimd/issues/120)).
+
 - **Text field names agree across the three places they appear.**
   `CreateTextRequest.size` → `box_size` (matching the config field and the
   `box_width`/`box_height` arguments), and its `color` → `text_color` (matching
