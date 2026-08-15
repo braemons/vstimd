@@ -45,7 +45,8 @@ message CreateGratingRequest {
   float        contrast        = 7;  // contrast in [0, 1] (0 → default 1)
   Color        fore_color      = 8;  // peak colour (carrier = +1); absent → white
   Color        back_color      = 9;  // trough colour (carrier = −1); absent → black
-  float        opacity         = 10; // global opacity [0, 1] (0 → default 1)
+  // 10 was `opacity`: opacity is a shared property now, set with SetAlpha.
+  reserved 10;
   WaveformType waveform        = 11; // carrier waveform (default SIN)
   MaskType     mask            = 12; // aperture mask (default NONE)
   // Mask-specific parameter (interpreted per mask type; 0 → use default):
@@ -116,7 +117,8 @@ message SetGratingDriftAngleRequest {
 }
 
 // Stimulus command: set the peak (foreground) colour of a Grating stimulus.
-// RGB only — use SetGratingOpacityRequest to change opacity separately.
+// The colour's own alpha applies; the shared per-stimulus opacity (SetAlpha)
+// scales it.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
 message SetGratingForeColorRequest {
   Color fore_color = 1;
@@ -126,12 +128,6 @@ message SetGratingForeColorRequest {
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
 message SetGratingBackColorRequest {
   Color back_color = 1;
-}
-
-// Stimulus command: set the global opacity of a Grating stimulus.
-// Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
-message SetGratingOpacityRequest {
-  float opacity = 1;  // [0, 1]
 }
 
 // ── Grating query params ──────────────────────────────────────────────────────
@@ -150,5 +146,6 @@ message GratingParams {
   float        drift_angle     = 11;
   Color        fore_color      = 12; // peak colour (carrier = +1)
   Color        back_color      = 13; // trough colour (carrier = −1)
-  float        opacity         = 14;
+  // 14 was `opacity`: read it from QueryStimulusResponse.opacity instead.
+  reserved 14;
 }

@@ -82,7 +82,7 @@ fn every_demo_explains_itself_on_screen() {
         let vstimd::scene::Stimulus::Text(t) = &explanation.stimulus else {
             panic!("demo '{name}': the explanation is not a text stimulus");
         };
-        assert!(t.flags.enabled, "demo '{name}': the explanation is hidden");
+        assert!(t.common.flags.enabled, "demo '{name}': the explanation is hidden");
         assert!(
             t.text_live.contains(name),
             "demo '{name}': the explanation does not name the demo"
@@ -262,7 +262,7 @@ fn drifting_grating_demo_drifts() {
             _ => None,
         })
         .expect("no grating");
-    assert!(g.flags.enabled, "the grating starts hidden");
+    assert!(g.common.flags.enabled, "the grating starts hidden");
     assert!(g.params.live.drift_speed > 0.0, "the grating does not drift");
 }
 

@@ -34,7 +34,7 @@ message QueryStimulusResponse {
   bool enabled = 2; // user-level enable (ZMQ SetEnabled)
   Vec2 pos = 3;
   float orientation = 4; // degrees CCW
-  float opacity = 5;
+  float opacity = 5; // shared per-stimulus opacity, [0, 1]
   Color fill_color = 6;
   Color outline_color = 7;
   float outline_width = 8;

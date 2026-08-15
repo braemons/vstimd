@@ -4,7 +4,7 @@ use super::grating_stimulus::GratingStimulus;
 
 pub fn tessellate_grating(s: &GratingStimulus, half_w: f32, half_h: f32) -> (Vec<Vertex>, Vec<u32>) {
     let [hw, hh] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
-    let [cx, cy] = s.transform.live.pos;
+    let [cx, cy] = s.common.transform.live.pos;
     // Axis-aligned quad in NDC — the fragment shader handles orientation internally.
     let corners = [
         (cx - hw, cy - hh),

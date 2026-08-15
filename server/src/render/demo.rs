@@ -3,8 +3,8 @@ pub(crate) fn spawn_demo_stimuli(
 ) {
     use crate::scene::{
         Anchor, CircleStimulus, Deferred, GratingParams, GratingStimulus, LanguageStyle,
-        RectStimulus, ShapeAppearance, ShapeCommon, Stimulus, StimulusFlags, StimulusSceneEntry,
-        TextRenderParams, TextStimulus, Transform2D, Waveform,
+        RectStimulus, ShapeAppearance, StimulusCommon, Stimulus, StimulusSceneEntry,
+        TextRenderParams, TextStimulus, Waveform,
     };
     use rand::RngExt;
     use uuid::Uuid;
@@ -19,20 +19,14 @@ pub(crate) fn spawn_demo_stimuli(
             Uuid::new_v4(),
             Some("demo_circle".into()),
             Stimulus::Circle(CircleStimulus {
-                common: ShapeCommon {
-                    flags: StimulusFlags::enabled(true),
-                    transform: Deferred::new(Transform2D {
-                        pos: [
-                            rng.random_range(-500.0..500.0),
-                            rng.random_range(-500.0..500.0),
-                        ],
-                        angle: 0.0,
-                    }),
-                    appearance: Deferred::new(ShapeAppearance {
-                        fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
-                        ..Default::default()
-                    }),
-                },
+                common: StimulusCommon::new(
+                    [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
+                    0.0,
+                ),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
+                    ..Default::default()
+                }),
                 radius: Deferred::new(80.0),
             }),
         ),
@@ -44,20 +38,14 @@ pub(crate) fn spawn_demo_stimuli(
             Uuid::new_v4(),
             Some("demo_rect".into()),
             Stimulus::Rect(RectStimulus {
-                common: ShapeCommon {
-                    flags: StimulusFlags::enabled(true),
-                    transform: Deferred::new(Transform2D {
-                        pos: [
-                            rng.random_range(-500.0..500.0),
-                            rng.random_range(-500.0..500.0),
-                        ],
-                        angle: 30.0,
-                    }),
-                    appearance: Deferred::new(ShapeAppearance {
-                        fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
-                        ..Default::default()
-                    }),
-                },
+                common: StimulusCommon::new(
+                    [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
+                    30.0,
+                ),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
+                    ..Default::default()
+                }),
                 size: Deferred::new([240.0, 100.0]),
             }),
         ),

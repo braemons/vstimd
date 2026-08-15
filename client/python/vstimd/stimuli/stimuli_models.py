@@ -54,6 +54,7 @@ class StimulusInfo:
     enabled: bool
     pos: Vec2
     orientation: float
+    # Shared per-stimulus opacity in [0, 1]; multiplies the alpha of the colours below.
     opacity: float
     fill_color: Color
     outline_color: Color

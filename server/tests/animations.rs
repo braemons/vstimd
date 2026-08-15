@@ -15,8 +15,7 @@ use vstimd::scene::{
     SceneState,
     animation::{AnimState, Animation, AnimationEntry, CancelAction, FinalAction, StartAction},
     stimulus::{
-        RectStimulus, ShapeAppearance, ShapeCommon, Stimulus, StimulusSceneEntry, StimulusFlags,
-        Transform2D,
+        RectStimulus, ShapeAppearance, StimulusCommon, Stimulus, StimulusSceneEntry,
     },
 };
 use vstimd::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs};
@@ -77,14 +76,8 @@ fn create_rect(scene: &mut SceneState) -> u32 {
         Uuid::new_v4(),
         None,
         Stimulus::Rect(RectStimulus {
-            common: ShapeCommon {
-                flags: StimulusFlags::enabled(true),
-                transform: Deferred::new(Transform2D {
-                    pos: [0.0, 0.0],
-                    angle: 0.0,
-                }),
-                appearance: Deferred::new(ShapeAppearance::default()),
-            },
+            common: StimulusCommon::new([0.0, 0.0], 0.0),
+            appearance: Deferred::new(ShapeAppearance::default()),
             size: Deferred::new([50.0, 50.0]),
         }),
     ))

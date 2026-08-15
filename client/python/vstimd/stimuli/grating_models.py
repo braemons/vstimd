@@ -56,7 +56,6 @@ class GratingParams:
     drift_angle: float
     fore_color: tuple[float, float, float, float] = (1.0, 1.0, 1.0, 1.0)
     back_color: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)
-    opacity: float = 1.0
 
     @classmethod
     def from_proto(cls, proto: grating_pb2.GratingParams) -> GratingParams:
@@ -82,5 +81,4 @@ class GratingParams:
             drift_angle=proto.drift_angle,
             fore_color=fore,
             back_color=back,
-            opacity=proto.opacity if proto.opacity != 0.0 else 1.0,
         )

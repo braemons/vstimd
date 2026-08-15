@@ -3,7 +3,7 @@ use vstimd::io_config::{parse_config_json, retrieve_config_json};
 use vstimd::scene::animation::AnimState;
 use vstimd::scene::{
     CircleStimulus, Deferred, LoadMode, RectStimulus, SceneConfig, SceneState, ShapeAppearance,
-    ShapeCommon, Stimulus, StimulusFlags, StimulusSceneEntry, Transform2D,
+    StimulusCommon, StimulusFlags, Stimulus, StimulusSceneEntry,
 };
 use vstimd::vtl_state::{VtlConfig, VtlNameEntry};
 use vtl::VtlKind;
@@ -13,17 +13,11 @@ fn make_rect_entry() -> StimulusSceneEntry {
         Uuid::new_v4(),
         Some("test_rect".into()),
         Stimulus::Rect(RectStimulus {
-            common: ShapeCommon {
-                flags: StimulusFlags::enabled(true),
-                transform: Deferred::new(Transform2D {
-                    pos: [100.0, -50.0],
-                    angle: 45.0,
-                }),
-                appearance: Deferred::new(ShapeAppearance {
-                    fill_color: vstimd::Color::new(1.0, 0.5, 0.0, 1.0),
-                    ..Default::default()
-                }),
-            },
+            common: StimulusCommon::new([100.0, -50.0], 45.0),
+            appearance: Deferred::new(ShapeAppearance {
+                fill_color: vstimd::Color::new(1.0, 0.5, 0.0, 1.0),
+                ..Default::default()
+            }),
             size: Deferred::new([200.0, 80.0]),
         }),
     )
@@ -34,17 +28,13 @@ fn make_circle_entry() -> StimulusSceneEntry {
         Uuid::new_v4(),
         Some("test_circle".into()),
         Stimulus::Circle(CircleStimulus {
-            common: ShapeCommon {
-                flags: StimulusFlags::enabled(false),
-                transform: Deferred::new(Transform2D {
-                    pos: [-200.0, 300.0],
-                    angle: 0.0,
-                }),
-                appearance: Deferred::new(ShapeAppearance {
-                    fill_color: vstimd::Color::new(0.0, 0.0, 1.0, 1.0),
-                    ..Default::default()
-                }),
-            },
+            // Disabled on purpose: the round-trip must carry the flag, not just
+            // the geometry.
+            common: StimulusCommon { flags: StimulusFlags::enabled(false), ..StimulusCommon::new([-200.0, 300.0], 0.0) },
+            appearance: Deferred::new(ShapeAppearance {
+                fill_color: vstimd::Color::new(0.0, 0.0, 1.0, 1.0),
+                ..Default::default()
+            }),
             radius: Deferred::new(75.0),
         }),
     )
@@ -76,7 +66,7 @@ fn roundtrip_rect_stimulus() {
         panic!("expected rect");
     };
     assert_eq!(rect.common.transform.live.pos, [100.0, -50.0]);
-    assert!((rect.common.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
+    assert!((rect.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
 }
 
 #[test]

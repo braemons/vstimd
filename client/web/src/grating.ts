@@ -37,7 +37,6 @@ export class GratingClient {
     contrast?: number;
     foreColor?: Color;
     backColor?: Color;
-    opacity?: number;
     waveform?: Waveform;
     mask?: GratingMask;
     driftSpeed?: number;
@@ -45,7 +44,7 @@ export class GratingClient {
   } = {}): Promise<StimulusHandle> {
     const {
       pos = { x: 0, y: 0 }, width = 200, height = 200, sf = 0.05, phase = 0,
-      angle = 0, contrast = 1, foreColor, backColor, opacity = 1,
+      angle = 0, contrast = 1, foreColor, backColor,
       waveform = "sin", mask = "none", driftSpeed = 0, name = "",
     } = opts;
     const resp = await this.send(
@@ -55,7 +54,7 @@ export class GratingClient {
           case: "createGrating",
           value: {
             center: pos, width, height, sf, phase, angle, contrast,
-            foreColor, backColor, opacity,
+            foreColor, backColor,
             waveform: WAVEFORM[waveform], mask: MASK[mask], driftSpeed, name,
           },
         },
@@ -68,7 +67,7 @@ export class GratingClient {
   setContrast(h: StimulusHandle, contrast: number) { return this.cmd(h, { case: "setGratingContrast", value: { contrast } }); }
   setPhase(h: StimulusHandle, phase: number) { return this.cmd(h, { case: "setGratingPhase", value: { phase } }); }
   setDriftSpeed(h: StimulusHandle, speed: number) { return this.cmd(h, { case: "setGratingDriftSpeed", value: { speed } }); }
-  setOpacity(h: StimulusHandle, opacity: number) { return this.cmd(h, { case: "setGratingOpacity", value: { opacity } }); }
+  // Opacity is shared: use `conn.stimuli.setAlpha(handle, opacity)`.
   setWaveform(h: StimulusHandle, w: Waveform) { return this.cmd(h, { case: "setGratingWaveform", value: { waveform: WAVEFORM[w] } }); }
   setMask(h: StimulusHandle, m: GratingMask) { return this.cmd(h, { case: "setGratingMask", value: { mask: MASK[m] } }); }
   setForeColor(h: StimulusHandle, foreColor: Color) { return this.cmd(h, { case: "setGratingForeColor", value: { foreColor } }); }

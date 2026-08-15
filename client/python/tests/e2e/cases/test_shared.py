@@ -85,6 +85,45 @@ def test_set_alpha(conn: Connection) -> None:
     conn.stimuli.delete(handle)
 
 
+def test_set_alpha_on_every_stimulus_type(conn: Connection) -> None:
+    """Opacity is shared state — set_alpha is not a shapes-only command."""
+    handles = [
+        conn.stimuli.shapes.create_rect(),
+        conn.stimuli.shapes.create_circle(),
+        conn.stimuli.shapes.create_ellipse(),
+        conn.stimuli.grating.create_grating(),
+        conn.stimuli.text.create_text(text="opacity"),
+    ]
+    for handle in handles:
+        conn.stimuli.set_alpha(handle, 0.35)
+        assert conn.stimuli.query(handle).opacity == pytest.approx(0.35, abs=0.01)
+        conn.stimuli.delete(handle)
+
+
+def test_set_alpha_leaves_fill_alpha_alone(conn: Connection) -> None:
+    """A half-transparent fill under an opaque outline keeps that relationship:
+    the shared opacity multiplies both rather than overwriting either."""
+    handle = conn.stimuli.shapes.create_rect()
+    conn.stimuli.set_fill_color(handle, Color(1.0, 0.0, 0.0, 0.5))
+    conn.stimuli.set_outline_color(handle, Color(0.0, 0.0, 1.0, 1.0))
+    conn.stimuli.set_alpha(handle, 0.5)
+
+    info = conn.stimuli.query(handle)
+    assert info.fill_color.a == pytest.approx(0.5, abs=0.01)
+    assert info.outline_color.a == pytest.approx(1.0, abs=0.01)
+    assert info.opacity == pytest.approx(0.5, abs=0.01)
+    conn.stimuli.delete(handle)
+
+
+def test_set_alpha_clamps(conn: Connection) -> None:
+    handle = conn.stimuli.shapes.create_rect()
+    conn.stimuli.set_alpha(handle, 5.0)
+    assert conn.stimuli.query(handle).opacity == pytest.approx(1.0, abs=0.01)
+    conn.stimuli.set_alpha(handle, -2.0)
+    assert conn.stimuli.query(handle).opacity == pytest.approx(0.0, abs=0.01)
+    conn.stimuli.delete(handle)
+
+
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 def test_bring_to_front(conn: Connection) -> None:
     h1 = conn.stimuli.shapes.create_rect()

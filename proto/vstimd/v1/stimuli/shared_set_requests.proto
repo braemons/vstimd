@@ -34,7 +34,10 @@ message SetFillColorRequest {
   Color color = 1;
 }
 
-// Stimulus command: set global opacity (0.0 = transparent, 1.0 = opaque).
+// Stimulus command: set whole-stimulus opacity (0.0 = transparent, 1.0 = opaque).
+// Valid for every stimulus type. The value multiplies whatever alpha the
+// stimulus' own colours carry, so a shape with a half-transparent fill and an
+// opaque outline keeps that relationship at every opacity. Clamped to [0, 1].
 message SetAlphaRequest {
   float opacity = 1;
 }

@@ -14,9 +14,9 @@ use super::stimulus::text::{
     text_render_params_from_proto,
 };
 use super::stimulus::{
-    CircleStimulus, EllipseStimulus, RectStimulus, ShapeCommon, Stimulus, StimulusSceneEntry,
+    CircleStimulus, EllipseStimulus, RectStimulus, StimulusCommon, Stimulus, StimulusSceneEntry,
 };
-use super::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance, StimulusFlags, Transform2D};
+use super::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance};
 use crate::Color;
 use crate::io_config::{
     archive_timestamp_name, config_path, count_archive_configs, is_format_error, is_not_found,
@@ -115,7 +115,6 @@ fn command_summary(req: &proto::Request) -> String {
         }
         Some(request::Body::SetGratingForeColor(_)) => "SetGratingForeColor".into(),
         Some(request::Body::SetGratingBackColor(_)) => "SetGratingBackColor".into(),
-        Some(request::Body::SetGratingOpacity(c)) => format!("SetGratingOpacity({:.2})", c.opacity),
         Some(request::Body::QueryServerInfo(_)) => "QueryServerInfo".into(),
         Some(request::Body::QueryStimulus(_)) => "QueryStimulus".into(),
         Some(request::Body::ListStimuli(_)) => "ListStimuli".into(),
@@ -364,7 +363,6 @@ impl SceneState {
             }
             request::Body::SetGratingForeColor(cmd) => self.cmd_set_grating_fore_color(handle, cmd),
             request::Body::SetGratingBackColor(cmd) => self.cmd_set_grating_back_color(handle, cmd),
-            request::Body::SetGratingOpacity(cmd) => self.cmd_set_grating_opacity(handle, cmd),
             request::Body::SetText(cmd) => self.cmd_set_text(handle, cmd),
             request::Body::SetTextColor(cmd) => self.cmd_set_text_color(handle, cmd),
             request::Body::SetPolygonVertices(_) => err(
@@ -398,18 +396,12 @@ impl SceneState {
             id,
             nonempty(cmd.name),
             Stimulus::Rect(RectStimulus {
-                common: ShapeCommon {
-                    flags: StimulusFlags::enabled(true),
-                    transform: Deferred::new(Transform2D {
-                        pos: [center.x, center.y],
-                        angle: 0.0,
-                    }),
-                    appearance: Deferred::new(ShapeAppearance {
-                        fill_color: fill,
-                        outline_color: self.config.default_outline,
-                        ..Default::default()
-                    }),
-                },
+                common: StimulusCommon::new([center.x, center.y], 0.0),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color: fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
                 size: Deferred::new([width, height]),
             }),
         );
@@ -431,18 +423,12 @@ impl SceneState {
             id,
             nonempty(cmd.name),
             Stimulus::Circle(CircleStimulus {
-                common: ShapeCommon {
-                    flags: StimulusFlags::enabled(true),
-                    transform: Deferred::new(Transform2D {
-                        pos: [center.x, center.y],
-                        angle: 0.0,
-                    }),
-                    appearance: Deferred::new(ShapeAppearance {
-                        fill_color: fill,
-                        outline_color: self.config.default_outline,
-                        ..Default::default()
-                    }),
-                },
+                common: StimulusCommon::new([center.x, center.y], 0.0),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color: fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
                 radius: Deferred::new(radius),
             }),
         );
@@ -465,18 +451,12 @@ impl SceneState {
             id,
             nonempty(cmd.name),
             Stimulus::Ellipse(EllipseStimulus {
-                common: ShapeCommon {
-                    flags: StimulusFlags::enabled(true),
-                    transform: Deferred::new(Transform2D {
-                        pos: [center.x, center.y],
-                        angle: cmd.angle,
-                    }),
-                    appearance: Deferred::new(ShapeAppearance {
-                        fill_color: fill,
-                        outline_color: self.config.default_outline,
-                        ..Default::default()
-                    }),
-                },
+                common: StimulusCommon::new([center.x, center.y], cmd.angle),
+                appearance: Deferred::new(ShapeAppearance {
+                    fill_color: fill,
+                    outline_color: self.config.default_outline,
+                    ..Default::default()
+                }),
                 size: Deferred::new([width, height]),
             }),
         );
@@ -590,21 +570,12 @@ impl SceneState {
         match self.config.stimuli.get_mut(&handle) {
             None => err_not_found(handle),
             Some(entry) => {
-                let stim = &mut entry.stimulus;
-                if !stim.is_shape() {
-                    return err(
-                        proto::ErrorCode::WrongStimulusType,
-                        format!("SetAlpha is not supported for {} stimuli", stim.type_name()),
-                    );
-                }
-                let deferred = self.runtime.deferred_mode;
-                let app = stim.shape_appearance_mut().expect("is_shape checked");
-                let mut prev = if deferred { app.copy } else { app.live };
-                prev.fill_color.a = cmd.opacity;
-                app.set(deferred, prev);
-                if !deferred {
-                    stim.flags_mut().mark_dirty();
-                }
+                // Valid for every stimulus type: opacity is shared state, and
+                // multiplies the alpha of whatever colours the stimulus carries
+                // rather than overwriting any one of them.
+                entry
+                    .stimulus
+                    .set_opacity(self.runtime.deferred_mode, cmd.opacity);
                 ok_ack()
             }
         }
@@ -1014,23 +985,6 @@ impl SceneState {
         }
     }
 
-    fn cmd_set_grating_opacity(
-        &mut self,
-        handle: u32,
-        cmd: proto::SetGratingOpacityRequest,
-    ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_opacity(self.runtime.deferred_mode, cmd.opacity);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingOpacity", "Grating"),
-            },
-        }
-    }
-
     // ── CreateText ────────────────────────────────────────────────────────────
 
     fn cmd_create_text(&mut self, cmd: proto::CreateTextRequest) -> proto::Response {
@@ -1219,7 +1173,10 @@ impl SceneState {
         let pos = stim.get_pos();
         let angle = stim.transform().live.angle;
 
-        let (stimulus_type, params, fill_color, outline_color, outline_width, draw_mode, opacity) =
+        // `opacity` is the shared property; the per-colour alphas it scales stay
+        // visible in fill_color/outline_color.
+        let opacity = stim.opacity().live;
+        let (stimulus_type, params, fill_color, outline_color, outline_width, draw_mode) =
             if let Some(app) = stim.shape_appearance() {
                 let a = app.live;
                 let (st, p) = match stim {
@@ -1262,40 +1219,25 @@ impl SceneState {
                     Some(a.outline_color.into()),
                     a.stroke_width,
                     scene_draw_mode_to_proto(a.draw_mode),
-                    a.fill_color.a,
                 )
             } else {
                 match stim {
-                    Stimulus::Grating(s) => {
-                        let fc = s.params.live.fore_color;
-                        let op = s.params.live.opacity;
-                        (
-                            proto::StimulusType::Grating as i32,
-                            Some(grating_query_params(s)),
-                            Some(proto::Color {
-                                r: fc.r,
-                                g: fc.g,
-                                b: fc.b,
-                                a: op,
-                            }),
-                            None,
-                            0.0,
-                            proto::ShapeDrawMode::Filled as i32,
-                            op,
-                        )
-                    }
-                    Stimulus::Text(s) => {
-                        let c = s.params.live.color;
-                        (
-                            proto::StimulusType::Text as i32,
-                            Some(text_query_params(s)),
-                            Some(c.into()),
-                            None,
-                            0.0,
-                            proto::ShapeDrawMode::Filled as i32,
-                            c.a,
-                        )
-                    }
+                    Stimulus::Grating(s) => (
+                        proto::StimulusType::Grating as i32,
+                        Some(grating_query_params(s)),
+                        Some(s.params.live.fore_color.into()),
+                        None,
+                        0.0,
+                        proto::ShapeDrawMode::Filled as i32,
+                    ),
+                    Stimulus::Text(s) => (
+                        proto::StimulusType::Text as i32,
+                        Some(text_query_params(s)),
+                        Some(s.params.live.color.into()),
+                        None,
+                        0.0,
+                        proto::ShapeDrawMode::Filled as i32,
+                    ),
                     _ => unreachable!("shapes handled in the if-branch"),
                 }
             };

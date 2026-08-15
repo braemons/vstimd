@@ -99,6 +99,12 @@ class StimuliClient:
         ))
 
     def set_alpha(self, handle: StimulusHandle, opacity: float) -> ServerResponse:
+        """Set whole-stimulus opacity in [0, 1]. Valid for every stimulus type.
+
+        The value multiplies whatever alpha the stimulus' own colours carry, so a
+        shape with a half-transparent fill and an opaque outline keeps that
+        relationship at every opacity. Out-of-range values are clamped.
+        """
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,

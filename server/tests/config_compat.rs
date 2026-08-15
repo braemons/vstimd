@@ -19,7 +19,7 @@ fn load_v3_reference() {
     if let Stimulus::Rect(ref r) = rect_entry.stimulus {
         assert_eq!(r.common.transform.live.pos, [100.0, -50.0]);
         assert!((r.common.transform.live.angle - 30.0).abs() < 1e-4);
-        assert!((r.common.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
+        assert!((r.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
         assert!(r.common.flags.enabled);
         // v3 stores full extents — the same numbers CreateRect/SetRectSize take.
         assert_eq!(r.size.live, [400.0, 160.0]);

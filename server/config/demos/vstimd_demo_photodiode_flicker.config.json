@@ -42,6 +42,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "appearance": {
             "fill_color": [
               1.0,
@@ -80,6 +81,7 @@
             ],
             "angle": 0.0
           },
+          "opacity": 1.0,
           "params": {
             "color": [
               0.9,

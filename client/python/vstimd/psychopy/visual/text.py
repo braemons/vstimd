@@ -118,11 +118,13 @@ class TextBox2:
             letter_height=self._letter_height_px,
             font=font,
             anchor=anchor,
-            color=to_color(color, colorSpace, opacity) or StimulusColor(1.0, 1.0, 1.0, opacity),
-            fill_color=to_color(fillColor, fillColorSpace, opacity) or StimulusColor(0.0, 0.0, 0.0, 0.0),
+            color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0, 1.0),
+            fill_color=to_color(fillColor, fillColorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
             language_style=lang,
             name=name or "",
         )
+        if self._opacity != 1.0:
+            win._conn.stimuli.set_alpha(self._handle, self._opacity)
 
         if autoDraw:
             self.autoDraw = True
@@ -179,10 +181,15 @@ class TextBox2:
             self._color_space = colorSpace
         self.color = value
 
+    def _send_opacity(self) -> None:
+        # Opacity is a shared server-side property, kept out of the colour so
+        # `fillColor`'s own alpha and `opacity` stay independent.
+        self._win._dispatch(self._win._conn.stimuli.set_alpha, self._handle, self._opacity)
+
     def _resend_color(self) -> None:
         self._win._dispatch(
             self._win._conn.stimuli.text.set_text_color,
-            self._handle, to_color(self._color, self._color_space, self._opacity) or StimulusColor(1.0, 1.0, 1.0, self._opacity),
+            self._handle, to_color(self._color, self._color_space, 1.0) or StimulusColor(1.0, 1.0, 1.0, 1.0),
         )
 
     # ── opacity ───────────────────────────────────────────────────────────────
@@ -194,7 +201,7 @@ class TextBox2:
     @opacity.setter
     def opacity(self, value: float) -> None:
         self._opacity = float(value)
-        self._resend_color()
+        self._send_opacity()
 
     def setOpacity(self, value: float, log: bool | None = None) -> None:
         self.opacity = value

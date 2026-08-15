@@ -103,7 +103,8 @@ message Request {
     SetGratingDriftAngleRequest set_grating_drift_angle = 57;
     SetGratingForeColorRequest set_grating_fore_color = 58;
     SetGratingBackColorRequest set_grating_back_color = 59;
-    SetGratingOpacityRequest set_grating_opacity = 60;
+    // Field 60 was SetGratingOpacity — superseded by the shared SetAlpha (35).
+    // oneofs cannot carry `reserved`, so the number is simply left unused.
 
     // ── Text-specific mutations (stimulus target only) ──────────────────────
     SetTextRequest set_text = 61;

@@ -49,17 +49,22 @@ pub fn tessellate_shape_stimulus(
     let half_w = screen_size.0 as f32 * 0.5;
     let half_h = screen_size.1 as f32 * 0.5;
 
+    // The shared opacity is baked into the vertex colours here rather than
+    // pushed as a uniform: the shape pipeline has no per-draw constants, and a
+    // change of opacity already marks the stimulus dirty, so it re-tessellates.
+    let opacity = stimulus.opacity().live;
+
     Some(match stimulus {
-        Stimulus::Rect(s)    => tessellate_rect(s, half_w, half_h),
-        Stimulus::Ellipse(s) => tessellate_ellipse(s, half_w, half_h),
-        Stimulus::Circle(s)  => tessellate_circle(s, half_w, half_h),
+        Stimulus::Rect(s)    => tessellate_rect(s, opacity, half_w, half_h),
+        Stimulus::Ellipse(s) => tessellate_ellipse(s, opacity, half_w, half_h),
+        Stimulus::Circle(s)  => tessellate_circle(s, opacity, half_w, half_h),
         _ => unreachable!("is_shape() checked"),
     })
 }
 
 // ── Per-type tessellators ─────────────────────────────────────────────────────
 
-fn tessellate_rect(s: &RectStimulus, half_w: f32, half_h: f32) -> ShapeTessellationResult {
+fn tessellate_rect(s: &RectStimulus, opacity: f32, half_w: f32, half_h: f32) -> ShapeTessellationResult {
     let [hw, hh] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
     let mut builder = Path::builder();
     builder.add_rectangle(
@@ -67,17 +72,17 @@ fn tessellate_rect(s: &RectStimulus, half_w: f32, half_h: f32) -> ShapeTessellat
         Winding::Positive,
     );
     let path = builder.build();
-    tessellate_path(&path, s.common.transform.live, &s.common.appearance.live, half_w, half_h)
+    tessellate_path(&path, s.common.transform.live, &s.appearance.live, opacity, half_w, half_h)
 }
 
-fn tessellate_circle(s: &CircleStimulus, half_w: f32, half_h: f32) -> ShapeTessellationResult {
+fn tessellate_circle(s: &CircleStimulus, opacity: f32, half_w: f32, half_h: f32) -> ShapeTessellationResult {
     let mut builder = Path::builder();
     builder.add_circle(point(0.0, 0.0), s.radius.live, Winding::Positive);
     let path = builder.build();
-    tessellate_path(&path, s.common.transform.live, &s.common.appearance.live, half_w, half_h)
+    tessellate_path(&path, s.common.transform.live, &s.appearance.live, opacity, half_w, half_h)
 }
 
-fn tessellate_ellipse(s: &EllipseStimulus, half_w: f32, half_h: f32) -> ShapeTessellationResult {
+fn tessellate_ellipse(s: &EllipseStimulus, opacity: f32, half_w: f32, half_h: f32) -> ShapeTessellationResult {
     let [rx, ry] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
     let mut builder = Path::builder();
     builder.add_ellipse(
@@ -87,7 +92,7 @@ fn tessellate_ellipse(s: &EllipseStimulus, half_w: f32, half_h: f32) -> ShapeTes
         Winding::Positive,
     );
     let path = builder.build();
-    tessellate_path(&path, s.common.transform.live, &s.common.appearance.live, half_w, half_h)
+    tessellate_path(&path, s.common.transform.live, &s.appearance.live, opacity, half_w, half_h)
 }
 
 // ── Shared tessellation ───────────────────────────────────────────────────────
@@ -98,10 +103,17 @@ fn tessellate_path(
     path: &Path,
     transform: Transform2D,
     appearance: &ShapeAppearance,
+    opacity: f32,
     half_w: f32,
     half_h: f32,
 ) -> ShapeTessellationResult {
     let xf = transform.to_transform();
+    // Fill and outline keep their own alphas; the shared opacity scales both.
+    let appearance = &ShapeAppearance {
+        fill_color: appearance.fill_color.scaled_alpha(opacity),
+        outline_color: appearance.outline_color.scaled_alpha(opacity),
+        ..*appearance
+    };
     let tess_fill = matches!(appearance.draw_mode, DrawMode::Fill | DrawMode::FillAndStroke);
     let tess_stroke = matches!(
         appearance.draw_mode,

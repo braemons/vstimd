@@ -1,13 +1,13 @@
 use crate::scene::deferred::Deferred;
-use crate::scene::stimulus::{StimulusFlags, Transform2D};
+use crate::scene::stimulus::StimulusCommon;
 
 use super::text_params::{Anchor, LanguageStyle, TextRenderParams};
 
 /// Serializable text configuration.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct TextConfig {
-    pub flags: StimulusFlags,
-    pub transform: Deferred<Transform2D>,
+    #[serde(flatten)]
+    pub common: StimulusCommon,
     pub params: Deferred<TextRenderParams>,
     pub box_size: Deferred<[f32; 2]>,
     pub text_live: String,
@@ -71,8 +71,7 @@ impl TextStimulus {
         let text_copy = text.clone();
         Self {
             config: TextConfig {
-                flags: StimulusFlags::enabled(true),
-                transform: Deferred::new(Transform2D { pos, angle: 0.0 }),
+                common: StimulusCommon::new(pos, 0.0),
                 params: Deferred::new(params),
                 box_size: Deferred::new(box_size),
                 text_live: text,
@@ -91,7 +90,7 @@ impl TextStimulus {
         } else {
             self.text_live = text.clone();
             self.text_copy = text;
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
@@ -104,22 +103,19 @@ impl TextStimulus {
         self.params
             .set(deferred, TextRenderParams { color, ..prev });
         if !deferred {
-            self.flags.mark_dirty();
+            self.common.flags.mark_dirty();
         }
     }
 
     pub fn make_copy(&mut self) {
-        self.flags.make_copy();
-        self.transform.make_copy();
+        self.common.make_copy();
         self.params.make_copy();
         self.box_size.make_copy();
         self.text_copy = self.text_live.clone();
     }
 
     pub fn flip(&mut self) {
-        self.flags.get_copy();
-        self.flags.mark_dirty();
-        self.transform.flip();
+        self.common.flip();
         self.params.flip();
         self.box_size.flip();
         self.text_live = self.text_copy.clone();
@@ -149,17 +145,17 @@ mod tests {
         s.set_text(false, "world".into());
         assert_eq!(s.text_live, "world");
         assert_eq!(s.text_copy, "world");
-        assert!(s.flags.dirty);
+        assert!(s.common.flags.dirty);
     }
 
     #[test]
     fn set_text_deferred_only_updates_copy() {
         let mut s = default_stim();
-        s.flags.dirty = false;
+        s.common.flags.dirty = false;
         s.set_text(true, "world".into());
         assert_eq!(s.text_live, "hello");
         assert_eq!(s.text_copy, "world");
-        assert!(!s.flags.dirty);
+        assert!(!s.common.flags.dirty);
     }
 
     #[test]
@@ -184,17 +180,17 @@ mod tests {
         let mut s = default_stim();
         s.set_color(false, crate::Color::new(1.0, 0.0, 0.0, 0.5));
         assert_eq!(s.params.live.color, crate::Color::new(1.0, 0.0, 0.0, 0.5));
-        assert!(s.flags.dirty);
+        assert!(s.common.flags.dirty);
     }
 
     #[test]
     fn set_color_deferred_leaves_live_unchanged() {
         let mut s = default_stim();
-        s.flags.dirty = false;
+        s.common.flags.dirty = false;
         s.set_color(true, crate::Color::new(0.0, 1.0, 0.0, 1.0));
         assert_eq!(s.params.live.color, crate::Color::WHITE);
         assert_eq!(s.params.copy.color, crate::Color::new(0.0, 1.0, 0.0, 1.0));
-        assert!(!s.flags.dirty);
+        assert!(!s.common.flags.dirty);
     }
 
     #[test]

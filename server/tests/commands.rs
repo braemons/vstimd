@@ -109,7 +109,7 @@ fn test_create_rect_defaults() {
 
     let Stimulus::Rect(r) = &mut entry.stimulus else { panic!("expected Rect stimulus") };
     assert_eq!(r.size.live, [100.0, 100.0]); // width=0 → server default 100
-    assert_eq!(r.common.appearance.live.fill_color, default_fill);
+    assert_eq!(r.appearance.live.fill_color, default_fill);
 }
 
 #[test]
@@ -318,7 +318,9 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     assert_eq!(t.live.angle, 30.0);
 
     let app = stim.shape_appearance().expect("expected shape");
-    assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.9));
+    // SetAlpha writes the shared opacity and leaves the fill's own alpha alone.
+    assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
+    assert_eq!(stim.opacity().live, 0.9);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert_eq!(app.live.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
     assert_eq!(app.live.stroke_width, 7.0);
@@ -402,7 +404,9 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(app.live.outline_color, Color::new(0.21, 0.22, 0.23, 0.24));
     assert_eq!(app.live.stroke_width, 2.5);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::FillAndStroke);
-    assert_eq!(app.copy.fill_color, Color::new(0.1, 0.2, 0.3, 0.9));
+    assert_eq!(app.copy.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
+    assert_eq!(stim.opacity().copy, 0.9);
+    assert_eq!(stim.opacity().live, 1.0, "opacity is staged, not live, in deferred mode");
     assert_eq!(app.copy.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
     assert_eq!(app.copy.stroke_width, 7.0);
     assert!(app.copy.draw_mode == vstimd::scene::DrawMode::Stroke);
@@ -422,10 +426,11 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert_eq!(t.live.pos, [15.0, 25.0]);
     assert_eq!(t.live.angle, 30.0);
     let app = stim.shape_appearance().expect("expected shape");
-    assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.9));
+    assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
     assert_eq!(app.live.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
     assert_eq!(app.live.stroke_width, 7.0);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
+    assert_eq!(stim.opacity().live, 0.9, "the staged opacity flipped with the rest");
     assert!(stim.flags().dirty);
 }
 
@@ -649,7 +654,7 @@ fn test_create_text() {
     assert_eq!(t.font_family, "Open Sans");
     assert_eq!(t.letter_height_px, 32.0);
     assert_eq!(t.box_size.live, [400.0, 80.0]);
-    assert_eq!(t.transform.live.pos, [10.0, -20.0]);
+    assert_eq!(t.common.transform.live.pos, [10.0, -20.0]);
     assert_eq!(t.params.live.color, Color::new(1.0, 1.0, 0.0, 1.0));
     assert_eq!(t.params.live.fill_color.a, 0.0); // transparent by default
 }
@@ -694,7 +699,7 @@ fn test_set_text() {
     let Stimulus::Text(t) = &scene.stimuli[&h].stimulus else { panic!() };
     assert_eq!(t.text_live, "after");
     assert_eq!(t.text_copy, "after");
-    assert!(t.flags.dirty);
+    assert!(t.common.flags.dirty);
 }
 
 #[test]
@@ -1046,4 +1051,136 @@ fn query_animation_reports_the_level_line() {
     let params = q.params.expect("query returned no params");
     assert_eq!(params.final_action_mask & 0x100, 0x100, "DONE_LEVEL not reported");
     assert!(params.final_action_level_line.is_some(), "level line not reported");
+}
+
+// ── Shared opacity ────────────────────────────────────────────────────────────
+
+/// One stimulus of every type, so the shared-property tests can loop.
+fn one_of_each(scene: &mut SceneState) -> Vec<(&'static str, u32)> {
+    let mut out = vec![];
+    for (name, body) in [
+        ("Rect", request::Body::CreateRect(proto::CreateRectRequest::default())),
+        ("Circle", request::Body::CreateCircle(proto::CreateCircleRequest::default())),
+        ("Ellipse", request::Body::CreateEllipse(proto::CreateEllipseRequest::default())),
+        ("Grating", request::Body::CreateGrating(proto::CreateGratingRequest::default())),
+        (
+            "Text",
+            request::Body::CreateText(proto::CreateTextRequest {
+                text: "hello".into(),
+                ..Default::default()
+            }),
+        ),
+    ] {
+        let resp = scene.handle_request(
+            proto::Request { target: Some(sys()), body: Some(body) },
+            None,
+        );
+        assert!(is_ok(&resp), "creating a {name} failed: {}", resp.error);
+        out.push((name, resp.handle as u32));
+    }
+    out
+}
+
+fn set_alpha(scene: &mut SceneState, handle: u32, opacity: f32) -> proto::Response {
+    scene.handle_request(
+        proto::Request {
+            target: Some(stim(handle)),
+            body: Some(request::Body::SetAlpha(proto::SetAlphaRequest { opacity })),
+        },
+        None,
+    )
+}
+
+/// Opacity is shared state: SetAlpha works on every type, not just shapes.
+#[test]
+fn test_set_alpha_applies_to_every_stimulus_type() {
+    let mut scene = SceneState::new();
+    for (name, h) in one_of_each(&mut scene) {
+        let resp = set_alpha(&mut scene, h, 0.25);
+        assert!(is_ok(&resp), "SetAlpha on a {name} was rejected: {}", resp.error);
+        let stim = &scene.stimuli[&h].stimulus;
+        assert_eq!(stim.opacity().live, 0.25, "{name} did not take the opacity");
+        assert!(stim.flags().dirty, "{name} was not marked dirty");
+    }
+}
+
+/// Opacity multiplies the colours rather than replacing any one of them, so a
+/// half-transparent fill under an opaque outline keeps that relationship.
+#[test]
+fn test_set_alpha_leaves_per_colour_alpha_alone() {
+    let mut scene = SceneState::new();
+    let h = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None)
+        .handle as u32;
+    for (body, _) in [
+        (request::Body::SetFillColor(proto::SetFillColorRequest {
+            color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 0.5 }),
+        }), ()),
+        (request::Body::SetOutlineColor(proto::SetOutlineColorRequest {
+            color: Some(proto::Color { r: 0.0, g: 0.0, b: 1.0, a: 1.0 }),
+        }), ()),
+    ] {
+        let resp = scene.handle_request(
+            proto::Request { target: Some(stim(h)), body: Some(body) },
+            None,
+        );
+        assert!(is_ok(&resp));
+    }
+    assert!(is_ok(&set_alpha(&mut scene, h, 0.5)));
+
+    let stim = &scene.stimuli[&h].stimulus;
+    let app = stim.shape_appearance().expect("expected a shape");
+    assert_eq!(app.live.fill_color.a, 0.5, "the fill's own alpha was overwritten");
+    assert_eq!(app.live.outline_color.a, 1.0, "the outline's own alpha was overwritten");
+    assert_eq!(stim.opacity().live, 0.5);
+}
+
+#[test]
+fn test_set_alpha_clamps() {
+    let mut scene = SceneState::new();
+    let h = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None)
+        .handle as u32;
+
+    assert!(is_ok(&set_alpha(&mut scene, h, 4.0)));
+    assert_eq!(scene.stimuli[&h].stimulus.opacity().live, 1.0);
+    assert!(is_ok(&set_alpha(&mut scene, h, -1.0)));
+    assert_eq!(scene.stimuli[&h].stimulus.opacity().live, 0.0);
+}
+
+#[test]
+fn test_set_alpha_is_deferred_with_everything_else() {
+    let mut scene = SceneState::new();
+    let h = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None)
+        .handle as u32;
+
+    assert!(is_ok(&scene.handle_request(set_deferred_mode_req(true, false), None)));
+    assert!(is_ok(&set_alpha(&mut scene, h, 0.3)));
+    assert_eq!(scene.stimuli[&h].stimulus.opacity().live, 1.0, "opacity changed before the flip");
+
+    assert!(is_ok(&scene.handle_request(set_deferred_mode_req(false, false), None)));
+    scene.apply_flip();
+    assert_eq!(scene.stimuli[&h].stimulus.opacity().live, 0.3);
+}
+
+/// The query reports the shared property, for every type — not a per-type
+/// synthesis out of whichever colour that type happens to have.
+#[test]
+fn test_query_reports_shared_opacity() {
+    let mut scene = SceneState::new();
+    for (name, h) in one_of_each(&mut scene) {
+        assert!(is_ok(&set_alpha(&mut scene, h, 0.4)));
+        let resp = scene.handle_request(
+            proto::Request {
+                target: Some(stim(h)),
+                body: Some(request::Body::QueryStimulus(proto::QueryStimulusRequest {})),
+            },
+            None,
+        );
+        let Some(proto::response::Body::StimulusInfo(q)) = resp.body else {
+            panic!("{name}: unexpected query response body");
+        };
+        assert_eq!(q.opacity, 0.4, "{name} reported the wrong opacity");
+    }
 }

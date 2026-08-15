@@ -52,7 +52,7 @@ export function StimuliPanel({ conn, snapshot }: Props) {
       <table style={{ width: "100%", fontSize: 13, borderCollapse: "collapse" }}>
         <thead>
           <tr style={{ textAlign: "left", color: "#888" }}>
-            <th>On</th><th>Name</th><th>Kind</th><th>Pos</th><th></th>
+            <th>On</th><th>Name</th><th>Kind</th><th>Pos</th><th>Opacity</th><th></th>
           </tr>
         </thead>
         <tbody>
@@ -69,6 +69,19 @@ export function StimuliPanel({ conn, snapshot }: Props) {
               <td>{s.kind}</td>
               <td style={{ fontFamily: "monospace", whiteSpace: "pre" }}>
                 {String(Math.round(s.pos.x)).padStart(6)},{String(Math.round(s.pos.y)).padStart(6)}
+              </td>
+              <td>
+                {/* Shared property: valid for every kind, including gratings and text. */}
+                <input
+                  type="range"
+                  min={0}
+                  max={1}
+                  step={0.01}
+                  value={s.opacity}
+                  title={`opacity ${s.opacity.toFixed(2)}`}
+                  style={{ width: 70 }}
+                  onChange={(e) => conn?.stimuli.setAlpha(s.handle, Number(e.target.value))}
+                />
               </td>
               <td><button onClick={() => conn?.stimuli.delete(s.handle)}>✕</button></td>
             </tr>
