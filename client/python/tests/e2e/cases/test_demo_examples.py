@@ -8,7 +8,7 @@ the shipped config, so a tutorial cannot quietly drift away from the demo it
 says it builds — or from an API that has moved on.
 
 The comparison ignores what is genuinely runtime state rather than scene
-content: stimulus ids, handle numbering, whether an animation is currently
+content: stimulus ids, the numeric value of handles, whether an animation is currently
 `Armed` or `Running`, the visibility of a stimulus an animation is driving, the
 phase of a drifting grating, and the live photodiode level.
 """
@@ -60,6 +60,9 @@ def _canonical(cfg: dict) -> dict:
     entries = scene["stimuli"]
     animations = scene["animations"]
 
+    # Handle *values* are incidental, but their order is not: the scene stores
+    # stimuli in an IndexMap, so handle order is draw order — part of what a
+    # tutorial has to reproduce. Keep the sequence, drop the numbers.
     by_handle = sorted(entries, key=int)
     name_of = {h: entries[h]["name"] for h in by_handle}
     driven = {str(h) for a in animations.values() for h in a["stimuli"]}
@@ -145,6 +148,11 @@ def _run_demo_script(
         cwd=_PYTHON_CLIENT,
         capture_output=True,
         text=True,
+        # The slowest script (--toggle) sleeps its way through a handful of
+        # software edges in a few seconds. Anything near this bound means the
+        # script is stuck on the server, and we would rather fail than hang the
+        # whole e2e run.
+        timeout=120,
     )
     assert result.returncode == 0, (
         f"{script.name} failed (exit {result.returncode})\n"
