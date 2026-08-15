@@ -1,12 +1,15 @@
 //! The `Animation` enum — the kind of behaviour an animation drives, plus its
 //! per-kind parameters. Advancing these each frame lives in [`super::advance`].
 
-use crate::vtl_state::{VtlEdge, VtlBit};
+use crate::vtl_state::{VtlEdge, VtlBit, VtlPolarity};
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Animation {
     /// Mirror stimulus enabled state to the level of a trigger line (input or output).
-    CoupleVisibilityToTriggerLine { trigger: VtlBit, polarity: bool },
+    CoupleVisibilityToTriggerLine {
+        trigger: VtlBit,
+        polarity: VtlPolarity,
+    },
     /// Set stimulus enabled once when a trigger edge fires.
     EnableOnTriggerEdge {
         trigger: VtlBit,

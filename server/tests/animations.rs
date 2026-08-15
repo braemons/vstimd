@@ -19,7 +19,7 @@ use vstimd::scene::{
         Transform2D,
     },
 };
-use vstimd::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs};
+use vstimd::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs, VtlPolarity};
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -641,7 +641,7 @@ fn couple_visibility_tracks_input_level() {
     let a = scene.add_animation(AnimationEntry::armed(
         Animation::CoupleVisibilityToTriggerLine {
             trigger: bit(0, 1),
-            polarity: true,
+            polarity: VtlPolarity::ActiveHigh,
         },
         vec![s],
     ));
@@ -673,23 +673,23 @@ fn couple_visibility_inverted_polarity() {
     let _a = scene.add_animation(AnimationEntry::armed(
         Animation::CoupleVisibilityToTriggerLine {
             trigger: bit(0, 0),
-            polarity: false,
+            polarity: VtlPolarity::ActiveLow,
         },
         vec![s],
     ));
 
-    // Input LOW + polarity=false → visible.
+    // Input LOW + ActiveLow → visible.
     advance_with(&mut scene, &no_edges());
     assert!(
         is_anim_enabled(&scene, s),
-        "LOW with polarity=false → visible"
+        "LOW with ActiveLow polarity → visible"
     );
 
-    // Input HIGH + polarity=false → invisible.
+    // Input HIGH + ActiveLow → invisible.
     advance_with(&mut scene, &current_high(0, 0));
     assert!(
         !is_anim_enabled(&scene, s),
-        "HIGH with polarity=false → invisible"
+        "HIGH with ActiveLow polarity → invisible"
     );
 }
 
@@ -706,7 +706,7 @@ fn couple_visibility_anim_enabled_restored_on_disarm() {
     let a = scene.add_animation(AnimationEntry::armed(
         Animation::CoupleVisibilityToTriggerLine {
             trigger: bit(0, 0),
-            polarity: true,
+            polarity: VtlPolarity::ActiveHigh,
         },
         vec![s],
     ));
@@ -1240,7 +1240,7 @@ fn couple_visibility_anim_enabled_restored_on_delete() {
     let a = scene.add_animation(AnimationEntry::armed(
         Animation::CoupleVisibilityToTriggerLine {
             trigger: bit(0, 0),
-            polarity: true,
+            polarity: VtlPolarity::ActiveHigh,
         },
         vec![s],
     ));

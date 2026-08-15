@@ -37,6 +37,7 @@ from .animations import (
     FinalAction,
     StartAction,
     VtlEdge,
+    VtlPolarity,
 )
 from .exceptions import (
     VstimdError,
@@ -99,5 +100,6 @@ __all__ = [
     "FinalAction",
     "StartAction",
     "VtlEdge",
+    "VtlPolarity",
     "psychopy",
 ]
