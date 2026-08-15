@@ -1253,22 +1253,56 @@ and `DONE_LEVEL` are target-independent.
 
 So adding the `Camera` arm means adding the rule that goes with it. Rather than a
 kind × target matrix that every new animation kind has to be added to, have each kind declare
-what it drives:
+what it writes, and each target what it has, as **sets** rather than as one label:
 
 ```rust
-pub enum Drives { Visibility, Transform }
-
-impl Animation {
-    pub fn drives(&self) -> Drives { … }
+bitflags! {
+    /// The state an animation writes, and — for a target — the state it has.
+    pub struct Drives: u32 {
+        const VISIBILITY = 0x01;  // the enabled flag
+        const TRANSFORM  = 0x02;  // position / orientation
+        const APPEARANCE = 0x04;  // colours and the shared opacity
+        const GEOMETRY   = 0x08;  // size, radius, vertices
+        const PARAMS     = 0x10;  // type-specific parameters (grating sf, shader uniforms)
+    }
 }
+
+impl Animation      { pub fn drives(&self) -> Drives { … } }
+impl AnimationTarget { pub fn provides(&self) -> Drives { … } }
 ```
 
-Then the rule is one line — a non-stimulus target is valid iff `drives() == Transform` — and it
-stays correct as kinds are added, because a new kind cannot compile without answering the
-question. Reject the invalid combinations at create time with `ERROR_CODE_INVALID_ARGUMENT`;
-silently ignoring a `DISABLE` on a camera animation is the failure mode to avoid. The
-classification is worth having for its own sake, too: it is what a UI needs to group animations,
-and what `RESTORE_STATE` semantics hang off.
+Today: the four visibility kinds are `VISIBILITY`, the three motion kinds are `TRANSFORM`, and
+`AnimationTarget::Stimuli` provides everything. `Camera` would provide `TRANSFORM` alone. The
+rule is then one line and stays correct as kinds are added, because a new kind cannot compile
+without answering the question:
+
+```rust
+anim.drives().difference(target.provides()).is_empty()
+```
+
+A set, not an enum, because the axes are not exclusive and the list will grow. A fade is
+`APPEARANCE` — natural now that opacity is one shared property (#111). A looming stimulus is
+`GEOMETRY`. A contrast ramp is `PARAMS`. An animation that moves *and* fades declares both, and
+the check still holds.
+
+Reject invalid combinations at create time with `ERROR_CODE_INVALID_ARGUMENT`; silently ignoring
+a `DISABLE` on a camera animation is the failure mode to avoid. The classification is worth
+having for its own sake, too: it is what a UI needs to group animations by, and what
+`RESTORE_STATE` semantics hang off.
+
+**Where this deliberately stops.** `Drives` answers *"does the target have this kind of state at
+all?"* — a coarse question with few possible targets, which is exactly the question the target
+`oneof` creates. It does not answer *"does this particular stimulus have this particular
+property?"*: a contrast ramp is `PARAMS` whether it is pointed at a grating or at a text
+stimulus, and `PARAMS` cannot tell them apart. That second question already has a mechanism —
+`err_wrong_type` / `ERROR_CODE_WRONG_STIMULUS_TYPE`, which is how `SetGratingSf` rejects a rect —
+and animations that write type-specific state should use it, per stimulus, at create time.
+
+Custom shader uniforms are the case that proves the boundary: an animation driving a uniform by
+name can only be validated by looking the name up in that stimulus' shader. No enum, set or
+otherwise, can answer it, and one that appeared to would be lying. Keep `Drives` coarse, keep
+per-type validation where it already lives, and let a named-parameter animation validate its name
+at create time against the stimulus it addresses.
 
 This also reconciles with §11.2: `Flythrough3D` and `LinearNav3D` are proposed there because
 keyframed camera paths and treadmill-velocity navigation are genuinely new *behaviours*, not
