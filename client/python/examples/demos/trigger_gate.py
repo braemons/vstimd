@@ -15,7 +15,7 @@ exactly while an input line is HIGH. Level-coupled, not edge-triggered — there
 is no duration, no re-arming, and no state to get stuck in, which is what makes
 it the scene to load when you are debugging input wiring.
 
-See docs/tutorial/demos/trigger-gate.md for the walkthrough.
+See docs/tutorials/trigger-gate.md for the walkthrough.
 """
 
 import sys

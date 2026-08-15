@@ -1,4 +1,4 @@
-# Tutorial: Triggers & animations
+# Triggers & animations
 
 <span class="wip-badge">WIP</span>
 
@@ -23,7 +23,7 @@ Two building blocks:
     Every frame, at **vblank**, vstimd (1) polls input lines and drains their
     rising/falling-edge latches, (2) advances all animations, then (3) commits
     output lines. So a reaction and its output marker are locked to the exact frame
-    the stimulus changes. See [Frame timing](../concepts/frame-timing.md).
+    the stimulus changes. See [Frame timing](../developer/frame-timing.md).
 
 ## 1. Name your trigger lines
 
@@ -263,10 +263,10 @@ live state.
 
 ## Next
 
-- **[Build the demos yourself](demos/index.md)** — six worked scripts that put the
+- **[Build the demos yourself](../tutorials/index.md)** — six worked scripts that put the
   command API and this page together, starting with
-  [gratings armed on trigger lines and saved as a config](demos/gratings-triggers-config.md).
+  [gratings armed on trigger lines and saved as a config](../tutorials/gratings-triggers-config.md).
 - **[Integrating recording systems](recording-integration.md)** — wiring VTL output
   markers into ephys/imaging clocks, and TTL inputs from DAQs and Arduinos.
-- **[Frame timing](../concepts/frame-timing.md)** — the guarantee that makes
+- **[Frame timing](../developer/frame-timing.md)** — the guarantee that makes
   on-device reactions trustworthy.

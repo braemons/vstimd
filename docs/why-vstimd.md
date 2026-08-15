@@ -26,7 +26,7 @@ experiment into two halves:
     frame timing on cheap hardware. Its modular, network-first architecture
     (protobuf/ZMQ commands + shared-memory trigger lines) means it drops into
     whatever experiment-control stack you already use — including PsychoPy, via a
-    [compatibility layer](tutorial/command-api.md#psychopy-compatibility) — rather
+    [compatibility layer](concepts/command-api.md#psychopy-compatibility) — rather
     than replacing it.
 
 ## Related work and lineage
@@ -47,7 +47,7 @@ vstimd's shape is not new; it deliberately borrows from prior systems.
   time. Reacting to external events frame-by-frame is inherited from StimServer — which
   used **named events** *and* **shared memory** — and echoes Andreas Kreiter's **VStim**.
   vstimd generalises this into its
-  [Virtual Trigger Lines](tutorial/vtl-and-animations.md): a named, shared-memory bank of
+  [Virtual Trigger Lines](concepts/vtl-and-animations.md): a named, shared-memory bank of
   trigger bits polled every frame.
 - **Reactive / dataflow stimulus control.** The nearest thing in spirit is
   [**BonVision**](https://bonvision.github.io/) on
@@ -74,7 +74,7 @@ competes with — the frameworks above.
     logging in PsychoPy or MonkeyLogic, where they shine, and hand the
     *timing-critical drawing* to a vstimd device over the network — PsychoPy code
     can even talk to it through the
-    [PsychoPy-compatible layer](tutorial/command-api.md#psychopy-compatibility).
+    [PsychoPy-compatible layer](concepts/command-api.md#psychopy-compatibility).
     vstimd is most valuable when timing must be *guaranteed*, when the rig is
     *embedded or compact*, or when stimulus timing has to be *fused with
     electrophysiology or imaging*.
@@ -98,7 +98,7 @@ display and blocks on the true hardware vblank, so:
   moment.
 
 The result is **frame-accurate, low-jitter timing that you can measure and
-certify** (see [Frame timing](concepts/frame-timing.md)), on hardware that costs a
+certify** (see [Frame timing](developer/frame-timing.md)), on hardware that costs a
 fraction of a lab workstation.
 
 ## 2. Home-cage training and compact setups
@@ -131,7 +131,7 @@ wire protocol is language- and platform-neutral, so the controlling client can b
 
 Your analysis stack, your behavioural task engine, and your stimulus renderer no
 longer have to live in the same language or on the same machine. See
-[How vstimd works](tutorial/index.md).
+[How vstimd works](concepts/how-vstimd-works.md).
 
 ## 4. Built to plug into ephys and imaging
 
@@ -161,8 +161,8 @@ That means the timing-critical path — *trigger → stimulus change → recorde
 marker* — never leaves the real-time device, while your high-level task logic
 stays in whatever language and machine you prefer.
 
-See [Triggers & animations](tutorial/vtl-and-animations.md) and
-[Integrating recording systems](tutorial/recording-integration.md).
+See [Triggers & animations](concepts/vtl-and-animations.md) and
+[Integrating recording systems](concepts/recording-integration.md).
 
 ## At a glance
 
@@ -191,9 +191,9 @@ simplified.
 
 ## Where to go next
 
-- **[How vstimd works](tutorial/index.md)** — how scene setup (command / config APIs)
+- **[How vstimd works](concepts/how-vstimd-works.md)** — how scene setup (command / config APIs)
   and trigger-driven execution fit together.
-- **[Quick start](getting-started/quick-start.md)** — send your first stimulus in
-  a few lines.
-- **[Frame timing](concepts/frame-timing.md)** — how the guarantee is achieved and
+- **[Build the demos yourself](tutorials/index.md)** — annotated scripts that
+  rebuild each shipped demo scene from an empty scene.
+- **[Frame timing](developer/frame-timing.md)** — how the guarantee is achieved and
   measured.

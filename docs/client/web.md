@@ -27,7 +27,7 @@ configuration** rather than scripted experiments:
 
 For scripted, timing-critical experiments, drive the server from the
 [Python client](python.md) or arm on-device
-[animations](../tutorial/vtl-and-animations.md) instead.
+[animations](../concepts/vtl-and-animations.md) instead.
 
 ## Availability and configuration
 

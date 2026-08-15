@@ -2,7 +2,7 @@
 
 Each ``examples/demos/*.py`` script claims to rebuild one of the shipped demo
 configs in ``server/config/demos/``, and the matching tutorial page in
-``docs/tutorial/demos/`` walks through that script line by line. These tests run
+``docs/tutorials/`` walks through that script line by line. These tests run
 the scripts for real against the server and compare what lands in the scene with
 the shipped config, so a tutorial cannot quietly drift away from the demo it
 says it builds — or from an API that has moved on.

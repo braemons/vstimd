@@ -1,4 +1,4 @@
-# Tutorial: Integrating recording systems
+# Integrating recording systems
 
 <span class="wip-badge">WIP</span>
 
@@ -137,7 +137,7 @@ second clock to reconcile.
 ## See also
 
 - **[Triggers & animations](vtl-and-animations.md)** — the full VTL and animation API.
-- **[Frame timing](../concepts/frame-timing.md)** — how onset frames are pinned to
+- **[Frame timing](../developer/frame-timing.md)** — how onset frames are pinned to
   vblank.
 - **[`vtl` crate README](https://github.com/braemons/vstimd/blob/main/vtl/README.md)** —
   shared-memory layout for building a custom DAQ bridge.

@@ -3,7 +3,7 @@
 This page describes vstimd's internal structure — the threading model, the shared
 scene state, and the per-frame render loop. It is aimed at contributors working on
 the server itself. If you only want to *drive* vstimd from a client, see the
-[tutorials](../tutorial/index.md) and the [Python client](../client/python.md)
+[tutorials](../tutorials/index.md) and the [Python client](../client/python.md)
 instead.
 
 ## Overview
@@ -74,7 +74,7 @@ flowchart TB
 
 The order of the VTL poll → animation advance → output commit steps is the "frame
 contract" that makes on-device reactions frame-accurate — see
-[Frame timing](../concepts/frame-timing.md).
+[Frame timing](frame-timing.md).
 
 ## Scene state
 

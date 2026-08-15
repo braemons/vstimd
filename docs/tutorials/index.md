@@ -1,14 +1,14 @@
 # Build the demos yourself
 
-The [demo scenes](../../getting-started/demos.md) are ordinary configs, so every
+The [demo scenes](../getting-started/demos.md) are ordinary configs, so every
 one of them is something you could have built from a client. These six pages do
 exactly that: each takes one shipped demo apart and rebuilds it from an empty
 scene with the Python command API, then saves the result under a name of your
 own.
 
-That makes them the practical follow-on to the two preceding tutorials. Where
-[the command API](../command-api.md) teaches the calls and
-[triggers & animations](../vtl-and-animations.md) teaches the on-device
+That makes them the practical follow-on to the two API concepts pages. Where
+[the command API](../concepts/command-api.md) teaches the calls and
+[triggers & animations](../concepts/vtl-and-animations.md) teaches the on-device
 execution model, these pages show both being used together to produce a scene
 you can actually run an experiment with — and then persist, so the rig can boot
 into it with no client attached.
@@ -121,5 +121,5 @@ months later.
 ## Next
 
 - **[First light](first-light.md)** — start here; it is the smallest complete scene.
-- **[Demo scenes](../../getting-started/demos.md)** — what the shipped demos do, and which pins they use.
-- **[Saving & loading](../../concepts/saving-loading.md)** — the persistence model these scripts end on.
+- **[Demo scenes](../getting-started/demos.md)** — what the shipped demos do, and which pins they use.
+- **[Saving & loading](../concepts/saving-loading.md)** — the persistence model these scripts end on.

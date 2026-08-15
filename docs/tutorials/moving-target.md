@@ -69,7 +69,7 @@ Then the two final actions:
   want.
 - **`FINAL_ACTION_TRIGGER_LINE`** — pulse `out_pin36` for one frame at the end
   of each sweep, committed right after the vblank, which is what makes it a
-  usable mark. See [Frame timing](../../concepts/frame-timing.md).
+  usable mark. See [Frame timing](../developer/frame-timing.md).
 
 !!! note "No `start_trigger`, so arming starts it"
     An animation waits in `Armed` only if it has something to wait for. This one
@@ -114,4 +114,4 @@ Saved as 'my_moving_target' — sweeping now, and again on every load.
 ## Next
 
 - **[Photodiode & flicker](photodiode-flicker.md)** — measuring what the display is really doing.
-- **[Integrating recording systems](../recording-integration.md)** — turning those pulses into events.
+- **[Integrating recording systems](../concepts/recording-integration.md)** — turning those pulses into events.

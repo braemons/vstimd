@@ -81,7 +81,7 @@ Without `flicker` it is a static square, useful as a fixed luminance reference.
     photodiode tells you when photons actually changed. On a well-behaved rig
     those agree to within a frame; the gap between them is the number you
     quote in a methods section. See
-    [Frame timing](../../concepts/frame-timing.md).
+    [Frame timing](../developer/frame-timing.md).
 
 ## 4. Save
 
@@ -126,5 +126,5 @@ Photodiode patch on and inverting every frame.
 
 ## Next
 
-- **[Frame timing](../../concepts/frame-timing.md)** — what the numbers you just measured mean.
+- **[Frame timing](../developer/frame-timing.md)** — what the numbers you just measured mean.
 - **[Trigger gate](trigger-gate.md)** — the input-side equivalent of this check.

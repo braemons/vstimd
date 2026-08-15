@@ -136,4 +136,4 @@ Saved as 'my_trigger_gate'.
 ## Next
 
 - **[Gratings, triggers & a saved config](gratings-triggers-config.md)** — the edge-triggered counterpart, and how to persist a rig-ready setup.
-- **[Triggers & animations](../vtl-and-animations.md)** — the full VTL and animation reference.
+- **[Triggers & animations](../concepts/vtl-and-animations.md)** — the full VTL and animation reference.

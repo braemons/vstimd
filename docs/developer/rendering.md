@@ -4,7 +4,7 @@ This page covers how the render backends are built — the crates, the module la
 and the vblank-source selection logic. For *operating* a bare-metal rig (kernel
 setup, permissions, running without a compositor) see
 [Bare-metal Linux](../operations/bare-metal.md); for the frame-timing guarantee from
-a user's perspective see [Frame timing](../concepts/frame-timing.md).
+a user's perspective see [Frame timing](frame-timing.md).
 
 ## Backends
 

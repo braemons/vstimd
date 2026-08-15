@@ -14,7 +14,7 @@ grating that drifts on its own, with no animation and no trigger — the motion
 comes from the grating's own `drift_speed`, advanced by the render thread once
 per frame.
 
-See docs/tutorial/demos/drifting-grating.md for the walkthrough.
+See docs/tutorials/drifting-grating.md for the walkthrough.
 """
 
 import sys

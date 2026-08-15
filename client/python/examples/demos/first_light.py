@@ -13,7 +13,7 @@ Reproduces the shipped `demo_first_light` config: a title, a centre dot, and a
 40 px square in each corner, so one glance tells you the whole display is being
 driven. No animations, no triggers — the smallest complete scene there is.
 
-See docs/tutorial/demos/first-light.md for the walkthrough.
+See docs/tutorials/first-light.md for the walkthrough.
 """
 
 import sys

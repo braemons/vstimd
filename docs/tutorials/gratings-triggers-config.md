@@ -12,8 +12,8 @@ which is the workflow a rig operator actually wants, and the reason the command
 API and the animation system exist side by side.
 
 !!! info "Prerequisites"
-    [The command API](../command-api.md) for handles and `create_*`, and
-    [triggers & animations](../vtl-and-animations.md) for VTL lines, arming, and
+    [The command API](../concepts/command-api.md) for handles and `create_*`, and
+    [triggers & animations](../concepts/vtl-and-animations.md) for VTL lines, arming, and
     start/final actions. A running server; `--null` is fine, and no wiring is
     needed — [step 6](#6-fire-the-triggers-without-any-hardware) drives the
     inputs from software.
@@ -149,7 +149,7 @@ a rising edge appears on this input line. Nothing else starts the flash.
 `START_ACTION_TRIGGER_LINE` pulses `start_action_trigger_line` for one frame.
 That pulse is committed right after the vblank the grating first appears on —
 which is what makes it usable as an event mark rather than an approximation.
-See [Frame timing](../../concepts/frame-timing.md).
+See [Frame timing](../developer/frame-timing.md).
 
 **What to do at the end.** `DISABLE` hides the gratings again;
 `FINAL_ACTION_TRIGGER_LINE` pulses the *end* line for one frame;
@@ -212,7 +212,7 @@ with Connection("tcp://vstimd-ab12.local:5555") as conn:
 
 The animations come back in the state they were saved in, so after the load the
 device is already waiting for edges on `in_pin11` and `in_pin12`. See
-[Saving & loading](../../concepts/saving-loading.md) for `additive=True`,
+[Saving & loading](../concepts/saving-loading.md) for `additive=True`,
 `retrieve`/`upload`, and where the files live.
 
 ## 6. Fire the triggers without any hardware
@@ -262,7 +262,7 @@ Notes on that file:
 
 - The template lives at `server/config/default-rig-config.toml`, which
   documents every key with the defaults commented out.
-- On a rig with the [Samba shares](../../operations/appliance-setup.md#6-admin-access-ssh-optional-samba)
+- On a rig with the [Samba shares](../operations/appliance-setup.md#6-admin-access-ssh-optional-samba)
   installed, `/etc/braemons` is a network share, so this is a file you can edit
   from a lab Windows or macOS machine without SSHing in.
 - `--config <path>` on the command line overrides `[startup] load_config`.
@@ -303,5 +303,5 @@ Both fired. On a wired rig those edges come from the DAQ instead.
 ## Next
 
 - **[Moving target](moving-target.md)** — an animation that repeats itself with no trigger at all.
-- **[Integrating recording systems](../recording-integration.md)** — what to do with those onset and end pulses.
-- **[Saving & loading](../../concepts/saving-loading.md)** — the full persistence model.
+- **[Integrating recording systems](../concepts/recording-integration.md)** — what to do with those onset and end pulses.
+- **[Saving & loading](../concepts/saving-loading.md)** — the full persistence model.
