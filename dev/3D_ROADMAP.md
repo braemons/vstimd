@@ -257,6 +257,59 @@ pub fn stimulus_to_world(pos: [f32; 2], screen_size: [f32; 2], camera: &Camera3D
 pub fn world_to_stimulus(world: glam::Vec3, screen_size: [f32; 2], camera: &Camera3D) -> [f32; 2] { ... }
 ```
 
+### 3.5 Why 2-D is not simply 3-D at z = 0
+
+A recurring and reasonable suggestion: drop the two coordinate systems, give every
+stimulus a `Transform3D`, and let 2-D stimuli sit at `z = 0`. It would delete the
+`transform2d()` / `transform3d()` split (§9.3), the `placement` oneof in the query
+response, and the transform half of the target-gating rule (§11.1). Unity works this
+way — sprites are 3-D objects with a z — so it is not a strange idea. (Godot does the
+opposite, keeping `Node2D` and `Node3D` as separate trees with separate renderers.)
+
+It does not hold here, for four reasons that are about this domain rather than about
+inertia:
+
+1. **2-D is a HUD, not flat 3-D.** The frame is composed 3-D first, 2-D overlaid
+   (§1.2). A fixation point, a caption, a photodiode patch or a trial marker has to
+   be on top *regardless of world geometry*. At `z = 0` in a shared depth buffer, any
+   3-D object nearer than the origin occludes them. The fix — a depth clear between
+   passes, or a reserved z range for overlays — is the layer distinction again, made
+   implicit and easier to get wrong.
+
+2. **The units differ, and the difference is the point.** World space is centimetres
+   so corridor geometry maps to the animal's physical environment (§3.2); stimulus
+   space is pixels so spatial frequency in cycles/pixel and the photodiode patch are
+   display-exact (§3.1). One transform forces one unit, and a per-stimulus unit flag
+   is two concepts wearing one type.
+
+3. **Draw order is explicit and user-controlled.** `BringToFront` / `SendToBack` /
+   `draw_order` are painter's-algorithm semantics the experimenter sets deliberately.
+   Two stimuli at `z = 0` have no defined order, so the explicit ordering would have
+   to stay — leaving both z and draw order deciding occlusion, which is worse than
+   either alone.
+
+4. **It would not unify the renderer, which is where the cost actually is.** 2-D
+   tessellates straight to NDC (`render/tess.rs`), with no camera, no projection and
+   no depth buffer. Changing the data model does not merge the pipelines; it adds a
+   projection whose job is to reproduce the pixel-exactness the direct path gives for
+   free. Pixel-exactness is the property that must not regress.
+
+Set against that, the cost of keeping them separate is two accessor bodies and one
+`oneof` field.
+
+**What this does *not* rule out.** The *internal* representation may still become 3-D
+later — 2-D stimuli as `z = 0` geometry under an orthographic camera — as a renderer
+decision. The public surface is mostly insulated from it:
+
+| surface | affected? |
+|---|---|
+| wire API (`CreateRect{center, …}`, `SetPosition`, `SetOrientation`, `placement.transform_2d`) | **no** — convert at the boundary: `pos → (x, y, 0)`, `angle → rotation about Z`, and back |
+| config JSON (`"transform": {"pos": [x, y], "angle": 30}`) | **yes, unless deliberately preserved** — serde writes the internal struct, so keeping the 2-D form means a custom `Serialize`/`Deserialize` (or a wrapper type). Otherwise it is a format change and a `CONFIG_VERSION` bump, and configs are hand-edited and version-controlled by users |
+| observable output | **must be verified, not assumed** — an ortho projection reproducing exact pixel placement is a test, not a given |
+
+So the option stays open, and the wire is already shaped for it. It is simply not
+worth spending before a single 3-D stimulus exists to share the path with.
+
 ---
 
 ## 4. Phase A — 3-D Infrastructure
