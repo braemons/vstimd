@@ -67,7 +67,7 @@ client/matlab/
 | `StimServer.Defer(1)` | `SetDeferredModeRequest{active:true}` | |
 | `StimServer.Defer(0)` | `SetDeferredModeRequest{active:false}` | |
 | `StimServer.Defer(2)` | `SetDeferredModeRequest{active:false, cancel:true}` | |
-| `StimServer.RemoveAll()` | `DeleteAllRequest` | |
+| `StimServer.RemoveAll()` | `ClearStimuliRequest` (or `ClearAllRequest` to take the animations too) | |
 | `StimServer.ShowAll(v)` | `SetAllEnabledRequest` | |
 | `StimServer.GetFrameRate()` | `QueryServerInfoRequest` → `frame_rate` | |
 | `StimServer.GetScreenSize()` | `QueryServerInfoRequest` → `[width height]` | |

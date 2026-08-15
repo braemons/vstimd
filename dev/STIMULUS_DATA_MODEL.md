@@ -265,7 +265,7 @@ pub struct EllipseStimulus {
     pub flags:      StimulusFlags,
     pub transform:  Deferred<Transform2D>,
     pub appearance: Deferred<Appearance>,
-    pub radii:      Deferred<[f32; 2]>,    // [rx, ry]
+    pub size:       Deferred<[f32; 2]>,    // [width, height] (full extents)
 }
 ```
 
@@ -493,7 +493,7 @@ impl Stimulus {
             Stimulus::Petal(s)       => { s.params.make_copy(); }
             Stimulus::Wedge(s)       => { s.half_angle.make_copy(); }
             Stimulus::Rect(s)        => { s.size.make_copy(); }
-            Stimulus::Ellipse(s)     => { s.radii.make_copy(); }
+            Stimulus::Ellipse(s)     => { s.size.make_copy(); }
             Stimulus::Disc(s)        => { s.radius.make_copy(); }
             Stimulus::Bitmap(s)      => { s.alpha.make_copy(); s.phi_inc.make_copy(); }
             Stimulus::WgslShader(s)  => { s.params.make_copy(); }
@@ -512,7 +512,7 @@ impl Stimulus {
             Stimulus::Petal(s)       => { s.params.flip();  s.rebuild = true; }
             Stimulus::Wedge(s)       => { s.half_angle.flip(); s.rebuild = true; }
             Stimulus::Rect(s)        => { s.size.flip(); }
-            Stimulus::Ellipse(s)     => { s.radii.flip(); }
+            Stimulus::Ellipse(s)     => { s.size.flip(); }
             Stimulus::Disc(s)        => { s.radius.flip(); }
             Stimulus::Bitmap(s)      => { s.alpha.flip(); s.phi_inc.flip(); }
             Stimulus::WgslShader(s)  => { s.params.flip(); }
@@ -716,7 +716,7 @@ Render thread, start of frame:
 pub fn tessellate(stimulus: &Stimulus, screen_size: [f32; 2]) -> (Vec<Vertex>, Vec<u32>) {
     match stimulus {
         Stimulus::Rect(s)    => tessellate_rect(&s.size.live, &s.transform.live, &s.appearance.live),
-        Stimulus::Ellipse(s) => tessellate_ellipse(&s.radii.live, &s.transform.live, &s.appearance.live),
+        Stimulus::Ellipse(s) => tessellate_ellipse(&s.size.live, &s.common.transform.live, &s.appearance.live),
         Stimulus::Petal(s)   => tessellate_petal(&s.params.live, &s.transform.live, &s.appearance.live),
         Stimulus::Wedge(s)   => tessellate_wedge(s.half_angle.live, screen_size, &s.transform.live, &s.appearance.live),
         Stimulus::Disc(s)    => tessellate_disc(s.radius.live, &s.transform.live, &s.appearance.live),
