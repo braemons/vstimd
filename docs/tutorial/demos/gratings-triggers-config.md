@@ -39,13 +39,13 @@ LINES = [
     ("out_pin32", 0, 32, VtlKind.OUTPUT),
 ]
 
-    for name, bank, bit, kind in LINES:
-        conn.vtl.set_line_name(bank, bit, kind, name=name)
+for name, bank, bit, kind in LINES:
+    conn.vtl.set_line_name(bank, bit, kind, name=name)
 
-    in_45,   in_135   = VtlHandle.input(0, 11),  VtlHandle.input(0, 12)
-    on_45,   on_135   = VtlHandle.output(0, 36), VtlHandle.output(0, 38)
-    end_45,  end_135  = VtlHandle.output(0, 37), VtlHandle.output(0, 40)
-    done_45, done_135 = VtlHandle.output(0, 35), VtlHandle.output(0, 32)
+in_45,   in_135   = VtlHandle.input(0, 11),  VtlHandle.input(0, 12)
+on_45,   on_135   = VtlHandle.output(0, 36), VtlHandle.output(0, 38)
+end_45,  end_135  = VtlHandle.output(0, 37), VtlHandle.output(0, 40)
+done_45, done_135 = VtlHandle.output(0, 35), VtlHandle.output(0, 32)
 ```
 
 The names here read like header pins because the shipped `gpiochip-daqd`
@@ -62,21 +62,21 @@ output are different lines. That is why `VtlHandle.input` and
 ```python
 from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 
-    gratings = {}
-    for label, angle in (("45deg", 45.0), ("135deg", 135.0)):
-        handle = conn.stimuli.grating.create_grating(
-            pos=Vec2(0, 0),
-            width=600, height=600,
-            sf=0.02,
-            angle=angle,
-            contrast=1.0,
-            waveform=GratingTexture.SIN,
-            mask=GratingMask.RAISED_COS,
-            mask_param=0.2,
-            name=f"grating_{label}",
-        )
-        conn.stimuli.set_enabled(handle, False)
-        gratings[label] = handle
+gratings = {}
+for label, angle in (("45deg", 45.0), ("135deg", 135.0)):
+    handle = conn.stimuli.grating.create_grating(
+        pos=Vec2(0, 0),
+        width=600, height=600,
+        sf=0.02,
+        angle=angle,
+        contrast=1.0,
+        waveform=GratingTexture.SIN,
+        mask=GratingMask.RAISED_COS,
+        mask_param=0.2,
+        name=f"grating_{label}",
+    )
+    conn.stimuli.set_enabled(handle, False)
+    gratings[label] = handle
 ```
 
 Two things to notice.
@@ -99,11 +99,11 @@ orientation-carrying border of its own.
 ```python
 from vstimd.stimuli.shapes_models import ShapeDrawMode
 
-    dot = conn.stimuli.shapes.create_circle(
-        pos=Vec2(0, 0), radius=6, color=Color(0.0, 0.0, 0.0), name="fixation_dot",
-    )
-    conn.stimuli.shapes.set_draw_mode(dot, ShapeDrawMode.FILLED_AND_OUTLINED)
-    conn.stimuli.shapes.set_outline_color(dot, Color(1.0, 1.0, 1.0))
+dot = conn.stimuli.shapes.create_circle(
+    pos=Vec2(0, 0), radius=6, color=Color(0.0, 0.0, 0.0), name="fixation_dot",
+)
+conn.stimuli.shapes.set_draw_mode(dot, ShapeDrawMode.FILLED_AND_OUTLINED)
+conn.stimuli.shapes.set_outline_color(dot, Color(1.0, 1.0, 1.0))
 ```
 
 Black core, white ring: it has to stay visible against the grey background
@@ -116,28 +116,28 @@ This is the step the whole tutorial is for.
 ```python
 from vstimd import FinalAction, StartAction, VtlEdge
 
-    for label, anim_name, trigger, onset, end, done in (
-        ("45deg",  "flash_45deg_on_pin11",  in_45,  on_45,  end_45,  done_45),
-        ("135deg", "flash_135deg_on_pin12", in_135, on_135, end_135, done_135),
-    ):
-        anim = conn.animations.create_flash(
-            gratings[label],
-            duration_frames=120,                  # 2 s at 60 Hz
-            name=anim_name,
-            start_trigger=trigger,
-            start_edge=VtlEdge.RISING,
-            start_action_mask=StartAction.ENABLE | StartAction.START_ACTION_TRIGGER_LINE,
-            start_action_trigger_line=onset,
-            final_action_mask=(
-                FinalAction.DISABLE
-                | FinalAction.REARM
-                | FinalAction.FINAL_ACTION_TRIGGER_LINE
-                | FinalAction.DONE_LEVEL
-            ),
-            final_action_trigger_line=end,
-            final_action_level_line=done,
-        )
-        conn.animations.arm(anim)
+for label, anim_name, trigger, onset, end, done in (
+    ("45deg",  "flash_45deg_on_pin11",  in_45,  on_45,  end_45,  done_45),
+    ("135deg", "flash_135deg_on_pin12", in_135, on_135, end_135, done_135),
+):
+    anim = conn.animations.create_flash(
+        gratings[label],
+        duration_frames=120,                  # 2 s at 60 Hz
+        name=anim_name,
+        start_trigger=trigger,
+        start_edge=VtlEdge.RISING,
+        start_action_mask=StartAction.ENABLE | StartAction.START_ACTION_TRIGGER_LINE,
+        start_action_trigger_line=onset,
+        final_action_mask=(
+            FinalAction.DISABLE
+            | FinalAction.REARM
+            | FinalAction.FINAL_ACTION_TRIGGER_LINE
+            | FinalAction.DONE_LEVEL
+        ),
+        final_action_trigger_line=end,
+        final_action_level_line=done,
+    )
+    conn.animations.arm(anim)
 ```
 
 Read it as three groups.
@@ -177,8 +177,8 @@ another presentation. Trial after trial, indefinitely.
 ## 5. Save it, and check the round trip
 
 ```python
-    conn.config.save("my_gratings_triggered")
-    print(conn.config.list_configs())
+conn.config.save("my_gratings_triggered")
+print(conn.config.list_configs())
 ```
 
 `save` retrieves the current scene and writes it to the server's config
@@ -223,12 +223,12 @@ can exercise the whole path on a laptop:
 ```python
 import time
 
-    conn.vtl.set_line(in_45, True)      # rising edge → 45° grating appears
-    conn.vtl.set_line(in_45, False)     # level after the edge does not matter
-    time.sleep(2.5)                     # 2 s flash, then it re-arms
+conn.vtl.set_line(in_45, True)      # rising edge → 45° grating appears
+conn.vtl.set_line(in_45, False)     # level after the edge does not matter
+time.sleep(2.5)                     # 2 s flash, then it re-arms
 
-    conn.vtl.set_line(in_135, True)     # and again on the other line
-    conn.vtl.set_line(in_135, False)
+conn.vtl.set_line(in_135, True)     # and again on the other line
+conn.vtl.set_line(in_135, False)
 ```
 
 `conn.vtl.toggle_line(handle)` does the same in one call and returns the new

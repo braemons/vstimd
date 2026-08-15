@@ -15,8 +15,8 @@ does.
 ## 1. Background first
 
 ```python
-    clean_slate(conn)
-    conn.system.set_background(0.5, 0.5, 0.5)
+clean_slate(conn)
+conn.system.set_background(0.5, 0.5, 0.5)
 ```
 
 Mid grey, because a sinusoidal grating modulates around mean luminance. On a
@@ -30,17 +30,17 @@ visual experiment.
 from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 from vstimd.stimuli.stimuli_models import Vec2
 
-    conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0),
-        width=2400, height=1400,
-        sf=0.01,
-        angle=0.0,                      # vertical stripes
-        contrast=1.0,
-        waveform=GratingTexture.SIN,
-        mask=GratingMask.NONE,
-        drift_speed=4.0,                # cycles/s
-        name="full_field_grating",
-    )
+conn.stimuli.grating.create_grating(
+    pos=Vec2(0, 0),
+    width=2400, height=1400,
+    sf=0.01,
+    angle=0.0,                      # vertical stripes
+    contrast=1.0,
+    waveform=GratingTexture.SIN,
+    mask=GratingMask.NONE,
+    drift_speed=4.0,                # cycles/s
+    name="full_field_grating",
+)
 ```
 
 Parameter by parameter:
@@ -79,8 +79,8 @@ Two related knobs, if you need them:
 ## 4. Caption and save
 
 ```python
-    add_explanation(conn, EXPLANATION)
-    conn.config.save("my_drifting_grating")
+add_explanation(conn, EXPLANATION)
+conn.config.save("my_drifting_grating")
 ```
 
 Because the drift lives in the stimulus, the saved config needs nothing extra:

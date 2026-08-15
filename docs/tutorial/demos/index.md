@@ -47,6 +47,15 @@ the same, which is how they are tested.
     $ cd client/python && make test-e2e-null
     ```
 
+!!! note "Reading the snippets"
+    Each page shows the calls one section at a time, unindented. In the script
+    itself they all sit inside a single connection:
+
+    ```python
+    with Connection("tcp://localhost:5555") as conn:
+        ...
+    ```
+
 ## What every script does first
 
 Three things repeat in all six, so they live in

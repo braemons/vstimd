@@ -16,8 +16,8 @@ against pin 36, and the gap between them is what your rig actually costs you.
 ```python
 from vstimd import Connection, FinalAction, VtlHandle, VtlKind
 
-    conn.vtl.set_line_name(0, 36, VtlKind.OUTPUT, name="out_pin36")
-    sweep_done = VtlHandle.output(0, 36)
+conn.vtl.set_line_name(0, 36, VtlKind.OUTPUT, name="out_pin36")
+sweep_done = VtlHandle.output(0, 36)
 ```
 
 One line, named so the overlay and the saved config both know what it is for.
@@ -25,11 +25,11 @@ One line, named so the overlay and the saved config both know what it is for.
 ## 2. The target
 
 ```python
-    target = conn.stimuli.shapes.create_circle(
-        pos=Vec2(-800, 0), radius=30,
-        color=Color(1.0, 1.0, 1.0),
-        name="target",
-    )
+target = conn.stimuli.shapes.create_circle(
+    pos=Vec2(-800, 0), radius=30,
+    color=Color(1.0, 1.0, 1.0),
+    name="target",
+)
 ```
 
 Created at the *start* of the sweep. The animation will overwrite the position
@@ -39,16 +39,16 @@ scene you can debug.
 ## 3. The sweep
 
 ```python
-    sweep = conn.animations.create_move_along_segments_2d(
-        target,
-        x=[-800.0, 800.0],
-        y=[0.0, 0.0],
-        speed_px_per_sec=600.0,
-        name="sweep_left_to_right",
-        final_action_mask=FinalAction.RESTART | FinalAction.FINAL_ACTION_TRIGGER_LINE,
-        final_action_trigger_line=sweep_done,
-    )
-    conn.animations.arm(sweep)
+sweep = conn.animations.create_move_along_segments_2d(
+    target,
+    x=[-800.0, 800.0],
+    y=[0.0, 0.0],
+    speed_px_per_sec=600.0,
+    name="sweep_left_to_right",
+    final_action_mask=FinalAction.RESTART | FinalAction.FINAL_ACTION_TRIGGER_LINE,
+    final_action_trigger_line=sweep_done,
+)
+conn.animations.arm(sweep)
 ```
 
 `move_along_segments_2d` takes piecewise-linear waypoints and a **speed**, and
@@ -79,8 +79,8 @@ Then the two final actions:
 ## 4. Save
 
 ```python
-    add_explanation(conn, EXPLANATION)
-    conn.config.save("my_moving_target")
+add_explanation(conn, EXPLANATION)
+conn.config.save("my_moving_target")
 ```
 
 ## Run it
