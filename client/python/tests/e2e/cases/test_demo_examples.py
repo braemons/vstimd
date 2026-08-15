@@ -54,6 +54,17 @@ def _round(value):
     return value
 
 
+def _driven_handles(anim: dict) -> list[int]:
+    """Stimulus handles an animation drives, out of its target.
+
+    The target is a tagged union in the config (`{"kind": "Stimuli", ...}`) so
+    that a 3-D camera can become one later; anything that is not stimuli drives
+    no stimulus handles.
+    """
+    target = anim.get("target", {})
+    return target.get("handles", []) if target.get("kind") == "Stimuli" else []
+
+
 def _canonical(cfg: dict) -> dict:
     """Reduce a config to the parts a tutorial is responsible for reproducing."""
     scene = cfg["scene"]
@@ -65,7 +76,7 @@ def _canonical(cfg: dict) -> dict:
     # tutorial has to reproduce. Keep the sequence, drop the numbers.
     by_handle = sorted(entries, key=int)
     name_of = {h: entries[h]["name"] for h in by_handle}
-    driven = {str(h) for a in animations.values() for h in a["stimuli"]}
+    driven = {str(h) for a in animations.values() for h in _driven_handles(a)}
 
     stimuli = []
     for handle in by_handle:
@@ -82,7 +93,11 @@ def _canonical(cfg: dict) -> dict:
     for handle in sorted(animations, key=int):
         anim = copy.deepcopy(animations[handle])
         anim.pop("state", None)                 # Armed vs Running is runtime
-        anim["stimuli"] = [name_of[str(h)] for h in anim["stimuli"]]
+        # Compare by stimulus name: handle values are incidental, the wiring is not.
+        anim["target"] = {
+            **anim["target"],
+            "handles": [name_of[str(h)] for h in _driven_handles(anim)],
+        }
         anims.append(_round(anim))
     anims.sort(key=lambda a: a["name"])
 
