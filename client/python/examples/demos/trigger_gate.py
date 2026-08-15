@@ -23,7 +23,7 @@ import time
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection, VtlHandle, VtlKind
+from vstimd import Connection, VtlHandle, VtlKind, VtlPolarity
 from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 from vstimd.stimuli.stimuli_models import Vec2
 
@@ -73,11 +73,11 @@ def main() -> None:
 
         # ── Couple visibility to the line's level ─────────────────────────────
         # Unlike a flash, this animation never completes: every frame it copies
-        # the line's level onto the stimulus. `polarity=True` means HIGH shows
-        # the patch; pass False for an active-low input.
+        # the line's level onto the stimulus. `ACTIVE_HIGH` means HIGH shows
+        # the patch; pass `ACTIVE_LOW` for an active-low input.
         gated = conn.animations.create_couple_visibility_to_trigger_line(
             gate, patch,
-            polarity=True,
+            polarity=VtlPolarity.ACTIVE_HIGH,
             name="gate_on_pin7",
         )
         conn.animations.arm(gated)

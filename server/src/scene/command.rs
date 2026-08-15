@@ -1,7 +1,8 @@
 use uuid::Uuid;
 
 use super::animation::{
-    AnimState, Animation, AnimationEntry, CancelAction, VtlEdge, FinalAction, StartAction, VtlBit,
+    AnimState, Animation, AnimationEntry, CancelAction, VtlEdge, VtlPolarity, FinalAction,
+    StartAction, VtlBit,
 };
 use super::deferred::Deferred;
 use super::scene_state::SceneState;
@@ -1905,13 +1906,20 @@ fn edge_to_proto(e: VtlEdge) -> i32 {
     }
 }
 
+fn polarity_to_proto(p: VtlPolarity) -> i32 {
+    match p {
+        VtlPolarity::ActiveHigh => proto::VtlPolarity::ActiveHigh as i32,
+        VtlPolarity::ActiveLow => proto::VtlPolarity::ActiveLow as i32,
+    }
+}
+
 fn animation_to_proto_body(anim: &Animation) -> proto::create_animation_request::Body {
     use proto::create_animation_request::Body as PBody;
     match anim {
         Animation::CoupleVisibilityToTriggerLine { trigger, polarity } => {
             PBody::CoupleVisibilityToTriggerLine(proto::CoupleVisibilityToTriggerLine {
                 trigger: Some(vtl_bit_to_proto(*trigger)),
-                polarity: *polarity,
+                polarity: polarity_to_proto(*polarity),
             })
         }
         Animation::EnableOnTriggerEdge {
@@ -1970,6 +1978,13 @@ fn proto_vtl_edge(e: i32) -> VtlEdge {
     }
 }
 
+fn proto_vtl_polarity(p: i32) -> VtlPolarity {
+    match proto::VtlPolarity::try_from(p).unwrap_or(proto::VtlPolarity::ActiveHigh) {
+        proto::VtlPolarity::ActiveHigh => VtlPolarity::ActiveHigh,
+        proto::VtlPolarity::ActiveLow => VtlPolarity::ActiveLow,
+    }
+}
+
 // ── Animation proto → Rust mapping ───────────────────────────────────────────
 
 fn proto_to_animation(
@@ -1989,7 +2004,7 @@ fn proto_to_animation(
         Some(PBody::CoupleVisibilityToTriggerLine(c)) => {
             Ok(Animation::CoupleVisibilityToTriggerLine {
                 trigger: vtl_bit(c.trigger.as_ref())?,
-                polarity: c.polarity,
+                polarity: proto_vtl_polarity(c.polarity),
             })
         }
         Some(PBody::EnableOnTriggerEdge(c)) => Ok(Animation::EnableOnTriggerEdge {

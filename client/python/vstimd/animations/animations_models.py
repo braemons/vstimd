@@ -18,6 +18,16 @@ class VtlEdge(IntEnum):
     FALLING = 1
 
 
+class VtlPolarity(IntEnum):
+    """Which line level a level-sensitive animation treats as asserted.
+
+    Values match ``vstimd.v1.VtlPolarity`` on the wire and are numbered so that
+    truthiness reads naturally: ``ACTIVE_HIGH`` is truthy, ``ACTIVE_LOW`` falsy.
+    """
+    ACTIVE_LOW = 0
+    ACTIVE_HIGH = 1
+
+
 class StartAction(IntFlag):
     ENABLE                    = 0x02
     TOGGLE_PHOTODIODE         = 0x04

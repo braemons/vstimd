@@ -8,7 +8,7 @@ from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import animations_pb2, vtl_pb2
 from vstimd.response import ServerResponse
 from vstimd.vtl import VtlHandle
-from .animations_models import AnimationDetails, AnimationInfo, AnimationState, CancelAction, FinalAction, StartAction, VtlEdge
+from .animations_models import AnimationDetails, AnimationInfo, AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
 
 
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
@@ -200,7 +200,7 @@ class AnimationClient:
         trigger: VtlHandle,
         stimuli: Stimuli,
         *,
-        polarity: bool = True,
+        polarity: VtlPolarity = VtlPolarity.ACTIVE_HIGH,
         name: str = "",
         start_action_mask: StartAction = StartAction(0),
         start_action_trigger_line: Optional[VtlHandle] = None,
@@ -214,13 +214,17 @@ class AnimationClient:
         cancel_action_mask: CancelAction = CancelAction(0),
         cancel_action_trigger_line: Optional[VtlHandle] = None,
     ) -> AnimationHandle:
-        """Mirror stimulus enabled state to the level of a trigger line (input or output)."""
+        """Mirror stimulus enabled state to the level of a trigger line (input or output).
+
+        ``polarity`` selects which level shows the stimuli: ``ACTIVE_HIGH``
+        (default) shows them while the line is HIGH, ``ACTIVE_LOW`` while LOW.
+        """
         req = self._make_req(
             stimuli, {
                 "couple_visibility_to_trigger_line":
                     animations_pb2.CoupleVisibilityToTriggerLine(
                         trigger=trigger._to_proto(),
-                        polarity=polarity,
+                        polarity=int(polarity),
                     ),
             },
             name=name,

@@ -138,3 +138,10 @@ enum VtlEdge {
   VTL_EDGE_RISING  = 0;
   VTL_EDGE_FALLING = 1;
 }
+
+// Which line level a level-sensitive animation treats as "asserted";
+// referenced by animations.proto.
+enum VtlPolarity {
+  VTL_POLARITY_ACTIVE_LOW  = 0;
+  VTL_POLARITY_ACTIVE_HIGH = 1;
+}

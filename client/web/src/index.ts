@@ -18,6 +18,7 @@ export {
   type AnimationState,
   type AnimationTypeName,
   type VtlEdge,
+  type VtlPolarity,
   type StartAction,
   type FinalAction,
   type AnimationInfo,

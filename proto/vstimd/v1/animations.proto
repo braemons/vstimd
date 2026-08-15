@@ -21,7 +21,8 @@ enum AnimationState {
 // kind selects the input or output line to follow.
 message CoupleVisibilityToTriggerLine {
   VirtualTriggerLineHandle trigger  = 1;
-  bool                     polarity = 2; // true = enable when trigger is HIGH
+  // ACTIVE_HIGH = enable while the trigger is HIGH, ACTIVE_LOW = while LOW.
+  VtlPolarity              polarity = 2;
 }
 
 // Set stimulus enabled once when a trigger edge fires. The handle's kind

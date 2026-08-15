@@ -12,7 +12,7 @@ import {
   AnimationState as ProtoState,
   CreateAnimationRequestSchema,
 } from "./_proto/vstimd/v1/animations_pb.js";
-import { VtlEdge as ProtoEdge } from "./_proto/vstimd/v1/vtl_pb.js";
+import { VtlEdge as ProtoEdge, VtlPolarity as ProtoPolarity } from "./_proto/vstimd/v1/vtl_pb.js";
 import { vtlHandleProto, type VtlHandle } from "./vtl.js";
 import type { Send } from "./transport.js";
 import type { AnimationHandle, StimulusHandle } from "./types.js";
@@ -22,6 +22,9 @@ export type AnimationState = "idle" | "armed" | "running" | "done";
 
 /** Which trigger edge an animation reacts to. */
 export type VtlEdge = "rising" | "falling";
+
+/** Which line level a level-sensitive animation treats as asserted. */
+export type VtlPolarity = "activeHigh" | "activeLow";
 
 /** Actions performed when an animation starts. */
 export type StartAction = "enable" | "togglePhotodiode" | "startActionTriggerLine";
@@ -98,6 +101,11 @@ export interface AnimationOpts {
 const EDGE: Record<VtlEdge, ProtoEdge> = {
   rising: ProtoEdge.RISING,
   falling: ProtoEdge.FALLING,
+};
+
+const POLARITY: Record<VtlPolarity, ProtoPolarity> = {
+  activeHigh: ProtoPolarity.ACTIVE_HIGH,
+  activeLow: ProtoPolarity.ACTIVE_LOW,
 };
 
 const START_ACTION: Record<StartAction, number> = {
@@ -237,11 +245,11 @@ export class AnimationsClient {
   coupleVisibilityToTriggerLine(
     trigger: VtlHandle,
     stimuli: Stimuli,
-    opts: { polarity?: boolean } & AnimationOpts = {},
+    opts: { polarity?: VtlPolarity } & AnimationOpts = {},
   ): Promise<AnimationHandle> {
     return this.create(stimuli, opts, {
       case: "coupleVisibilityToTriggerLine",
-      value: { trigger: vtlHandleProto(trigger), polarity: opts.polarity ?? true },
+      value: { trigger: vtlHandleProto(trigger), polarity: POLARITY[opts.polarity ?? "activeHigh"] },
     });
   }
 

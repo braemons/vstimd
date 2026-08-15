@@ -10,7 +10,7 @@ import time
 import pytest
 
 from vstimd import Connection
-from vstimd.animations import AnimationState, CancelAction, FinalAction, StartAction, VtlEdge
+from vstimd.animations import AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
 from vstimd.stimuli.stimuli_models import Color, Vec2
 from vstimd.vtl import VtlKind, VtlHandle
 
@@ -489,7 +489,7 @@ def test_anim_couple_visibility_to_vtl_line(
     a = conn.animations.create_couple_visibility_to_trigger_line(
         VtlHandle.input(0, 30),
         s,
-        polarity=True,
+        polarity=VtlPolarity.ACTIVE_HIGH,
     )
     conn.animations.arm(a)
 
@@ -534,7 +534,7 @@ def test_anim_couple_visibility_to_vtl_line(
 def test_anim_couple_visibility_inverted_polarity(
     conn: Connection, request: pytest.FixtureRequest, step_delay: float
 ) -> None:
-    """CoupleVisibility with polarity=False: HIGH → anim_enabled=False, LOW → anim_enabled=True."""
+    """CoupleVisibility with ACTIVE_LOW: HIGH → anim_enabled=False, LOW → anim_enabled=True."""
     tid = request.node.name
     lbl = _label(conn, tid, "couple inverted polarity on (0,31)")
     s = _make_rect(conn, x=-250, y=-200, enabled=False)
@@ -542,7 +542,7 @@ def test_anim_couple_visibility_inverted_polarity(
     a = conn.animations.create_couple_visibility_to_trigger_line(
         VtlHandle.input(0, 31),
         s,
-        polarity=False,
+        polarity=VtlPolarity.ACTIVE_LOW,
     )
     conn.animations.arm(a)
 

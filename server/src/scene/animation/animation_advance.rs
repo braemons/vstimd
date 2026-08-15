@@ -173,7 +173,7 @@ pub(crate) fn advance_one(
             Animation::CoupleVisibilityToTriggerLine { trigger, polarity } => {
                 let edges = edges_for(*trigger, input_edges, output_edges);
                 let level = (edges.current[trigger.bank] >> trigger.bit) & 1 != 0;
-                let anim_en = level == *polarity;
+                let anim_en = polarity.is_asserted(level);
                 for &sh in &stim_handles {
                     if let Some(e) = scene.config.stimuli.get_mut(&sh)
                         && e.stimulus.flags().anim_enabled != anim_en
