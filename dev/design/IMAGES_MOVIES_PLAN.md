@@ -171,7 +171,7 @@ SetBitmapSize  set_bitmap_size  = 42;  // stimulus target
 
 ### Server-side implementation
 
-**Command handler** (`scene/command.rs`):
+**Command handler** (new `ipc/bitmap_commands.rs`, with the dispatch arms in `ipc/dispatch.rs`):
 
 1. Look up `asset_name` in `AssetStore`; error on missing/incomplete.
 2. `image::load_from_memory(bytes)?.into_rgba8()` → `(width, height, rgba_data)`.
@@ -361,8 +361,8 @@ proto/v1/
 
 server/src/
   assets.rs              ← NEW: AssetStore (in-memory / disk-backed)
-  ipc.rs                 ← route UploadAsset / DeleteAsset / ListAssets
-  scene/command.rs       ← cmd_create_bitmap, cmd_create_bitmap_seq, cmd_create_video
+  ipc/dispatch.rs        ← route UploadAsset / DeleteAsset / ListAssets
+  ipc/bitmap_commands.rs ← NEW: cmd_create_bitmap, cmd_create_bitmap_seq, cmd_create_video
   scene/stimulus/types.rs  ← BitmapStimulus, BitmapSeqStimulus already exist; VideoStimulus new
   render/vk/
     pipeline.rs          ← textured_pipeline (new)

@@ -1096,8 +1096,8 @@ There is no `stim_field!` macro (an earlier draft claimed one). `stimulus.rs` ha
 `shape_arm!` macro covering only the three shape variants, and a set of hand-written **exhaustive
 `match`es**: `flags`/`flags_mut`, `shape_appearance`/`_mut`, `is_shape`, `reset_phase_accum`,
 `make_copy`, `flip`, `type_name`. Exhaustive matches also live in `render_frame.rs` (update and
-draw) and `scene/command.rs` (`command_summary`, `handle_system_command`,
-`handle_stimulus_command`, `query_stimulus_response`).
+draw), `ipc/dispatch.rs` (`command_summary`, `handle_system_command`,
+`handle_stimulus_command`) and `ipc/scene_commands.rs` (`query_stimulus_response`).
 
 The compiler finds every one of them. That is the safety net: the server cannot compile with a
 half-wired stimulus type. The **clients** have no such link to the proto schema and are where

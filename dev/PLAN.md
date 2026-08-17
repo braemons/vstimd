@@ -700,17 +700,18 @@ macro (parallel to `stim_field!`) eliminates boilerplate in common-field accesso
 
 See `STIMULUS_DATA_MODEL.md §13` for the full design, struct layouts, and rationale.
 
-**Implemented in:** `src/scene/animation.rs` (trait definition still present; no concrete
+**Implemented in:** `src/scene/animation/` (trait definition still present; no concrete
 impls yet — to be replaced with enum variants as animation types are added in Phase 7+).
 
 #### `SceneState`
 
-**Implemented in:** `src/scene/state.rs` — stimulus/animation registries, handle allocation,
+**Implemented in:** `src/scene/scene_state.rs` — stimulus/animation registries, handle allocation,
 deferred-mode logic (make_copy/flip on all stimuli + background + photodiode).
 
 Still needed: `SceneState::handle_request` is implemented for `CreateRect`, `SetEnabled`, and
 `Delete`. Additional commands (move, colour change, animation assignment, etc.) follow the same
-pattern in `src/scene/command.rs`.
+pattern in `src/ipc/` — the dispatch arm in `ipc/dispatch.rs`, the command itself in the
+matching `ipc/*_commands.rs` group.
 
 ### Phase 2 — Renderer (`src/render/`)
 
@@ -837,7 +838,7 @@ fn main() -> anyhow::Result<()> {
 
 > **Status:** Complete. `Deferred<T>` wrapper, `make_copy()`/`flip()` on all stimulus types
 > + background + photodiode, `pending_flip` checked at render-loop start, and
-> `SetDeferredModeRequest` fully handled in `command.rs` (`begin_deferred` / `end_deferred` /
+> `SetDeferredModeRequest` fully handled in `ipc/scene_commands.rs` (`begin_deferred` / `end_deferred` /
 > cancel path). The `apply_flip()` call in the render thread is the atomic promotion point.
 
 ### Phase 8 — Custom WGSL Pixel Shader Stimuli
