@@ -1,6 +1,7 @@
 pub mod color;
 pub mod geom;
 pub mod io_config;
+pub mod input;
 pub mod ipc;
 pub mod log_buffer;
 pub mod proto;

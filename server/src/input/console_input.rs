@@ -14,7 +14,7 @@ use input::event::keyboard::KeyboardEventTrait as _;
 use std::os::fd::{AsRawFd as _, OwnedFd};
 use std::path::Path;
 
-use crate::render::AppKey;
+use crate::input::AppKey;
 use crate::render::overlay_ui::OverlayGroup;
 
 // ── TTY keyboard suppression guard ───────────────────────────────────────────

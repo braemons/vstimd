@@ -3,7 +3,7 @@ use std::sync::{Arc, Mutex};
 use crate::log_buffer::LogBuffer;
 use crate::render::RenderState;
 use crate::render::backend::BackendData;
-use crate::render::console_input::{InputState, vt_number_from_env};
+use crate::input::console_input::{InputState, vt_number_from_env};
 use crate::render::frame_loop::{self, KeyOutcome};
 use crate::render::system_info::{ClockSource, SystemInfo};
 use crate::render::vk::VkContext;

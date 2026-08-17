@@ -10,7 +10,7 @@
 use crate::vtl_state::VtlOutputs;
 use std::sync::{Arc, Mutex, RwLock};
 
-use crate::render::AppKey;
+use crate::input::AppKey;
 use crate::render::render_state::RenderState;
 use crate::scene::SceneState;
 use crate::vtl_state::VtlState;

@@ -4,14 +4,6 @@ pub use backend::{BackendData, DisplayModePref};
 pub mod null_backend;
 pub use null_backend::NullBackend;
 
-pub mod app_keys;
-pub use app_keys::AppKey;
-
-/// libinput keyboard handling shared by the bare-console backends
-/// (`drm` and `evdi`).
-#[cfg(target_os = "linux")]
-pub(crate) mod console_input;
-
 pub mod vertex;
 pub use vertex::Vertex;
 

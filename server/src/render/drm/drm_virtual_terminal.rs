@@ -1,6 +1,6 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
-use crate::render::console_input::{active_vt, open_vt, vt_number_from_env};
+use crate::input::console_input::{active_vt, open_vt, vt_number_from_env};
 
 /// Guard that activates a specific virtual terminal, switches it to
 /// `KD_GRAPHICS` mode, and restores everything on drop.
@@ -231,5 +231,5 @@ impl Drop for DrmVtGuard {
 }
 
 // `open_vt`, `vt_number_from_env`, and `active_vt` live in
-// `render::console_input` — shared with the evdi backend, which needs them
+// `input::console_input` — shared with the evdi backend, which needs them
 // for its tty guard but has no VT guard of its own.
