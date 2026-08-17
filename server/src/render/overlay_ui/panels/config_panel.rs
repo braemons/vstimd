@@ -42,7 +42,7 @@ pub(in crate::render::overlay_ui) fn config_panel(
             if names.is_empty() {
                 ui.label(egui::RichText::new("(none)").color(egui::Color32::DARK_GRAY));
             } else {
-                egui::ScrollArea::vertical().max_height(180.0).show(ui, |ui| {
+                egui::ScrollArea::vertical().max_height(1000.0).show(ui, |ui| {
                     egui::Grid::new("config_list").num_columns(3).spacing([8.0, 2.0])
                         .show(ui, |ui| {
                         for name in &names {
@@ -51,7 +51,7 @@ pub(in crate::render::overlay_ui) fn config_panel(
                             if ui.button("Load").clicked() {
                                 quick_load = Some((BrowserMode::OpenReplace, path.clone()));
                             }
-                            if ui.button("＋").on_hover_text("Load additive").clicked() {
+                            if ui.button("+").on_hover_text("Load additive").clicked() {
                                 quick_load = Some((BrowserMode::OpenAdditive, path));
                             }
                             ui.end_row();

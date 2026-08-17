@@ -113,7 +113,7 @@ pub(in crate::render::overlay_ui) fn vtl_panel(
                 dot(ui, high);
                 ui.label(format!("{}/{}", rise as u8, fall as u8));
                 ui.horizontal(|ui| {
-                    let up = ui.button("↑").on_hover_text("Fire rising edge");
+                    let up = ui.button("+").on_hover_text("Fire rising edge");
                     if want_focus && i == 0 {
                         up.request_focus();
                     }
@@ -121,7 +121,7 @@ pub(in crate::render::overlay_ui) fn vtl_panel(
                         vtl_st.owner().set_input_bit(b, e.bit);
                         vtl_st.owner().set_input_rise(b, mask);
                     }
-                    if ui.button("↓").on_hover_text("Fire falling edge").clicked() {
+                    if ui.button("-").on_hover_text("Fire falling edge").clicked() {
                         vtl_st.owner().clear_input_bit(b, e.bit);
                         vtl_st.owner().set_input_fall(b, mask);
                     }
@@ -179,12 +179,12 @@ pub(in crate::render::overlay_ui) fn vtl_panel(
                 log::info!("vtl: manual fire out bank={bank} bit={bit} -> low (state now {:#018x})", vtl_st.owner().output_state(bank));
             }
         } else {
-            if ui.button("↑ rise").clicked() {
+            if ui.button("+ rise").clicked() {
                 vtl_st.owner().set_input_bit(bank, bit);
                 vtl_st.owner().set_input_rise(bank, mask);
                 log::info!("vtl: manual fire in bank={bank} bit={bit} -> rise (state now {:#018x})", vtl_st.owner().input_state(bank));
             }
-            if ui.button("↓ fall").clicked() {
+            if ui.button("- fall").clicked() {
                 vtl_st.owner().clear_input_bit(bank, bit);
                 vtl_st.owner().set_input_fall(bank, mask);
                 log::info!("vtl: manual fire in bank={bank} bit={bit} -> fall (state now {:#018x})", vtl_st.owner().input_state(bank));
