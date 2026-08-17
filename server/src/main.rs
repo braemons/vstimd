@@ -2,12 +2,13 @@ use std::sync::{Arc, Mutex, RwLock};
 
 #[cfg(target_os = "linux")]
 use vstimd::render::drm::DrmBackend;
-use vstimd::render::{
-    BackendData, ClockSource, DisplayModePref, HostInfo, NullBackend, RenderTarget,
-    RenderTargetPref, WindowMode,
-};
-use vstimd::render::{query_hardware_model, query_hostname, query_local_ip};
 use vstimd::render::winit_vk::WinitBackend;
+use vstimd::render::{
+    BackendData, DisplayModePref, NullBackend, RenderTarget, RenderTargetPref, WindowMode,
+};
+use vstimd::system_info::{
+    ClockSource, HostInfo, query_hardware_model, query_hostname, query_local_ip,
+};
 use vstimd::rig_config;
 use vstimd::scene::SceneState;
 use vstimd::vtl_state::VtlState;

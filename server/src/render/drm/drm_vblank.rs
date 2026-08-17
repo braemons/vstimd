@@ -5,7 +5,7 @@ use std::time::Instant;
 use drm::Device as DrmDevice;
 use drm::control::Device as ControlDevice;
 
-use crate::render::system_info::ClockSource;
+use crate::system_info::ClockSource;
 
 struct Card(std::fs::File);
 

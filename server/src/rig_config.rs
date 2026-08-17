@@ -1,4 +1,4 @@
-use crate::render::system_info::ClockSource;
+use crate::system_info::ClockSource;
 /// Machine-specific configuration loaded at startup from `rig-config.toml`.
 ///
 /// Unlike `stim-config` (scene + named VTL lines, changed per experiment),

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex, RwLock};
 
-use crate::render::system_info::{ClockSource, HostInfo};
+use crate::system_info::{ClockSource, HostInfo};
 use crate::scene::SceneState;
 use crate::vtl_state::VtlState;
 

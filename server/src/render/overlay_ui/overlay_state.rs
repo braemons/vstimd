@@ -7,7 +7,7 @@
 
 use std::path::PathBuf;
 
-use crate::render::benchmark::BenchmarkState;
+use crate::benchmark::BenchmarkState;
 
 use super::animation_dialog::AnimationDialog;
 use super::file_browser::FileBrowser;

@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use crate::log_buffer::LogBuffer;
 use crate::render::overlay_ui::OverlayState;
-use crate::render::system_metrics::MetricsSampler;
+use crate::system_metrics::MetricsSampler;
 use crate::render::vk::{VkContext, VkEguiRenderer};
 
 /// egui overlay state — renderer, context, and overlay-specific data.

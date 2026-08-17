@@ -1,3 +1,4 @@
+pub mod benchmark;
 pub mod color;
 pub mod geom;
 pub mod io_config;
@@ -10,6 +11,8 @@ pub mod rig_config;
 pub mod sched;
 pub mod scene;
 pub mod shutdown;
+pub mod system_info;
+pub mod system_metrics;
 pub mod timing;
 pub mod vtl_state;
 #[cfg(feature = "web")]

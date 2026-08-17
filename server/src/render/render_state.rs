@@ -1,6 +1,6 @@
 use crate::render::display_info::StimulusDisplayInfo;
 use crate::render::scene_renderer::SceneRenderer;
-use crate::render::system_info::SystemInfo;
+use crate::system_info::SystemInfo;
 use crate::render::text_renderer::TextRenderer;
 use crate::render::ui_renderer::UiRenderer;
 use crate::timing::FrameTiming;

@@ -12,7 +12,7 @@ use vstimd::proto;
 use vstimd::proto::request;
 use vstimd::render::backend::{BackendData, DisplayModePref};
 use vstimd::render::evdi::EvdiBackend;
-use vstimd::render::system_info::HostInfo;
+use vstimd::system_info::HostInfo;
 use vstimd::scene::SceneState;
 
 fn sys() -> request::Target {

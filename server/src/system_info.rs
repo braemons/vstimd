@@ -1,4 +1,4 @@
-use super::RenderTarget;
+use crate::render::RenderTarget;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]

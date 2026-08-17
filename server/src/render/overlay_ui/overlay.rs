@@ -2,7 +2,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use crate::io_config::{load_config, save_config};
 use crate::log_buffer::LogBuffer;
-use crate::render::SystemMetrics;
+use crate::system_metrics::SystemMetrics;
 use super::animation_dialog::TriggerLine;
 use super::file_browser::BrowserMode;
 use super::overlay_state::{OverlayGroup, OverlayState};
@@ -10,7 +10,7 @@ use crate::scene::{AnimState, LoadMode, SceneState, Stimulus};
 use crate::timing::{FramePhases, FrameStats};
 use crate::vtl_state::{VtlConfig, VtlState};
 
-pub use crate::render::system_info::{ClockSource, SystemInfo};
+use crate::system_info::{ClockSource, SystemInfo};
 use crate::render::StimulusDisplayInfo;
 
 #[derive(Clone, Copy, PartialEq, Default)]

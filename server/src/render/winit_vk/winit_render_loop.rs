@@ -10,7 +10,7 @@ use winit::window::{Fullscreen, Window, WindowId};
 use crate::log_buffer::LogBuffer;
 use crate::render::RenderState;
 use crate::render::backend::BackendData;
-use crate::render::system_info::{ClockSource, SystemInfo};
+use crate::system_info::{ClockSource, SystemInfo};
 use crate::render::{RenderTarget, StimulusDisplayInfo, WindowMode};
 use crate::render::{SceneRenderer, TextRenderer, UiRenderer};
 use crate::render::render_frame;
