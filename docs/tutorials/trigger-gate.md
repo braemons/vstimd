@@ -27,14 +27,16 @@ gate = VtlHandle.input(0, 7)
 from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 
 patch = conn.stimuli.grating.create_grating(
-    pos=Vec2(0, 0),
-    width=700, height=700,
-    sf=0.015,
-    angle=90.0,                     # horizontal stripes
-    contrast=1.0,
-    waveform=GratingTexture.SQR,
-    mask=GratingMask.CIRCLE,
+    position=Vec2(0, 0),
+    rotation=90.0,                  # horizontal stripes
     name="gated_grating",
+    params=GratingParams(
+        width=700, height=700,
+        sf=0.015,
+        contrast=1.0,
+        waveform=GratingTexture.SQR,
+        mask=GratingMask.CIRCLE,
+    ),
 )
 ```
 

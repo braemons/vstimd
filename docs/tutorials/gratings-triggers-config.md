@@ -65,15 +65,18 @@ from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 gratings = {}
 for label, angle in (("45deg", 45.0), ("135deg", 135.0)):
     handle = conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0),
-        width=600, height=600,
-        sf=0.02,
-        angle=angle,
-        contrast=1.0,
-        waveform=GratingTexture.SIN,
-        mask=GratingMask.RAISED_COS,
-        mask_param=0.2,
+        position=Vec2(0, 0),
+        rotation=angle,
         name=f"grating_{label}",
+        params=GratingParams(
+            width=600,
+            height=600,
+            sf=0.02,
+            contrast=1.0,
+            waveform=GratingTexture.SIN,
+            mask=GratingMask.RAISED_COS,
+            mask_param=0.2,
+        ),
     )
     conn.stimuli.set_enabled(handle, False)
     gratings[label] = handle
@@ -100,7 +103,12 @@ orientation-carrying border of its own.
 from vstimd.stimuli.shapes_models import ShapeDrawMode
 
 dot = conn.stimuli.shapes.create_circle(
-    pos=Vec2(0, 0), radius=6, color=Color(0.0, 0.0, 0.0), name="fixation_dot",
+    position=Vec2(0, 0),
+    name="fixation_dot",
+    params=CircleParams(
+        diameter=12,
+        appearance=ShapeAppearance(fill_color=Color(0.0, 0.0, 0.0)),
+    ),
 )
 conn.stimuli.shapes.set_draw_mode(dot, ShapeDrawMode.FILLED_AND_OUTLINED)
 conn.stimuli.shapes.set_outline_color(dot, Color(1.0, 1.0, 1.0))
