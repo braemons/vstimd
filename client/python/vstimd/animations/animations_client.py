@@ -9,6 +9,7 @@ from vstimd._proto.vstimd.v1 import animations_pb2, vtl_pb2
 from vstimd.response import ServerResponse
 from vstimd.vtl import VtlHandle
 from .animations_models import AnimationDetails, AnimationInfo, AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
+from vstimd.stimuli import RectParams, ShapeAppearance
 
 
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
@@ -68,8 +69,10 @@ class AnimationClient:
     Example::
 
         with Connection() as conn:
-            h = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=100, height=100,
-                                                color=Color(1, 0, 0))
+            h = conn.stimuli.shapes.create_rect(
+                params=RectParams(width=100, height=100,
+                                  appearance=ShapeAppearance(fill_color=Color(1, 0, 0))),
+            )
             anim = conn.animations.create_flash(h, duration_ms=100)
             conn.animations.arm(anim)
     """

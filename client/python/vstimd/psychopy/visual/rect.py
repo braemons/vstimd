@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from ..._handles import StimulusHandle
 from ...stimuli.color import Color as StimulusColor
+from ...stimuli.shapes_models import ShapeAppearance
 from ...stimuli.vec import Vec2 as StimulusVec2
 from ._colors import to_color
 from ._types import PsychoPyColor, PsychoPyVec2
 from ._units import to_pixels
 from .window import Window
+from vstimd.stimuli import RectParams
 
 
 class Rect:
@@ -63,10 +65,9 @@ class Rect:
         px, py = self._to_px(self._pos)
         pw = self._scalar_px(self._width)
         ph = self._scalar_px(self._height)
-        self._handle: StimulusHandle = win._conn.stimuli.shapes.create_rect(
-            pos=StimulusVec2(px, py), width=pw, height=ph,
-            color=to_color(fillColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
-        )
+        self._handle: StimulusHandle = win._conn.stimuli.shapes.create_rect(position=StimulusVec2(px, py), params=RectParams(width=pw, height=ph, appearance=ShapeAppearance(
+                fill_color=to_color(fillColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
+            )))
         if self._opacity != 1.0:
             win._conn.stimuli.set_alpha(self._handle, self._opacity)
 

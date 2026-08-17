@@ -6,8 +6,9 @@ from ._types import PsychoPyColor, PsychoPyVec2
 from ._units import to_pixels
 from .window import Window
 from vstimd.stimuli.color import Color as StimulusColor
-from vstimd.stimuli.grating_models import GratingMask, GratingTexture, _MASK_TO_PROTO, _WAVEFORM_TO_PROTO
+from vstimd.stimuli.grating_models import _MASK_TO_PROTO, _WAVEFORM_TO_PROTO
 from vstimd.stimuli.vec import Vec2 as StimulusVec2
+from vstimd.stimuli import GratingMask, GratingParams, GratingTexture
 
 
 def _parse_mask_param(mask: GratingMask | str | None, mask_params: dict | None) -> float:
@@ -157,20 +158,23 @@ class GratingStim:
         # sf is in cycles/unit — convert to cycles/pixel
         psf = self._sf_to_px(self._sf)
         self._handle: StimulusHandle = win._conn.stimuli.grating.create_grating(
-            pos=StimulusVec2(px, py),
-            width=pw, height=ph,
-            sf=psf,
-            phase=self._phase,
-            angle=self._ori,
-            contrast=self._contrast,
-            fore_color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0),
-            back_color=to_color(backColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0),
-            waveform=waveform_enum,
-            mask=mask_enum,
-            mask_param=mask_param,
-            drift_speed=self._drift_speed,
-            drift_decoupled=self._drift_decoupled,
-            drift_angle=self._drift_angle,
+            position=StimulusVec2(px, py),
+            rotation=self._ori,
+            params=GratingParams(
+                width=pw,
+                height=ph,
+                sf=psf,
+                phase=self._phase,
+                contrast=self._contrast,
+                fore_color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0),
+                back_color=to_color(backColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0),
+                waveform=waveform_enum,
+                mask=mask_enum,
+                mask_param=mask_param,
+                drift_speed=self._drift_speed,
+                drift_coupled=not (self._drift_decoupled),
+                drift_angle=self._drift_angle,
+            ),
         )
 
         if self._opacity != 1.0:

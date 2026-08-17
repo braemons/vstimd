@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2
-from vstimd._proto.vstimd.v1 import color_pb2
 from vstimd._proto.vstimd.v1.stimuli import (
     query_pb2,
     shared_set_requests_pb2,
@@ -93,7 +92,7 @@ class StimuliClient:
             service_pb2.Request(
                 stimulus=handle,
                 set_fill_color=shared_set_requests_pb2.SetFillColorRequest(
-                    color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+                    color=color.to_proto(),
                 ),
             )
         ))

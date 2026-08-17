@@ -5,7 +5,7 @@ import pytest
 
 from vstimd import Connection
 from vstimd.exceptions import NotSupportedError
-from vstimd.stimuli import PolygonParams, StimulusType
+from vstimd.stimuli import PolygonParams, ShapeAppearance, StimulusType
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
 
@@ -13,7 +13,11 @@ from vstimd.stimuli.stimuli_models import Color, Vec2
 def test_create_polygon(conn: Connection) -> None:
     vertices = [Vec2(-50, -50), Vec2(50, -50), Vec2(0, 50)]
     handle = conn.stimuli.shapes.create_polygon(
-        vertices=vertices, close_shape=True, color=Color(1.0, 0.5, 0.0)
+        params=PolygonParams(
+            vertices=vertices,
+            close_shape=True,
+            appearance=ShapeAppearance(fill_color=Color(1.0, 0.5, 0.0)),
+        ),
     )
     assert handle > 0
 
@@ -31,7 +35,9 @@ def test_create_polygon(conn: Connection) -> None:
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 def test_create_polygon_open(conn: Connection) -> None:
     vertices = [Vec2(-100, 0), Vec2(0, 80), Vec2(100, 0)]
-    handle = conn.stimuli.shapes.create_polygon(vertices=vertices, close_shape=False)
+    handle = conn.stimuli.shapes.create_polygon(
+        params=PolygonParams(vertices=vertices, close_shape=False),
+    )
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, PolygonParams)
     assert info.params.close_shape is False
@@ -41,7 +47,7 @@ def test_create_polygon_open(conn: Connection) -> None:
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 def test_set_polygon_vertices(conn: Connection) -> None:
     vertices = [Vec2(-50, -50), Vec2(50, -50), Vec2(0, 50)]
-    handle = conn.stimuli.shapes.create_polygon(vertices=vertices)
+    handle = conn.stimuli.shapes.create_polygon(params=PolygonParams(vertices=vertices))
 
     new_vertices = [Vec2(-80, 0), Vec2(80, 0), Vec2(0, 80), Vec2(-40, -60)]
     conn.stimuli.shapes.set_polygon_vertices(handle, new_vertices)

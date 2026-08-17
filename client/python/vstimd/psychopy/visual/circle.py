@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from ..._handles import StimulusHandle
 from ...stimuli.color import Color as StimulusColor
+from ...stimuli.shapes_models import ShapeAppearance
 from ...stimuli.vec import Vec2 as StimulusVec2
 from ._colors import to_color
 from ._types import PsychoPyColor, PsychoPyVec2
 from ._units import to_pixels
 from .window import Window
+from vstimd.stimuli import CircleParams
 
 
 class Circle:
@@ -54,10 +56,17 @@ class Circle:
         self._auto_draw = False
 
         px, py = self._to_px(self._pos)
-        pr = self._scalar_px(self._radius)
+        # PsychoPy's Circle is specified by radius; vstimd sizes every shape by
+        # its full extent, so the conversion happens here at the boundary.
         self._handle: StimulusHandle = win._conn.stimuli.shapes.create_circle(
-            pos=StimulusVec2(px, py), radius=pr,
-            color=to_color(fillColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
+            position=StimulusVec2(px, py),
+            params=CircleParams(
+                diameter=self._scalar_px(self._radius) * 2.0,
+                appearance=ShapeAppearance(
+                    fill_color=to_color(fillColor, colorSpace, 1.0)
+                    or StimulusColor(0.0, 0.0, 0.0, 0.0),
+                ),
+            ),
         )
         if self._opacity != 1.0:
             win._conn.stimuli.set_alpha(self._handle, self._opacity)
@@ -117,8 +126,11 @@ class Circle:
     @radius.setter
     def radius(self, value: float) -> None:
         self._radius = float(value)
-        pr = self._scalar_px(self._radius)
-        self._win._dispatch(self._win._conn.stimuli.shapes.set_circle_radius, self._handle, pr)
+        self._win._dispatch(
+            self._win._conn.stimuli.shapes.set_circle_diameter,
+            self._handle,
+            self._scalar_px(self._radius) * 2.0,
+        )
 
     def setRadius(self, value: float, log: bool | None = None) -> None:
         self.radius = value

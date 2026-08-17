@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from ..._handles import StimulusHandle
 from ...stimuli.color import Color as StimulusColor
-from ...stimuli.text_models import LanguageStyle
+from ...stimuli.text_models import LanguageStyle, TextParams
 from ...stimuli.vec import Vec2 as StimulusVec2
 from ._colors import to_color
 from ._types import PsychoPyColor, PsychoPyVec2
@@ -111,17 +111,18 @@ class TextBox2:
         lang = self._LANGUAGE_STYLE_MAP.get(languageStyle.lower(), LanguageStyle.LTR)
 
         self._handle: StimulusHandle = win._conn.stimuli.text.create_text(
-            text=text,
-            pos=StimulusVec2(px, py),
-            box_width=self._box_w,
-            box_height=self._box_h,
-            letter_height=self._letter_height_px,
-            font=font,
-            anchor=anchor,
-            color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0, 1.0),
-            fill_color=to_color(fillColor, fillColorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
-            language_style=lang,
+            position=StimulusVec2(px, py),
             name=name or "",
+            params=TextParams(
+                text=text,
+                letter_height=self._letter_height_px,
+                font=font,
+                anchor=anchor,
+                text_color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0, 1.0),
+                fill_color=to_color(fillColor, fillColorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
+                language_style=lang,
+                box_size=StimulusVec2(self._box_w, self._box_h),
+            ),
         )
         if self._opacity != 1.0:
             win._conn.stimuli.set_alpha(self._handle, self._opacity)

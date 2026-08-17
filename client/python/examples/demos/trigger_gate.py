@@ -24,8 +24,9 @@ import time
 from _common import add_explanation, clean_slate, demo_parser
 
 from vstimd import Connection, VtlHandle, VtlKind, VtlPolarity
-from vstimd.stimuli.grating_models import GratingMask, GratingTexture
+
 from vstimd.stimuli.stimuli_models import Vec2
+from vstimd.stimuli import GratingMask, GratingParams, GratingTexture
 
 EXPLANATION = (
     "demo_trigger_gate — visibility follows an input level\n"
@@ -59,14 +60,13 @@ def main() -> None:
         # Square wave through a hard circular mask: maximum contrast at a sharp
         # edge, so a single frame of it is unmistakable on a photodiode trace.
         patch = conn.stimuli.grating.create_grating(
-            pos=Vec2(0, 0),
-            width=700, height=700,
-            sf=0.015,
-            angle=90.0,                     # horizontal stripes
-            contrast=1.0,
-            waveform=GratingTexture.SQR,
-            mask=GratingMask.CIRCLE,
+            position=Vec2(0, 0),
+            rotation=90.0,  # horizontal stripes
             name="gated_grating",
+            params=GratingParams(
+                width=700, height=700, sf=0.015, contrast=1.0,
+                waveform=GratingTexture.SQR, mask=GratingMask.CIRCLE,
+            ),
         )
 
         add_explanation(conn, EXPLANATION)
@@ -96,7 +96,6 @@ def main() -> None:
                 print("  gate LOW  — patch hidden")
                 conn.vtl.set_line(gate, False)
                 time.sleep(0.7)
-
 
 if __name__ == "__main__":
     try:

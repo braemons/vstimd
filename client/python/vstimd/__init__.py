@@ -7,8 +7,11 @@ Example::
     from vstimd import Connection
 
     with Connection() as conn:
-        h = conn.stimuli.shapes.create_rect(pos=Vec2(-200, 0), width=300, height=200,
-                                            color=Color(1.0, 0.0, 0.0))
+        h = conn.stimuli.shapes.create_rect(
+            position=Vec2(-200, 0),
+            params=RectParams(width=300, height=200,
+                              appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0))),
+        )
         conn.stimuli.set_enabled(h, False)
         conn.stimuli.delete(h)
         info = conn.system.query_server_info()
@@ -59,6 +62,7 @@ from .exceptions import (
     ConfigAlreadyExistsError,
 )
 from . import psychopy
+from vstimd.stimuli import RectParams, ShapeAppearance, Vec2
 
 __all__ = [
     "__version__",

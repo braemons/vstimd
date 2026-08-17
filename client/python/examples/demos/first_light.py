@@ -21,7 +21,7 @@ import sys
 from _common import add_explanation, clean_slate, demo_parser
 
 from vstimd import Connection
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd.stimuli import CircleParams, Color, RectParams, ShapeAppearance, TextParams, Vec2
 
 EXPLANATION = (
     "demo_first_light — the display works\n"
@@ -52,41 +52,46 @@ def main() -> None:
 
         # ── Background ────────────────────────────────────────────────────────
         # Near-black, so the white marks carry all the contrast.
-        conn.system.set_background(0.05, 0.05, 0.05)
+        _ = conn.system.set_background(0.05, 0.05, 0.05)
 
         # ── Title ─────────────────────────────────────────────────────────────
-        conn.stimuli.text.create_text(
-            text="vstimd — first light",
-            pos=Vec2(0, 220),
-            box_width=1600, box_height=120,
-            letter_height=80,
-            color=Color(1.0, 1.0, 1.0),
+        _ = conn.stimuli.text.create_text(
+            position=Vec2(0, 220),
             name="title",
+            params=TextParams(
+                text="vstimd — first light",
+                letter_height=80,
+                text_color=Color(1.0, 1.0, 1.0),
+                box_size=Vec2(1600, 120),
+            ),
         )
 
         # ── Centre dot ────────────────────────────────────────────────────────
         # Slightly above centre so it does not collide with the title's descenders.
-        conn.stimuli.shapes.create_circle(
-            pos=Vec2(0, 60), radius=8,
-            color=Color(1.0, 1.0, 1.0),
+        _ = conn.stimuli.shapes.create_circle(
+            position=Vec2(0, 60),
             name="fixation_dot",
+            params=CircleParams(
+                diameter=16,
+                appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
+            ),
         )
 
         # ── Corner squares ────────────────────────────────────────────────────
         for name, x, y in CORNERS:
-            conn.stimuli.shapes.create_rect(
-                pos=Vec2(x, y), width=80, height=80,
-                color=Color(1.0, 1.0, 1.0),
+            _ = conn.stimuli.shapes.create_rect(
+                position=Vec2(x, y),
                 name=name,
+                params=RectParams(width=80, height=80),
             )
 
-        add_explanation(conn, EXPLANATION)
+        _ = add_explanation(conn, EXPLANATION)
 
         # ── Persist ───────────────────────────────────────────────────────────
-        conn.config.save(args.save_as, overwrite=args.overwrite)
+        result = conn.config.save(args.save_as, overwrite=args.overwrite)
+        assert result is not None
         print(f"Saved as '{args.save_as}' — load it again with "
               f"conn.config.load('{args.save_as}')")
-
 
 if __name__ == "__main__":
     try:

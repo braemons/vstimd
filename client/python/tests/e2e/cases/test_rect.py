@@ -6,7 +6,7 @@ import time
 import pytest
 
 from vstimd import Connection
-from vstimd.stimuli import RectParams, StimulusType
+from vstimd.stimuli import RectParams, ShapeAppearance, StimulusType
 from vstimd.stimuli.stimuli_models import Color, Vec2
 from ._helpers import label as _label
 
@@ -14,7 +14,14 @@ from ._helpers import label as _label
 def test_create_rect(conn: Connection, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
     lbl = _label(conn, tid, "red 100×100 rect")
-    handle = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=100, height=100, color=Color(1.0, 0.0, 0.0))
+    handle = conn.stimuli.shapes.create_rect(
+        position=Vec2(0, 0),
+        params=RectParams(
+            width=100,
+            height=100,
+            appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0)),
+        ),
+    )
     assert handle > 0
 
     info = conn.stimuli.query(handle)
@@ -32,7 +39,7 @@ def test_create_rect(conn: Connection, request: pytest.FixtureRequest) -> None:
 
 
 def test_set_rect_size(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_rect(width=100, height=50)
+    handle = conn.stimuli.shapes.create_rect(params=RectParams(width=100, height=50))
     conn.stimuli.shapes.set_rect_size(handle, 200, 80)
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, RectParams)

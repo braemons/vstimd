@@ -5,6 +5,7 @@ import pytest
 
 from vstimd import Connection, InvalidArgumentError, NotSupportedError
 from vstimd.response import ErrorCode, ServerResponse
+from vstimd.stimuli import RectParams, ShapeAppearance, TextParams
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
 
@@ -47,13 +48,8 @@ def test_create_with_name(conn: Connection) -> None:
     conn.stimuli.delete(handle)
 
 
-def test_create_with_invalid_uuid_fails(conn: Connection) -> None:
-    with pytest.raises(InvalidArgumentError, match="valid UUID"):
-        conn.stimuli.shapes.create_rect(id="not-a-uuid")
-
-
 def test_set_position(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0))
+    handle = conn.stimuli.shapes.create_rect(position=Vec2(0, 0))
     conn.stimuli.set_position(handle, Vec2(200, -100))
     info = conn.stimuli.query(handle)
     assert info.pos.x == pytest.approx(200.0, abs=0.5)
@@ -69,7 +65,9 @@ def test_set_orientation(conn: Connection) -> None:
 
 
 def test_set_fill_color(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_rect(color=Color(1.0, 1.0, 1.0))
+    handle = conn.stimuli.shapes.create_rect(
+        params=RectParams(appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0))),
+    )
     conn.stimuli.set_fill_color(handle, Color(0.2, 0.4, 0.8))
     info = conn.stimuli.query(handle)
     assert info.fill_color.r == pytest.approx(0.2, abs=0.01)
@@ -92,7 +90,7 @@ def test_set_alpha_on_every_stimulus_type(conn: Connection) -> None:
         conn.stimuli.shapes.create_circle(),
         conn.stimuli.shapes.create_ellipse(),
         conn.stimuli.grating.create_grating(),
-        conn.stimuli.text.create_text(text="opacity"),
+        conn.stimuli.text.create_text(params=TextParams(text="opacity")),
     ]
     for handle in handles:
         conn.stimuli.set_alpha(handle, 0.35)

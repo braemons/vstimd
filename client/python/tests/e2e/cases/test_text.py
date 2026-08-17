@@ -13,19 +13,23 @@ from ._helpers import label as _label, update_label as _update_label
 
 def test_create_text(conn: Connection) -> None:
     handle = conn.stimuli.text.create_text(
-        text="Hello vstimd",
-        pos=Vec2(0, 0),
-        box_width=400, box_height=80,
-        letter_height=48,
-        color=Color(1.0, 1.0, 1.0),
+        position=Vec2(0, 0),
+        params=TextParams(
+            text="Hello vstimd",
+            letter_height=48,
+            text_color=Color(1.0, 1.0, 1.0),
+            box_size=Vec2(400, 80),
+        ),
     )
     assert handle > 0
     conn.stimuli.delete(handle)
 
 
 def test_set_text(conn: Connection) -> None:
-    handle = conn.stimuli.text.create_text(text="before", pos=Vec2(0, 0),
-                                             box_width=400, box_height=80, letter_height=40)
+    handle = conn.stimuli.text.create_text(
+        position=Vec2(0, 0),
+        params=TextParams(text="before", letter_height=40, box_size=Vec2(400, 80)),
+    )
     conn.stimuli.text.set_text(handle, "after")
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, TextParams)
@@ -34,9 +38,15 @@ def test_set_text(conn: Connection) -> None:
 
 
 def test_set_text_color(conn: Connection) -> None:
-    handle = conn.stimuli.text.create_text(text="Color test", pos=Vec2(0, 0),
-                                             box_width=400, box_height=80, letter_height=40,
-                                             color=Color(1.0, 1.0, 1.0))
+    handle = conn.stimuli.text.create_text(
+        position=Vec2(0, 0),
+        params=TextParams(
+            text="Color test",
+            letter_height=40,
+            text_color=Color(1.0, 1.0, 1.0),
+            box_size=Vec2(400, 80),
+        ),
+    )
     conn.stimuli.text.set_text_color(handle, Color(1.0, 0.0, 0.0))
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, TextParams)
@@ -53,11 +63,13 @@ def test_text_visual(conn: Connection, step_delay: float, request: pytest.Fixtur
 
     lbl = _label(conn, tid, "white text")
     h = conn.stimuli.text.create_text(
-        text="Hello vstimd",
-        pos=Vec2(0, 0),
-        box_width=600, box_height=100,
-        letter_height=56,
-        color=Color(1.0, 1.0, 1.0),
+        position=Vec2(0, 0),
+        params=TextParams(
+            text="Hello vstimd",
+            letter_height=56,
+            text_color=Color(1.0, 1.0, 1.0),
+            box_size=Vec2(600, 100),
+        ),
     )
     time.sleep(step_delay)
 

@@ -40,7 +40,7 @@ class VstimdError(Exception):
         to the subclass's own code, so ``HandleNotFoundError("gone").code`` is
         ``ErrorCode.HANDLE_NOT_FOUND`` without having to say so.
     command:
-        Name of the request that failed, e.g. ``"set_circle_radius"``.
+        Name of the request that failed, e.g. ``"set_circle_diameter"``.
     handle:
         Stimulus handle the request addressed, or ``None`` for scene-wide
         commands.

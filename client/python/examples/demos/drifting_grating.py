@@ -22,8 +22,9 @@ import sys
 from _common import add_explanation, clean_slate, demo_parser
 
 from vstimd import Connection
-from vstimd.stimuli.grating_models import GratingMask, GratingTexture
+
 from vstimd.stimuli.stimuli_models import Vec2
+from vstimd.stimuli import GratingMask, GratingParams, GratingTexture
 
 EXPLANATION = (
     "demo_drifting_grating — a moving stimulus every frame\n"
@@ -53,22 +54,20 @@ def main() -> None:
         # cycles per second and is advanced by the render thread, not by us —
         # that is what keeps the motion frame-accurate with no client attached.
         conn.stimuli.grating.create_grating(
-            pos=Vec2(0, 0),
-            width=2400, height=1400,
-            sf=0.01,
-            angle=0.0,                      # vertical stripes
-            contrast=1.0,
-            waveform=GratingTexture.SIN,
-            mask=GratingMask.NONE,
-            drift_speed=4.0,                # cycles/s, perpendicular to the stripes
+            position=Vec2(0, 0),
+            rotation=0.0,  # vertical stripes
             name="full_field_grating",
+            params=GratingParams(
+                width=2400, height=1400, sf=0.01, contrast=1.0,
+                waveform=GratingTexture.SIN, mask=GratingMask.NONE,
+                drift_speed=4.0,  # cycles/s, perpendicular to the stripes
+            ),
         )
 
         add_explanation(conn, EXPLANATION)
 
         conn.config.save(args.save_as, overwrite=args.overwrite)
         print(f"Saved as '{args.save_as}' — it starts drifting the moment it is loaded.")
-
 
 if __name__ == "__main__":
     try:

@@ -140,7 +140,7 @@ def test_wait_until_ready_timeout() -> None:
 
 
 def test_set_deferred_mode(conn: Connection) -> None:
-    h = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0))
+    h = conn.stimuli.shapes.create_rect(position=Vec2(0, 0))
     conn.system.set_deferred_mode(True)
     conn.stimuli.set_position(h, Vec2(100, 50))
     conn.system.set_deferred_mode(False)

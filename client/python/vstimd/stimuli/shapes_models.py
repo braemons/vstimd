@@ -4,7 +4,13 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import Sequence
 
-from vstimd._proto.vstimd.v1.stimuli import shapes_pb2
+from vstimd._proto.vstimd.v1.stimuli import (
+    circle_pb2,
+    ellipse_pb2,
+    polygon_pb2,
+    rect_pb2,
+    shapes_pb2,
+)
 
 from .color import Color
 from .vec import Vec2
@@ -39,8 +45,15 @@ class ShapeAppearance:
     colours' own — the shared ``StimulusInfo.opacity`` multiplies them.
     """
 
-    fill_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0))
-    outline_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0))
+    # ``None`` means "inherit": the wire leaves the field absent and the server
+    # fills it from the scene's default_fill / default_outline. Defaulting these
+    # to a concrete black instead would make every create silently override the
+    # scene defaults — which is not the same picture. A query always comes back
+    # with both set, since the server reports what the stimulus actually has.
+    fill_color: Color | None = None
+    outline_color: Color | None = None
+    # 0 means unset here too, matching the proto: a 0-width outline draws nothing
+    # anyway, so `draw_mode` is how an outline is turned off, not width.
     outline_width: float = 0.0
     draw_mode: ShapeDrawMode = ShapeDrawMode.FILLED
 
@@ -49,20 +62,22 @@ class ShapeAppearance:
         return cls(
             fill_color=Color.from_proto(proto.fill_color)
             if proto.HasField("fill_color")
-            else Color(0.0, 0.0, 0.0),
+            else None,
             outline_color=Color.from_proto(proto.outline_color)
             if proto.HasField("outline_color")
-            else Color(0.0, 0.0, 0.0),
+            else None,
             outline_width=proto.outline_width,
             draw_mode=_PROTO_TO_DRAW_MODE.get(proto.draw_mode, ShapeDrawMode.FILLED),
         )
 
     def to_proto(self) -> shapes_pb2.ShapeAppearance:
         return shapes_pb2.ShapeAppearance(
-            fill_color=self.fill_color.to_proto(),
-            outline_color=self.outline_color.to_proto(),
+            fill_color=self.fill_color.to_proto() if self.fill_color else None,
+            outline_color=self.outline_color.to_proto() if self.outline_color else None,
             outline_width=self.outline_width,
-            draw_mode=_DRAW_MODE_TO_PROTO.get(self.draw_mode, shapes_pb2.ShapeDrawMode.SHAPE_DRAW_MODE_FILLED),
+            draw_mode=_SHAPE_DRAW_MODE_TO_PROTO.get(
+                self.draw_mode, shapes_pb2.SHAPE_DRAW_MODE_FILLED
+            ),
         )
 
 
@@ -72,28 +87,64 @@ def _appearance_or_default(params: object) -> ShapeAppearance:
     return ShapeAppearance.from_proto(proto) if proto is not None else ShapeAppearance()
 
 
+# ── Per-shape geometry ────────────────────────────────────────────────────────
+#
+# Sent by ``create_*`` and reported back by ``query``: each mirrors the one
+# ``*Params`` message the wire uses in both directions. The size fields default
+# to 0, which the server reads as "use your default" rather than as a zero-sized
+# shape — the same convention the proto documents.
+
+
 @dataclass
 class RectParams:
-    width: float
-    height: float
+    width: float = 0.0
+    height: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
+
+    def to_proto(self) -> rect_pb2.RectParams:
+        return rect_pb2.RectParams(
+            width=self.width,
+            height=self.height,
+            appearance=self.appearance.to_proto(),
+        )
 
 
 @dataclass
 class CircleParams:
-    radius: float
+    # Diameter, not radius: a full extent, like every other geometry here.
+    diameter: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
+
+    def to_proto(self) -> circle_pb2.CircleParams:
+        return circle_pb2.CircleParams(
+            diameter=self.diameter,
+            appearance=self.appearance.to_proto(),
+        )
 
 
 @dataclass
 class EllipseParams:
-    width: float
-    height: float
+    width: float = 0.0
+    height: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
+
+    def to_proto(self) -> ellipse_pb2.EllipseParams:
+        return ellipse_pb2.EllipseParams(
+            width=self.width,
+            height=self.height,
+            appearance=self.appearance.to_proto(),
+        )
 
 
 @dataclass
 class PolygonParams:
-    vertices: list[Vec2]
+    vertices: list[Vec2] = field(default_factory=list)
     close_shape: bool = True
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
+
+    def to_proto(self) -> polygon_pb2.PolygonParams:
+        return polygon_pb2.PolygonParams(
+            vertices=[v.to_proto() for v in self.vertices],
+            close_shape=self.close_shape,
+            appearance=self.appearance.to_proto(),
+        )

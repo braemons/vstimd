@@ -12,6 +12,34 @@ versioned independently of the vstimd server.
 The API-consistency pass before the first release. No aliases are kept: the
 server and the client move together, and nothing has shipped yet.
 
+- **Circles take a diameter.** `CircleParams.diameter` replaces `radius`, and
+  `set_circle_radius` becomes `set_circle_diameter`. Every other stimulus is sized
+  by its full extent, so a circle sized by half of one was the odd one out — a
+  number in a config or a command now follows the same convention whatever the
+  type. `visual.Circle(radius=...)` keeps PsychoPy's own contract and converts at
+  the boundary. Saved configs record `"diameter"`; the config format is 4 → 5, and
+  a v4 file is rejected rather than read with a missing field.
+- **`create_*` takes identity, placement and params.** Every creator now has the
+  same three arguments the wire does: `name`, `position`/`rotation`, and one
+  `params` object — `create_rect(position=Vec2(-200, 0),
+  params=RectParams(width=300, height=200))`. The flat keyword lists are gone.
+  The params object is the very type `query()` reports back, so a stimulus can be
+  read and re-created without translating field by field, and a shape's colours
+  travel in `RectParams.appearance` rather than a `color=` argument.
+  `create_text` takes `TextParams` (with `box_size` as one `Vec2` instead of
+  `box_width`/`box_height`, and `color` renamed `text_color`); `create_grating`
+  takes `GratingParams`, whose `fore_color`/`back_color` are now `Color` rather
+  than 4-tuples, and whose `drift_decoupled` flag is inverted to `drift_coupled`.
+  A grating's stripe orientation is the placement's `rotation`, not a params
+  field, because it is the same property `set_orientation` sets.
+- **`ShapeAppearance` colours default to "inherit".** `fill_color` and
+  `outline_color` are `None` by default, which leaves the field off the wire so
+  the server applies the scene's `default_fill` / `default_outline`. Passing a
+  concrete colour overrides only that colour.
+- **No client-supplied stimulus ids.** `create_*(id=...)` is gone; the server
+  assigns every UUID and returns it in the response, which `query()` reports as
+  `StimulusInfo.id`. Nothing used the argument, and loading a saved config never
+  replayed a create in the first place.
 - **Sizes are full extents everywhere.** The command API always took full
   `width`/`height`; the saved config JSON stored half-extents (`size` for rects
   and gratings, `radii` for ellipses). Config now records the same numbers the

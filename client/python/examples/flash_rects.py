@@ -19,6 +19,7 @@ import time
 
 from vstimd import Connection
 from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd.stimuli import RectParams
 
 
 def main() -> None:
@@ -52,17 +53,17 @@ def main() -> None:
         # ── Create ────────────────────────────────────────────────────────────
         # Left rect: red, starts disabled.
         left = conn.stimuli.shapes.create_rect(
-            pos=Vec2(-200, 0),
-            width=300, height=200,
+            position=Vec2(-200, 0),
             color=Color(0.9, 0.15, 0.15),
+            params=RectParams(width=300, height=200),
         )
         conn.stimuli.set_enabled(left, False)
 
         # Right rect: blue, starts disabled.
         right = conn.stimuli.shapes.create_rect(
-            pos=Vec2(200, 0),
-            width=300, height=200,
+            position=Vec2(200, 0),
             color=Color(0.15, 0.4, 0.9),
+            params=RectParams(width=300, height=200),
         )
         conn.stimuli.set_enabled(right, False)
 

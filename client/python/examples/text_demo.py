@@ -2,16 +2,19 @@
 import time
 from vstimd import Connection
 from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd.stimuli import TextParams
 
 with Connection() as conn:
     # White "Hello vstimd" centred on screen
     h = conn.stimuli.text.create_text(
-        text="Hello vstimd",
-        pos=Vec2(0, 50),
-        box_width=600, box_height=120,
-        letter_height=64,
-        color=Color(1.0, 1.0, 1.0),
+        position=Vec2(0, 50),
         name="demo_text",
+        params=TextParams(
+            text="Hello vstimd",
+            letter_height=64,
+            text_color=Color(1.0, 1.0, 1.0),
+            box_size=Vec2(600, 120),
+        ),
     )
     print(f"created text handle: {h}")
     time.sleep(2)

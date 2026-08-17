@@ -4,7 +4,6 @@ from typing import Callable
 
 from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2
-from vstimd._proto.vstimd.v1 import color_pb2, vec2_pb2
 from vstimd._proto.vstimd.v1.stimuli import (
     circle_pb2,
     ellipse_pb2,
@@ -12,17 +11,35 @@ from vstimd._proto.vstimd.v1.stimuli import (
     rect_pb2,
     shapes_pb2,
 )
+from vstimd._proto.vstimd.v1.transform_pb2 import Transform2D
 from vstimd.response import ServerResponse
 
 from .color import Color
-from .shapes_models import ShapeAppearance, ShapeDrawMode, _SHAPE_DRAW_MODE_TO_PROTO
+from .shapes_models import (
+    CircleParams,
+    EllipseParams,
+    PolygonParams,
+    RectParams,
+    ShapeDrawMode,
+    _SHAPE_DRAW_MODE_TO_PROTO,
+)
+from .stimulus_identity import StimulusIdentity
 from .vec import Vec2
 
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
 
 
+def _placement(position: Vec2, rotation: float) -> Transform2D:
+    return Transform2D(pos=position.to_proto(), rotation_deg=rotation)
+
+
 class ShapesClient:
-    """Create and mutate rect, circle, and ellipse stimuli."""
+    """Create and mutate rect, circle, ellipse and polygon stimuli.
+
+    Every ``create_*`` takes the same three things the wire does — who the
+    stimulus is, where it sits, and what it looks like — so the params object a
+    ``query`` hands back is the very object a create accepts.
+    """
 
     def __init__(self, send: _SendFn) -> None:
         self._send = send
@@ -32,22 +49,17 @@ class ShapesClient:
     def create_rect(
         self,
         *,
-        pos: Vec2 = Vec2(0.0, 0.0),
-        width: float = 100.0,
-        height: float = 100.0,
-        shape_appearance: ShapeAppearance = ShapeAppearance(),
         name: str = "",
-        id: str = "",
+        position: Vec2 = Vec2(0.0, 0.0),
+        rotation: float = 0.0,
+        params: RectParams | None = None,
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_rect=rect_pb2.CreateRectRequest(
-                center=pos.to_proto(),
-                width=width,
-                height=height,
-                appearance=shape_appearance.to_proto(),
-                name=name,
-                id=id,
+                identity=StimulusIdentity(name=name).to_proto(),
+                placement=_placement(position, rotation),
+                params=(params or RectParams()).to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -55,20 +67,17 @@ class ShapesClient:
     def create_circle(
         self,
         *,
-        pos: Vec2 = Vec2(0.0, 0.0),
-        radius: float = 50.0,
-        shape_appearance: ShapeAppearance = ShapeAppearance(),
         name: str = "",
-        id: str = "",
+        position: Vec2 = Vec2(0.0, 0.0),
+        rotation: float = 0.0,
+        params: CircleParams | None = None,
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_circle=circle_pb2.CreateCircleRequest(
-                center=pos.to_proto(),
-                radius=radius,
-                appearance=shape_appearance.to_proto(),
-                name=name,
-                id=id,
+                identity=StimulusIdentity(name=name).to_proto(),
+                placement=_placement(position, rotation),
+                params=(params or CircleParams()).to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -76,27 +85,40 @@ class ShapesClient:
     def create_ellipse(
         self,
         *,
-        pos: Vec2 = Vec2(0.0, 0.0),
-        width: float = 100.0,
-        height: float = 50.0,
-        angle: float = 0.0,
-        shape_appearance: ShapeAppearance = ShapeAppearance(),
         name: str = "",
-        id: str = "",
+        position: Vec2 = Vec2(0.0, 0.0),
+        rotation: float = 0.0,
+        params: EllipseParams | None = None,
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_ellipse=ellipse_pb2.CreateEllipseRequest(
-                center=pos.to_proto(),
-                width=width,
-                height=height,
-                angle=angle,
-                appearance=shape_appearance.to_proto(),
-                name=name,
-                id=id,
+                identity=StimulusIdentity(name=name).to_proto(),
+                placement=_placement(position, rotation),
+                params=(params or EllipseParams()).to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
+
+    def create_polygon(
+        self,
+        *,
+        name: str = "",
+        position: Vec2 = Vec2(0.0, 0.0),
+        rotation: float = 0.0,
+        params: PolygonParams | None = None,
+    ) -> StimulusHandle:
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            create_polygon=polygon_pb2.CreatePolygonRequest(
+                identity=StimulusIdentity(name=name).to_proto(),
+                placement=_placement(position, rotation),
+                params=(params or PolygonParams()).to_proto(),
+            ),
+        )
+        return StimulusHandle(self._send(req).handle)
+
+    # ── Geometry setters ──────────────────────────────────────────────────────
 
     def set_rect_size(
         self, handle: StimulusHandle, width: float, height: float
@@ -108,11 +130,11 @@ class ShapesClient:
             )
         ))
 
-    def set_circle_radius(self, handle: StimulusHandle, radius: float) -> ServerResponse:
+    def set_circle_diameter(self, handle: StimulusHandle, diameter: float) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
-                set_circle_radius=circle_pb2.SetCircleRadiusRequest(radius=radius),
+                set_circle_diameter=circle_pb2.SetCircleDiameterRequest(diameter=diameter),
             )
         ))
 
@@ -128,27 +150,6 @@ class ShapesClient:
             )
         ))
 
-    def create_polygon(
-        self,
-        *,
-        vertices: list[Vec2],
-        close_shape: bool = True,
-        shape_appearance: ShapeAppearance = ShapeAppearance(),
-        name: str = "",
-        id: str = "",
-    ) -> StimulusHandle:
-        req = service_pb2.Request(
-            system=service_pb2.SystemTarget(),
-            create_polygon=polygon_pb2.CreatePolygonRequest(
-                vertices=[vec2_pb2.Vec2(x=v.x, y=v.y) for v in vertices],
-                close_shape=close_shape,
-                appearance=shape_appearance.to_proto(),
-                name=name,
-                id=id,
-            ),
-        )
-        return StimulusHandle(self._send(req).handle)
-
     def set_polygon_vertices(
         self, handle: StimulusHandle, vertices: list[Vec2]
     ) -> ServerResponse:
@@ -156,10 +157,12 @@ class ShapesClient:
             service_pb2.Request(
                 stimulus=handle,
                 set_polygon_vertices=polygon_pb2.SetPolygonVerticesRequest(
-                    vertices=[vec2_pb2.Vec2(x=v.x, y=v.y) for v in vertices],
+                    vertices=[v.to_proto() for v in vertices],
                 ),
             )
         ))
+
+    # ── Appearance setters ────────────────────────────────────────────────────
 
     def set_draw_mode(self, handle: StimulusHandle, mode: ShapeDrawMode) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
