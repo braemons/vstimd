@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 5,
   "scene": {
     "background": [
       0.5,
@@ -164,7 +164,7 @@
             },
             "geometry": {
               "type": "Circle",
-              "radius": 6.0
+              "diameter": 12.0
             }
           }
         }

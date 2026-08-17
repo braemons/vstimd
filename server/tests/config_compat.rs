@@ -3,11 +3,11 @@ use vstimd::scene::ShapeGeometry;
 use vtl::VtlKind;
 
 #[test]
-fn load_v3_reference() {
+fn load_current_reference() {
     let (scene, sections) = load_config(std::path::Path::new(
-        "tests/configs/vstimd_reference_v4.config.json",
+        "tests/configs/vstimd_reference_v5.config.json",
     ))
-    .expect("reference v4 config must load without error");
+    .expect("reference v5 config must load without error");
 
     // Scene structure
     assert_eq!(scene.stimuli.len(), 3, "expected 3 stimuli");
@@ -32,9 +32,10 @@ fn load_v3_reference() {
     assert_eq!(circle_entry.stimulus.type_name(), "Circle");
     let c = circle_entry.stimulus.shape().expect("ref_circle must be a shape");
     assert_eq!(c.transform.live.pos, [-300.0, 200.0]);
+    // A full extent, like every other geometry: 100 px across, not a 100 px radius.
     assert!(matches!(
         c.geometry.live,
-        ShapeGeometry::Circle { radius } if (radius - 50.0).abs() < 1e-4
+        ShapeGeometry::Circle { diameter } if (diameter - 100.0).abs() < 1e-4
     ));
     assert!(!circle_entry.stimulus.flags().enabled);
 
@@ -55,19 +56,20 @@ fn load_v3_reference() {
 }
 
 /// Older on-disk formats are rejected rather than silently mis-parsed. This
-/// matters most for v2 → v3: the shape fields kept their names but changed
-/// meaning (half-extents → full width/height), so a v2 file loaded as v3 would
-/// draw every rect, ellipse and grating at half its intended size instead of
-/// failing.
+/// matters most where a field kept its name but changed meaning: a v2 file loaded
+/// as v3 would draw every rect, ellipse and grating at half its intended size
+/// (half-extents → full width/height), and a v4 file loaded as v5 would read a
+/// circle's `radius` as nothing at all now that the field is `diameter`.
 #[test]
 fn reject_older_references() {
     for (version, path) in [
         (1, "tests/configs/vstimd_reference_v1.config.json"),
         (2, "tests/configs/vstimd_reference_v2.config.json"),
         (3, "tests/configs/vstimd_reference_v3.config.json"),
+        (4, "tests/configs/vstimd_reference_v4.config.json"),
     ] {
         match load_config(std::path::Path::new(path)) {
-            Ok(_) => panic!("v{version} config must be rejected after the v4 format break"),
+            Ok(_) => panic!("v{version} config must be rejected after the v5 format break"),
             Err(e) => assert!(
                 e.to_string().contains("config version"),
                 "expected a version error for v{version}, got: {e}",
@@ -82,11 +84,11 @@ fn reject_older_references() {
 /// the checked-in reference honest as the scene model changes, and it is the test
 /// that fails first if a field is renamed.
 #[test]
-fn v4_reference_survives_load_and_save_unchanged() {
-    let path = std::path::Path::new("tests/configs/vstimd_reference_v4.config.json");
+fn current_reference_survives_load_and_save_unchanged() {
+    let path = std::path::Path::new("tests/configs/vstimd_reference_v5.config.json");
     let original: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap();
-    let (scene, _) = load_config(path).expect("reference v4 config must load");
+    let (scene, _) = load_config(path).expect("reference v5 config must load");
     let saved: serde_json::Value = serde_json::from_str(
         &vstimd::scene_config_file::retrieve_config_json(
             &scene,

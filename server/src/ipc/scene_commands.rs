@@ -175,10 +175,10 @@ impl SceneState {
                             appearance,
                         }),
                     ),
-                    ShapeGeometry::Circle { radius } => (
+                    ShapeGeometry::Circle { diameter } => (
                         proto::StimulusType::Circle,
                         proto::stimulus_params::Shape::Circle(proto::CircleParams {
-                            radius,
+                            diameter,
                             appearance,
                         }),
                     ),

@@ -33,7 +33,7 @@ fn make_circle_entry() -> StimulusSceneEntry {
                     fill_color: vstimd::Color::new(0.0, 0.0, 1.0, 1.0),
                     ..Default::default()
                 },
-                ShapeGeometry::Circle { radius: 75.0 },
+                ShapeGeometry::Circle { diameter: 150.0 },
             ));
             // Disabled on purpose: the round-trip must carry the flag, not just
             // the geometry.

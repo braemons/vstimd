@@ -22,7 +22,7 @@ pub(crate) fn spawn_demo_stimuli(
                     fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
                     ..Default::default()
                 },
-                ShapeGeometry::Circle { radius: 80.0 },
+                ShapeGeometry::Circle { diameter: 160.0 },
             )),
         ),
     );

@@ -28,7 +28,7 @@ fn command_summary(req: &proto::Request) -> String {
             )
         }
         Some(request::Body::CreateCircle(c)) => {
-            format!("CreateCircle r={:.0}", c.params.as_ref().map_or(0.0, |p| p.radius))
+            format!("CreateCircle d={:.0}", c.params.as_ref().map_or(0.0, |p| p.diameter))
         }
         Some(request::Body::CreateEllipse(c)) => {
             let p = c.params.as_ref();
@@ -49,7 +49,9 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::SetRectSize(c)) => {
             format!("SetRectSize {:.0}×{:.0}", c.width, c.height)
         }
-        Some(request::Body::SetCircleRadius(c)) => format!("SetCircleRadius({:.0})", c.radius),
+        Some(request::Body::SetCircleDiameter(c)) => {
+            format!("SetCircleDiameter({:.0})", c.diameter)
+        }
         Some(request::Body::SetEllipseSize(c)) => {
             format!("SetEllipseSize {:.0}×{:.0}", c.width, c.height)
         }
@@ -315,7 +317,7 @@ impl SceneState {
             request::Body::SetFillColor(cmd) => self.cmd_set_fill_color(handle, cmd),
             request::Body::SetAlpha(cmd) => self.cmd_set_alpha(handle, cmd),
             request::Body::SetRectSize(cmd) => self.cmd_set_rect_size(handle, cmd),
-            request::Body::SetCircleRadius(cmd) => self.cmd_set_circle_radius(handle, cmd),
+            request::Body::SetCircleDiameter(cmd) => self.cmd_set_circle_diameter(handle, cmd),
             request::Body::SetEllipseSize(cmd) => self.cmd_set_ellipse_size(handle, cmd),
             request::Body::SetDrawMode(cmd) => self.cmd_set_draw_mode(handle, cmd),
             request::Body::SetOutlineColor(cmd) => self.cmd_set_outline_color(handle, cmd),

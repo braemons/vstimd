@@ -62,7 +62,7 @@ fn color_or_default(c: Option<proto::Color>, default: Color) -> Color {
 /// `appearance` present overrides field by field, each with the same fallback,
 /// so a client may set only `draw_mode` and inherit the rest. Zero means unset
 /// for `outline_width`, matching the convention the create commands already use
-/// for `width`/`height`/`radius` — and a 0-width outline draws nothing anyway,
+/// for `width`/`height`/`diameter` — and a 0-width outline draws nothing anyway,
 /// so `draw_mode` is how you turn an outline off, not width.
 pub(super) fn shape_appearance_from_proto(
     appearance: Option<proto::ShapeAppearance>,

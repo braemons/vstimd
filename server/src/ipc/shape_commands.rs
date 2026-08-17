@@ -1,7 +1,7 @@
 //! Create/modify commands for the primitive shapes (rect, circle, ellipse)
 //! and the transform + appearance setters shared by every stimulus type.
 //!
-//! The wire keeps one command per shape — `CreateRect`, `SetCircleRadius`,
+//! The wire keeps one command per shape — `CreateRect`, `SetCircleDiameter`,
 //! `SetEllipseSize` — because that is what clients already speak. Internally
 //! they all land on one [`Shape`] with a [`ShapeGeometry`] arm; the
 //! many-to-one mapping lives here and nowhere else.
@@ -47,7 +47,7 @@ impl SceneState {
     }
 
     /// Run `f` on the geometry of the shape at `handle`, rejecting the wrong
-    /// geometry arm — `SetCircleRadius` must refuse a rect the way it always did
+    /// geometry arm — `SetCircleDiameter` must refuse a rect the way it always did
     /// — and marking the stimulus dirty unless the write was deferred.
     ///
     /// The handle lookup, the wrong-type rejection and the dirty bookkeeping are
@@ -143,7 +143,7 @@ impl SceneState {
 
     pub(super) fn cmd_create_circle(&mut self, cmd: proto::CreateCircleRequest) -> proto::Response {
         let params = cmd.params.unwrap_or_default();
-        let radius = if params.radius == 0.0 { 50.0 } else { params.radius };
+        let diameter = if params.diameter == 0.0 { 100.0 } else { params.diameter };
         // A circle is rotationally symmetric, so the placement's rotation changes
         // nothing on screen — it is still stored, because SetOrientation accepts a
         // circle too and refusing it only here would be the odd behaviour.
@@ -151,7 +151,7 @@ impl SceneState {
             cmd.identity,
             cmd.placement,
             params.appearance,
-            ShapeGeometry::Circle { radius },
+            ShapeGeometry::Circle { diameter },
         )
     }
 
@@ -304,18 +304,18 @@ impl SceneState {
         })
     }
 
-    // ── SetCircleRadius ───────────────────────────────────────────────────────
+    // ── SetCircleDiameter ─────────────────────────────────────────────────────
 
-    pub(super) fn cmd_set_circle_radius(
+    pub(super) fn cmd_set_circle_diameter(
         &mut self,
         handle: u32,
-        cmd: proto::SetCircleRadiusRequest,
+        cmd: proto::SetCircleDiameterRequest,
     ) -> proto::Response {
-        self.with_shape_geometry(handle, "SetCircleRadius", "Circle", |next, prev| {
+        self.with_shape_geometry(handle, "SetCircleDiameter", "Circle", |next, prev| {
             if !matches!(prev, ShapeGeometry::Circle { .. }) {
                 return false;
             }
-            *next = ShapeGeometry::Circle { radius: cmd.radius };
+            *next = ShapeGeometry::Circle { diameter: cmd.diameter };
             true
         })
     }

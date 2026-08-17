@@ -47,8 +47,8 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                             StimulusKind::Shape(s) => match s.geometry.live {
                                 ShapeGeometry::Rect { size }
                                 | ShapeGeometry::Ellipse { size } => wh(size),
-                                ShapeGeometry::Circle { radius } => {
-                                    format!("r={}", radius as i32)
+                                ShapeGeometry::Circle { diameter } => {
+                                    format!("d={}", diameter as i32)
                                 }
                             },
                             StimulusKind::Mesh3d(_) => "3-D".to_string(),
