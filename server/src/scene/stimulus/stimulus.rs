@@ -3,6 +3,7 @@ use super::mesh3d::Mesh3d;
 use super::shape::Shape;
 use super::stimulus_common::StimulusCommon;
 use super::stimulus_flags::StimulusFlags;
+use super::stimulus_type::StimulusType;
 use super::text::Text;
 use crate::scene::deferred::Deferred;
 pub use crate::scene::stimulus::shape_appearance::ShapeAppearance;
@@ -286,18 +287,23 @@ impl Stimulus {
         self.flags().is_visible()
     }
 
-    // ── Display name ──────────────────────────────────────────────────────────
+    // ── User-facing type ──────────────────────────────────────────────────────
 
-    /// The **user-facing** type name — what the config `"type"` tag holds and
-    /// what a `WRONG_STIMULUS_TYPE` error quotes back. Sourced from the geometry
-    /// so a client never sees an internal kind name.
-    pub fn type_name(&self) -> &'static str {
+    /// Which type a client would call this. Sourced from the geometry, so an
+    /// internal body name can never reach one; `ipc` turns it into the wire enum.
+    pub fn stimulus_type(&self) -> StimulusType {
         match &self.body {
-            StimulusBody::Shape(s) => s.geometry.live.type_name(),
-            StimulusBody::Grating(_) => Grating::TYPE_NAME,
-            StimulusBody::Text(_) => Text::TYPE_NAME,
-            StimulusBody::Mesh3d(m) => m.geometry.live.type_name(),
+            StimulusBody::Shape(s) => s.geometry.live.stimulus_type(),
+            StimulusBody::Grating(_) => StimulusType::Grating,
+            StimulusBody::Text(_) => StimulusType::Text,
+            StimulusBody::Mesh3d(m) => m.geometry.live.stimulus_type(),
         }
+    }
+
+    /// The **user-facing** type name — what the config `"type"` tag holds and what
+    /// a `WRONG_STIMULUS_TYPE` error quotes back.
+    pub fn type_name(&self) -> &'static str {
+        self.stimulus_type().type_name()
     }
 }
 

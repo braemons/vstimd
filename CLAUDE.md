@@ -36,11 +36,14 @@ See `docs/PLAN.md` for the full design and roadmap.
   `StimulusBody` enum, composition throughout (not trait objects or inheritance)
 - `StimulusBody` is the **renderer's** taxonomy (one arm per pipeline/cache: `Shape`,
   `Grating`, `Text`, `Mesh3d`); the finer user-facing names (`Rect`, `Circle`, `Cube3D`)
-  live in the geometry enums. Internal body names must never reach a client — errors and
-  `StimulusType` come from `ShapeGeometry::type_name` / `Mesh3dGeometry::type_name`.
-  It is called `Body` and not `Kind` deliberately: it carries the stimulus data, and
-  `Kind` reads as a synonym of the wire's `StimulusType` while being strictly coarser
-  (all four shapes are one `Shape` arm). Never name a client-facing thing `kind`
+  live in the geometry enums. Internal body names must never reach a client — the
+  user-facing taxonomy is the native `scene::StimulusType`, which every geometry maps
+  to via `stimulus_type()` and which owns the only client-visible spelling
+  (`type_name()`). `ipc/convert` maps it to the wire enum, exhaustively, so adding a
+  type is a compile error until its wire value is chosen. It is called `Body` and not
+  `Kind` deliberately: it carries the stimulus data, and `Kind` reads as a synonym of
+  `StimulusType` while being strictly coarser (all four shapes are one `Shape` arm).
+  Never name a client-facing thing `kind`
 - The config format *is* the runtime shape (no DTO). Types owning runtime state
   (`StimulusFlags`, `Grating`, `Text`) hide it behind a `serde` impl delegating to an inner
   `*Config`; GPU resources never live in the scene tree at all

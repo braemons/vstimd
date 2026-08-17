@@ -20,7 +20,32 @@ pub(super) use text::{anchor_from_str, proto_to_language_style, text_query_param
 
 use crate::Color;
 use crate::proto;
-use crate::scene::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance, StimulusIdentity};
+use crate::scene::stimulus::{
+    DrawMode as SceneDrawMode, ShapeAppearance, StimulusIdentity,
+    StimulusType as SceneStimulusType,
+};
+
+/// The scene's user-facing type → the wire enum.
+///
+/// The only place the two encodings of that taxonomy meet. `StimulusType` is
+/// exhaustive here, so adding a stimulus type is a compile error until the wire
+/// value is chosen — which is the whole reason the scene owns a native enum instead
+/// of handing out strings and letting this match be written from memory.
+pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusType {
+    match t {
+        SceneStimulusType::Rect => proto::StimulusType::Rect,
+        SceneStimulusType::Ellipse => proto::StimulusType::Ellipse,
+        SceneStimulusType::Circle => proto::StimulusType::Circle,
+        SceneStimulusType::Grating => proto::StimulusType::Grating,
+        SceneStimulusType::Text => proto::StimulusType::Text,
+        // Phase B: dev/3D_ROADMAP.md §10.2 reserves wire values 20–29 for these.
+        // Unreachable until a command constructs a `Mesh3d`, and reporting one of
+        // the 2-D values instead would be a lie a client could not detect.
+        SceneStimulusType::Cube3D | SceneStimulusType::Sphere3D | SceneStimulusType::Plane3D => {
+            unimplemented!("Phase B: STIMULUS_TYPE_CUBE_3D / _SPHERE_3D / _PLANE_3D")
+        }
+    }
+}
 
 pub(super) fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
     match proto::ShapeDrawMode::try_from(mode).unwrap_or(proto::ShapeDrawMode::Unspecified) {
@@ -137,6 +162,36 @@ pub(super) fn parse_version_str(s: &str) -> proto::Version {
         major: parts.next().unwrap_or(0),
         minor: parts.next().unwrap_or(0),
         patch: parts.next().unwrap_or(0),
+    }
+}
+
+#[cfg(test)]
+mod stimulus_type_tests {
+    use super::*;
+
+    /// The scene's name and the wire's enum are two encodings of one taxonomy, and
+    /// they are only linked by the match above. This pins the pairs so a change to
+    /// either side has to be a deliberate edit here.
+    #[test]
+    fn scene_types_map_to_their_wire_values() {
+        for (scene, wire, name) in [
+            (SceneStimulusType::Rect, proto::StimulusType::Rect, "Rect"),
+            (SceneStimulusType::Ellipse, proto::StimulusType::Ellipse, "Ellipse"),
+            (SceneStimulusType::Circle, proto::StimulusType::Circle, "Circle"),
+            (SceneStimulusType::Grating, proto::StimulusType::Grating, "Grating"),
+            (SceneStimulusType::Text, proto::StimulusType::Text, "Text"),
+        ] {
+            assert_eq!(stimulus_type_to_proto(scene), wire, "wire value for {name}");
+            assert_eq!(scene.type_name(), name);
+        }
+    }
+
+    /// A 3-D type has no wire value yet, and must refuse rather than report a 2-D one
+    /// — a client cannot tell a wrong type from a right one.
+    #[test]
+    #[should_panic(expected = "Phase B")]
+    fn three_d_types_have_no_wire_value_yet() {
+        let _ = stimulus_type_to_proto(SceneStimulusType::Cube3D);
     }
 }
 

@@ -62,12 +62,6 @@ impl<'de> serde::Deserialize<'de> for Text {
 }
 
 impl Text {
-    /// Deliberately still `"TextStimulus"`, not `"Text"`: this string reaches
-    /// clients in `WRONG_STIMULUS_TYPE` error messages, so it is wire surface
-    /// rather than an internal name to tidy up alongside the type. (The config
-    /// `"type"` tag is the *kind* name, also `"Text"`, which is a coincidence
-    /// rather than the same string.)
-    pub const TYPE_NAME: &'static str = "TextStimulus";
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         pos: [f32; 2],
