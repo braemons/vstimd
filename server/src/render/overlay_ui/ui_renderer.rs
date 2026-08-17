@@ -38,7 +38,7 @@ impl UiRenderer {
         }
     }
 
-    pub(super) fn destroy(&mut self, device: &ash::Device) {
+    pub(crate) fn destroy(&mut self, device: &ash::Device) {
         self.egui_renderer.destroy(device);
     }
 }

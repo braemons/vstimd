@@ -8,3 +8,6 @@ pub use overlay_state::{OverlayGroup, OverlayState};
 
 pub(crate) mod overlay;
 pub(crate) use overlay::{OverlayArgs, build_overlay_ui};
+
+pub(crate) mod ui_renderer;
+pub use ui_renderer::UiRenderer;

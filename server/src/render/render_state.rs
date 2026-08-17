@@ -2,7 +2,7 @@ use crate::render::display_info::StimulusDisplayInfo;
 use crate::render::scene_renderer::SceneRenderer;
 use crate::system_info::SystemInfo;
 use crate::render::text_renderer::TextRenderer;
-use crate::render::ui_renderer::UiRenderer;
+use crate::render::overlay_ui::ui_renderer::UiRenderer;
 use crate::timing::FrameTiming;
 
 /// Vulkan rendering resources shared between the DRM and winit backends.

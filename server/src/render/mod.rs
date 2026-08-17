@@ -14,6 +14,7 @@ pub mod render_target;
 pub use render_target::{RenderTarget, RenderTargetPref, WindowMode};
 
 pub(crate) mod overlay_ui;
+pub use overlay_ui::UiRenderer;
 pub mod tess;
 pub(crate) mod vk;
 
@@ -22,9 +23,6 @@ pub use scene_renderer::SceneRenderer;
 
 pub(crate) mod text_renderer;
 pub use text_renderer::TextRenderer;
-
-pub(crate) mod ui_renderer;
-pub use ui_renderer::UiRenderer;
 
 pub mod render_state;
 pub use render_state::RenderState;

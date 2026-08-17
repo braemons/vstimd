@@ -61,7 +61,7 @@ pub fn render_frame(
         && let Some(raw_input) = egui_raw_input
     {
         let phases = rs.timing.last_phases;
-        let crate::render::ui_renderer::UiRenderer {
+        let crate::render::overlay_ui::ui_renderer::UiRenderer {
             ref mut egui_ctx,
             ref mut overlay,
             ref mut metrics,
