@@ -275,7 +275,7 @@ impl DrmRenderLoopData {
             "vstimd: fatal display error — {reason}. Stimulus timing/output can no longer be \
              guaranteed; shutting down."
         );
-        crate::shutdown::request_fatal(reason);
+        crate::process::shutdown::request_fatal(reason);
     }
 
     fn run_loop(mut self) {
@@ -286,7 +286,7 @@ impl DrmRenderLoopData {
 
         let mut clock_logged = false;
         loop {
-            if crate::shutdown::is_requested() {
+            if crate::process::shutdown::is_requested() {
                 return;
             }
 

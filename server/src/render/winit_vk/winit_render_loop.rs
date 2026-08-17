@@ -302,7 +302,7 @@ impl WinitEventHandler {
 
 impl ApplicationHandler for WinitEventHandler {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if crate::shutdown::is_requested() {
+        if crate::process::shutdown::is_requested() {
             event_loop.exit();
         }
     }

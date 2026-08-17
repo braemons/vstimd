@@ -119,7 +119,7 @@ impl EvdiBackend {
         on_ready();
 
         loop {
-            if crate::shutdown::is_requested() {
+            if crate::process::shutdown::is_requested() {
                 break;
             }
 

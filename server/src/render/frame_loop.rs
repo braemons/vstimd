@@ -35,7 +35,7 @@ pub(crate) enum KeyOutcome {
 pub(crate) fn apply_app_key(key: AppKey, rs: &mut RenderState) -> KeyOutcome {
     log::debug!("vstimd: app key {key:?}");
     match key {
-        AppKey::Quit => crate::shutdown::request(),
+        AppKey::Quit => crate::process::shutdown::request(),
         // Esc never quits — it closes a dialog or hides the overlay.
         // (Quit via Ctrl+Q, SIGINT, or a VT switch away then kill.)
         AppKey::Escape => {

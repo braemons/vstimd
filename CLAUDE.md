@@ -55,6 +55,8 @@ See `docs/PLAN.md` for the full design and roadmap.
   under `overlay_ui/panels/`; `vk/` is the only Vulkan layer.
 - `input/`, `system_info.rs`, `system_metrics.rs`, `benchmark.rs` are peers of `render/`, not part
   of it.
+- `process/` — shutdown flag and render-thread scheduling. `log_buffer.rs` stays at the root:
+  it is the log sink the overlay reads, not process management.
 
 **Threading:** Two threads share `Arc<RwLock<SceneState>>`. Render thread holds write (tessellation) then read (draw); ZMQ thread holds write (one command at a time). The write lock is dropped before render acquires read, so ZMQ always has a window between frames.
 

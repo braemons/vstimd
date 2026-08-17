@@ -239,7 +239,7 @@ impl SceneState {
             request::Body::UploadConfig(cmd) => self.cmd_upload_config(cmd, vtl),
             request::Body::RetrieveConfig(_) => self.cmd_retrieve_config(vtl.as_deref()),
             request::Body::Shutdown(_) => {
-                crate::shutdown::request();
+                crate::process::shutdown::request();
                 ok_ack()
             }
             _ => err(

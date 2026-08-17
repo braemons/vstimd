@@ -56,8 +56,8 @@ pub struct HostInfo {
     pub hostname: String,
     pub local_ip: String,
     pub zmq_port: u16,
-    /// Render-thread affinity/priority actually in effect (see [`crate::sched`]).
-    pub sched: crate::sched::SchedStatus,
+    /// Render-thread affinity/priority actually in effect (see [`crate::process::sched`]).
+    pub sched: crate::process::sched::SchedStatus,
 }
 
 pub struct SystemInfo {

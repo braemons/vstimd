@@ -72,7 +72,7 @@ fn main() {
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(hold_secs));
         println!("time's up, requesting shutdown");
-        vstimd::shutdown::request();
+        vstimd::process::shutdown::request();
     });
 
     println!("starting EvdiBackend for {hold_secs}s — check the physical DisplayLink screen");

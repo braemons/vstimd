@@ -223,7 +223,7 @@ fn main() {
     // Pin/promote the render thread before entering the frame loop. The loop
     // runs on this (main) thread, so this is the thread that matters; the ZMQ
     // and web threads deliberately stay on the general scheduler.
-    host_info.sched = vstimd::sched::apply_to_render_thread(&rig.scheduling);
+    host_info.sched = vstimd::process::sched::apply_to_render_thread(&rig.scheduling);
 
     let data = BackendData {
         scene,
@@ -293,7 +293,7 @@ fn main() {
     drop(zmq_shutdown);
     zmq_thread.join().ok();
 
-    if let Some(reason) = vstimd::shutdown::fatal_reason() {
+    if let Some(reason) = vstimd::process::shutdown::fatal_reason() {
         log::error!("vstimd: exiting after fatal error: {reason}");
         std::process::exit(1);
     }
@@ -652,7 +652,7 @@ fn install_signal_handlers() {
     #[cfg(target_os = "linux")]
     {
         extern "C" fn on_signal(_: libc::c_int) {
-            vstimd::shutdown::request();
+            vstimd::process::shutdown::request();
         }
         unsafe {
             libc::signal(libc::SIGTERM, on_signal as *const () as libc::sighandler_t);

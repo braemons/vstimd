@@ -21,7 +21,7 @@ impl NullBackend {
             std::time::Duration::from_secs_f32(1.0 / s.runtime.frame_rate)
         };
         loop {
-            if crate::shutdown::is_requested() {
+            if crate::process::shutdown::is_requested() {
                 break;
             }
             let t0 = std::time::Instant::now();
