@@ -74,7 +74,7 @@ export function StimulusMap({ conn, snapshot }: Props) {
       ctx.fillStyle = css;
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 1;
-      if (s.kind === "circle" || s.kind === "ellipse") {
+      if (s.type === "circle" || s.type === "ellipse") {
         ctx.beginPath();
         ctx.ellipse(0, 0, w / 2, h / 2, 0, 0, Math.PI * 2);
         ctx.fill();
@@ -87,7 +87,7 @@ export function StimulusMap({ conn, snapshot }: Props) {
 
       ctx.fillStyle = "#ccc";
       ctx.font = "11px sans-serif";
-      ctx.fillText(s.name || s.kind, c.x + w / 2 + 4, c.y + 4);
+      ctx.fillText(s.name || s.type, c.x + w / 2 + 4, c.y + 4);
     }
   });
 

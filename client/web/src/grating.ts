@@ -53,9 +53,13 @@ export class GratingClient {
         body: {
           case: "createGrating",
           value: {
-            center: pos, width, height, sf, phase, angle, contrast,
-            foreColor, backColor,
-            waveform: WAVEFORM[waveform], mask: MASK[mask], driftSpeed, name,
+            identity: { name },
+            // The rotation is the stripe orientation, not the patch's.
+            placement: { pos, rotationDeg: angle },
+            params: {
+              width, height, sf, phase, contrast, foreColor, backColor,
+              waveform: WAVEFORM[waveform], mask: MASK[mask], driftSpeed,
+            },
           },
         },
       }),
