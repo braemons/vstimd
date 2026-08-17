@@ -1,13 +1,11 @@
 syntax = "proto3";
 package vstimd.v1;
 
-import "vstimd/v1/color.proto";
 import "vstimd/v1/stimuli/circle.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
 import "vstimd/v1/stimuli/grating.proto";
 import "vstimd/v1/stimuli/polygon.proto";
 import "vstimd/v1/stimuli/rect.proto";
-import "vstimd/v1/stimuli/shapes.proto";
 import "vstimd/v1/stimuli/stimulus_type.proto";
 import "vstimd/v1/stimuli/text.proto";
 import "vstimd/v1/transform.proto";
