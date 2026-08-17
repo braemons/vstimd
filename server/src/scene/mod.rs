@@ -11,7 +11,8 @@ pub use photodiode::PhotoDiodeState;
 pub use scene_config::{LoadMode, SceneConfig};
 pub use scene_state::{SceneRuntimeState, SceneState};
 pub use stimulus::{
-    Anchor, CircleStimulus, DrawMode, EllipseStimulus, GratingMask, GratingParams, GratingStimulus,
-    LanguageStyle, RectStimulus, ShapeAppearance, StimulusCommon, Stimulus, StimulusFlags,
-    StimulusSceneEntry, TextRenderParams, TextStimulus, Transform2D, Waveform,
+    Anchor, DrawMode, Grating, GratingMask, GratingParams, LanguageStyle, Material3D, Mesh3d,
+    Mesh3dGeometry, Shading3D, Shape, ShapeAppearance, ShapeGeometry,
+    Stimulus, StimulusCommon, StimulusFlags, StimulusKind, StimulusSceneEntry, Text,
+    TextRenderParams, Transform2D, Transform3D, Waveform,
 };

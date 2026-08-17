@@ -6,8 +6,37 @@ use super::response::{err, err_not_found, ok_ack, ok_body};
 use crate::proto;
 use crate::scene::stimulus::grating::grating_query_params;
 use crate::scene::stimulus::text::text_query_params;
-use crate::scene::stimulus::{Stimulus, StimulusSceneEntry};
+use crate::scene::stimulus::{
+    Mesh3dGeometry, ShapeGeometry, Stimulus, StimulusKind, StimulusSceneEntry,
+};
 use crate::scene::SceneState;
+
+/// The **user-facing** `StimulusType` for a stimulus.
+///
+/// The mapping is many-to-one in the other direction: three `StimulusType`s come
+/// out of one [`StimulusKind::Shape`], and (from Phase B) three more out of one
+/// [`StimulusKind::Mesh3d`]. Sourced from the geometry so an internal kind name
+/// can never reach a client.
+fn stimulus_type_of(stim: &Stimulus) -> proto::StimulusType {
+    match &stim.kind {
+        StimulusKind::Shape(s) => match s.geometry.live {
+            ShapeGeometry::Rect { .. } => proto::StimulusType::Rect,
+            ShapeGeometry::Ellipse { .. } => proto::StimulusType::Ellipse,
+            ShapeGeometry::Circle { .. } => proto::StimulusType::Circle,
+        },
+        StimulusKind::Grating(_) => proto::StimulusType::Grating,
+        StimulusKind::Text(_) => proto::StimulusType::Text,
+        // Phase B: §10.2 reserves `StimulusType` 20–29 for 3-D. Unreachable
+        // until a command constructs a `Mesh3d`.
+        StimulusKind::Mesh3d(m) => match m.geometry.live {
+            Mesh3dGeometry::Cube { .. }
+            | Mesh3dGeometry::Sphere { .. }
+            | Mesh3dGeometry::Plane { .. } => {
+                unimplemented!("Phase B: STIMULUS_TYPE_CUBE_3D / _SPHERE_3D / _PLANE_3D")
+            }
+        },
+    }
+}
 
 impl SceneState {
     // ── SetBackground ─────────────────────────────────────────────────────────
@@ -122,46 +151,72 @@ impl SceneState {
         // per-type state goes in `params`, per-dimension placement in
         // `placement`. Nothing is synthesised to fill a field that does not
         // apply — a grating has no outline, and says so by omitting it.
-        let (stimulus_type, params) = match stim {
-            Stimulus::Rect(r) => (
-                proto::StimulusType::Rect,
-                proto::stimulus_params::Shape::Rect(proto::RectParams {
-                    width: r.size.live[0],
-                    height: r.size.live[1],
-                    appearance: Some(shape_appearance_to_proto(&r.appearance.live)),
-                }),
-            ),
-            Stimulus::Circle(c) => (
-                proto::StimulusType::Circle,
-                proto::stimulus_params::Shape::Circle(proto::CircleParams {
-                    radius: c.radius.live,
-                    appearance: Some(shape_appearance_to_proto(&c.appearance.live)),
-                }),
-            ),
-            Stimulus::Ellipse(e) => (
-                proto::StimulusType::Ellipse,
-                proto::stimulus_params::Shape::Ellipse(proto::EllipseParams {
-                    width: e.size.live[0],
-                    height: e.size.live[1],
-                    appearance: Some(shape_appearance_to_proto(&e.appearance.live)),
-                }),
-            ),
-            Stimulus::Grating(g) => (
+        // The wire taxonomy is the user's: `Rect`, `Ellipse` and `Circle` are
+        // three `StimulusType`s and three `params` arms even though internally
+        // they share one `Shape`. This match is where that mapping is declared.
+        let (stimulus_type, params) = match &stim.kind {
+            StimulusKind::Shape(s) => {
+                let appearance = Some(shape_appearance_to_proto(&s.appearance.live));
+                match s.geometry.live {
+                    ShapeGeometry::Rect { size } => (
+                        proto::StimulusType::Rect,
+                        proto::stimulus_params::Shape::Rect(proto::RectParams {
+                            width: size[0],
+                            height: size[1],
+                            appearance,
+                        }),
+                    ),
+                    ShapeGeometry::Ellipse { size } => (
+                        proto::StimulusType::Ellipse,
+                        proto::stimulus_params::Shape::Ellipse(proto::EllipseParams {
+                            width: size[0],
+                            height: size[1],
+                            appearance,
+                        }),
+                    ),
+                    ShapeGeometry::Circle { radius } => (
+                        proto::StimulusType::Circle,
+                        proto::stimulus_params::Shape::Circle(proto::CircleParams {
+                            radius,
+                            appearance,
+                        }),
+                    ),
+                }
+            }
+            StimulusKind::Grating(g) => (
                 proto::StimulusType::Grating,
                 grating_query_params(g)
                     .shape
                     .expect("grating_query_params always sets a shape"),
             ),
-            Stimulus::Text(t) => (
+            StimulusKind::Text(t) => (
                 proto::StimulusType::Text,
                 text_query_params(t)
                     .shape
                     .expect("text_query_params always sets a shape"),
             ),
+            // Unreachable: no command constructs a `Mesh3d` yet. Phase B owes
+            // `StimulusType::Sphere3D`/`Cube3D` (§10.2 reserves 20–29), the
+            // `Sphere3DParams`/`Cube3DParams` oneof arms, and a `transform_3d`
+            // arm on the `placement` oneof — which does not exist in the proto
+            // today, so there is nothing honest to report here yet.
+            StimulusKind::Mesh3d(_) => {
+                unimplemented!("Phase B: 3-D query params — see dev/3D_ROADMAP.md §10.2")
+            }
         };
 
-        let pos = stim.get_pos();
         let draw_order = self.config.stimuli.get_index_of(&handle).unwrap_or(0) as u32;
+        // `placement` is a oneof with a single `transform_2d` arm, so a 3-D
+        // stimulus has nothing to put in it until §10.2's `transform_3d` lands.
+        let placement = stim.transform2d().map(|t| {
+            proto::query_stimulus_response::Placement::Transform2d(proto::Transform2D {
+                pos: Some(proto::Vec2 {
+                    x: t.live.pos[0],
+                    y: t.live.pos[1],
+                }),
+                rotation_deg: t.live.angle,
+            })
+        });
         proto::QueryStimulusResponse {
             stimulus_type: stimulus_type as i32,
             enabled: stim.flags().enabled,
@@ -172,12 +227,7 @@ impl SceneState {
             name: entry.name.clone().unwrap_or_default(),
             draw_order,
             handle,
-            placement: Some(proto::query_stimulus_response::Placement::Transform2d(
-                proto::Transform2D {
-                    pos: Some(proto::Vec2 { x: pos[0], y: pos[1] }),
-                    rotation_deg: stim.transform().live.angle,
-                },
-            )),
+            placement,
         }
     }
 
@@ -189,13 +239,7 @@ impl SceneState {
             .iter()
             .map(|(&handle, entry)| {
                 let stim = &entry.stimulus;
-                let stimulus_type = match stim {
-                    Stimulus::Rect(_) => proto::StimulusType::Rect,
-                    Stimulus::Ellipse(_) => proto::StimulusType::Ellipse,
-                    Stimulus::Circle(_) => proto::StimulusType::Circle,
-                    Stimulus::Grating(_) => proto::StimulusType::Grating,
-                    Stimulus::Text(_) => proto::StimulusType::Text,
-                } as i32;
+                let stimulus_type = stimulus_type_of(stim) as i32;
                 proto::StimulusEntry {
                     handle,
                     stimulus_type,

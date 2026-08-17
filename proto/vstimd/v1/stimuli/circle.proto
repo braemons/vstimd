@@ -13,6 +13,11 @@ message CreateCircleRequest {
   Color fill_color = 3; // fill colour (absent → scene default_fill)
   string id = 4; // client-supplied UUID (empty string → server generates one)
   string name = 5; // optional human-readable label
+  // See CreateRectRequest.appearance for the fallback rules.
+  ShapeAppearance appearance = 6;
+  // No `angle`: a circle is rotationally symmetric, so an orientation would be
+  // a field that provably does nothing. Use SetOrientation if a future
+  // textured fill ever makes it meaningful.
 }
 
 // Stimulus command: set the radius of a Circle stimulus.

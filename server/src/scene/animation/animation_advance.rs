@@ -236,8 +236,17 @@ pub(crate) fn advance_one(
                 if idx < coords.len() {
                     let [x, y] = coords[idx];
                     for &sh in &stim_handles {
-                        if let Some(e) = scene.config.stimuli.get_mut(&sh) {
-                            e.stimulus.move_to(false, x, y);
+                        if let Some(e) = scene.config.stimuli.get_mut(&sh)
+                            && e.stimulus.move_to_2d(false, x, y).is_err()
+                        {
+                            // A 2-D path animation over a 3-D stimulus is a
+                            // config error; dropping the frame silently would
+                            // leave the stimulus frozen mid-animation with no
+                            // trace. Warn once per frame, per stimulus.
+                            log::warn!(
+                                "animation #{handle}: stimulus #{sh} is 3-D; \
+                                 MoveAlongPath2D only moves 2-D stimuli"
+                            );
                         }
                     }
                 }
@@ -294,8 +303,13 @@ pub(crate) fn advance_one(
                         accum += seg_len;
                     }
                     for &sh in &stim_handles {
-                        if let Some(e) = scene.config.stimuli.get_mut(&sh) {
-                            e.stimulus.move_to(false, pos[0], pos[1]);
+                        if let Some(e) = scene.config.stimuli.get_mut(&sh)
+                            && e.stimulus.move_to_2d(false, pos[0], pos[1]).is_err()
+                        {
+                            log::warn!(
+                                "animation #{handle}: stimulus #{sh} is 3-D; \
+                                 MoveAlongSegments2D only moves 2-D stimuli"
+                            );
                         }
                     }
                     frame_counter + 1 >= total_frames

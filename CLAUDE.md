@@ -32,7 +32,15 @@ make typecheck      # ty type checking
 See `docs/PLAN.md` for the full design and roadmap.
 
 **Key decisions:**
-- Stimulus types: flat `enum` with composition (not trait objects or inheritance)
+- Stimulus types: `Stimulus { common, kind }` — shared state (flags, opacity) above a
+  `StimulusKind` enum, composition throughout (not trait objects or inheritance)
+- `StimulusKind` is the **renderer's** taxonomy (one arm per pipeline/cache: `Shape`,
+  `Grating`, `Text`, `Mesh3d`); the finer user-facing names (`Rect`, `Circle`, `Cube3D`)
+  live in the geometry enums. Internal kind names must never reach a client — errors and
+  `StimulusType` come from `ShapeGeometry::type_name` / `Mesh3dGeometry::type_name`
+- The config format *is* the runtime shape (no DTO). Types owning runtime state
+  (`StimulusFlags`, `Grating`, `Text`) hide it behind a `serde` impl delegating to an inner
+  `*Config`; GPU resources never live in the scene tree at all
 - Render thread must never block or heap-allocate on event emission
 - ZMQ bind address: `tcp://0.0.0.0:5555` — `tcp://*:5555` fails (zeromq crate resolves host as DNS)
 - 2-D and 3-D coexist in one frame (3-D rendered first, 2-D overlaid)

@@ -1,7 +1,7 @@
 use crate::proto;
 
 use super::text_params::{Anchor, LanguageStyle, TextRenderParams};
-use super::text_stimulus::TextStimulus;
+use super::text_stimulus::Text;
 
 // ── Anchor ────────────────────────────────────────────────────────────────────
 
@@ -65,7 +65,7 @@ pub fn text_render_params_from_proto(cmd: &proto::CreateTextRequest) -> TextRend
 
 // ── Scene → QueryStimulusResponse payload ────────────────────────────────────
 
-pub fn text_query_params(s: &TextStimulus) -> proto::StimulusParams {
+pub fn text_query_params(s: &Text) -> proto::StimulusParams {
     let p = &s.params.live;
     proto::StimulusParams {
         shape: Some(proto::stimulus_params::Shape::Text(proto::TextParams {

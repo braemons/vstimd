@@ -10,8 +10,7 @@ use uuid::Uuid;
 
 use crate::Color;
 use crate::scene::{
-    CircleStimulus, Deferred, EllipseStimulus, GratingParams, GratingStimulus, RectStimulus,
-    ShapeAppearance, StimulusCommon, Stimulus, StimulusSceneEntry,
+    Grating, GratingParams, Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusSceneEntry,
     Waveform,
 };
 
@@ -80,28 +79,22 @@ impl StimulusDialog {
     }
 
     fn build_entry(&self) -> StimulusSceneEntry {
-        let common = StimulusCommon::new(self.pos, self.angle);
-        let appearance = Deferred::new(ShapeAppearance {
+        let appearance = ShapeAppearance {
             fill_color: Color::new(self.fill[0], self.fill[1], self.fill[2], self.fill[3]),
             ..Default::default()
-        });
+        };
+        let shape = |geometry| {
+            Stimulus::from(Shape::new(self.pos, self.angle, appearance, geometry))
+        };
         let stimulus = match self.kind {
-            StimulusDialogKind::Rect => Stimulus::Rect(RectStimulus {
-                common,
-                appearance,
-                size: Deferred::new(self.rect_size),
+            StimulusDialogKind::Rect => shape(ShapeGeometry::Rect { size: self.rect_size }),
+            StimulusDialogKind::Circle => shape(ShapeGeometry::Circle {
+                radius: self.circle_radius,
             }),
-            StimulusDialogKind::Circle => Stimulus::Circle(CircleStimulus {
-                common,
-                appearance,
-                radius: Deferred::new(self.circle_radius),
+            StimulusDialogKind::Ellipse => shape(ShapeGeometry::Ellipse {
+                size: self.ellipse_size,
             }),
-            StimulusDialogKind::Ellipse => Stimulus::Ellipse(EllipseStimulus {
-                common,
-                appearance,
-                size: Deferred::new(self.ellipse_size),
-            }),
-            StimulusDialogKind::Grating => Stimulus::Grating(GratingStimulus::new(
+            StimulusDialogKind::Grating => Stimulus::from(Grating::new(
                 self.pos,
                 self.angle,
                 self.grating_size,

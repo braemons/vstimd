@@ -3,7 +3,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::render::overlay_ui::stimulus_dialog::StimulusDialog;
-use crate::scene::{SceneState, Stimulus};
+use crate::scene::{SceneState, ShapeGeometry, StimulusKind};
 
 pub(in crate::render::overlay_ui) fn stimuli_panel(
     ui: &mut egui::Ui,
@@ -37,26 +37,21 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                     if let Some(entry) = sc.stimuli.get_mut(&h) {
                         let stim = &entry.stimulus;
                         let type_name = stim.type_name();
-                        let pos = stim.transform().live.pos;
-                        let size_label = match stim {
-                            Stimulus::Grating(s) => {
-                                let [w, h] = s.size.live;
-                                format!("{}×{}", w as i32, h as i32)
-                            }
-                            Stimulus::Rect(s) => {
-                                let [w, h] = s.size.live;
-                                format!("{}×{}", w as i32, h as i32)
-                            }
-                            Stimulus::Circle(s) =>
-                                format!("r={}", s.radius.live as i32),
-                            Stimulus::Ellipse(s) => {
-                                let [w, h] = s.size.live;
-                                format!("{}×{}", w as i32, h as i32)
-                            }
-                            Stimulus::Text(s) => {
-                                let [w, h] = s.box_size.live;
-                                format!("{}×{}", w as i32, h as i32)
-                            }
+                        // 3-D stimuli have no pixel position to show; the panel
+                        // is a 2-D scene table for now.
+                        let pos = stim.transform2d().map(|t| t.live.pos);
+                        let wh = |[w, h]: [f32; 2]| format!("{}×{}", w as i32, h as i32);
+                        let size_label = match &stim.kind {
+                            StimulusKind::Grating(s) => wh(s.size.live),
+                            StimulusKind::Text(s) => wh(s.box_size.live),
+                            StimulusKind::Shape(s) => match s.geometry.live {
+                                ShapeGeometry::Rect { size }
+                                | ShapeGeometry::Ellipse { size } => wh(size),
+                                ShapeGeometry::Circle { radius } => {
+                                    format!("r={}", radius as i32)
+                                }
+                            },
+                            StimulusKind::Mesh3d(_) => "3-D".to_string(),
                         };
                         let name_label = entry.name.as_deref().unwrap_or("");
                         let uuid_str = entry.id.to_string();
@@ -71,9 +66,13 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                                 egui::Color32::DARK_GRAY
                             } else { egui::Color32::WHITE }
                         )).on_hover_text(&uuid_str);
-                        ui.label(egui::RichText::new(
-                            format!("{:>6.0},{:>6.0}", pos[0], pos[1])
-                        ).monospace());
+                        ui.label(
+                            egui::RichText::new(match pos {
+                                Some(p) => format!("{:>6.0},{:>6.0}", p[0], p[1]),
+                                None => "     —,     —".to_string(),
+                            })
+                            .monospace(),
+                        );
                         ui.label(size_label);
                         if ui.small_button("x")
                             .on_hover_text("Delete stimulus").clicked() {

@@ -2,9 +2,8 @@ pub(crate) fn spawn_demo_stimuli(
     scene: &std::sync::Arc<std::sync::RwLock<crate::scene::SceneState>>,
 ) {
     use crate::scene::{
-        Anchor, CircleStimulus, Deferred, GratingParams, GratingStimulus, LanguageStyle,
-        RectStimulus, ShapeAppearance, StimulusCommon, Stimulus, StimulusSceneEntry,
-        TextRenderParams, TextStimulus, Waveform,
+        Anchor, Grating, GratingParams, LanguageStyle, Shape, ShapeAppearance, ShapeGeometry,
+        Stimulus, StimulusSceneEntry, Text, TextRenderParams, Waveform,
     };
     use rand::RngExt;
     use uuid::Uuid;
@@ -18,17 +17,15 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             Uuid::new_v4(),
             Some("demo_circle".into()),
-            Stimulus::Circle(CircleStimulus {
-                common: StimulusCommon::new(
-                    [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
-                    0.0,
-                ),
-                appearance: Deferred::new(ShapeAppearance {
+            Stimulus::from(Shape::new(
+                [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
+                0.0,
+                ShapeAppearance {
                     fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
                     ..Default::default()
-                }),
-                radius: Deferred::new(80.0),
-            }),
+                },
+                ShapeGeometry::Circle { radius: 80.0 },
+            )),
         ),
     );
     let h2 = sc.alloc_stim_handle();
@@ -37,17 +34,15 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             Uuid::new_v4(),
             Some("demo_rect".into()),
-            Stimulus::Rect(RectStimulus {
-                common: StimulusCommon::new(
-                    [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
-                    30.0,
-                ),
-                appearance: Deferred::new(ShapeAppearance {
+            Stimulus::from(Shape::new(
+                [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
+                30.0,
+                ShapeAppearance {
                     fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
                     ..Default::default()
-                }),
-                size: Deferred::new([240.0, 100.0]),
-            }),
+                },
+                ShapeGeometry::Rect { size: [240.0, 100.0] },
+            )),
         ),
     );
     let h3 = sc.alloc_stim_handle();
@@ -56,7 +51,7 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             Uuid::new_v4(),
             Some("demo_grating".into()),
-            Stimulus::Grating(GratingStimulus::new(
+            Stimulus::from(Grating::new(
                 [100.0, -200.0],
                 0.0,
                 [100.0, 100.0],
@@ -76,7 +71,7 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             Uuid::new_v4(),
             Some("demo_text".into()),
-            Stimulus::Text(TextStimulus::new(
+            Stimulus::from(Text::new(
                 [0.0, 200.0],
                 [400.0, 80.0],
                 "vstimd".into(),

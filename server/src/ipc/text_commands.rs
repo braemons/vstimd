@@ -5,11 +5,33 @@ use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with
 use crate::proto;
 use crate::scene::SceneState;
 use crate::scene::stimulus::text::{
-    TextStimulus, anchor_from_str, proto_to_language_style, text_render_params_from_proto,
+    Text, anchor_from_str, proto_to_language_style, text_render_params_from_proto,
 };
-use crate::scene::stimulus::{Stimulus, StimulusSceneEntry};
+use crate::scene::stimulus::{Stimulus, StimulusKind, StimulusSceneEntry};
 
 impl SceneState {
+    /// Run `f` on the text stimulus at `handle`, then mark it dirty unless the
+    /// write was deferred. See `with_grating` in `grating_commands.rs` — `dirty`
+    /// lives above the kind now, so the caller writes it.
+    fn with_text(
+        &mut self,
+        handle: u32,
+        cmd: &str,
+        f: impl FnOnce(&mut Text, bool),
+    ) -> proto::Response {
+        let deferred = self.runtime.deferred_mode;
+        let Some(entry) = self.config.stimuli.get_mut(&handle) else {
+            return err_not_found(handle);
+        };
+        let StimulusKind::Text(t) = &mut entry.stimulus.kind else {
+            return err_wrong_type(&entry.stimulus, cmd, "Text");
+        };
+        f(t, deferred);
+        if !deferred {
+            entry.stimulus.flags_mut().mark_dirty();
+        }
+        ok_ack()
+    }
     // ── CreateText ────────────────────────────────────────────────────────────
 
     pub(super) fn cmd_create_text(&mut self, cmd: proto::CreateTextRequest) -> proto::Response {
@@ -38,7 +60,7 @@ impl SceneState {
             StimulusSceneEntry::new(
                 id,
                 name,
-                Stimulus::Text(TextStimulus::new(
+                Stimulus::from(Text::new(
                     [pos.x, pos.y],
                     box_size,
                     cmd.text,
@@ -56,16 +78,9 @@ impl SceneState {
     // ── SetText ───────────────────────────────────────────────────────────────
 
     pub(super) fn cmd_set_text(&mut self, handle: u32, cmd: proto::SetTextRequest) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Text(s) => {
-                    s.set_text(self.runtime.deferred_mode, cmd.text);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetText", "Text"),
-            },
-        }
+        self.with_text(handle, "SetText", |s, deferred| {
+            s.set_text(deferred, cmd.text);
+        })
     }
 
     // ── SetTextColor ──────────────────────────────────────────────────────────
@@ -79,15 +94,8 @@ impl SceneState {
             Some(c) => c.into(),
             None => return err(proto::ErrorCode::InvalidArgument, "color must be set"),
         };
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Text(s) => {
-                    s.set_color(self.runtime.deferred_mode, c);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetTextColor", "Text"),
-            },
-        }
+        self.with_text(handle, "SetTextColor", |s, deferred| {
+            s.set_color(deferred, c);
+        })
     }
 }

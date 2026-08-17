@@ -9,8 +9,7 @@ use crate::geom::Vertex;
 use crate::Color;
 use crate::scene::photodiode::PhotoDiodeState;
 use crate::scene::stimulus::{
-    CircleStimulus, DrawMode, EllipseStimulus, RectStimulus, ShapeAppearance, Stimulus,
-    Transform2D,
+    DrawMode, Shape, ShapeAppearance, ShapeGeometry, Transform2D,
 };
 
 pub struct ShapeTessellationResult {
@@ -32,67 +31,74 @@ const NO_UV: [f32; 2] = [0.0, 0.0];
 
 // ── Public entry point ────────────────────────────────────────────────────────
 
-/// Tessellate a shape stimulus into fill and stroke geometry ready for GPU upload.
+/// Tessellate a shape into fill and stroke geometry ready for GPU upload.
 /// All positions are in NDC space, z = 0 (flat / billboard geometry).
-/// Returns empty vecs for invisible stimuli, and `None` for non-shape stimuli.
+/// Returns empty vecs when `visible` is false.
+///
+/// Takes the [`Shape`] plus the two pieces of shared state it needs, rather than
+/// a whole [`Stimulus`]: `visible` and `opacity` live above the kind now, and the
+/// caller is mid-way through a mutable borrow of `kind` when it calls this.
 pub fn tessellate_shape_stimulus(
-    stimulus: &Stimulus,
-    screen_size: (u32, u32),
-) -> Option<ShapeTessellationResult> {
-    let empty = ShapeTessellationResult { fill: (vec![], vec![]), stroke: (vec![], vec![]) };
-    if !stimulus.is_shape() {
-        return None;
-    }
-    if !stimulus.flags().is_visible() {
-        return Some(empty);
-    }
-    let half_w = screen_size.0 as f32 * 0.5;
-    let half_h = screen_size.1 as f32 * 0.5;
-
+    shape: &Shape,
+    visible: bool,
     // The shared opacity is baked into the vertex colours here rather than
     // pushed as a uniform: the shape pipeline has no per-draw constants, and a
     // change of opacity already marks the stimulus dirty, so it re-tessellates.
-    let opacity = stimulus.opacity().live;
-
-    Some(match stimulus {
-        Stimulus::Rect(s)    => tessellate_rect(s, opacity, half_w, half_h),
-        Stimulus::Ellipse(s) => tessellate_ellipse(s, opacity, half_w, half_h),
-        Stimulus::Circle(s)  => tessellate_circle(s, opacity, half_w, half_h),
-        _ => unreachable!("is_shape() checked"),
-    })
+    opacity: f32,
+    screen_size: (u32, u32),
+) -> ShapeTessellationResult {
+    if !visible {
+        return ShapeTessellationResult { fill: (vec![], vec![]), stroke: (vec![], vec![]) };
+    }
+    let half_w = screen_size.0 as f32 * 0.5;
+    let half_h = screen_size.1 as f32 * 0.5;
+    tessellate_shape(shape, opacity, half_w, half_h)
 }
 
-// ── Per-type tessellators ─────────────────────────────────────────────────────
+// ── Per-geometry tessellators ─────────────────────────────────────────────────
+//
+// The geometry arm is the *only* thing that differs between a rect, an ellipse
+// and a circle — one lyon path builder each. Everything after that (transform,
+// appearance, fill/stroke, NDC conversion) is shared, which is why they are one
+// `Shape` rather than three structs.
 
-fn tessellate_rect(s: &RectStimulus, opacity: f32, half_w: f32, half_h: f32) -> ShapeTessellationResult {
-    let [hw, hh] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
+fn tessellate_shape(
+    s: &Shape,
+    opacity: f32,
+    half_w: f32,
+    half_h: f32,
+) -> ShapeTessellationResult {
     let mut builder = Path::builder();
-    builder.add_rectangle(
-        &Box2D::new(point(-hw, -hh), point(hw, hh)),
-        Winding::Positive,
-    );
+    match s.geometry.live {
+        ShapeGeometry::Rect { size } => {
+            let [hw, hh] = [size[0] * 0.5, size[1] * 0.5];
+            builder.add_rectangle(
+                &Box2D::new(point(-hw, -hh), point(hw, hh)),
+                Winding::Positive,
+            );
+        }
+        ShapeGeometry::Ellipse { size } => {
+            let [rx, ry] = [size[0] * 0.5, size[1] * 0.5];
+            builder.add_ellipse(
+                point(0.0, 0.0),
+                Vector::new(rx, ry),
+                Angle::zero(),
+                Winding::Positive,
+            );
+        }
+        ShapeGeometry::Circle { radius } => {
+            builder.add_circle(point(0.0, 0.0), radius, Winding::Positive);
+        }
+    }
     let path = builder.build();
-    tessellate_path(&path, s.common.transform.live, &s.appearance.live, opacity, half_w, half_h)
-}
-
-fn tessellate_circle(s: &CircleStimulus, opacity: f32, half_w: f32, half_h: f32) -> ShapeTessellationResult {
-    let mut builder = Path::builder();
-    builder.add_circle(point(0.0, 0.0), s.radius.live, Winding::Positive);
-    let path = builder.build();
-    tessellate_path(&path, s.common.transform.live, &s.appearance.live, opacity, half_w, half_h)
-}
-
-fn tessellate_ellipse(s: &EllipseStimulus, opacity: f32, half_w: f32, half_h: f32) -> ShapeTessellationResult {
-    let [rx, ry] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
-    let mut builder = Path::builder();
-    builder.add_ellipse(
-        point(0.0, 0.0),
-        Vector::new(rx, ry),
-        Angle::zero(),
-        Winding::Positive,
-    );
-    let path = builder.build();
-    tessellate_path(&path, s.common.transform.live, &s.appearance.live, opacity, half_w, half_h)
+    tessellate_path(
+        &path,
+        s.transform.live,
+        &s.appearance.live,
+        opacity,
+        half_w,
+        half_h,
+    )
 }
 
 // ── Shared tessellation ───────────────────────────────────────────────────────

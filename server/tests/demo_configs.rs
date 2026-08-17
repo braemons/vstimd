@@ -80,10 +80,13 @@ fn every_demo_explains_itself_on_screen() {
             .values()
             .find(|e| e.name.as_deref() == Some("explanation"))
             .unwrap_or_else(|| panic!("demo '{name}' has no 'explanation' stimulus"));
-        let vstimd::scene::Stimulus::Text(t) = &explanation.stimulus else {
+        let Some(t) = explanation.stimulus.text() else {
             panic!("demo '{name}': the explanation is not a text stimulus");
         };
-        assert!(t.common.flags.enabled, "demo '{name}': the explanation is hidden");
+        assert!(
+            explanation.stimulus.flags().enabled,
+            "demo '{name}': the explanation is hidden"
+        );
         assert!(
             t.text_live.contains(name),
             "demo '{name}': the explanation does not name the demo"
@@ -135,14 +138,14 @@ fn gratings_demo_flashes_two_orientations_on_two_input_triggers() {
     let gratings: Vec<_> = scene
         .stimuli
         .values()
-        .filter(|e| matches!(e.stimulus, vstimd::scene::Stimulus::Grating(_)))
+        .filter(|e| e.stimulus.grating().is_some())
         .collect();
     assert_eq!(gratings.len(), 2);
     for g in &gratings {
         assert!(!g.stimulus.flags().enabled, "grating starts visible");
-        assert_eq!(g.stimulus.transform().live.pos, [0.0, 0.0], "grating is off-centre");
+        assert_eq!(g.stimulus.transform2d().expect("2-D stimulus").live.pos, [0.0, 0.0], "grating is off-centre");
     }
-    let mut angles: Vec<f32> = gratings.iter().map(|g| g.stimulus.transform().live.angle).collect();
+    let mut angles: Vec<f32> = gratings.iter().map(|g| g.stimulus.transform2d().expect("2-D stimulus").live.angle).collect();
     angles.sort_by(f32::total_cmp);
     assert_eq!(angles, vec![45.0, 135.0], "the two gratings share an orientation");
 
@@ -259,15 +262,13 @@ fn photodiode_demo_enables_the_patch() {
 #[test]
 fn drifting_grating_demo_drifts() {
     let (scene, _) = parse_config_json(demo("demo_drifting_grating")).unwrap();
-    let g = scene
+    let entry = scene
         .stimuli
         .values()
-        .find_map(|e| match &e.stimulus {
-            vstimd::scene::Stimulus::Grating(g) => Some(g),
-            _ => None,
-        })
+        .find(|e| e.stimulus.grating().is_some())
         .expect("no grating");
-    assert!(g.common.flags.enabled, "the grating starts hidden");
+    let g = entry.stimulus.grating().expect("checked above");
+    assert!(entry.stimulus.flags().enabled, "the grating starts hidden");
     assert!(g.params.live.drift_speed > 0.0, "the grating does not drift");
 }
 
@@ -361,7 +362,7 @@ fn loading_the_moving_target_demo_starts_it_moving() {
     let mut scene = SceneState::new();
     scene.load_snapshot(cfg, LoadMode::Replace);
 
-    let pos = |s: &SceneState| s.stimuli.get(&1).unwrap().stimulus.transform().live.pos;
+    let pos = |s: &SceneState| s.stimuli.get(&1).unwrap().stimulus.transform2d().expect("2-D stimulus").live.pos;
     let start = pos(&scene);
 
     let no_edges = VtlEdges::default();

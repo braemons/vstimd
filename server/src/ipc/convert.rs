@@ -37,6 +37,43 @@ pub(super) fn color_or_default(c: Option<proto::Color>, default: Color) -> Color
     c.map(|c| c.into()).unwrap_or(default)
 }
 
+/// Proto → shape fill/outline state, for the `Create*` commands.
+///
+/// `appearance` absent reproduces the behaviour from before the field existed:
+/// fill from `fill_color` (already resolved against the scene default by the
+/// caller), outline from the scene's `default_outline`, stroke width and draw
+/// mode from [`ShapeAppearance::default`].
+///
+/// `appearance` present overrides field by field, each with the same fallback,
+/// so a client may set only `draw_mode` and inherit the rest. Zero means unset
+/// for `outline_width`, matching the convention the create commands already use
+/// for `width`/`height`/`radius` — and a 0-width outline draws nothing anyway,
+/// so `draw_mode` is how you turn an outline off, not width.
+pub(super) fn shape_appearance_from_proto(
+    appearance: Option<proto::ShapeAppearance>,
+    fill: Color,
+    default_outline: Color,
+) -> Result<ShapeAppearance, Box<proto::Response>> {
+    let base = ShapeAppearance {
+        fill_color: fill,
+        outline_color: default_outline,
+        ..Default::default()
+    };
+    let Some(a) = appearance else {
+        return Ok(base);
+    };
+    Ok(ShapeAppearance {
+        fill_color: color_or_default(a.fill_color, base.fill_color),
+        outline_color: color_or_default(a.outline_color, base.outline_color),
+        stroke_width: if a.outline_width == 0.0 {
+            base.stroke_width
+        } else {
+            a.outline_width
+        },
+        draw_mode: proto_draw_mode_to_scene(a.draw_mode)?,
+    })
+}
+
 pub(super) fn parse_or_new_uuid(s: &str) -> Result<Uuid, Box<proto::Response>> {
     if s.is_empty() {
         return Ok(Uuid::new_v4());

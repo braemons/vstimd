@@ -14,6 +14,16 @@ message CreateRectRequest {
   Color fill_color = 4; // fill colour (absent → scene default_fill)
   string id = 5; // client-supplied UUID (empty string → server generates one)
   string name = 6; // optional human-readable label
+  // Full fill/outline/draw-mode state. Absent → fill from `fill_color` (or the
+  // scene default_fill) and outline from the scene default_outline, i.e. the
+  // behaviour before this field existed. Present → each of its own fields falls
+  // back the same way when unset, so a client may set only `draw_mode`.
+  //
+  // Without this, creating an outlined rect took four round trips
+  // (CreateRect + SetDrawMode + SetOutlineColor + SetOutlineWidth) and the
+  // stimulus was on screen with the wrong appearance for three of them.
+  ShapeAppearance appearance = 7;
+  float angle = 8; // orientation in degrees (CCW), matching CreateEllipse
 }
 
 // Stimulus command: resize a Rect stimulus.

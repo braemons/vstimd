@@ -5,11 +5,37 @@ use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with
 use crate::proto;
 use crate::scene::SceneState;
 use crate::scene::stimulus::grating::{
-    GratingStimulus, grating_params_from_proto, proto_to_mask, proto_to_waveform,
+    Grating, grating_params_from_proto, proto_to_mask, proto_to_waveform,
 };
-use crate::scene::stimulus::{Stimulus, StimulusSceneEntry};
+use crate::scene::stimulus::{Stimulus, StimulusKind, StimulusSceneEntry};
 
 impl SceneState {
+    /// Run `f` on the grating at `handle`, then mark it dirty unless the write
+    /// was deferred.
+    ///
+    /// `dirty` lives on [`Stimulus`], above the kind, so the grating setters no
+    /// longer write it themselves — the caller holding the whole stimulus does.
+    /// Centralising that here also collapses eleven identical handle-lookup and
+    /// wrong-type bodies into one.
+    fn with_grating(
+        &mut self,
+        handle: u32,
+        cmd: &str,
+        f: impl FnOnce(&mut Grating, bool),
+    ) -> proto::Response {
+        let deferred = self.runtime.deferred_mode;
+        let Some(entry) = self.config.stimuli.get_mut(&handle) else {
+            return err_not_found(handle);
+        };
+        let StimulusKind::Grating(g) = &mut entry.stimulus.kind else {
+            return err_wrong_type(&entry.stimulus, cmd, "Grating");
+        };
+        f(g, deferred);
+        if !deferred {
+            entry.stimulus.flags_mut().mark_dirty();
+        }
+        ok_ack()
+    }
     // ── CreateGrating ────────────────────────────────────────────────────────
 
     pub(super) fn cmd_create_grating(&mut self, cmd: proto::CreateGratingRequest) -> proto::Response {
@@ -30,7 +56,7 @@ impl SceneState {
             StimulusSceneEntry::new(
                 id,
                 name,
-                Stimulus::Grating(GratingStimulus::new(
+                Stimulus::from(Grating::new(
                     [center.x, center.y],
                     angle,
                     [width, height],
@@ -48,16 +74,9 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetGratingPhaseRequest,
     ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_phase(self.runtime.deferred_mode, cmd.phase);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingPhase", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingPhase", |s, deferred| {
+            s.set_phase(deferred, cmd.phase);
+        })
     }
 
     pub(super) fn cmd_set_grating_sf(
@@ -65,16 +84,9 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetGratingSfRequest,
     ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_sf(self.runtime.deferred_mode, cmd.sf);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingSf", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingSf", |s, deferred| {
+            s.set_sf(deferred, cmd.sf);
+        })
     }
 
     pub(super) fn cmd_set_grating_contrast(
@@ -82,16 +94,9 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetGratingContrastRequest,
     ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_contrast(self.runtime.deferred_mode, cmd.contrast);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingContrast", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingContrast", |s, deferred| {
+            s.set_contrast(deferred, cmd.contrast);
+        })
     }
 
     pub(super) fn cmd_set_grating_waveform(
@@ -99,16 +104,9 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetGratingWaveformRequest,
     ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_waveform(self.runtime.deferred_mode, proto_to_waveform(cmd.waveform));
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingWaveform", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingWaveform", |s, deferred| {
+            s.set_waveform(deferred, proto_to_waveform(cmd.waveform));
+        })
     }
 
     pub(super) fn cmd_set_grating_mask(
@@ -116,16 +114,9 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetGratingMaskRequest,
     ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_mask(self.runtime.deferred_mode, proto_to_mask(cmd.mask));
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingMask", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingMask", |s, deferred| {
+            s.set_mask(deferred, proto_to_mask(cmd.mask));
+        })
     }
 
     pub(super) fn cmd_set_grating_drift_speed(
@@ -133,16 +124,9 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetGratingDriftSpeedRequest,
     ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_drift_speed(self.runtime.deferred_mode, cmd.speed);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingDriftSpeed", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingDriftSpeed", |s, deferred| {
+            s.set_drift_speed(deferred, cmd.speed);
+        })
     }
 
     pub(super) fn cmd_set_grating_drift_decoupled(
@@ -150,16 +134,9 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetGratingDriftDecoupledRequest,
     ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_drift_decoupled(self.runtime.deferred_mode, cmd.decoupled);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingDriftDecoupled", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingDriftDecoupled", |s, deferred| {
+            s.set_drift_decoupled(deferred, cmd.decoupled);
+        })
     }
 
     pub(super) fn cmd_set_grating_drift_angle(
@@ -167,16 +144,9 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetGratingDriftAngleRequest,
     ) -> proto::Response {
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_drift_angle(self.runtime.deferred_mode, cmd.angle_deg);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingDriftAngle", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingDriftAngle", |s, deferred| {
+            s.set_drift_angle(deferred, cmd.angle_deg);
+        })
     }
 
     pub(super) fn cmd_set_grating_fore_color(
@@ -188,16 +158,9 @@ impl SceneState {
             Some(c) => c.into(),
             None => return err(proto::ErrorCode::InvalidArgument, "fore_color must be set"),
         };
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_fore_color(self.runtime.deferred_mode, c);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingForeColor", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingForeColor", |s, deferred| {
+            s.set_fore_color(deferred, c);
+        })
     }
 
     pub(super) fn cmd_set_grating_back_color(
@@ -209,15 +172,8 @@ impl SceneState {
             Some(c) => c.into(),
             None => return err(proto::ErrorCode::InvalidArgument, "back_color must be set"),
         };
-        match self.config.stimuli.get_mut(&handle) {
-            None => err_not_found(handle),
-            Some(entry) => match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    s.set_back_color(self.runtime.deferred_mode, c);
-                    ok_ack()
-                }
-                stim => err_wrong_type(stim, "SetGratingBackColor", "Grating"),
-            },
-        }
+        self.with_grating(handle, "SetGratingBackColor", |s, deferred| {
+            s.set_back_color(deferred, c);
+        })
     }
 }

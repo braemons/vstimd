@@ -1,5 +1,4 @@
 use uuid::Uuid;
-use vstimd::scene::deferred::Deferred;
 /// Integration tests for the animation system.
 ///
 /// Tests use the internal domain model directly — no proto, no ZMQ, no GPU.
@@ -15,7 +14,7 @@ use vstimd::scene::{
     SceneState,
     animation::{AnimState, Animation, AnimationEntry, CancelAction, FinalAction, StartAction},
     stimulus::{
-        RectStimulus, ShapeAppearance, StimulusCommon, Stimulus, StimulusSceneEntry,
+        Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusSceneEntry,
     },
 };
 use vstimd::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs, VtlPolarity};
@@ -75,11 +74,12 @@ fn create_rect(scene: &mut SceneState) -> u32 {
     scene.add_stimulus(StimulusSceneEntry::new(
         Uuid::new_v4(),
         None,
-        Stimulus::Rect(RectStimulus {
-            common: StimulusCommon::new([0.0, 0.0], 0.0),
-            appearance: Deferred::new(ShapeAppearance::default()),
-            size: Deferred::new([50.0, 50.0]),
-        }),
+        Stimulus::from(Shape::new(
+            [0.0, 0.0],
+            0.0,
+            ShapeAppearance::default(),
+            ShapeGeometry::Rect { size: [50.0, 50.0] },
+        )),
     ))
 }
 
@@ -1681,7 +1681,10 @@ fn move_along_segments_ignores_the_measured_frame_rate() {
         (0..30)
             .map(|_| {
                 advance(&mut scene);
-                scene.stimuli[&stim].stimulus.get_pos()
+                scene.stimuli[&stim]
+                    .stimulus
+                    .get_pos_2d()
+                    .expect("2-D stimulus")
             })
             .collect()
     };
@@ -1701,10 +1704,10 @@ fn move_along_segments_ignores_the_measured_frame_rate() {
 /// rate for the same reason.
 #[test]
 fn grating_drift_uses_the_nominal_frame_rate() {
-    use vstimd::scene::stimulus::{GratingParams, GratingStimulus};
+    use vstimd::scene::stimulus::{Grating, GratingParams};
     use vstimd::scene::stimulus::grating::grating_phase_inc;
 
-    let s = GratingStimulus::new(
+    let s = Grating::new(
         [0.0, 0.0],
         0.0,
         [100.0, 100.0],

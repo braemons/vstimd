@@ -412,7 +412,7 @@ impl SceneState {
     fn fixup_after_load(&mut self) {
         for entry in self.config.stimuli.values_mut() {
             entry.stimulus.flags_mut().dirty = true;
-            entry.stimulus.reset_phase_accum();
+            entry.stimulus.reset_dynamic_state();
             entry.stimulus.make_copy();
         }
         for anim in self.config.animations.values_mut() {
@@ -512,7 +512,7 @@ fn state_after_load(saved: &AnimState) -> AnimState {
 
 fn make_entry_dirty(mut entry: StimulusSceneEntry) -> StimulusSceneEntry {
     entry.stimulus.flags_mut().dirty = true;
-    entry.stimulus.reset_phase_accum();
+    entry.stimulus.reset_dynamic_state();
     entry.stimulus.make_copy();
     entry
 }

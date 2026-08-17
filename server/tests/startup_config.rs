@@ -13,7 +13,7 @@ use vstimd::scene_config_file::{
     is_not_found, LAST_SESSION_CONFIG,
 };
 use vstimd::scene::{
-    Deferred, RectStimulus, SceneState, ShapeAppearance, StimulusCommon, Stimulus,
+    SceneState, Shape, ShapeAppearance, ShapeGeometry, Stimulus,
     StimulusSceneEntry,
 };
 
@@ -49,11 +49,12 @@ fn scene_with_rect(dir: &std::path::Path) -> SceneState {
     scene.add_stimulus(StimulusSceneEntry::new(
         Uuid::new_v4(),
         Some("target".into()),
-        Stimulus::Rect(RectStimulus {
-            common: StimulusCommon::new([10.0, 20.0], 0.0),
-            appearance: Deferred::new(ShapeAppearance::default()),
-            size: Deferred::new([100.0, 50.0]),
-        }),
+        Stimulus::from(Shape::new(
+            [10.0, 20.0],
+            0.0,
+            ShapeAppearance::default(),
+            ShapeGeometry::Rect { size: [100.0, 50.0] },
+        )),
     ));
     scene
 }

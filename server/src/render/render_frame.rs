@@ -9,7 +9,7 @@ use crate::render::vk::{TextPushConstants, TextVertex};
 use crate::scene::photodiode::PHOTODIODE_HANDLE;
 use crate::scene::stimulus::grating::{build_grating_push_constants, grating_phase_inc};
 use crate::scene::stimulus::text::layout_and_rasterize;
-use crate::scene::stimulus::{DrawMode, Stimulus};
+use crate::scene::stimulus::{DrawMode, StimulusKind};
 use crate::timing::{FramePhases, FrameTick};
 use crate::vtl_state::VtlState;
 
@@ -192,19 +192,25 @@ pub fn render_frame(
         cache.text.meshes.retain(|h, _| sc.stimuli.contains_key(h));
 
         for (&handle, entry) in sc.stimuli.iter_mut() {
-            match &mut entry.stimulus {
-                Stimulus::Grating(s) => {
-                    if s.common.flags.is_visible() && s.params.live.drift_speed != 0.0 {
+            // `flags` lives on the stimulus, above the kind, so read what the
+            // arms need before borrowing `kind` mutably.
+            let visible = entry.stimulus.flags().is_visible();
+            let dirty = entry.stimulus.flags().dirty;
+            let opacity = entry.stimulus.opacity().live;
+            let mut clear_dirty = false;
+            match &mut entry.stimulus.kind {
+                StimulusKind::Grating(s) => {
+                    if visible && s.params.live.drift_speed != 0.0 {
                         s.phase_accum += grating_phase_inc(s, nominal_fps);
                     }
                 }
 
-                Stimulus::Text(text) => {
+                StimulusKind::Text(text) => {
                     let has_mesh = cache.text.meshes.contains_key(&handle);
-                    if !text.common.flags.dirty && (text.common.flags.is_visible() == has_mesh) {
+                    if !dirty && (visible == has_mesh) {
                         continue;
                     }
-                    let glyphs = if text.common.flags.is_visible() {
+                    let glyphs = if visible {
                         layout_and_rasterize(
                             text,
                             screen_w,
@@ -265,20 +271,20 @@ pub fn render_frame(
                     cache
                         .text
                         .upload(handle, &ctx.device, bytemuck::cast_slice(&verts), &idxs);
-                    text.common.flags.dirty = false;
+                    clear_dirty = true;
                 }
 
-                shape @ (Stimulus::Rect(_) | Stimulus::Ellipse(_) | Stimulus::Circle(_)) => {
+                StimulusKind::Shape(shape) => {
                     let has_mesh = cache.solid.fill_meshes.contains_key(&handle)
                         || cache.solid.stroke_meshes.contains_key(&handle);
-                    if !shape.flags().dirty && (shape.flags().is_visible() == has_mesh) {
+                    if !dirty && (visible == has_mesh) {
                         continue;
                     }
+                    let geometry_name = shape.geometry.live.type_name();
                     let tr =
-                        tess::tessellate_shape_stimulus(shape, screen_size).expect("shape variant");
+                        tess::tessellate_shape_stimulus(shape, visible, opacity, screen_size);
                     log::debug!(
-                        "tess #{handle} {} screen={screen_size:?} fill_verts={} stroke_verts={}",
-                        shape.type_name(),
+                        "tess #{handle} {geometry_name} screen={screen_size:?} fill_verts={} stroke_verts={}",
                         tr.fill.0.len(),
                         tr.stroke.0.len(),
                     );
@@ -288,8 +294,18 @@ pub fn render_frame(
                         (&tr.fill.0, &tr.fill.1),
                         (&tr.stroke.0, &tr.stroke.1),
                     );
-                    shape.flags_mut().dirty = false;
+                    clear_dirty = true;
                 }
+
+                // Phase B: tessellate into the geometry-keyed `Mesh3dCache` and
+                // upload to device-local memory via a staging buffer. Nothing
+                // constructs a `Mesh3d` yet, so this is unreachable.
+                StimulusKind::Mesh3d(_) => {
+                    unimplemented!("Phase B: 3-D mesh upload — see dev/3D_ROADMAP.md §A.5, §B.6")
+                }
+            }
+            if clear_dirty {
+                entry.stimulus.flags_mut().dirty = false;
             }
         }
 
@@ -429,7 +445,7 @@ pub fn render_frame(
                 continue;
             }
 
-            if let Stimulus::Grating(s) = stim {
+            if let StimulusKind::Grating(s) = &stim.kind {
                 if bound != Bound::Grating {
                     ctx.device.cmd_bind_pipeline(
                         cb,
@@ -450,7 +466,10 @@ pub fn render_frame(
                     );
                     bound = Bound::Grating;
                 }
-                let pc = build_grating_push_constants(s, screen_w, screen_h);
+                // Opacity is shared state above the kind, so it is handed to
+                // the push-constant builder rather than read off the grating.
+                let pc =
+                    build_grating_push_constants(s, stim.opacity().live, screen_w, screen_h);
                 ctx.device.cmd_push_constants(
                     cb,
                     grate.layout,
@@ -460,7 +479,7 @@ pub fn render_frame(
                 );
                 ctx.device
                     .cmd_draw_indexed(cb, quad.index_count, 1, 0, 0, 0);
-            } else if let Stimulus::Text(t) = stim {
+            } else if let StimulusKind::Text(t) = &stim.kind {
                 if bound != Bound::Text {
                     ctx.device.cmd_bind_pipeline(
                         cb,
@@ -487,7 +506,12 @@ pub fn render_frame(
                     vk::ShaderStageFlags::FRAGMENT,
                     0,
                     bytemuck::bytes_of(&TextPushConstants {
-                        color: t.params.live.color.scaled_alpha(t.common.opacity.live).into(),
+                        color: t
+                            .params
+                            .live
+                            .color
+                            .scaled_alpha(stim.opacity().live)
+                            .into(),
                     }),
                 );
                 if let Some(mesh) = rs
