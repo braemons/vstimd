@@ -22,11 +22,11 @@ use ash::vk;
 
 use crate::log_buffer::LogBuffer;
 use crate::render::backend::BackendData;
-use crate::render::console_input::{InputState, active_vt};
+use crate::input::console_input::{InputState, active_vt};
 use crate::render::frame_loop::{self, KeyOutcome};
 use crate::render::render_frame;
 use crate::render::render_state::RenderState;
-use crate::render::system_info::{ClockSource, SystemInfo};
+use crate::system_info::{ClockSource, SystemInfo};
 use crate::render::vk::VkContext;
 use crate::render::{
     ReadbackTarget, RenderTarget, SceneRenderer, StimulusDisplayInfo, TextRenderer, UiRenderer,
@@ -119,7 +119,7 @@ impl EvdiBackend {
         on_ready();
 
         loop {
-            if crate::shutdown::is_requested() {
+            if crate::process::shutdown::is_requested() {
                 break;
             }
 

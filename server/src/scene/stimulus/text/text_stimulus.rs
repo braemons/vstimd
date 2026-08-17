@@ -1,13 +1,16 @@
 use crate::scene::deferred::Deferred;
-use crate::scene::stimulus::StimulusCommon;
+use crate::scene::stimulus::Transform2D;
 
 use super::text_params::{Anchor, LanguageStyle, TextRenderParams};
 
-/// Serializable text configuration.
+/// The text state a config file records.
+///
+/// Split out from [`Text`] because `text_copy` is the deferred staging slot for
+/// a `String`, which `Deferred<T>` cannot hold (it requires `Copy`) and which
+/// must not round-trip through a config.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct TextConfig {
-    #[serde(flatten)]
-    pub common: StimulusCommon,
+    pub transform: Deferred<Transform2D>,
     pub params: Deferred<TextRenderParams>,
     pub box_size: Deferred<[f32; 2]>,
     pub text_live: String,
@@ -18,36 +21,39 @@ pub struct TextConfig {
     pub language_style: LanguageStyle,
 }
 
-/// Full text stimulus: serializable config + deferred text copy.
+/// A laid-out, glyph-atlas-rendered run of text.
+///
 /// Deref/DerefMut give transparent access to the config fields.
 #[derive(Clone)]
-pub struct TextStimulus {
+pub struct Text {
     pub config: TextConfig,
     // String is not Copy, so live/copy are managed manually. Not serialized;
-    // restored equal to text_live on deserialization.
+    // restored equal to text_live on load.
     pub text_copy: String,
 }
 
-impl std::ops::Deref for TextStimulus {
+impl std::ops::Deref for Text {
     type Target = TextConfig;
     fn deref(&self) -> &TextConfig {
         &self.config
     }
 }
 
-impl std::ops::DerefMut for TextStimulus {
+impl std::ops::DerefMut for Text {
     fn deref_mut(&mut self) -> &mut TextConfig {
         &mut self.config
     }
 }
 
-impl serde::Serialize for TextStimulus {
+/// Serializes as [`TextConfig`]; `text_copy` is the deferred staging slot and is
+/// restored equal to `text_live` on the way back in.
+impl serde::Serialize for Text {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         self.config.serialize(s)
     }
 }
 
-impl<'de> serde::Deserialize<'de> for TextStimulus {
+impl<'de> serde::Deserialize<'de> for Text {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         let config = TextConfig::deserialize(d)?;
         let text_copy = config.text_live.clone();
@@ -55,7 +61,12 @@ impl<'de> serde::Deserialize<'de> for TextStimulus {
     }
 }
 
-impl TextStimulus {
+impl Text {
+    /// Deliberately still `"TextStimulus"`, not `"Text"`: this string reaches
+    /// clients in `WRONG_STIMULUS_TYPE` error messages, so it is wire surface
+    /// rather than an internal name to tidy up alongside the type. (The config
+    /// `"type"` tag is the *kind* name, also `"Text"`, which is a coincidence
+    /// rather than the same string.)
     pub const TYPE_NAME: &'static str = "TextStimulus";
     #[allow(clippy::too_many_arguments)]
     pub fn new(
@@ -71,7 +82,7 @@ impl TextStimulus {
         let text_copy = text.clone();
         Self {
             config: TextConfig {
-                common: StimulusCommon::new(pos, 0.0),
+                transform: Deferred::new(Transform2D { pos, angle: 0.0 }),
                 params: Deferred::new(params),
                 box_size: Deferred::new(box_size),
                 text_live: text,
@@ -90,7 +101,6 @@ impl TextStimulus {
         } else {
             self.text_live = text.clone();
             self.text_copy = text;
-            self.common.flags.mark_dirty();
         }
     }
 
@@ -102,20 +112,17 @@ impl TextStimulus {
         };
         self.params
             .set(deferred, TextRenderParams { color, ..prev });
-        if !deferred {
-            self.common.flags.mark_dirty();
-        }
     }
 
     pub fn make_copy(&mut self) {
-        self.common.make_copy();
+        self.transform.make_copy();
         self.params.make_copy();
         self.box_size.make_copy();
         self.text_copy = self.text_live.clone();
     }
 
     pub fn flip(&mut self) {
-        self.common.flip();
+        self.transform.flip();
         self.params.flip();
         self.box_size.flip();
         self.text_live = self.text_copy.clone();
@@ -126,8 +133,8 @@ impl TextStimulus {
 mod tests {
     use super::*;
 
-    fn default_stim() -> TextStimulus {
-        TextStimulus::new(
+    fn default_stim() -> Text {
+        Text::new(
             [0.0, 0.0],
             [200.0, 100.0],
             "hello".into(),
@@ -145,17 +152,14 @@ mod tests {
         s.set_text(false, "world".into());
         assert_eq!(s.text_live, "world");
         assert_eq!(s.text_copy, "world");
-        assert!(s.common.flags.dirty);
     }
 
     #[test]
     fn set_text_deferred_only_updates_copy() {
         let mut s = default_stim();
-        s.common.flags.dirty = false;
         s.set_text(true, "world".into());
         assert_eq!(s.text_live, "hello");
         assert_eq!(s.text_copy, "world");
-        assert!(!s.common.flags.dirty);
     }
 
     #[test]
@@ -180,17 +184,14 @@ mod tests {
         let mut s = default_stim();
         s.set_color(false, crate::Color::new(1.0, 0.0, 0.0, 0.5));
         assert_eq!(s.params.live.color, crate::Color::new(1.0, 0.0, 0.0, 0.5));
-        assert!(s.common.flags.dirty);
     }
 
     #[test]
     fn set_color_deferred_leaves_live_unchanged() {
         let mut s = default_stim();
-        s.common.flags.dirty = false;
         s.set_color(true, crate::Color::new(0.0, 1.0, 0.0, 1.0));
         assert_eq!(s.params.live.color, crate::Color::WHITE);
         assert_eq!(s.params.copy.color, crate::Color::new(0.0, 1.0, 0.0, 1.0));
-        assert!(!s.common.flags.dirty);
     }
 
     #[test]

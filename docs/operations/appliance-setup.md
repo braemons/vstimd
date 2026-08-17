@@ -236,7 +236,7 @@ sudo install -d -m 0755 /var/lib/braemons
 
 Only put Samba on a network you trust — the read-only guest share means
 anyone who can reach the box on the LAN can browse rig config and saved
-stim-configs with no credentials at all.
+scene-configs with no credentials at all.
 
 From Windows, reach the shares by typing `\\vstimd-XXXXXX\vstimd-config` into
 Explorer. The rig will not appear on its own in Explorer's *Network* list:

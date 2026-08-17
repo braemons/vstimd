@@ -4,7 +4,7 @@
 //! `config load` does, and assert the properties each demo is supposed to
 //! demonstrate.
 
-use vstimd::io_config::{
+use vstimd::scene_config_file::{
     parse_config_json, retrieve_config_json, DemoSkip, DEMO_CONFIGS, DEMO_PREFIX,
 };
 use vstimd::scene::animation::{Animation, StartAction};
@@ -28,8 +28,8 @@ fn demo(name: &str) -> &'static str {
 /// version changes, so the test does not have to be edited whenever
 /// `CONFIG_VERSION` is bumped.
 fn older_stand_in(shipped: &str) -> String {
-    let from = format!("\"version\": {}", vstimd::io_config::CONFIG_VERSION);
-    let to = format!("\"version\":  {}", vstimd::io_config::CONFIG_VERSION);
+    let from = format!("\"version\": {}", vstimd::scene_config_file::CONFIG_VERSION);
+    let to = format!("\"version\":  {}", vstimd::scene_config_file::CONFIG_VERSION);
     let older = shipped.replace(&from, &to);
     assert_ne!(older, shipped, "the stand-in for an older demo is not different");
     older
@@ -80,10 +80,13 @@ fn every_demo_explains_itself_on_screen() {
             .values()
             .find(|e| e.name.as_deref() == Some("explanation"))
             .unwrap_or_else(|| panic!("demo '{name}' has no 'explanation' stimulus"));
-        let vstimd::scene::Stimulus::Text(t) = &explanation.stimulus else {
+        let Some(t) = explanation.stimulus.text() else {
             panic!("demo '{name}': the explanation is not a text stimulus");
         };
-        assert!(t.common.flags.enabled, "demo '{name}': the explanation is hidden");
+        assert!(
+            explanation.stimulus.flags().enabled,
+            "demo '{name}': the explanation is hidden"
+        );
         assert!(
             t.text_live.contains(name),
             "demo '{name}': the explanation does not name the demo"
@@ -135,14 +138,14 @@ fn gratings_demo_flashes_two_orientations_on_two_input_triggers() {
     let gratings: Vec<_> = scene
         .stimuli
         .values()
-        .filter(|e| matches!(e.stimulus, vstimd::scene::Stimulus::Grating(_)))
+        .filter(|e| e.stimulus.grating().is_some())
         .collect();
     assert_eq!(gratings.len(), 2);
     for g in &gratings {
         assert!(!g.stimulus.flags().enabled, "grating starts visible");
-        assert_eq!(g.stimulus.transform().live.pos, [0.0, 0.0], "grating is off-centre");
+        assert_eq!(g.stimulus.transform2d().expect("2-D stimulus").live.pos, [0.0, 0.0], "grating is off-centre");
     }
-    let mut angles: Vec<f32> = gratings.iter().map(|g| g.stimulus.transform().live.angle).collect();
+    let mut angles: Vec<f32> = gratings.iter().map(|g| g.stimulus.transform2d().expect("2-D stimulus").live.angle).collect();
     angles.sort_by(f32::total_cmp);
     assert_eq!(angles, vec![45.0, 135.0], "the two gratings share an orientation");
 
@@ -259,15 +262,13 @@ fn photodiode_demo_enables_the_patch() {
 #[test]
 fn drifting_grating_demo_drifts() {
     let (scene, _) = parse_config_json(demo("demo_drifting_grating")).unwrap();
-    let g = scene
+    let entry = scene
         .stimuli
         .values()
-        .find_map(|e| match &e.stimulus {
-            vstimd::scene::Stimulus::Grating(g) => Some(g),
-            _ => None,
-        })
+        .find(|e| e.stimulus.grating().is_some())
         .expect("no grating");
-    assert!(g.common.flags.enabled, "the grating starts hidden");
+    let g = entry.stimulus.grating().expect("checked above");
+    assert!(entry.stimulus.flags().enabled, "the grating starts hidden");
     assert!(g.params.live.drift_speed > 0.0, "the grating does not drift");
 }
 
@@ -361,7 +362,7 @@ fn loading_the_moving_target_demo_starts_it_moving() {
     let mut scene = SceneState::new();
     scene.load_snapshot(cfg, LoadMode::Replace);
 
-    let pos = |s: &SceneState| s.stimuli.get(&1).unwrap().stimulus.transform().live.pos;
+    let pos = |s: &SceneState| s.stimuli.get(&1).unwrap().stimulus.transform2d().expect("2-D stimulus").live.pos;
     let start = pos(&scene);
 
     let no_edges = VtlEdges::default();
@@ -410,18 +411,18 @@ fn stamp_as_installed(dir: &std::path::Path, name: &str, content: &str) {
 fn seeding_writes_every_demo_and_never_overwrites() {
     let dir = seed_dir("basic");
 
-    let report = vstimd::io_config::seed_demo_configs(&dir);
+    let report = vstimd::scene_config_file::seed_demo_configs(&dir);
     assert!(report.failed.is_empty(), "seed errors: {:?}", report.failed);
     assert_eq!(report.installed.len(), DEMO_CONFIGS.len());
     assert!(report.refreshed.is_empty(), "nothing existed to refresh");
-    let listed = vstimd::io_config::list_config_names(&dir).unwrap();
+    let listed = vstimd::scene_config_file::list_config_names(&dir).unwrap();
     for (name, _) in DEMO_CONFIGS {
         assert!(listed.contains(&name.to_string()), "'{name}' is not listed after seeding");
     }
 
     // Seeding again is a no-op: nothing is rewritten, nothing errors, and every
     // demo is reported as already up to date.
-    let report = vstimd::io_config::seed_demo_configs(&dir);
+    let report = vstimd::scene_config_file::seed_demo_configs(&dir);
     assert!(
         report.installed.is_empty() && report.refreshed.is_empty() && report.failed.is_empty(),
         "re-seeding rewrote files"
@@ -433,9 +434,9 @@ fn seeding_writes_every_demo_and_never_overwrites() {
     );
 
     // An operator's edit survives the next start.
-    let edited = vstimd::io_config::config_path(&dir, DEMO_CONFIGS[0].0);
+    let edited = vstimd::scene_config_file::config_path(&dir, DEMO_CONFIGS[0].0);
     std::fs::write(&edited, "edited by the operator").unwrap();
-    let report = vstimd::io_config::seed_demo_configs(&dir);
+    let report = vstimd::scene_config_file::seed_demo_configs(&dir);
     assert!(report.installed.is_empty() && report.refreshed.is_empty() && report.failed.is_empty());
     assert_eq!(std::fs::read_to_string(&edited).unwrap(), "edited by the operator");
     assert!(
@@ -455,9 +456,9 @@ fn seeding_writes_every_demo_and_never_overwrites() {
 fn seeding_refreshes_an_untouched_demo_that_changed_upstream() {
     let (name, shipped) = DEMO_CONFIGS[0];
     let dir = seed_dir("refresh");
-    let path = vstimd::io_config::config_path(&dir, name);
+    let path = vstimd::scene_config_file::config_path(&dir, name);
 
-    vstimd::io_config::seed_demo_configs(&dir);
+    vstimd::scene_config_file::seed_demo_configs(&dir);
 
     // Simulate "the server shipped an older version of this demo": rewrite the
     // file with different content and stamp it as ours.
@@ -465,7 +466,7 @@ fn seeding_refreshes_an_untouched_demo_that_changed_upstream() {
     std::fs::write(&path, &older).unwrap();
     stamp_as_installed(&dir, name, &older);
 
-    let report = vstimd::io_config::seed_demo_configs(&dir);
+    let report = vstimd::scene_config_file::seed_demo_configs(&dir);
     assert!(report.failed.is_empty(), "seed errors: {:?}", report.failed);
     assert!(
         report.refreshed.contains(&name),
@@ -491,10 +492,10 @@ fn seeding_refreshes_an_untouched_demo_that_changed_upstream() {
 fn seeding_leaves_an_unstamped_file_alone() {
     let (name, _) = DEMO_CONFIGS[0];
     let dir = seed_dir("unstamped");
-    let path = vstimd::io_config::config_path(&dir, name);
+    let path = vstimd::scene_config_file::config_path(&dir, name);
     std::fs::write(&path, "someone else's file").unwrap();
 
-    let report = vstimd::io_config::seed_demo_configs(&dir);
+    let report = vstimd::scene_config_file::seed_demo_configs(&dir);
     assert!(report.failed.is_empty(), "seed errors: {:?}", report.failed);
     assert!(
         !report.installed.contains(&name) && !report.refreshed.contains(&name),
@@ -516,10 +517,10 @@ fn seeding_leaves_an_unstamped_file_alone() {
 fn seeding_adopts_a_file_identical_to_the_shipped_one() {
     let (name, shipped) = DEMO_CONFIGS[0];
     let dir = seed_dir("adopt");
-    let path = vstimd::io_config::config_path(&dir, name);
+    let path = vstimd::scene_config_file::config_path(&dir, name);
     std::fs::write(&path, shipped).unwrap();
 
-    let report = vstimd::io_config::seed_demo_configs(&dir);
+    let report = vstimd::scene_config_file::seed_demo_configs(&dir);
     assert!(
         report.kept.contains(&(name, DemoSkip::UpToDate)),
         "an identical file was not adopted as up to date: {:?}",
@@ -530,7 +531,7 @@ fn seeding_adopts_a_file_identical_to_the_shipped_one() {
     let older = older_stand_in(shipped);
     std::fs::write(&path, &older).unwrap();
     stamp_as_installed(&dir, name, &older);
-    let report = vstimd::io_config::seed_demo_configs(&dir);
+    let report = vstimd::scene_config_file::seed_demo_configs(&dir);
     assert!(report.refreshed.contains(&name), "the adopted file was not refreshed");
 
     std::fs::remove_dir_all(&dir).unwrap();

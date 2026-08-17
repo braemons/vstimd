@@ -2,7 +2,7 @@
 use cosmic_text::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, SwashCache, SwashContent};
 
 use super::text_params::{Anchor, LanguageStyle};
-use super::text_stimulus::TextStimulus;
+use super::text_stimulus::Text;
 
 // ── Fonts ─────────────────────────────────────────────────────────────────────
 // Reuse the fonts already bundled by egui — no extra binary weight.
@@ -84,13 +84,13 @@ pub struct LaidOutGlyph {
 /// Call this whenever `stim.common.flags.dirty` is set. Pass the resulting slice to
 /// the glyph atlas to upload new bitmaps and obtain atlas UV coordinates.
 pub fn layout_and_rasterize(
-    stim: &TextStimulus,
+    stim: &Text,
     screen_w: f32,
     screen_h: f32,
     font_system: &mut TextFontSystem,
     swash_cache: &mut TextSwashCache,
 ) -> Vec<LaidOutGlyph> {
-    let pos = stim.common.transform.live.pos;
+    let pos = stim.transform.live.pos;
     let [box_w, box_h] = stim.box_size.live;
     let size_px = stim.letter_height_px.max(1.0);
     let line_height = size_px * 1.25;
@@ -197,8 +197,8 @@ mod tests {
     use super::*;
     use crate::scene::stimulus::text::text_params::TextRenderParams;
 
-    fn make_stim(text: &str) -> TextStimulus {
-        TextStimulus::new(
+    fn make_stim(text: &str) -> Text {
+        Text::new(
             [0.0, 0.0],
             [400.0, 100.0],
             text.into(),
@@ -281,7 +281,7 @@ mod tests {
     fn hack_monospace_font_resolves() {
         let mut fs = TextFontSystem::new();
         let mut sc = TextSwashCache::new();
-        let stim = TextStimulus::new(
+        let stim = Text::new(
             [0.0, 0.0], [400.0, 100.0],
             "Hello".into(), "Hack".into(), 32.0,
             Anchor::Center, LanguageStyle::Ltr,

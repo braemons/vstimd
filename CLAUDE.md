@@ -32,10 +32,39 @@ make typecheck      # ty type checking
 See `docs/PLAN.md` for the full design and roadmap.
 
 **Key decisions:**
-- Stimulus types: flat `enum` with composition (not trait objects or inheritance)
+- Stimulus types: `Stimulus { common, kind }` — shared state (flags, opacity) above a
+  `StimulusKind` enum, composition throughout (not trait objects or inheritance)
+- `StimulusKind` is the **renderer's** taxonomy (one arm per pipeline/cache: `Shape`,
+  `Grating`, `Text`, `Mesh3d`); the finer user-facing names (`Rect`, `Circle`, `Cube3D`)
+  live in the geometry enums. Internal kind names must never reach a client — errors and
+  `StimulusType` come from `ShapeGeometry::type_name` / `Mesh3dGeometry::type_name`
+- The config format *is* the runtime shape (no DTO). Types owning runtime state
+  (`StimulusFlags`, `Grating`, `Text`) hide it behind a `serde` impl delegating to an inner
+  `*Config`; GPU resources never live in the scene tree at all
 - Render thread must never block or heap-allocate on event emission
 - ZMQ bind address: `tcp://0.0.0.0:5555` — `tcp://*:5555` fails (zeromq crate resolves host as DNS)
 - 2-D and 3-D coexist in one frame (3-D rendered first, 2-D overlaid)
+
+**Module layout (`server/src/`):**
+- `ipc/` — ZMQ transport plus the protobuf dispatcher. `handle_request` is an inherent method on
+  `SceneState` split across `dispatch.rs` (routing + command summary) and one `*_commands.rs` per
+  domain. A new command needs an arm in `dispatch.rs` and the body in its group module.
+- `proto.rs` stays at the crate root, not under `ipc/` — the scene and the web surface speak it too.
+- `scene/` — state only; nothing here speaks protobuf.
+
+**Two configs — always name which one.** They are unrelated:
+- **rig-config** (`rig_config.rs`) — the physical rig: VTL shm, display mode, thread scheduling.
+  TOML at `/etc/braemons/vstimd-rig-config.toml`, changes when the hardware does.
+- **scene-config** (`scene_config_file.rs`) — one experiment: a `SceneConfig` (stimuli, animations,
+  background, photodiode) plus named VTL trigger lines. JSON at
+  `<config-dir>/vstimd_<name>.config.json`, changes per session. The payload type lives in
+  `scene/scene_config.rs`; the load/save methods are on `SceneState` in `scene/scene_state.rs`.
+- `render/` — the display application. `overlay_ui/` holds the egui overlay, one file per group
+  under `overlay_ui/panels/`; `vk/` is the only Vulkan layer.
+- `input/`, `system_info.rs`, `system_metrics.rs`, `benchmark.rs` are peers of `render/`, not part
+  of it.
+- `process/` — shutdown flag and render-thread scheduling. `log_buffer.rs` stays at the root:
+  it is the log sink the overlay reads, not process management.
 
 **Threading:** Two threads share `Arc<RwLock<SceneState>>`. Render thread holds write (tessellation) then read (draw); ZMQ thread holds write (one command at a time). The write lock is dropped before render acquires read, so ZMQ always has a window between frames.
 

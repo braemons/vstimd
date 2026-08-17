@@ -12,7 +12,7 @@ use vstimd::proto;
 use vstimd::proto::request;
 use vstimd::render::backend::{BackendData, DisplayModePref};
 use vstimd::render::evdi::EvdiBackend;
-use vstimd::render::system_info::HostInfo;
+use vstimd::system_info::HostInfo;
 use vstimd::scene::SceneState;
 
 fn sys() -> request::Target {
@@ -72,7 +72,7 @@ fn main() {
     std::thread::spawn(move || {
         std::thread::sleep(std::time::Duration::from_secs(hold_secs));
         println!("time's up, requesting shutdown");
-        vstimd::shutdown::request();
+        vstimd::process::shutdown::request();
     });
 
     println!("starting EvdiBackend for {hold_secs}s — check the physical DisplayLink screen");

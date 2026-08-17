@@ -15,6 +15,8 @@ message CreateEllipseRequest {
   float angle = 5; // orientation in degrees (CCW)
   string id = 6; // client-supplied UUID (empty string → server generates one)
   string name = 7; // optional human-readable label
+  // See CreateRectRequest.appearance for the fallback rules.
+  ShapeAppearance appearance = 8;
 }
 
 // Stimulus command: resize an Ellipse stimulus.

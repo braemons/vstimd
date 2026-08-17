@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "scene": {
     "background": [
       0.5,
@@ -30,45 +30,49 @@
         "id": "d3701002-0000-4000-8000-000000000001",
         "name": "full_field_grating",
         "stimulus": {
-          "type": "Grating",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              0.0,
-              0.0
+          "kind": {
+            "type": "Grating",
+            "transform": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "angle": 0.0
+            },
+            "size": [
+              2400.0,
+              1400.0
             ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "size": [
-            2400.0,
-            1400.0
-          ],
-          "params": {
-            "sf": 0.01,
-            "phase": 0.0,
-            "contrast": 1.0,
-            "waveform": "Sin",
-            "mask": "None",
-            "mask_param": 0.0,
-            "drift_speed": 4.0,
-            "drift_coupled": true,
-            "drift_angle": 0.0,
-            "fore_color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "back_color": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ]
+            "params": {
+              "sf": 0.01,
+              "phase": 0.0,
+              "contrast": 1.0,
+              "waveform": "Sin",
+              "mask": "None",
+              "mask_param": 0.0,
+              "drift_speed": 4.0,
+              "drift_coupled": true,
+              "drift_angle": 0.0,
+              "fore_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "back_color": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            }
           }
         }
       },
@@ -76,49 +80,53 @@
         "id": "d3701002-0000-4000-8000-000000000002",
         "name": "explanation",
         "stimulus": {
-          "type": "Text",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              0.0,
-              -340.0
+          "kind": {
+            "type": "Text",
+            "transform": {
+              "pos": [
+                0.0,
+                -340.0
+              ],
+              "angle": 0.0
+            },
+            "params": {
+              "color": [
+                0.9,
+                0.9,
+                0.9,
+                1.0
+              ],
+              "fill_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.65
+              ],
+              "border_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "flip_horiz": false
+            },
+            "box_size": [
+              1500.0,
+              320.0
             ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "params": {
-            "color": [
-              0.9,
-              0.9,
-              0.9,
-              1.0
-            ],
-            "fill_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.65
-            ],
-            "border_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ],
-            "flip_horiz": false
-          },
-          "box_size": [
-            1500.0,
-            320.0
-          ],
-          "text_live": "demo_drifting_grating \u2014 a moving stimulus every frame\n\nFull-field sinusoidal grating: 0.01 cycles/px (100 px per cycle),\nvertical stripes, drifting at 4 cycles/s perpendicular to the stripes.\nRuns on load \u2014 no trigger. Tearing or stutter here means a frame-timing problem.\nEdit sf / drift_speed / angle live, then save it under your own name.",
-          "font_family": "",
-          "letter_height_px": 24.0,
-          "anchor": "Center",
-          "language_style": "Ltr"
+            "text_live": "demo_drifting_grating — a moving stimulus every frame\n\nFull-field sinusoidal grating: 0.01 cycles/px (100 px per cycle),\nvertical stripes, drifting at 4 cycles/s perpendicular to the stripes.\nRuns on load — no trigger. Tearing or stutter here means a frame-timing problem.\nEdit sf / drift_speed / angle live, then save it under your own name.",
+            "font_family": "",
+            "letter_height_px": 24.0,
+            "anchor": "Center",
+            "language_style": "Ltr"
+          }
         }
       }
     },

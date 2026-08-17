@@ -6,5 +6,10 @@ pub mod stimulus_dialog;
 
 pub use overlay_state::{OverlayGroup, OverlayState};
 
+pub(crate) mod panels;
+
 pub(crate) mod overlay;
 pub(crate) use overlay::{OverlayArgs, build_overlay_ui};
+
+pub(crate) mod ui_renderer;
+pub use ui_renderer::UiRenderer;

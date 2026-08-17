@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "scene": {
     "background": [
       0.5,
@@ -30,45 +30,49 @@
         "id": "d3701005-0000-4000-8000-000000000001",
         "name": "gated_grating",
         "stimulus": {
-          "type": "Grating",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              0.0,
-              0.0
+          "kind": {
+            "type": "Grating",
+            "transform": {
+              "pos": [
+                0.0,
+                0.0
+              ],
+              "angle": 90.0
+            },
+            "size": [
+              700.0,
+              700.0
             ],
-            "angle": 90.0
-          },
-          "opacity": 1.0,
-          "size": [
-            700.0,
-            700.0
-          ],
-          "params": {
-            "sf": 0.015,
-            "phase": 0.0,
-            "contrast": 1.0,
-            "waveform": "Sqr",
-            "mask": "Circle",
-            "mask_param": 0.0,
-            "drift_speed": 0.0,
-            "drift_coupled": true,
-            "drift_angle": 0.0,
-            "fore_color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "back_color": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ]
+            "params": {
+              "sf": 0.015,
+              "phase": 0.0,
+              "contrast": 1.0,
+              "waveform": "Sqr",
+              "mask": "Circle",
+              "mask_param": 0.0,
+              "drift_speed": 0.0,
+              "drift_coupled": true,
+              "drift_angle": 0.0,
+              "fore_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "back_color": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ]
+            }
           }
         }
       },
@@ -76,49 +80,53 @@
         "id": "d3701005-0000-4000-8000-000000000002",
         "name": "explanation",
         "stimulus": {
-          "type": "Text",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              0.0,
-              -340.0
+          "kind": {
+            "type": "Text",
+            "transform": {
+              "pos": [
+                0.0,
+                -340.0
+              ],
+              "angle": 0.0
+            },
+            "params": {
+              "color": [
+                0.9,
+                0.9,
+                0.9,
+                1.0
+              ],
+              "fill_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.65
+              ],
+              "border_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "flip_horiz": false
+            },
+            "box_size": [
+              1500.0,
+              320.0
             ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "params": {
-            "color": [
-              0.9,
-              0.9,
-              0.9,
-              1.0
-            ],
-            "fill_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.65
-            ],
-            "border_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ],
-            "flip_horiz": false
-          },
-          "box_size": [
-            1500.0,
-            320.0
-          ],
-          "text_live": "demo_trigger_gate \u2014 visibility follows an input level\n\nThe square-wave patch is visible exactly while in_pin7 (header pin 7) is HIGH,\nand hidden while it is LOW \u2014 level-coupled, not edge-triggered, so it needs\nno re-arming and shows input wiring problems immediately.\nNo output pins are driven.",
-          "font_family": "",
-          "letter_height_px": 24.0,
-          "anchor": "Center",
-          "language_style": "Ltr"
+            "text_live": "demo_trigger_gate — visibility follows an input level\n\nThe square-wave patch is visible exactly while in_pin7 (header pin 7) is HIGH,\nand hidden while it is LOW — level-coupled, not edge-triggered, so it needs\nno re-arming and shows input wiring problems immediately.\nNo output pins are driven.",
+            "font_family": "",
+            "letter_height_px": 24.0,
+            "anchor": "Center",
+            "language_style": "Ltr"
+          }
         }
       }
     },

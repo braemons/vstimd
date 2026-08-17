@@ -1,7 +1,7 @@
 use crate::proto;
 
 use super::grating_params::{GratingMask, GratingParams, Waveform};
-use super::grating_stimulus::GratingStimulus;
+use super::grating_stimulus::Grating;
 
 // ── Waveform conversions ──────────────────────────────────────────────────────
 
@@ -69,7 +69,7 @@ pub fn grating_params_from_proto(cmd: &proto::CreateGratingRequest) -> GratingPa
 
 // ── Query ─────────────────────────────────────────────────────────────────────
 
-pub fn grating_query_params(s: &GratingStimulus) -> proto::StimulusParams {
+pub fn grating_query_params(s: &Grating) -> proto::StimulusParams {
     let p = s.params.live;
     proto::StimulusParams {
         shape: Some(proto::stimulus_params::Shape::Grating(proto::GratingParams {

@@ -10,7 +10,7 @@ use winit::window::{Fullscreen, Window, WindowId};
 use crate::log_buffer::LogBuffer;
 use crate::render::RenderState;
 use crate::render::backend::BackendData;
-use crate::render::system_info::{ClockSource, SystemInfo};
+use crate::system_info::{ClockSource, SystemInfo};
 use crate::render::{RenderTarget, StimulusDisplayInfo, WindowMode};
 use crate::render::{SceneRenderer, TextRenderer, UiRenderer};
 use crate::render::render_frame;
@@ -302,7 +302,7 @@ impl WinitEventHandler {
 
 impl ApplicationHandler for WinitEventHandler {
     fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
-        if crate::shutdown::is_requested() {
+        if crate::process::shutdown::is_requested() {
             event_loop.exit();
         }
     }

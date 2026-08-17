@@ -5,7 +5,7 @@
 use prost::Message;
 use vstimd::proto;
 use vstimd::proto::request;
-use vstimd::scene::{SceneState, Stimulus};
+use vstimd::scene::SceneState;
 use vstimd::Color;
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -126,8 +126,10 @@ fn test_create_rect_defaults() {
     let h = resp.handle as u32;
     let entry = scene.stimuli.get_mut(&h).unwrap();
 
-    let Stimulus::Rect(r) = &mut entry.stimulus else { panic!("expected Rect stimulus") };
-    assert_eq!(r.size.live, [100.0, 100.0]); // width=0 → server default 100
+    assert_eq!(entry.stimulus.type_name(), "Rect");
+    let r = entry.stimulus.shape().expect("expected Rect stimulus");
+    // width=0 → server default 100
+    assert_eq!(r.geometry.live.size(), Some([100.0, 100.0]));
     assert_eq!(r.appearance.live.fill_color, default_fill);
 }
 
@@ -242,11 +244,11 @@ fn test_create_ellipse() {
     assert!(is_ok(&resp), "unexpected error: {}", resp.error);
     let h = resp.handle as u32;
     assert!(h > 0);
-    let Stimulus::Ellipse(e) = &scene.stimuli[&h].stimulus else {
-        panic!("expected Ellipse stimulus");
-    };
-    assert_eq!(e.size.live, [120.0, 60.0]);
-    assert_eq!(e.common.transform.live.angle, 45.0);
+    let stim = &scene.stimuli[&h].stimulus;
+    assert_eq!(stim.type_name(), "Ellipse");
+    let e = stim.shape().expect("expected Ellipse stimulus");
+    assert_eq!(e.geometry.live.size(), Some([120.0, 60.0]));
+    assert_eq!(e.transform.live.angle, 45.0);
 }
 
 #[test]
@@ -260,7 +262,7 @@ fn test_set_position() {
         body: Some(request::Body::SetPosition(proto::SetPositionRequest { x: 42.0, y: -7.0 })),
     }, None);
     assert!(is_ok(&resp));
-    assert_eq!(scene.stimuli[&h].stimulus.get_pos(), [42.0, -7.0]);
+    assert_eq!(scene.stimuli[&h].stimulus.get_pos_2d(), Some([42.0, -7.0]));
 }
 
 #[test]
@@ -332,7 +334,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
 
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
-    let t = stim.transform();
+    let t = stim.transform2d().expect("expected 2-D stimulus");
     assert_eq!(t.live.pos, [15.0, 25.0]);
     assert_eq!(t.live.angle, 30.0);
 
@@ -354,7 +356,8 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
         .handle as u32;
 
     let stim_obj = &mut scene.stimuli.get_mut(&h).unwrap().stimulus;
-    stim_obj.transform_mut().live = vstimd::scene::Transform2D { pos: [1.0, 2.0], angle: 3.0 };
+    stim_obj.transform2d_mut().expect("expected 2-D stimulus").live =
+        vstimd::scene::Transform2D { pos: [1.0, 2.0], angle: 3.0 };
     {
         let app = stim_obj.shape_appearance_mut().expect("expected shape");
         app.live.fill_color = Color::new(0.11, 0.12, 0.13, 0.14);
@@ -412,7 +415,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
 
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
-    let t = stim.transform();
+    let t = stim.transform2d().expect("expected 2-D stimulus");
     assert_eq!(t.live.pos, [1.0, 2.0]);
     assert_eq!(t.live.angle, 3.0);
     assert_eq!(t.copy.pos, [15.0, 25.0]);
@@ -441,7 +444,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
 
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
-    let t = stim.transform();
+    let t = stim.transform2d().expect("expected 2-D stimulus");
     assert_eq!(t.live.pos, [15.0, 25.0]);
     assert_eq!(t.live.angle, 30.0);
     let app = stim.shape_appearance().expect("expected shape");
@@ -467,8 +470,8 @@ fn test_set_rect_size() {
         })),
     }, None);
     assert!(is_ok(&resp));
-    let Stimulus::Rect(r) = &scene.stimuli[&h].stimulus else { panic!("expected Rect") };
-    assert_eq!(r.size.live, [80.0, 40.0]);
+    let r = scene.stimuli[&h].stimulus.shape().expect("expected Rect");
+    assert_eq!(r.geometry.live.size(), Some([80.0, 40.0]));
 }
 
 #[test]
@@ -666,14 +669,12 @@ fn test_create_text() {
     assert!(h > 0);
     assert!(!resp.id.is_empty());
 
-    let Stimulus::Text(t) = &scene.stimuli[&h].stimulus else {
-        panic!("expected Text stimulus");
-    };
+    let t = scene.stimuli[&h].stimulus.text().expect("expected Text stimulus");
     assert_eq!(t.text_live, "hello");
     assert_eq!(t.font_family, "Open Sans");
     assert_eq!(t.letter_height_px, 32.0);
     assert_eq!(t.box_size.live, [400.0, 80.0]);
-    assert_eq!(t.common.transform.live.pos, [10.0, -20.0]);
+    assert_eq!(t.transform.live.pos, [10.0, -20.0]);
     assert_eq!(t.params.live.color, Color::new(1.0, 1.0, 0.0, 1.0));
     assert_eq!(t.params.live.fill_color.a, 0.0); // transparent by default
 }
@@ -690,9 +691,7 @@ fn test_create_text_defaults() {
     }, None);
     assert!(is_ok(&resp), "unexpected error: {}", resp.error);
     let h = resp.handle as u32;
-    let Stimulus::Text(t) = &scene.stimuli[&h].stimulus else {
-        panic!("expected Text stimulus");
-    };
+    let t = scene.stimuli[&h].stimulus.text().expect("expected Text stimulus");
     assert_eq!(t.box_size.live, [200.0, 100.0]);
     assert_eq!(t.letter_height_px, 32.0);
     assert_eq!(t.params.live.color, Color::WHITE); // white default
@@ -715,10 +714,12 @@ fn test_set_text() {
     }, None);
     assert!(is_ok(&resp));
 
-    let Stimulus::Text(t) = &scene.stimuli[&h].stimulus else { panic!() };
+    let stim = &scene.stimuli[&h].stimulus;
+    let t = stim.text().expect("expected Text stimulus");
     assert_eq!(t.text_live, "after");
     assert_eq!(t.text_copy, "after");
-    assert!(t.common.flags.dirty);
+    // `dirty` is written by the command layer now, not by `Text::set_text`.
+    assert!(stim.flags().dirty);
 }
 
 #[test]
@@ -740,7 +741,7 @@ fn test_set_text_color() {
     }, None);
     assert!(is_ok(&resp));
 
-    let Stimulus::Text(t) = &scene.stimuli[&h].stimulus else { panic!() };
+    let t = scene.stimuli[&h].stimulus.text().expect("expected Text stimulus");
     assert_eq!(t.params.live.color, Color::new(0.0, 1.0, 0.5, 0.8));
 }
 
@@ -847,7 +848,7 @@ fn test_text_deferred_set_text_and_color() {
     }, None);
 
     // Live values unchanged before flip
-    let Stimulus::Text(t) = &scene.stimuli[&h].stimulus else { panic!() };
+    let t = scene.stimuli[&h].stimulus.text().expect("expected Text stimulus");
     assert_eq!(t.text_live, "initial");
     assert_eq!(t.text_copy, "deferred");
     assert_eq!(t.params.live.color, Color::WHITE);
@@ -857,7 +858,7 @@ fn test_text_deferred_set_text_and_color() {
     scene.handle_request(set_deferred_mode_req(false, false), None);
     scene.apply_flip();
 
-    let Stimulus::Text(t) = &scene.stimuli[&h].stimulus else { panic!() };
+    let t = scene.stimuli[&h].stimulus.text().expect("expected Text stimulus");
     assert_eq!(t.text_live, "deferred");
     assert_eq!(t.params.live.color, Color::new(1.0, 0.0, 0.0, 1.0));
 }
@@ -1141,7 +1142,7 @@ fn test_set_alpha_only_dirties_what_has_to_be_retessellated() {
         let stim = &scene.stimuli[&h].stimulus;
         assert_eq!(
             stim.flags().dirty,
-            stim.is_shape(),
+            stim.shape().is_some(),
             "{name}: dirty should be set only for shapes",
         );
     }
@@ -1245,8 +1246,8 @@ fn test_create_stores_full_extents() {
             proto::CreateRectRequest { width: 200.0, height: 100.0, ..Default::default() },
         ), None)
         .handle as u32;
-    let Stimulus::Rect(r) = &scene.stimuli[&h].stimulus else { panic!("expected Rect") };
-    assert_eq!(r.size.live, [200.0, 100.0]);
+    let r = scene.stimuli[&h].stimulus.shape().expect("expected Rect");
+    assert_eq!(r.geometry.live.size(), Some([200.0, 100.0]));
 
     let h = scene
         .handle_request(proto::Request {
@@ -1256,8 +1257,8 @@ fn test_create_stores_full_extents() {
             })),
         }, None)
         .handle as u32;
-    let Stimulus::Ellipse(e) = &scene.stimuli[&h].stimulus else { panic!("expected Ellipse") };
-    assert_eq!(e.size.live, [300.0, 120.0]);
+    let e = scene.stimuli[&h].stimulus.shape().expect("expected Ellipse");
+    assert_eq!(e.geometry.live.size(), Some([300.0, 120.0]));
 
     let h = scene
         .handle_request(proto::Request {
@@ -1267,7 +1268,7 @@ fn test_create_stores_full_extents() {
             })),
         }, None)
         .handle as u32;
-    let Stimulus::Grating(g) = &scene.stimuli[&h].stimulus else { panic!("expected Grating") };
+    let g = scene.stimuli[&h].stimulus.grating().expect("expected Grating");
     assert_eq!(g.size.live, [400.0, 250.0]);
 }
 
@@ -1325,4 +1326,106 @@ fn test_query_reports_the_size_that_was_asked_for() {
             "{name}: query did not report the size it was created with",
         );
     }
+}
+
+// ── Create-time appearance (proto `appearance` field) ─────────────────────────
+
+/// Creating an outlined shape used to take four round trips — create, then
+/// SetDrawMode, SetOutlineColor, SetOutlineWidth — with the stimulus on screen
+/// wearing the wrong appearance for three of them. `CreateRect.appearance` makes
+/// it one message.
+#[test]
+fn create_rect_accepts_a_full_appearance() {
+    let mut scene = SceneState::new();
+    let resp = scene.handle_request(
+        create_rect_req(
+            sys(),
+            proto::CreateRectRequest {
+                width: 100.0,
+                height: 50.0,
+                angle: 15.0,
+                appearance: Some(proto::ShapeAppearance {
+                    fill_color: Some(Color::new(0.1, 0.2, 0.3, 1.0).into()),
+                    outline_color: Some(Color::new(0.9, 0.8, 0.7, 1.0).into()),
+                    outline_width: 6.0,
+                    draw_mode: proto::ShapeDrawMode::FilledAndOutlined as i32,
+                }),
+                ..Default::default()
+            },
+        ),
+        None,
+    );
+    assert!(is_ok(&resp), "unexpected error: {}", resp.error);
+    let h = resp.handle as u32;
+    let stim = &scene.stimuli[&h].stimulus;
+    let app = stim.shape_appearance().expect("expected a shape").live;
+    assert_eq!(app.fill_color, Color::new(0.1, 0.2, 0.3, 1.0));
+    assert_eq!(app.outline_color, Color::new(0.9, 0.8, 0.7, 1.0));
+    assert_eq!(app.stroke_width, 6.0);
+    assert_eq!(app.draw_mode, vstimd::scene::DrawMode::FillAndStroke);
+    // A rect can now be born rotated, as an ellipse always could.
+    assert_eq!(
+        stim.transform2d().expect("2-D stimulus").live.angle,
+        15.0
+    );
+}
+
+/// Absent `appearance` must reproduce the pre-field behaviour exactly: fill from
+/// `fill_color`, outline from the scene default, stroke width and draw mode from
+/// `ShapeAppearance::default()`.
+#[test]
+fn create_rect_without_appearance_is_unchanged() {
+    let mut scene = SceneState::new();
+    let default_outline = scene.config.default_outline;
+    let resp = scene.handle_request(
+        create_rect_req(
+            sys(),
+            proto::CreateRectRequest {
+                fill_color: Some(Color::new(1.0, 0.0, 0.0, 1.0).into()),
+                ..Default::default()
+            },
+        ),
+        None,
+    );
+    assert!(is_ok(&resp));
+    let app = scene.stimuli[&(resp.handle as u32)]
+        .stimulus
+        .shape_appearance()
+        .expect("expected a shape")
+        .live;
+    assert_eq!(app.fill_color, Color::new(1.0, 0.0, 0.0, 1.0));
+    assert_eq!(app.outline_color, default_outline);
+    assert_eq!(app.stroke_width, 2.0);
+    assert_eq!(app.draw_mode, vstimd::scene::DrawMode::Fill);
+}
+
+/// A partially-filled `appearance` inherits the rest rather than zeroing it.
+#[test]
+fn create_ellipse_appearance_fields_fall_back_individually() {
+    let mut scene = SceneState::new();
+    let default_outline = scene.config.default_outline;
+    let default_fill = scene.config.default_fill;
+    let resp = scene.handle_request(
+        proto::Request {
+            target: Some(sys()),
+            body: Some(request::Body::CreateEllipse(proto::CreateEllipseRequest {
+                appearance: Some(proto::ShapeAppearance {
+                    draw_mode: proto::ShapeDrawMode::Outlined as i32,
+                    ..Default::default()
+                }),
+                ..Default::default()
+            })),
+        },
+        None,
+    );
+    assert!(is_ok(&resp), "unexpected error: {}", resp.error);
+    let app = scene.stimuli[&(resp.handle as u32)]
+        .stimulus
+        .shape_appearance()
+        .expect("expected a shape")
+        .live;
+    assert_eq!(app.draw_mode, vstimd::scene::DrawMode::Stroke);
+    assert_eq!(app.fill_color, default_fill, "fill should fall back");
+    assert_eq!(app.outline_color, default_outline, "outline should fall back");
+    assert_eq!(app.stroke_width, 2.0, "width 0 means unset, not hairline");
 }

@@ -3,9 +3,9 @@ use std::sync::{Arc, Mutex};
 use crate::log_buffer::LogBuffer;
 use crate::render::RenderState;
 use crate::render::backend::BackendData;
-use crate::render::console_input::{InputState, vt_number_from_env};
+use crate::input::console_input::{InputState, vt_number_from_env};
 use crate::render::frame_loop::{self, KeyOutcome};
-use crate::render::system_info::{ClockSource, SystemInfo};
+use crate::system_info::{ClockSource, SystemInfo};
 use crate::render::vk::VkContext;
 use crate::render::RenderTarget;
 use crate::render::{SceneRenderer, TextRenderer, UiRenderer};
@@ -275,7 +275,7 @@ impl DrmRenderLoopData {
             "vstimd: fatal display error — {reason}. Stimulus timing/output can no longer be \
              guaranteed; shutting down."
         );
-        crate::shutdown::request_fatal(reason);
+        crate::process::shutdown::request_fatal(reason);
     }
 
     fn run_loop(mut self) {
@@ -286,7 +286,7 @@ impl DrmRenderLoopData {
 
         let mut clock_logged = false;
         loop {
-            if crate::shutdown::is_requested() {
+            if crate::process::shutdown::is_requested() {
                 return;
             }
 

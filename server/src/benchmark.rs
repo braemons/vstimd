@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::scene::{
-    GratingParams, GratingStimulus, SceneState, Stimulus, StimulusSceneEntry, Waveform, GratingMask
+    GratingParams, Grating, SceneState, Stimulus, StimulusSceneEntry, Waveform, GratingMask
 };
 use crate::timing::FrameStats;
 use uuid::Uuid;
@@ -76,7 +76,7 @@ impl BenchmarkState {
                         StimulusSceneEntry::new(
                             Uuid::new_v4(),
                             None,
-                            Stimulus::Grating(GratingStimulus::new(
+                            Stimulus::from(Grating::new(
                                 [cx, cy],
                                 angle,
                                 [stim_w / 2.0, stim_h / 2.0],

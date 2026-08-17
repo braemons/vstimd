@@ -1,6 +1,6 @@
 use crate::Color;
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum DrawMode {
     #[default]
     Fill,

@@ -119,11 +119,17 @@ SetPolygonVerticesRequest set_polygon_vertices   = 43;   // mutation block
 
 ### A6 — Command dispatch
 
-`server/src/scene/command.rs`:
+`server/src/ipc/dispatch.rs`:
 - `command_summary`: `CreatePolygon`, `SetPolygonVertices` arms
-- `handle_system_command`: `CreatePolygon` → build `PolygonStimulus`, insert (follow `cmd_create_circle` pattern)
-- `handle_stimulus_command`: `SetPolygonVertices` → type-guard with `err_wrong_type`, update `vertices_live`, mark dirty
-- `cmd_query_stimulus`: add `Polygon` params
+- `handle_system_command`: route `CreatePolygon` to `cmd_create_polygon`
+- `handle_stimulus_command`: route `SetPolygonVertices`
+
+`server/src/ipc/shape_commands.rs`:
+- `cmd_create_polygon` → build `PolygonStimulus`, insert (follow `cmd_create_circle` pattern)
+- `cmd_set_polygon_vertices` → type-guard with `err_wrong_type`, update `vertices_live`, mark dirty
+
+`server/src/ipc/scene_commands.rs`:
+- `query_stimulus_response`: add `Polygon` params
 
 ---
 
@@ -224,7 +230,8 @@ SetSplineControlPointsRequest set_spline_control_points  = 44;   // mutation blo
 
 ### B5 — Command dispatch
 
-`server/src/scene/command.rs`: same pattern as PolygonStimulus (system create + stimulus mutation + query params).
+`server/src/ipc/`: same pattern as PolygonStimulus — dispatch arms in `dispatch.rs`, the commands
+themselves in `shape_commands.rs`, query params in `scene_commands.rs`.
 
 ---
 
@@ -307,7 +314,7 @@ class Spline:
 3. `primitive_shapes.rs` — `PolygonStimulus`, `SplineStimulus`, `SplineType`
 4. `shape_stimulus.rs` + `mod.rs` — new variants
 5. `tess.rs` — `tessellate_polygon`, `tessellate_spline`, Catmull-Rom/Bézier helpers
-6. `command.rs` — dispatch for both types
+6. `ipc/dispatch.rs` + `ipc/shape_commands.rs` — dispatch and commands for both types
 7. Python — `stimuli_client.py`, `shape.py`, `polygon.py`, `spline.py`
 
 ---
@@ -339,7 +346,9 @@ class Spline:
 | `server/src/scene/stimulus/shape_stimulus.rs` | `Polygon`, `Spline` variants + macro arms |
 | `server/src/scene/stimulus/mod.rs` | Re-export new types |
 | `server/src/render/tess.rs` | `tessellate_polygon`, `tessellate_spline`, path helpers |
-| `server/src/scene/command.rs` | Create + mutation dispatch for both types |
+| `server/src/ipc/dispatch.rs` | Summary + routing arms for both types |
+| `server/src/ipc/shape_commands.rs` | Create + mutation commands for both types |
+| `server/src/ipc/scene_commands.rs` | Query params for both types |
 | `proto/vstimd/v1/common.proto` | `POLYGON = 11`, `SPLINE = 12` |
 | `proto/vstimd/v1/stimuli_2d.proto` | New messages, `SplineType` enum, params |
 | `proto/vstimd/v1/service.proto` | Fields `14`, `15`, `43`, `44` |

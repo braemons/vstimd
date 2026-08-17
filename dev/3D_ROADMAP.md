@@ -5,6 +5,30 @@
 > rendering, including corridors/mazes, 3-D primitives, mesh models, and — as a long-horizon
 > research target — Gaussian splatting.
 
+> **Status — preparatory refactor landed (2026-08-17).** The data-model groundwork this
+> document calls for is done, with three deliberate departures from what is written below.
+> Where this document and the code disagree, **the code wins**:
+>
+> - **§1.7 / §9.3** — `transform` is out of `StimulusCommon` (now `{flags, opacity}`) and onto
+>   each kind, as prescribed. `Stimulus` gained `placement()` returning a `Placement<'_>`
+>   enum, with `transform2d()`/`transform3d()` layered on top.
+> - **§9.1 / §9.4 — the enum is no longer flat, and `is_3d()` is not a variant list.**
+>   `Stimulus` is a struct (`{common, kind}`); `StimulusKind` has one arm per *render path*.
+>   `Rect`/`Ellipse`/`Circle` share one `Shape` + `ShapeGeometry`, and `Cube3D`/`Sphere3D`/
+>   `Plane3D` share one `Mesh3d` + `Mesh3dGeometry` — they differ only in a `MeshKey` and a
+>   nominal size, which §1.6 already implies. `is_3d()` is derived from `placement()`, so a
+>   new kind cannot compile without declaring its dimension. §9.4's hand-maintained
+>   `matches!` list is exactly the thing that rots.
+> - **§9.3's `move_to` mapping is rejected.** `move_to`/`set_angle` return `false` for a 3-D
+>   stimulus rather than writing `position.xz`. Both spaces are Y-up (§3.1, §3.2), so routing
+>   `y` into `z` would make "move up" mean "move forward" — and pixels into centimetres has no
+>   correct reading regardless. 3-D placement gets its own commands.
+> - **§D.2 / §E.3's `mesh_id` / `skin_id` / `scene_id` are rejected.** GPU handles do not
+>   belong on a config-bearing struct; the geometry *is* the cache key.
+>
+> `Transform3D`, `Material3D`, `Mesh3d` exist as placeholders with `unimplemented!()` bodies
+> and no `glam` dependency yet. The config format is v4.
+>
 > **Status.** Phases A and B are broken down into implementation issues: epic
 > [#76](https://github.com/braemons/vstimd/issues/76), sub-issues #68–#75. Where this document
 > and those issues disagree, the issues win — they were written against the current code.
@@ -1087,7 +1111,7 @@ above are the whole enum. (`Polygon` has proto messages but no server implementa
 [#20](https://github.com/braemons/vstimd/issues/20).)
 
 `#[serde(tag = "type")]` means a new variant serializes into the config JSON as
-`{"type": "Sphere3D", ...}` automatically. No `io_config.rs` changes; adding a variant is additive
+`{"type": "Sphere3D", ...}` automatically. No `scene_config_file.rs` changes; adding a variant is additive
 and does not warrant a `CONFIG_VERSION` bump.
 
 ### 9.2 Exhaustive matches enforce completeness
@@ -1096,8 +1120,8 @@ There is no `stim_field!` macro (an earlier draft claimed one). `stimulus.rs` ha
 `shape_arm!` macro covering only the three shape variants, and a set of hand-written **exhaustive
 `match`es**: `flags`/`flags_mut`, `shape_appearance`/`_mut`, `is_shape`, `reset_phase_accum`,
 `make_copy`, `flip`, `type_name`. Exhaustive matches also live in `render_frame.rs` (update and
-draw) and `scene/command.rs` (`command_summary`, `handle_system_command`,
-`handle_stimulus_command`, `query_stimulus_response`).
+draw), `ipc/dispatch.rs` (`command_summary`, `handle_system_command`,
+`handle_stimulus_command`) and `ipc/scene_commands.rs` (`query_stimulus_response`).
 
 The compiler finds every one of them. That is the safety net: the server cannot compile with a
 half-wired stimulus type. The **clients** have no such link to the proto schema and are where

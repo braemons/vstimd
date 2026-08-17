@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "scene": {
     "background": [
       0.05,
@@ -30,85 +30,96 @@
         "id": "d3701003-0000-4000-8000-000000000001",
         "name": "target",
         "stimulus": {
-          "type": "Circle",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              -800.0,
-              0.0
-            ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "appearance": {
-            "fill_color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "outline_color": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ],
-            "stroke_width": 2.0,
-            "draw_mode": "Fill"
-          },
-          "radius": 30.0
+          "kind": {
+            "type": "Shape",
+            "transform": {
+              "pos": [
+                -800.0,
+                0.0
+              ],
+              "angle": 0.0
+            },
+            "appearance": {
+              "fill_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "outline_color": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "stroke_width": 2.0,
+              "draw_mode": "Fill"
+            },
+            "geometry": {
+              "type": "Circle",
+              "radius": 30.0
+            }
+          }
         }
       },
       "2": {
         "id": "d3701003-0000-4000-8000-000000000002",
         "name": "explanation",
         "stimulus": {
-          "type": "Text",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              0.0,
-              -340.0
+          "kind": {
+            "type": "Text",
+            "transform": {
+              "pos": [
+                0.0,
+                -340.0
+              ],
+              "angle": 0.0
+            },
+            "params": {
+              "color": [
+                0.9,
+                0.9,
+                0.9,
+                1.0
+              ],
+              "fill_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.65
+              ],
+              "border_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "flip_horiz": false
+            },
+            "box_size": [
+              1500.0,
+              320.0
             ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "params": {
-            "color": [
-              0.9,
-              0.9,
-              0.9,
-              1.0
-            ],
-            "fill_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.65
-            ],
-            "border_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ],
-            "flip_horiz": false
-          },
-          "box_size": [
-            1500.0,
-            320.0
-          ],
-          "text_live": "demo_moving_target \u2014 motion plus an output pulse\n\nA 30 px target sweeps from x = -800 to x = +800 at 600 px/s, then restarts.\nEach completed sweep pulses out_pin36 (header pin 36) for one frame \u2014\nscope that pin against the display to measure end-to-end output latency.\nRuns on load; no input trigger needed.",
-          "font_family": "",
-          "letter_height_px": 24.0,
-          "anchor": "Center",
-          "language_style": "Ltr"
+            "text_live": "demo_moving_target — motion plus an output pulse\n\nA 30 px target sweeps from x = -800 to x = +800 at 600 px/s, then restarts.\nEach completed sweep pulses out_pin36 (header pin 36) for one frame —\nscope that pin against the display to measure end-to-end output latency.\nRuns on load; no input trigger needed.",
+            "font_family": "",
+            "letter_height_px": 24.0,
+            "anchor": "Center",
+            "language_style": "Ltr"
+          }
         }
       }
     },

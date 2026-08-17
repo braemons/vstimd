@@ -42,8 +42,12 @@ impl std::ops::DerefMut for StimulusFlags {
     fn deref_mut(&mut self) -> &mut StimulusFlagsConfig { &mut self.config }
 }
 
-/// Serde serializes only the config (enabled + protected); runtime fields are restored
-/// with correct defaults on deserialization.
+/// Serializes as the config half only (`enabled` + `protected`); the runtime
+/// fields are restored to load-time defaults on the way back in. One of the
+/// three leaves that own a config/runtime split — see [`Grating`] and [`Text`].
+///
+/// [`Grating`]: super::Grating
+/// [`Text`]: super::Text
 impl serde::Serialize for StimulusFlags {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
         self.config.serialize(s)
@@ -52,17 +56,26 @@ impl serde::Serialize for StimulusFlags {
 
 impl<'de> serde::Deserialize<'de> for StimulusFlags {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        let config = StimulusFlagsConfig::deserialize(d)?;
-        Ok(Self {
-            enabled_copy: config.enabled,
-            config,
-            anim_enabled: true,
-            dirty: true,
-        })
+        Ok(Self::from_config(StimulusFlagsConfig::deserialize(d)?))
     }
 }
 
 impl StimulusFlags {
+    /// Rebuild from the config half, restoring every runtime field to the value
+    /// a freshly-loaded stimulus needs: `dirty` so the render thread tessellates
+    /// it on the first frame, `anim_enabled` true (no animation hold yet), and
+    /// the deferred copy equal to live so a flip is a no-op.
+    ///
+    /// The one place a `StimulusFlags` comes back from a config file.
+    pub fn from_config(config: StimulusFlagsConfig) -> Self {
+        Self {
+            enabled_copy: config.enabled,
+            config,
+            anim_enabled: true,
+            dirty: true,
+        }
+    }
+
     /// Construct with the given enabled state; all other fields take their defaults.
     pub fn enabled(enabled: bool) -> Self {
         Self {

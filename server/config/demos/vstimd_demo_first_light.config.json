@@ -1,5 +1,5 @@
 {
-  "version": 3,
+  "version": 4,
   "scene": {
     "background": [
       0.05,
@@ -30,290 +30,333 @@
         "id": "d3701001-0000-4000-8000-000000000001",
         "name": "title",
         "stimulus": {
-          "type": "Text",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              0.0,
-              220.0
+          "kind": {
+            "type": "Text",
+            "transform": {
+              "pos": [
+                0.0,
+                220.0
+              ],
+              "angle": 0.0
+            },
+            "params": {
+              "color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "fill_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "border_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "flip_horiz": false
+            },
+            "box_size": [
+              1600.0,
+              120.0
             ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "params": {
-            "color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "fill_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ],
-            "border_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ],
-            "flip_horiz": false
-          },
-          "box_size": [
-            1600.0,
-            120.0
-          ],
-          "text_live": "vstimd \u2014 first light",
-          "font_family": "",
-          "letter_height_px": 80.0,
-          "anchor": "Center",
-          "language_style": "Ltr"
+            "text_live": "vstimd — first light",
+            "font_family": "",
+            "letter_height_px": 80.0,
+            "anchor": "Center",
+            "language_style": "Ltr"
+          }
         }
       },
       "2": {
         "id": "d3701001-0000-4000-8000-000000000002",
         "name": "fixation_dot",
         "stimulus": {
-          "type": "Circle",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              0.0,
-              60.0
-            ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "appearance": {
-            "fill_color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "outline_color": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ],
-            "stroke_width": 2.0,
-            "draw_mode": "Fill"
-          },
-          "radius": 8.0
+          "kind": {
+            "type": "Shape",
+            "transform": {
+              "pos": [
+                0.0,
+                60.0
+              ],
+              "angle": 0.0
+            },
+            "appearance": {
+              "fill_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "outline_color": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "stroke_width": 2.0,
+              "draw_mode": "Fill"
+            },
+            "geometry": {
+              "type": "Circle",
+              "radius": 8.0
+            }
+          }
         }
       },
       "3": {
         "id": "d3701001-0000-4000-8000-000000000003",
         "name": "corner_tl",
         "stimulus": {
-          "type": "Rect",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              -900.0,
-              480.0
-            ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "appearance": {
-            "fill_color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "outline_color": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ],
-            "stroke_width": 2.0,
-            "draw_mode": "Fill"
-          },
-          "size": [
-            80.0,
-            80.0
-          ]
+          "kind": {
+            "type": "Shape",
+            "transform": {
+              "pos": [
+                -900.0,
+                480.0
+              ],
+              "angle": 0.0
+            },
+            "appearance": {
+              "fill_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "outline_color": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "stroke_width": 2.0,
+              "draw_mode": "Fill"
+            },
+            "geometry": {
+              "type": "Rect",
+              "size": [
+                80.0,
+                80.0
+              ]
+            }
+          }
         }
       },
       "4": {
         "id": "d3701001-0000-4000-8000-000000000004",
         "name": "corner_tr",
         "stimulus": {
-          "type": "Rect",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              900.0,
-              480.0
-            ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "appearance": {
-            "fill_color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "outline_color": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ],
-            "stroke_width": 2.0,
-            "draw_mode": "Fill"
-          },
-          "size": [
-            80.0,
-            80.0
-          ]
+          "kind": {
+            "type": "Shape",
+            "transform": {
+              "pos": [
+                900.0,
+                480.0
+              ],
+              "angle": 0.0
+            },
+            "appearance": {
+              "fill_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "outline_color": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "stroke_width": 2.0,
+              "draw_mode": "Fill"
+            },
+            "geometry": {
+              "type": "Rect",
+              "size": [
+                80.0,
+                80.0
+              ]
+            }
+          }
         }
       },
       "5": {
         "id": "d3701001-0000-4000-8000-000000000005",
         "name": "corner_bl",
         "stimulus": {
-          "type": "Rect",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              -900.0,
-              -480.0
-            ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "appearance": {
-            "fill_color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "outline_color": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ],
-            "stroke_width": 2.0,
-            "draw_mode": "Fill"
-          },
-          "size": [
-            80.0,
-            80.0
-          ]
+          "kind": {
+            "type": "Shape",
+            "transform": {
+              "pos": [
+                -900.0,
+                -480.0
+              ],
+              "angle": 0.0
+            },
+            "appearance": {
+              "fill_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "outline_color": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "stroke_width": 2.0,
+              "draw_mode": "Fill"
+            },
+            "geometry": {
+              "type": "Rect",
+              "size": [
+                80.0,
+                80.0
+              ]
+            }
+          }
         }
       },
       "6": {
         "id": "d3701001-0000-4000-8000-000000000006",
         "name": "corner_br",
         "stimulus": {
-          "type": "Rect",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              900.0,
-              -480.0
-            ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "appearance": {
-            "fill_color": [
-              1.0,
-              1.0,
-              1.0,
-              1.0
-            ],
-            "outline_color": [
-              0.0,
-              0.0,
-              0.0,
-              1.0
-            ],
-            "stroke_width": 2.0,
-            "draw_mode": "Fill"
-          },
-          "size": [
-            80.0,
-            80.0
-          ]
+          "kind": {
+            "type": "Shape",
+            "transform": {
+              "pos": [
+                900.0,
+                -480.0
+              ],
+              "angle": 0.0
+            },
+            "appearance": {
+              "fill_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "outline_color": [
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "stroke_width": 2.0,
+              "draw_mode": "Fill"
+            },
+            "geometry": {
+              "type": "Rect",
+              "size": [
+                80.0,
+                80.0
+              ]
+            }
+          }
         }
       },
       "7": {
         "id": "d3701001-0000-4000-8000-000000000007",
         "name": "explanation",
         "stimulus": {
-          "type": "Text",
-          "flags": {
-            "enabled": true,
-            "protected": false
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
           },
-          "transform": {
-            "pos": [
-              0.0,
-              -340.0
+          "kind": {
+            "type": "Text",
+            "transform": {
+              "pos": [
+                0.0,
+                -340.0
+              ],
+              "angle": 0.0
+            },
+            "params": {
+              "color": [
+                0.9,
+                0.9,
+                0.9,
+                1.0
+              ],
+              "fill_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.65
+              ],
+              "border_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "flip_horiz": false
+            },
+            "box_size": [
+              1500.0,
+              320.0
             ],
-            "angle": 0.0
-          },
-          "opacity": 1.0,
-          "params": {
-            "color": [
-              0.9,
-              0.9,
-              0.9,
-              1.0
-            ],
-            "fill_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.65
-            ],
-            "border_color": [
-              0.0,
-              0.0,
-              0.0,
-              0.0
-            ],
-            "flip_horiz": false
-          },
-          "box_size": [
-            1500.0,
-            320.0
-          ],
-          "text_live": "demo_first_light \u2014 the display works\n\nStatic scene: a centre dot and four corner squares (1800 x 960 px apart),\nso you can see at a glance that the whole display is being driven.\nNo triggers, no animations.\nNext: load demo_drifting_grating, or list all demos with config list.",
-          "font_family": "",
-          "letter_height_px": 24.0,
-          "anchor": "Center",
-          "language_style": "Ltr"
+            "text_live": "demo_first_light — the display works\n\nStatic scene: a centre dot and four corner squares (1800 x 960 px apart),\nso you can see at a glance that the whole display is being driven.\nNo triggers, no animations.\nNext: load demo_drifting_grating, or list all demos with config list.",
+            "font_family": "",
+            "letter_height_px": 24.0,
+            "anchor": "Center",
+            "language_style": "Ltr"
+          }
         }
       }
     },

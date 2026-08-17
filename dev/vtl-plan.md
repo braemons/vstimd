@@ -93,7 +93,7 @@ on completion.  Allows "flash and restore" without needing to know the prior sta
 
 ## Animation variants (current)
 
-All variants live in `server/src/scene/animation.rs`.  `start_trigger: Option<(VtlBit, Edge)>`
+All variants live in `server/src/scene/animation/`.  `start_trigger: Option<(VtlBit, Edge)>`
 and `stimuli: Vec<u32>` live on `AnimationEntry`, not on the variant.
 
 ```
@@ -150,8 +150,8 @@ END_DEFERRED            (0x80)  call end_deferred_mode
 ### ✅ Step 2 — VTL plumbing in vstimd
 - `server/src/vtl_state.rs` — `VtlState`, `VtlEdges`, `poll`, `output_edges`, `commit_staged`
 - `proto/vstimd/v1/vtl.proto` — `SetVirtualTriggerLineName`, `ListVirtualTriggerLines`, `SetVirtualTriggerLine`, `ToggleVirtualTriggerLine` commands
-- `server/src/scene/command.rs` — VTL commands dispatched
-- `server/src/ipc.rs` — `Arc<Mutex<VtlState>>` threaded through to handle_request
+- `server/src/ipc/vtl_commands.rs` — VTL commands dispatched
+- `server/src/ipc/zmq_server.rs` — `Arc<Mutex<VtlState>>` threaded through to handle_request
 - `render/drm/mod.rs` + `render/winit_vk/mod.rs` — `VtlState` created at startup, stored as `Option<Arc<Mutex<VtlState>>>`
 
 **Remaining in Step 2:**
@@ -159,10 +159,10 @@ END_DEFERRED            (0x80)  call end_deferred_mode
 - Overlay VTL Lines panel → Step 5
 
 ### ✅ Step 3 — Animation framework skeleton
-- `server/src/scene/animation.rs` — all variants, `AnimState`, `FinalAction`, `AnimationEntry`
-- `server/src/scene/state.rs` — `animations: IndexMap`, `advance_animations` (stub)
+- `server/src/scene/animation/` — all variants, `AnimState`, `FinalAction`, `AnimationEntry`
+- `server/src/scene/scene_state.rs` — `animations: IndexMap`, `advance_animations` (stub)
 - `proto/vstimd/v1/animations.proto` — full proto API including `QueryAnimation`
-- `server/src/scene/command.rs` — create/arm/disarm/delete/list/query animations dispatched
+- `server/src/ipc/animation_commands.rs` — create/arm/disarm/delete/list/query animations dispatched
 - `client/python/vstimd/animations/` — `AnimationClient`, `FinalAction`, `AnimationDetails`
 
 **Proto API changes vs original plan:**
@@ -197,7 +197,7 @@ the core visibility variants and all final actions.
      advance all animations (brief write lock on scene, released before render)
 - At [C] (after present): `pending_outputs_prev = std::mem::take(&mut pending_outputs)`
 
-**`advance_animations` implementation** (`scene/state.rs`):
+**`advance_animations` implementation** (`scene/animation/animation_advance.rs`):
 - `CoupleVisibilityToInputTriggerLine`: set `anim_enabled` from input level each frame
 - `EnableOnTriggerEdge`: watch for edge on `trigger`; write `user_enabled` once; Done
 - `FlashForNFrames`: set `user_enabled=true` at start; Done after N frames

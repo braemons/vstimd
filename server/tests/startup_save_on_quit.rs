@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 use prost::Message;
 use zeromq::{Socket, SocketRecv, SocketSend};
 
-use vstimd::io_config::{
+use vstimd::scene_config_file::{
     config_path, count_archive_configs, list_config_names, parse_config_json, LAST_SESSION_CONFIG,
 };
 use vstimd::proto;
