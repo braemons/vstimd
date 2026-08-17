@@ -7,14 +7,13 @@
 
 use std::sync::atomic::{AtomicU32, Ordering};
 
-use uuid::Uuid;
 use vstimd::scene_config_file::{
     config_path, count_archive_configs, dir_is_writable, first_writable_dir, is_archive_name,
     is_not_found, LAST_SESSION_CONFIG,
 };
 use vstimd::scene::{
     SceneState, Shape, ShapeAppearance, ShapeGeometry, Stimulus,
-    StimulusSceneEntry,
+    StimulusIdentity, StimulusSceneEntry,
 };
 
 /// A unique scratch directory that is removed when dropped, so each test gets
@@ -47,8 +46,7 @@ impl Drop for TempDir {
 fn scene_with_rect(dir: &std::path::Path) -> SceneState {
     let mut scene = SceneState::new_with_config_dir(dir.to_path_buf());
     scene.add_stimulus(StimulusSceneEntry::new(
-        Uuid::new_v4(),
-        Some("target".into()),
+        StimulusIdentity::new(Some("target".into())),
         Stimulus::from(Shape::new(
             [10.0, 20.0],
             0.0,

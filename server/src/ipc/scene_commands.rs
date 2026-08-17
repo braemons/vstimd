@@ -1,11 +1,12 @@
 //! Scene-wide commands: background, deferred mode, bulk clear/enable, server
 //! info, and the stimulus query/list payloads.
 
-use super::convert::{nonempty, parse_version, shape_appearance_to_proto};
+use super::convert::{
+    grating_query_params, nonempty, parse_version, shape_appearance_to_proto,
+    text_query_params,
+};
 use super::response::{err, err_not_found, ok_ack, ok_body};
 use crate::proto;
-use crate::scene::stimulus::grating::grating_query_params;
-use crate::scene::stimulus::text::text_query_params;
 use crate::scene::stimulus::{
     Mesh3dGeometry, ShapeGeometry, Stimulus, StimulusKind, StimulusSceneEntry,
 };
@@ -119,7 +120,7 @@ impl SceneState {
     pub(super) fn cmd_set_name(&mut self, handle: u32, cmd: proto::SetNameRequest) -> proto::Response {
         match self.config.stimuli.get_mut(&handle) {
             Some(entry) => {
-                entry.name = nonempty(cmd.name);
+                entry.identity.name = nonempty(cmd.name);
                 ok_ack()
             }
             None => err_not_found(handle),
@@ -223,8 +224,8 @@ impl SceneState {
             anim_enabled: stim.flags().anim_enabled,
             opacity: stim.opacity().live,
             params: Some(proto::StimulusParams { shape: Some(params) }),
-            id: entry.id.to_string(),
-            name: entry.name.clone().unwrap_or_default(),
+            id: entry.id().to_string(),
+            name: entry.name().to_string(),
             draw_order,
             handle,
             placement,
@@ -244,8 +245,8 @@ impl SceneState {
                     handle,
                     stimulus_type,
                     enabled: stim.flags().enabled,
-                    id: entry.id.to_string(),
-                    name: entry.name.clone().unwrap_or_default(),
+                    id: entry.id().to_string(),
+                    name: entry.name().to_string(),
                 }
             })
             .collect();

@@ -200,6 +200,7 @@ mod tests {
     fn make_stim(text: &str) -> Text {
         Text::new(
             [0.0, 0.0],
+            0.0,
             [400.0, 100.0],
             text.into(),
             "".into(), // empty → DEFAULT_FONT_FAMILY
@@ -282,7 +283,7 @@ mod tests {
         let mut fs = TextFontSystem::new();
         let mut sc = TextSwashCache::new();
         let stim = Text::new(
-            [0.0, 0.0], [400.0, 100.0],
+            [0.0, 0.0], 0.0, [400.0, 100.0],
             "Hello".into(), "Hack".into(), 32.0,
             Anchor::Center, LanguageStyle::Ltr,
             TextRenderParams::default(),

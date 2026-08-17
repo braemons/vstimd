@@ -1,12 +1,13 @@
 //! Create/modify commands for the text stimulus.
 
-use super::convert::{nonempty, parse_or_new_uuid};
+use super::convert::{
+    anchor_from_str, placement_to_scene, proto_to_language_style, scene_identity,
+    text_render_params_from_proto,
+};
 use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
 use crate::proto;
 use crate::scene::SceneState;
-use crate::scene::stimulus::text::{
-    Text, anchor_from_str, proto_to_language_style, text_render_params_from_proto,
-};
+use crate::scene::stimulus::text::Text;
 use crate::scene::stimulus::{Stimulus, StimulusKind, StimulusSceneEntry};
 
 impl SceneState {
@@ -35,40 +36,38 @@ impl SceneState {
     // ── CreateText ────────────────────────────────────────────────────────────
 
     pub(super) fn cmd_create_text(&mut self, cmd: proto::CreateTextRequest) -> proto::Response {
-        let id = match parse_or_new_uuid(&cmd.id) {
-            Ok(id) => id,
-            Err(resp) => return *resp,
-        };
-        let pos = cmd.pos.unwrap_or_default();
-        let requested = cmd.box_size.unwrap_or_default();
+        let params = cmd.params.unwrap_or_default();
+        let (pos, angle) = placement_to_scene(cmd.placement);
+        let requested = params.box_size.unwrap_or_default();
         let box_size = [
             if requested.x == 0.0 { 200.0 } else { requested.x },
             if requested.y == 0.0 { 100.0 } else { requested.y },
         ];
-        let letter_height_px = if cmd.letter_height == 0.0 {
+        let letter_height_px = if params.letter_height == 0.0 {
             32.0
         } else {
-            cmd.letter_height
+            params.letter_height
         };
-        let anchor = anchor_from_str(&cmd.anchor);
-        let language_style = proto_to_language_style(cmd.language_style);
-        let params = text_render_params_from_proto(&cmd);
-        let name = nonempty(cmd.name);
+        let anchor = anchor_from_str(&params.anchor);
+        let language_style = proto_to_language_style(params.language_style);
+        let render_params = text_render_params_from_proto(&params);
+        let identity = scene_identity(cmd.identity);
+        let id = identity.id;
         let handle = self.alloc_stim_handle();
         self.config.stimuli.insert(
             handle,
             StimulusSceneEntry::new(
-                id,
-                name,
+                identity,
                 Stimulus::from(Text::new(
-                    [pos.x, pos.y],
+                    pos,
+                    angle,
                     box_size,
-                    cmd.text,
-                    cmd.font,
+                    params.text,
+                    params.font,
                     letter_height_px,
                     anchor,
                     language_style,
-                    params,
+                    render_params,
                 )),
             ),
         );

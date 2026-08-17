@@ -6,12 +6,10 @@
 //! All inputs are `DragValue`/`TextEdit` widgets reachable by Tab, so the dialog
 //! is fully usable without a mouse (the DRM rig has no pointer).
 
-use uuid::Uuid;
-
 use crate::Color;
 use crate::scene::{
-    Grating, GratingParams, Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusSceneEntry,
-    Waveform,
+    Grating, GratingParams, Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusIdentity,
+    StimulusSceneEntry, Waveform,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -108,7 +106,7 @@ impl StimulusDialog {
             )),
         };
         let name = (!self.name.trim().is_empty()).then(|| self.name.trim().to_string());
-        StimulusSceneEntry::new(Uuid::new_v4(), name, stimulus)
+        StimulusSceneEntry::new(StimulusIdentity::new(name), stimulus)
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {

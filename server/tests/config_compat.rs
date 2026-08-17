@@ -14,7 +14,7 @@ fn load_v3_reference() {
     assert_eq!(scene.background.live, vstimd::Color::new(0.05, 0.05, 0.05, 1.0));
 
     // Stimulus 1: rect
-    let rect_entry = scene.stimuli.values().find(|e| e.name.as_deref() == Some("ref_rect")).expect("ref_rect must exist");
+    let rect_entry = scene.stimuli.values().find(|e| e.name() == "ref_rect").expect("ref_rect must exist");
     assert_eq!(rect_entry.stimulus.type_name(), "Rect");
     let r = rect_entry.stimulus.shape().expect("ref_rect must be a shape");
     assert_eq!(r.transform.live.pos, [100.0, -50.0]);
@@ -28,7 +28,7 @@ fn load_v3_reference() {
     ));
 
     // Stimulus 2: circle
-    let circle_entry = scene.stimuli.values().find(|e| e.name.as_deref() == Some("ref_circle")).expect("ref_circle must exist");
+    let circle_entry = scene.stimuli.values().find(|e| e.name() == "ref_circle").expect("ref_circle must exist");
     assert_eq!(circle_entry.stimulus.type_name(), "Circle");
     let c = circle_entry.stimulus.shape().expect("ref_circle must be a shape");
     assert_eq!(c.transform.live.pos, [-300.0, 200.0]);
@@ -39,7 +39,7 @@ fn load_v3_reference() {
     assert!(!circle_entry.stimulus.flags().enabled);
 
     // Stimulus 3: grating
-    let grating_entry = scene.stimuli.values().find(|e| e.name.as_deref() == Some("ref_grating")).expect("ref_grating must exist");
+    let grating_entry = scene.stimuli.values().find(|e| e.name() == "ref_grating").expect("ref_grating must exist");
     assert_eq!(grating_entry.stimulus.type_name(), "Grating");
     let g = grating_entry.stimulus.grating().expect("ref_grating must be a grating");
     assert_eq!(g.size.live, [300.0, 300.0]);

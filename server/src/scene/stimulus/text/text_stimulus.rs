@@ -71,6 +71,7 @@ impl Text {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         pos: [f32; 2],
+        angle: f32,
         box_size: [f32; 2],
         text: String,
         font_family: String,
@@ -82,7 +83,7 @@ impl Text {
         let text_copy = text.clone();
         Self {
             config: TextConfig {
-                transform: Deferred::new(Transform2D { pos, angle: 0.0 }),
+                transform: Deferred::new(Transform2D { pos, angle }),
                 params: Deferred::new(params),
                 box_size: Deferred::new(box_size),
                 text_live: text,
@@ -136,6 +137,7 @@ mod tests {
     fn default_stim() -> Text {
         Text::new(
             [0.0, 0.0],
+            0.0,
             [200.0, 100.0],
             "hello".into(),
             "Open Sans".into(),

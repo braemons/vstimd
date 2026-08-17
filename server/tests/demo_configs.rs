@@ -78,7 +78,7 @@ fn every_demo_explains_itself_on_screen() {
         let explanation = scene
             .stimuli
             .values()
-            .find(|e| e.name.as_deref() == Some("explanation"))
+            .find(|e| e.name() == "explanation")
             .unwrap_or_else(|| panic!("demo '{name}' has no 'explanation' stimulus"));
         let Some(t) = explanation.stimulus.text() else {
             panic!("demo '{name}': the explanation is not a text stimulus");

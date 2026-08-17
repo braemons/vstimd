@@ -3,10 +3,9 @@ pub(crate) fn spawn_demo_stimuli(
 ) {
     use crate::scene::{
         Anchor, Grating, GratingParams, LanguageStyle, Shape, ShapeAppearance, ShapeGeometry,
-        Stimulus, StimulusSceneEntry, Text, TextRenderParams, Waveform,
+        Stimulus, StimulusIdentity, StimulusSceneEntry, Text, TextRenderParams, Waveform,
     };
     use rand::RngExt;
-    use uuid::Uuid;
 
     let mut rng = rand::rng();
 
@@ -15,8 +14,7 @@ pub(crate) fn spawn_demo_stimuli(
     sc.stimuli.insert(
         h1,
         StimulusSceneEntry::new(
-            Uuid::new_v4(),
-            Some("demo_circle".into()),
+            StimulusIdentity::new(Some("demo_circle".into())),
             Stimulus::from(Shape::new(
                 [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
                 0.0,
@@ -32,8 +30,7 @@ pub(crate) fn spawn_demo_stimuli(
     sc.stimuli.insert(
         h2,
         StimulusSceneEntry::new(
-            Uuid::new_v4(),
-            Some("demo_rect".into()),
+            StimulusIdentity::new(Some("demo_rect".into())),
             Stimulus::from(Shape::new(
                 [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
                 30.0,
@@ -49,8 +46,7 @@ pub(crate) fn spawn_demo_stimuli(
     sc.stimuli.insert(
         h3,
         StimulusSceneEntry::new(
-            Uuid::new_v4(),
-            Some("demo_grating".into()),
+            StimulusIdentity::new(Some("demo_grating".into())),
             Stimulus::from(Grating::new(
                 [100.0, -200.0],
                 0.0,
@@ -69,10 +65,10 @@ pub(crate) fn spawn_demo_stimuli(
     sc.stimuli.insert(
         h4,
         StimulusSceneEntry::new(
-            Uuid::new_v4(),
-            Some("demo_text".into()),
+            StimulusIdentity::new(Some("demo_text".into())),
             Stimulus::from(Text::new(
                 [0.0, 200.0],
+                0.0,
                 [400.0, 80.0],
                 "vstimd".into(),
                 "".into(), // falls back to DEFAULT_FONT_FAMILY ("Ubuntu Light")

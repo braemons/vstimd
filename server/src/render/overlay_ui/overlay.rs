@@ -293,7 +293,11 @@ fn collect_dialog_inputs(
         .try_read()
         .map(|sc| {
             sc.stimuli.iter().map(|(&h, e)| {
-                let label = e.name.clone().unwrap_or_else(|| e.stimulus.type_name().to_string());
+                let label = e
+                    .identity
+                    .name
+                    .clone()
+                    .unwrap_or_else(|| e.stimulus.type_name().to_string());
                 (h, label)
             }).collect()
         })

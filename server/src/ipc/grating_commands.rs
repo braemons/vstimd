@@ -1,12 +1,13 @@
 //! Create/modify commands for the grating stimulus.
 
-use super::convert::{nonempty, parse_or_new_uuid};
+use super::convert::{
+    grating_params_from_proto, placement_to_scene, proto_to_mask, proto_to_waveform,
+    scene_identity,
+};
 use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
 use crate::proto;
 use crate::scene::SceneState;
-use crate::scene::stimulus::grating::{
-    Grating, grating_params_from_proto, proto_to_mask, proto_to_waveform,
-};
+use crate::scene::stimulus::grating::Grating;
 use crate::scene::stimulus::{Stimulus, StimulusKind, StimulusSceneEntry};
 
 impl SceneState {
@@ -39,29 +40,20 @@ impl SceneState {
     // ── CreateGrating ────────────────────────────────────────────────────────
 
     pub(super) fn cmd_create_grating(&mut self, cmd: proto::CreateGratingRequest) -> proto::Response {
-        // Borrow cmd fully before any partial moves.
-        let id = match parse_or_new_uuid(&cmd.id) {
-            Ok(id) => id,
-            Err(resp) => return *resp,
-        };
-        let params = grating_params_from_proto(&cmd);
-        let center = cmd.center.unwrap_or_default();
-        let width = if cmd.width == 0.0 { 200.0 } else { cmd.width };
-        let height = if cmd.height == 0.0 { 200.0 } else { cmd.height };
-        let angle = cmd.angle;
-        let name = nonempty(cmd.name);
+        let params = cmd.params.unwrap_or_default();
+        let width = if params.width == 0.0 { 200.0 } else { params.width };
+        let height = if params.height == 0.0 { 200.0 } else { params.height };
+        // The rotation is the stripe orientation — see CreateGratingRequest.placement.
+        let (pos, angle) = placement_to_scene(cmd.placement);
+        let grating_params = grating_params_from_proto(&params);
+        let identity = scene_identity(cmd.identity);
+        let id = identity.id;
         let handle = self.alloc_stim_handle();
         self.config.stimuli.insert(
             handle,
             StimulusSceneEntry::new(
-                id,
-                name,
-                Stimulus::from(Grating::new(
-                    [center.x, center.y],
-                    angle,
-                    [width, height],
-                    params,
-                )),
+                identity,
+                Stimulus::from(Grating::new(pos, angle, [width, height], grating_params)),
             ),
         );
         ok_handle_with_id(handle, &id)

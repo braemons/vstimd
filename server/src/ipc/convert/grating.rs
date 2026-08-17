@@ -1,7 +1,8 @@
+//! Grating <-> proto conversions.
+
 use crate::proto;
 
-use super::grating_params::{GratingMask, GratingParams, Waveform};
-use super::grating_stimulus::Grating;
+use crate::scene::stimulus::grating::{Grating, GratingMask, GratingParams, Waveform};
 
 // ── Waveform conversions ──────────────────────────────────────────────────────
 
@@ -47,7 +48,7 @@ pub fn mask_to_proto(m: GratingMask) -> proto::MaskType {
 
 // ── GratingParams ↔ proto ─────────────────────────────────────────────────────
 
-pub fn grating_params_from_proto(cmd: &proto::CreateGratingRequest) -> GratingParams {
+pub fn grating_params_from_proto(cmd: &proto::GratingParams) -> GratingParams {
     let sf       = if cmd.sf       == 0.0 { 0.05 } else { cmd.sf };
     let contrast = if cmd.contrast == 0.0 { 1.0  } else { cmd.contrast };
     let fore = cmd.fore_color.map_or(crate::Color::WHITE, |c| crate::Color::new(c.r, c.g, c.b, c.a));

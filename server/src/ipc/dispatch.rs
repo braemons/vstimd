@@ -10,14 +10,33 @@ use crate::vtl_state::VtlState;
 
 // ── Request summary for the command log ───────────────────────────────────────
 
+/// Centre out of a create request's placement, defaulting to the origin the way
+/// the create commands themselves do.
+fn placement_pos(placement: Option<&proto::Transform2D>) -> (f32, f32) {
+    let pos = placement.and_then(|t| t.pos.as_ref());
+    (pos.map_or(0.0, |p| p.x), pos.map_or(0.0, |p| p.y))
+}
+
 fn command_summary(req: &proto::Request) -> String {
     match &req.body {
         Some(request::Body::CreateRect(c)) => {
-            format!("CreateRect {:.0}×{:.0}", c.width, c.height)
+            let p = c.params.as_ref();
+            format!(
+                "CreateRect {:.0}×{:.0}",
+                p.map_or(0.0, |p| p.width),
+                p.map_or(0.0, |p| p.height),
+            )
         }
-        Some(request::Body::CreateCircle(c)) => format!("CreateCircle r={:.0}", c.radius),
+        Some(request::Body::CreateCircle(c)) => {
+            format!("CreateCircle r={:.0}", c.params.as_ref().map_or(0.0, |p| p.radius))
+        }
         Some(request::Body::CreateEllipse(c)) => {
-            format!("CreateEllipse {:.0}×{:.0}", c.width, c.height)
+            let p = c.params.as_ref();
+            format!(
+                "CreateEllipse {:.0}×{:.0}",
+                p.map_or(0.0, |p| p.width),
+                p.map_or(0.0, |p| p.height),
+            )
         }
         Some(request::Body::SetEnabled(c)) => {
             format!("SetEnabled({})", if c.enabled { "on" } else { "off" })
@@ -54,23 +73,20 @@ fn command_summary(req: &proto::Request) -> String {
             format!("SetAllEnabled({})", if c.enabled { "on" } else { "off" })
         }
         Some(request::Body::CreateGrating(c)) => {
-            let center = c.center.as_ref();
+            let p = c.params.as_ref();
+            let (x, y) = placement_pos(c.placement.as_ref());
             format!(
-                "CreateGrating {:.0}×{:.0} sf={:.4} pos=({:.1},{:.1})",
-                c.width,
-                c.height,
-                c.sf,
-                center.map_or(0.0, |v| v.x),
-                center.map_or(0.0, |v| v.y),
+                "CreateGrating {:.0}×{:.0} sf={:.4} pos=({x:.1},{y:.1})",
+                p.map_or(0.0, |p| p.width),
+                p.map_or(0.0, |p| p.height),
+                p.map_or(0.0, |p| p.sf),
             )
         }
         Some(request::Body::CreateText(c)) => {
-            let pos = c.pos.as_ref();
+            let (x, y) = placement_pos(c.placement.as_ref());
             format!(
-                "CreateText {:?} pos=({:.1},{:.1})",
-                c.text,
-                pos.map_or(0.0, |v| v.x),
-                pos.map_or(0.0, |v| v.y),
+                "CreateText {:?} pos=({x:.1},{y:.1})",
+                c.params.as_ref().map_or("", |p| p.text.as_str()),
             )
         }
         Some(request::Body::SetText(c)) => format!("SetText({:?})", c.text),

@@ -1,17 +1,15 @@
-use uuid::Uuid;
 use vstimd::scene_config_file::{parse_config_json, retrieve_config_json};
 use vstimd::scene::animation::AnimState;
 use vstimd::scene::{
     Deferred, LoadMode, SceneConfig, SceneState, Shape, ShapeAppearance, ShapeGeometry, Stimulus,
-    StimulusFlags, StimulusSceneEntry,
+    StimulusFlags, StimulusIdentity, StimulusSceneEntry,
 };
 use vstimd::vtl_state::{VtlConfig, VtlNameEntry};
 use vtl::VtlKind;
 
 fn make_rect_entry() -> StimulusSceneEntry {
     StimulusSceneEntry::new(
-        Uuid::new_v4(),
-        Some("test_rect".into()),
+        StimulusIdentity::new(Some("test_rect".into())),
         Stimulus::from(Shape::new(
             [100.0, -50.0],
             45.0,
@@ -26,8 +24,7 @@ fn make_rect_entry() -> StimulusSceneEntry {
 
 fn make_circle_entry() -> StimulusSceneEntry {
     StimulusSceneEntry::new(
-        Uuid::new_v4(),
-        Some("test_circle".into()),
+        StimulusIdentity::new(Some("test_circle".into())),
         {
             let mut stim = Stimulus::from(Shape::new(
                 [-200.0, 300.0],
@@ -67,7 +64,7 @@ fn roundtrip_rect_stimulus() {
 
     assert_eq!(loaded.stimuli.len(), 1);
     let entry = loaded.stimuli.values().next().unwrap();
-    assert_eq!(entry.name.as_deref(), Some("test_rect"));
+    assert_eq!(entry.name(), "test_rect");
     let rect = entry.stimulus.shape().expect("expected rect");
     assert_eq!(entry.stimulus.type_name(), "Rect");
     assert_eq!(rect.transform.live.pos, [100.0, -50.0]);

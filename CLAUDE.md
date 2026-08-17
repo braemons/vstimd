@@ -49,6 +49,9 @@ See `docs/PLAN.md` for the full design and roadmap.
 - `ipc/` — ZMQ transport plus the protobuf dispatcher. `handle_request` is an inherent method on
   `SceneState` split across `dispatch.rs` (routing + command summary) and one `*_commands.rs` per
   domain. A new command needs an arm in `dispatch.rs` and the body in its group module.
+- `ipc/convert/` — **every** proto <-> scene conversion, one submodule per stimulus kind
+  (`grating.rs`, `text.rs`) plus the shared ones in `mod.rs`. A conversion belongs here, never
+  in `scene/`.
 - `proto.rs` stays at the crate root, not under `ipc/` — the scene and the web surface speak it too.
 - `scene/` — state only; nothing here speaks protobuf.
 
