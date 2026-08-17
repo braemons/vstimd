@@ -41,14 +41,5 @@ impl From<Color> for [f32; 4] {
     }
 }
 
-impl From<crate::proto::Color> for Color {
-    fn from(c: crate::proto::Color) -> Self {
-        Self { r: c.r, g: c.g, b: c.b, a: c.a }
-    }
-}
-
-impl From<Color> for crate::proto::Color {
-    fn from(c: Color) -> Self {
-        Self { r: c.r, g: c.g, b: c.b, a: c.a }
-    }
-}
+// `Color <-> proto::Color` lives in `ipc::convert` with every other wire
+// conversion, not here: this type is scene state and knows nothing about the wire.

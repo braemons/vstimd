@@ -177,7 +177,12 @@ impl SceneState {
             },
         };
 
-        self.push_command_log(log_handle, log_summary.clone(), &response);
+        self.push_command_log(
+            log_handle,
+            log_summary.clone(),
+            response.code == proto::ErrorCode::Ok as i32,
+            response.handle,
+        );
 
         if response.code == proto::ErrorCode::Ok as i32 {
             if log_handle == 0 {

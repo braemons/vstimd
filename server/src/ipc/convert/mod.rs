@@ -1,13 +1,16 @@
 //! Every proto <-> scene conversion, in one place.
 //!
 //! Nothing under `scene/` speaks protobuf: the scene owns runtime state and the
-//! wire format is this module's problem alone. So the per-stimulus conversions
-//! live here next to the shared ones, one submodule per stimulus kind, mirroring
-//! the `*_commands.rs` split of the dispatcher that consumes them.
+//! wire format is this module's problem alone. So the per-stimulus conversions live
+//! here next to the shared ones, one submodule per stimulus body, mirroring the
+//! `*_commands.rs` split of the dispatcher that consumes them.
 //!
-//! This module holds what every kind needs — draw modes, colours, the identity
-//! and placement every `Create*` request carries — and the shape appearance,
-//! which three of the geometry kinds share.
+//! This module holds what every body needs — colours, draw modes, the user-facing
+//! type, and the identity and placement every `Create*` request carries — plus the
+//! shape appearance, which three of the geometries share.
+//!
+//! "Every" is meant literally: `scene/` names no proto type anywhere, so a change to
+//! the wire cannot reach the scene tree without passing through this module.
 
 mod grating;
 mod text;
@@ -24,6 +27,24 @@ use crate::scene::stimulus::{
     DrawMode as SceneDrawMode, ShapeAppearance, StimulusIdentity,
     StimulusType as SceneStimulusType,
 };
+
+// Colour is the one conversion the whole wire surface needs, in both directions.
+// The impls live here rather than beside the type: coherence is per-crate, so
+// nothing forces them into `color.rs`, and `scene/` has no business naming a proto
+// type. Written as `From` rather than free functions because `Option::map(Into::into)`
+// at the call sites is what keeps the absent-field handling readable.
+
+impl From<proto::Color> for Color {
+    fn from(c: proto::Color) -> Self {
+        Self { r: c.r, g: c.g, b: c.b, a: c.a }
+    }
+}
+
+impl From<Color> for proto::Color {
+    fn from(c: Color) -> Self {
+        Self { r: c.r, g: c.g, b: c.b, a: c.a }
+    }
+}
 
 /// The scene's user-facing type → the wire enum.
 ///
