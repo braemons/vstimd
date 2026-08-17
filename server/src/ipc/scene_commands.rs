@@ -8,28 +8,28 @@ use super::convert::{
 use super::response::{err, err_not_found, ok_ack, ok_body};
 use crate::proto;
 use crate::scene::stimulus::{
-    Mesh3dGeometry, ShapeGeometry, Stimulus, StimulusKind, StimulusSceneEntry,
+    Mesh3dGeometry, ShapeGeometry, Stimulus, StimulusBody, StimulusSceneEntry,
 };
 use crate::scene::SceneState;
 
 /// The **user-facing** `StimulusType` for a stimulus.
 ///
 /// The mapping is many-to-one in the other direction: three `StimulusType`s come
-/// out of one [`StimulusKind::Shape`], and (from Phase B) three more out of one
-/// [`StimulusKind::Mesh3d`]. Sourced from the geometry so an internal kind name
+/// out of one [`StimulusBody::Shape`], and (from Phase B) three more out of one
+/// [`StimulusBody::Mesh3d`]. Sourced from the geometry so an internal kind name
 /// can never reach a client.
 fn stimulus_type_of(stim: &Stimulus) -> proto::StimulusType {
-    match &stim.kind {
-        StimulusKind::Shape(s) => match s.geometry.live {
+    match &stim.body {
+        StimulusBody::Shape(s) => match s.geometry.live {
             ShapeGeometry::Rect { .. } => proto::StimulusType::Rect,
             ShapeGeometry::Ellipse { .. } => proto::StimulusType::Ellipse,
             ShapeGeometry::Circle { .. } => proto::StimulusType::Circle,
         },
-        StimulusKind::Grating(_) => proto::StimulusType::Grating,
-        StimulusKind::Text(_) => proto::StimulusType::Text,
+        StimulusBody::Grating(_) => proto::StimulusType::Grating,
+        StimulusBody::Text(_) => proto::StimulusType::Text,
         // Phase B: §10.2 reserves `StimulusType` 20–29 for 3-D. Unreachable
         // until a command constructs a `Mesh3d`.
-        StimulusKind::Mesh3d(m) => match m.geometry.live {
+        StimulusBody::Mesh3d(m) => match m.geometry.live {
             Mesh3dGeometry::Cube { .. }
             | Mesh3dGeometry::Sphere { .. }
             | Mesh3dGeometry::Plane { .. } => {
@@ -155,8 +155,8 @@ impl SceneState {
         // The wire taxonomy is the user's: `Rect`, `Ellipse` and `Circle` are
         // three `StimulusType`s and three `params` arms even though internally
         // they share one `Shape`. This match is where that mapping is declared.
-        let (stimulus_type, params) = match &stim.kind {
-            StimulusKind::Shape(s) => {
+        let (stimulus_type, params) = match &stim.body {
+            StimulusBody::Shape(s) => {
                 let appearance = Some(shape_appearance_to_proto(&s.appearance.live));
                 match s.geometry.live {
                     ShapeGeometry::Rect { size } => (
@@ -184,13 +184,13 @@ impl SceneState {
                     ),
                 }
             }
-            StimulusKind::Grating(g) => (
+            StimulusBody::Grating(g) => (
                 proto::StimulusType::Grating,
                 grating_query_params(g)
                     .shape
                     .expect("grating_query_params always sets a shape"),
             ),
-            StimulusKind::Text(t) => (
+            StimulusBody::Text(t) => (
                 proto::StimulusType::Text,
                 text_query_params(t)
                     .shape
@@ -201,7 +201,7 @@ impl SceneState {
             // `Sphere3DParams`/`Cube3DParams` oneof arms, and a `transform_3d`
             // arm on the `placement` oneof — which does not exist in the proto
             // today, so there is nothing honest to report here yet.
-            StimulusKind::Mesh3d(_) => {
+            StimulusBody::Mesh3d(_) => {
                 unimplemented!("Phase B: 3-D query params — see dev/3D_ROADMAP.md §10.2")
             }
         };

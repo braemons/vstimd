@@ -32,12 +32,15 @@ make typecheck      # ty type checking
 See `docs/PLAN.md` for the full design and roadmap.
 
 **Key decisions:**
-- Stimulus types: `Stimulus { common, kind }` — shared state (flags, opacity) above a
-  `StimulusKind` enum, composition throughout (not trait objects or inheritance)
-- `StimulusKind` is the **renderer's** taxonomy (one arm per pipeline/cache: `Shape`,
+- Stimulus types: `Stimulus { common, body }` — shared state (flags, opacity) above a
+  `StimulusBody` enum, composition throughout (not trait objects or inheritance)
+- `StimulusBody` is the **renderer's** taxonomy (one arm per pipeline/cache: `Shape`,
   `Grating`, `Text`, `Mesh3d`); the finer user-facing names (`Rect`, `Circle`, `Cube3D`)
-  live in the geometry enums. Internal kind names must never reach a client — errors and
-  `StimulusType` come from `ShapeGeometry::type_name` / `Mesh3dGeometry::type_name`
+  live in the geometry enums. Internal body names must never reach a client — errors and
+  `StimulusType` come from `ShapeGeometry::type_name` / `Mesh3dGeometry::type_name`.
+  It is called `Body` and not `Kind` deliberately: it carries the stimulus data, and
+  `Kind` reads as a synonym of the wire's `StimulusType` while being strictly coarser
+  (all four shapes are one `Shape` arm). Never name a client-facing thing `kind`
 - The config format *is* the runtime shape (no DTO). Types owning runtime state
   (`StimulusFlags`, `Grating`, `Text`) hide it behind a `serde` impl delegating to an inner
   `*Config`; GPU resources never live in the scene tree at all

@@ -12,7 +12,7 @@ use super::convert::{
 use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
 use crate::proto;
 use crate::scene::stimulus::{
-    Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusKind, StimulusSceneEntry,
+    Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusBody, StimulusSceneEntry,
 };
 use crate::scene::SceneState;
 
@@ -67,7 +67,7 @@ impl SceneState {
         let Some(entry) = self.config.stimuli.get_mut(&handle) else {
             return err_not_found(handle);
         };
-        let StimulusKind::Shape(shape) = &mut entry.stimulus.kind else {
+        let StimulusBody::Shape(shape) = &mut entry.stimulus.body else {
             return err_wrong_type(&entry.stimulus, cmd, expected);
         };
         let prev = if deferred {
@@ -101,7 +101,7 @@ impl SceneState {
         let Some(entry) = self.config.stimuli.get_mut(&handle) else {
             return err_not_found(handle);
         };
-        let StimulusKind::Shape(shape) = &mut entry.stimulus.kind else {
+        let StimulusBody::Shape(shape) = &mut entry.stimulus.body else {
             return err(
                 proto::ErrorCode::WrongStimulusType,
                 format!(

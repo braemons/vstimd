@@ -8,7 +8,7 @@ use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with
 use crate::proto;
 use crate::scene::SceneState;
 use crate::scene::stimulus::grating::Grating;
-use crate::scene::stimulus::{Stimulus, StimulusKind, StimulusSceneEntry};
+use crate::scene::stimulus::{Stimulus, StimulusBody, StimulusSceneEntry};
 
 impl SceneState {
     /// Run `f` on the grating at `handle`, then mark it dirty unless the write
@@ -28,7 +28,7 @@ impl SceneState {
         let Some(entry) = self.config.stimuli.get_mut(&handle) else {
             return err_not_found(handle);
         };
-        let StimulusKind::Grating(g) = &mut entry.stimulus.kind else {
+        let StimulusBody::Grating(g) = &mut entry.stimulus.body else {
             return err_wrong_type(&entry.stimulus, cmd, "Grating");
         };
         f(g, deferred);

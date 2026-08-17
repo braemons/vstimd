@@ -14,7 +14,7 @@ pub use grating::{Grating, GratingMask, GratingParams, Waveform};
 pub use mesh3d::{Mesh3d, Mesh3dGeometry, MeshKey};
 pub use shape::{Shape, ShapeGeometry};
 pub use shape_appearance::{DrawMode, ShapeAppearance};
-pub use stimulus::{Stimulus, StimulusKind};
+pub use stimulus::{Stimulus, StimulusBody};
 pub use stimulus_common::StimulusCommon;
 pub use stimulus_flags::{StimulusFlags, StimulusFlagsConfig};
 pub use stimulus_scene_entry::{StimulusIdentity, StimulusSceneEntry};
