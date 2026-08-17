@@ -15,7 +15,7 @@ from vstimd._proto.vstimd.v1.stimuli import (
 from vstimd.response import ServerResponse
 
 from .color import Color
-from .shapes_models import ShapeDrawMode, _SHAPE_DRAW_MODE_TO_PROTO
+from .shapes_models import ShapeAppearance, ShapeDrawMode, _SHAPE_DRAW_MODE_TO_PROTO
 from .vec import Vec2
 
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
@@ -35,17 +35,17 @@ class ShapesClient:
         pos: Vec2 = Vec2(0.0, 0.0),
         width: float = 100.0,
         height: float = 100.0,
-        color: Color = Color(1.0, 1.0, 1.0),
+        shape_appearance: ShapeAppearance = ShapeAppearance(),
         name: str = "",
         id: str = "",
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_rect=rect_pb2.CreateRectRequest(
-                center=vec2_pb2.Vec2(x=pos.x, y=pos.y),
+                center=pos.to_proto(),
                 width=width,
                 height=height,
-                fill_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+                appearance=shape_appearance.to_proto(),
                 name=name,
                 id=id,
             ),
@@ -57,16 +57,16 @@ class ShapesClient:
         *,
         pos: Vec2 = Vec2(0.0, 0.0),
         radius: float = 50.0,
-        color: Color = Color(1.0, 1.0, 1.0),
+        shape_appearance: ShapeAppearance = ShapeAppearance(),
         name: str = "",
         id: str = "",
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_circle=circle_pb2.CreateCircleRequest(
-                center=vec2_pb2.Vec2(x=pos.x, y=pos.y),
+                center=pos.to_proto(),
                 radius=radius,
-                fill_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+                appearance=shape_appearance.to_proto(),
                 name=name,
                 id=id,
             ),
@@ -80,18 +80,18 @@ class ShapesClient:
         width: float = 100.0,
         height: float = 50.0,
         angle: float = 0.0,
-        color: Color = Color(1.0, 1.0, 1.0),
+        shape_appearance: ShapeAppearance = ShapeAppearance(),
         name: str = "",
         id: str = "",
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_ellipse=ellipse_pb2.CreateEllipseRequest(
-                center=vec2_pb2.Vec2(x=pos.x, y=pos.y),
+                center=pos.to_proto(),
                 width=width,
                 height=height,
                 angle=angle,
-                fill_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+                appearance=shape_appearance.to_proto(),
                 name=name,
                 id=id,
             ),
@@ -133,7 +133,7 @@ class ShapesClient:
         *,
         vertices: list[Vec2],
         close_shape: bool = True,
-        color: Color = Color(1.0, 1.0, 1.0),
+        shape_appearance: ShapeAppearance = ShapeAppearance(),
         name: str = "",
         id: str = "",
     ) -> StimulusHandle:
@@ -142,7 +142,7 @@ class ShapesClient:
             create_polygon=polygon_pb2.CreatePolygonRequest(
                 vertices=[vec2_pb2.Vec2(x=v.x, y=v.y) for v in vertices],
                 close_shape=close_shape,
-                fill_color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+                appearance=shape_appearance.to_proto(),
                 name=name,
                 id=id,
             ),
@@ -176,7 +176,7 @@ class ShapesClient:
             service_pb2.Request(
                 stimulus=handle,
                 set_outline_color=shapes_pb2.SetOutlineColorRequest(
-                    color=color_pb2.Color(r=color.r, g=color.g, b=color.b, a=color.a),
+                    color=color.to_proto(),
                 ),
             )
         ))

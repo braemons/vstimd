@@ -14,3 +14,6 @@ class Color:
     @classmethod
     def from_proto(cls, proto: color_pb2.Color) -> Self:
         return cls(r=proto.r, g=proto.g, b=proto.b, a=proto.a)
+
+    def to_proto(self) -> color_pb2.Color:
+        return color_pb2.Color(r=self.r, g=self.g, b=self.b, a=self.a)

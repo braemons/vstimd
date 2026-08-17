@@ -13,6 +13,9 @@ class Vec2:
     def from_proto(cls, proto: vec2_pb2.Vec2) -> Self:
         return cls(x=proto.x, y=proto.y)
 
+    def to_proto(self) -> vec2_pb2.Vec2:
+        return vec2_pb2.Vec2(x=self.x, y=self.y)
+
 
 @dataclass
 class Vec3:

@@ -57,6 +57,14 @@ class ShapeAppearance:
             draw_mode=_PROTO_TO_DRAW_MODE.get(proto.draw_mode, ShapeDrawMode.FILLED),
         )
 
+    def to_proto(self) -> shapes_pb2.ShapeAppearance:
+        return shapes_pb2.ShapeAppearance(
+            fill_color=self.fill_color.to_proto(),
+            outline_color=self.outline_color.to_proto(),
+            outline_width=self.outline_width,
+            draw_mode=_DRAW_MODE_TO_PROTO.get(self.draw_mode, shapes_pb2.ShapeDrawMode.SHAPE_DRAW_MODE_FILLED),
+        )
+
 
 def _appearance_or_default(params: object) -> ShapeAppearance:
     """`appearance` off a shape params message, defaulted when absent."""
