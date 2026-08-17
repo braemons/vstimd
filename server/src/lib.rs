@@ -1,7 +1,6 @@
 pub mod benchmark;
 pub mod color;
 pub mod geom;
-pub mod io_config;
 pub mod input;
 pub mod ipc;
 pub mod log_buffer;
@@ -10,6 +9,7 @@ pub mod render;
 pub mod rig_config;
 pub mod sched;
 pub mod scene;
+pub mod scene_config_file;
 pub mod shutdown;
 pub mod system_info;
 pub mod system_metrics;

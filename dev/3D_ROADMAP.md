@@ -1087,7 +1087,7 @@ above are the whole enum. (`Polygon` has proto messages but no server implementa
 [#20](https://github.com/braemons/vstimd/issues/20).)
 
 `#[serde(tag = "type")]` means a new variant serializes into the config JSON as
-`{"type": "Sphere3D", ...}` automatically. No `io_config.rs` changes; adding a variant is additive
+`{"type": "Sphere3D", ...}` automatically. No `scene_config_file.rs` changes; adding a variant is additive
 and does not warrant a `CONFIG_VERSION` bump.
 
 ### 9.2 Exhaustive matches enforce completeness

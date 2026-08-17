@@ -1,7 +1,7 @@
 # Demo configs
 
-Ordinary stim-configs, in exactly the format `config save` writes. They are
-compiled into the binary (`io_config::DEMO_CONFIGS`) and installed into the
+Ordinary scene-configs, in exactly the format `config save` writes. They are
+compiled into the binary (`scene_config_file::DEMO_CONFIGS`) and installed into the
 config dir at startup, so a dev checkout, a `.deb` install and the Raspberry Pi
 image all offer the same set.
 

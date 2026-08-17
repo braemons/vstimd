@@ -8,7 +8,7 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use uuid::Uuid;
-use vstimd::io_config::{
+use vstimd::scene_config_file::{
     config_path, count_archive_configs, dir_is_writable, first_writable_dir, is_archive_name,
     is_not_found, LAST_SESSION_CONFIG,
 };

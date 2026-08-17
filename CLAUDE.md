@@ -42,9 +42,15 @@ See `docs/PLAN.md` for the full design and roadmap.
   `SceneState` split across `dispatch.rs` (routing + command summary) and one `*_commands.rs` per
   domain. A new command needs an arm in `dispatch.rs` and the body in its group module.
 - `proto.rs` stays at the crate root, not under `ipc/` — the scene and the web surface speak it too.
-- `scene/` — state only; nothing here speaks protobuf. `scene_config.rs` is the serializable
-  `SceneConfig` type; the named-config load/save methods are on `SceneState` in `scene_state.rs`;
-  the file format and directory layout are in `io_config.rs` at the root.
+- `scene/` — state only; nothing here speaks protobuf.
+
+**Two configs — always name which one.** They are unrelated:
+- **rig-config** (`rig_config.rs`) — the physical rig: VTL shm, display mode, thread scheduling.
+  TOML at `/etc/braemons/vstimd-rig-config.toml`, changes when the hardware does.
+- **scene-config** (`scene_config_file.rs`) — one experiment: a `SceneConfig` (stimuli, animations,
+  background, photodiode) plus named VTL trigger lines. JSON at
+  `<config-dir>/vstimd_<name>.config.json`, changes per session. The payload type lives in
+  `scene/scene_config.rs`; the load/save methods are on `SceneState` in `scene/scene_state.rs`.
 - `render/` — the display application. `overlay_ui/` holds the egui overlay, one file per group
   under `overlay_ui/panels/`; `vk/` is the only Vulkan layer.
 - `input/`, `system_info.rs`, `system_metrics.rs`, `benchmark.rs` are peers of `render/`, not part

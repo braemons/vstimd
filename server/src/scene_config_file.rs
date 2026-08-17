@@ -1,3 +1,14 @@
+//! Scene-config files: the per-experiment configuration, saved as
+//! `<config-dir>/vstimd_<name>.config.json`. A scene-config is a
+//! [`SceneConfig`] (stimuli, animations, background, photodiode) plus the
+//! named VTL trigger lines. This module owns the file format, the directory
+//! layout, the bundled demos and the quit-time archives.
+//!
+//! Not to be confused with [`crate::rig_config`], the server's other config:
+//! that one describes the physical rig (TOML, `/etc`, changes when the
+//! hardware does), this one describes an experiment (JSON, `--config-dir`,
+//! changes per session).
+
 use crate::scene::SceneConfig;
 use crate::vtl_state::VtlConfig;
 
@@ -16,15 +27,18 @@ pub fn config_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
     dir.join(format!("vstimd_{name}.config.json"))
 }
 
-/// Borrowed view of I/O config assembled at save time — never stored.
+/// The sections of a scene-config file other than the scene, borrowed at save
+/// time — never stored. Serialized under the `io` key, which the on-disk
+/// format has used since v1; the key is format, the type name is not.
 #[derive(serde::Serialize)]
-pub struct IoConfigRef<'a> {
+pub struct SectionsRef<'a> {
     pub vtl: &'a VtlConfig,
 }
 
-/// Owned I/O config populated at load time — each field moved to its subsystem owner.
+/// The same sections, owned, populated at load time — each field moved to its
+/// subsystem owner.
 #[derive(serde::Deserialize, Default)]
-pub struct IoConfigFile {
+pub struct Sections {
     #[serde(default)]
     pub vtl: VtlConfig,
 }
@@ -34,7 +48,7 @@ pub struct IoConfigFile {
 struct ConfigFileRef<'a> {
     version: u32,
     scene:   &'a SceneConfig,
-    io:      IoConfigRef<'a>,
+    io:      SectionsRef<'a>,
 }
 
 /// Owned top-level struct — used only during load. Fields are moved to their
@@ -43,7 +57,7 @@ struct ConfigFileRef<'a> {
 #[derive(serde::Deserialize)]
 struct ConfigFile {
     scene: SceneConfig,
-    io:    IoConfigFile,
+    io:    Sections,
 }
 
 /// Serialize current state to pretty JSON without touching the filesystem.
@@ -51,7 +65,7 @@ pub fn retrieve_config_json(scene: &SceneConfig, vtl: &VtlConfig) -> anyhow::Res
     let view = ConfigFileRef {
         version: CONFIG_VERSION,
         scene,
-        io: IoConfigRef { vtl },
+        io: SectionsRef { vtl },
     };
     Ok(serde_json::to_string_pretty(&view)?)
 }
@@ -65,7 +79,7 @@ pub fn save_config(scene: &SceneConfig, vtl: &VtlConfig, path: &std::path::Path)
 
 /// Parse and validate a config JSON string without touching the filesystem.
 /// Used by both `load_config` and `UploadConfig` validation.
-pub fn parse_config_json(s: &str) -> anyhow::Result<(SceneConfig, IoConfigFile)> {
+pub fn parse_config_json(s: &str) -> anyhow::Result<(SceneConfig, Sections)> {
     // Check the version before the full parse so an older-format file fails with
     // a clear version error rather than a confusing deserialization error.
     #[derive(serde::Deserialize)]
@@ -84,7 +98,7 @@ pub fn parse_config_json(s: &str) -> anyhow::Result<(SceneConfig, IoConfigFile)>
 }
 
 /// Read a config file from disk and parse it.
-pub fn load_config(path: &std::path::Path) -> anyhow::Result<(SceneConfig, IoConfigFile)> {
+pub fn load_config(path: &std::path::Path) -> anyhow::Result<(SceneConfig, Sections)> {
     let s = std::fs::read_to_string(path)?;
     parse_config_json(&s)
 }

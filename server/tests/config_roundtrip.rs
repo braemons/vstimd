@@ -1,5 +1,5 @@
 use uuid::Uuid;
-use vstimd::io_config::{parse_config_json, retrieve_config_json};
+use vstimd::scene_config_file::{parse_config_json, retrieve_config_json};
 use vstimd::scene::animation::AnimState;
 use vstimd::scene::{
     CircleStimulus, Deferred, LoadMode, RectStimulus, SceneConfig, SceneState, ShapeAppearance,
@@ -102,13 +102,13 @@ fn roundtrip_vtl_names() {
         ],
     };
     let json = retrieve_config_json(&scene, &vtl).unwrap();
-    let (_loaded, io) = parse_config_json(&json).unwrap();
+    let (_loaded, sections) = parse_config_json(&json).unwrap();
 
-    assert_eq!(io.vtl.names.len(), 2);
-    assert_eq!(io.vtl.names[0].name, "stim_onset");
-    assert_eq!(io.vtl.names[1].name, "trial_start");
-    assert_eq!(io.vtl.names[0].kind, VtlKind::Output);
-    assert_eq!(io.vtl.names[1].kind, VtlKind::Input);
+    assert_eq!(sections.vtl.names.len(), 2);
+    assert_eq!(sections.vtl.names[0].name, "stim_onset");
+    assert_eq!(sections.vtl.names[1].name, "trial_start");
+    assert_eq!(sections.vtl.names[0].kind, VtlKind::Output);
+    assert_eq!(sections.vtl.names[1].kind, VtlKind::Input);
 }
 
 #[test]

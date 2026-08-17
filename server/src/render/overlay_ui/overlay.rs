@@ -15,7 +15,7 @@ use super::panels::log_panel::log_panel;
 use super::panels::stimuli_panel::stimuli_panel;
 use super::panels::system_panel::{frame_timing, system_panel};
 use super::panels::vtl_panel::vtl_panel;
-use crate::io_config::{load_config, save_config};
+use crate::scene_config_file::{load_config, save_config};
 use crate::log_buffer::LogBuffer;
 use crate::scene::{LoadMode, SceneState};
 use crate::system_metrics::SystemMetrics;
@@ -341,10 +341,10 @@ fn handle_file_result(
                 LoadMode::Additive
             };
             match load_config(&path) {
-                Ok((scene_cfg, io)) => {
+                Ok((scene_cfg, sections)) => {
                     if let Some(v) = vtl
                         && let Ok(mut v) = v.lock() {
-                            v.config.names = io.vtl.names;
+                            v.config.names = sections.vtl.names;
                             v.sync_names_to_shm();
                         }
                     scene.write().unwrap().load_snapshot(scene_cfg, load_mode);

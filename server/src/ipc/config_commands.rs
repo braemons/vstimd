@@ -2,7 +2,7 @@
 //! lives on `SceneState` in `scene::scene_state`; only the proto plumbing is here.
 
 use super::response::{err, ok_ack, ok_body};
-use crate::io_config::{
+use crate::scene_config_file::{
     config_path, is_format_error, is_not_found, list_config_names, parse_config_json,
     retrieve_config_json,
 };

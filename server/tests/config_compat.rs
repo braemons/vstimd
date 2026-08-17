@@ -1,10 +1,10 @@
-use vstimd::io_config::load_config;
+use vstimd::scene_config_file::load_config;
 use vstimd::scene::Stimulus;
 use vtl::VtlKind;
 
 #[test]
 fn load_v3_reference() {
-    let (scene, io) = load_config(std::path::Path::new(
+    let (scene, sections) = load_config(std::path::Path::new(
         "tests/configs/vstimd_reference_v3.config.json",
     ))
     .expect("reference v3 config must load without error");
@@ -42,13 +42,13 @@ fn load_v3_reference() {
     }
 
     // I/O: VTL names
-    assert_eq!(io.vtl.names.len(), 2);
-    assert_eq!(io.vtl.names[0].name, "stim_onset");
-    assert_eq!(io.vtl.names[0].bank, 0);
-    assert_eq!(io.vtl.names[0].bit, 0);
-    assert_eq!(io.vtl.names[0].kind, VtlKind::Output);
-    assert_eq!(io.vtl.names[1].name, "trial_gate");
-    assert_eq!(io.vtl.names[1].kind, VtlKind::Input);
+    assert_eq!(sections.vtl.names.len(), 2);
+    assert_eq!(sections.vtl.names[0].name, "stim_onset");
+    assert_eq!(sections.vtl.names[0].bank, 0);
+    assert_eq!(sections.vtl.names[0].bit, 0);
+    assert_eq!(sections.vtl.names[0].kind, VtlKind::Output);
+    assert_eq!(sections.vtl.names[1].name, "trial_gate");
+    assert_eq!(sections.vtl.names[1].kind, VtlKind::Input);
 }
 
 /// Older on-disk formats are rejected rather than silently mis-parsed. This

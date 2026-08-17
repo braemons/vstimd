@@ -38,7 +38,7 @@ pub(in crate::render::overlay_ui) fn config_panel(
             ui.label(egui::RichText::new("(scene busy)").color(egui::Color32::DARK_GRAY));
         }
         Some(dir) => {
-            let names = crate::io_config::list_config_names(&dir).unwrap_or_default();
+            let names = crate::scene_config_file::list_config_names(&dir).unwrap_or_default();
             if names.is_empty() {
                 ui.label(egui::RichText::new("(none)").color(egui::Color32::DARK_GRAY));
             } else {

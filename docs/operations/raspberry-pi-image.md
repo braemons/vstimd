@@ -169,7 +169,7 @@ lab Windows or macOS machine without an SSH session:
 | Share | Path on the rig | Contents |
 |---|---|---|
 | `vstimd-config` | `/etc/braemons` | `vstimd-rig-config.toml`, `gpiochip-daqd-config.toml` |
-| `vstimd-data` | `/var/lib/braemons` | Saved stim-configs and the save-on-quit slot, under `vstimd/` |
+| `vstimd-data` | `/var/lib/braemons` | Saved scene-configs and the save-on-quit slot, under `vstimd/` |
 
 Both are **browsable read-only by anyone on the LAN with no credentials**;
 writing requires the `vstimd-admin` login.

@@ -1,7 +1,7 @@
 use super::animation::{AnimState, AnimationEntry};
 use super::scene_config::{LoadMode, SceneConfig};
 use super::stimulus::StimulusSceneEntry;
-use crate::io_config::{
+use crate::scene_config_file::{
     ARCHIVE_WARN_THRESHOLD, LAST_SESSION_CONFIG, archive_timestamp_name, config_path,
     count_archive_configs, load_config, save_config,
 };
@@ -426,7 +426,7 @@ impl SceneState {
     // ── Named-config load/save ────────────────────────────────────────────────
     //
     // Name resolution and the scene-side apply. The file format and directory
-    // layout live in `crate::io_config`; the matching IPC commands live in
+    // layout live in `crate::scene_config_file`; the matching IPC commands live in
     // `ipc::config_commands`. Nothing here speaks protobuf.
 
     /// Load a named config from the config directory into the scene, replacing
@@ -440,9 +440,9 @@ impl SceneState {
         vtl: Option<&mut VtlState>,
     ) -> anyhow::Result<()> {
         let path = config_path(&self.runtime.config_dir, name);
-        let (scene_cfg, io) = load_config(&path)?;
+        let (scene_cfg, sections) = load_config(&path)?;
         if let Some(v) = vtl {
-            v.config.names = io.vtl.names;
+            v.config.names = sections.vtl.names;
             v.sync_names_to_shm();
         }
         let mode = if additive {

@@ -131,11 +131,11 @@ fn main() {
     // rig-config `[startup] load_config` (a named config in the config dir, or
     // "last" for the auto-saved last-session slot) is applied, if set.
     if let Some(ref path) = args.config_file {
-        match vstimd::io_config::load_config(path) {
-            Ok((scene_cfg, io)) => {
+        match vstimd::scene_config_file::load_config(path) {
+            Ok((scene_cfg, sections)) => {
                 if let Some(ref v) = vtl {
                     let mut v = v.lock().unwrap();
-                    v.config.names = io.vtl.names;
+                    v.config.names = sections.vtl.names;
                     v.sync_names_to_shm();
                 }
                 scene
@@ -149,7 +149,7 @@ fn main() {
     } else if let Some(load) = &rig.startup.load_config {
         let name = match load {
             rig_config::StartupLoad::Named(n) => n.as_str(),
-            rig_config::StartupLoad::LastSession => vstimd::io_config::LAST_SESSION_CONFIG,
+            rig_config::StartupLoad::LastSession => vstimd::scene_config_file::LAST_SESSION_CONFIG,
         };
         // Runs before the ZMQ/web threads spawn, but keep scene-then-vtl lock
         // order consistent with ipc.rs regardless.
@@ -161,7 +161,7 @@ fn main() {
             // A missing last-session slot on first boot is expected, not an error.
             Err(e)
                 if matches!(load, rig_config::StartupLoad::LastSession)
-                    && vstimd::io_config::is_not_found(&e) =>
+                    && vstimd::scene_config_file::is_not_found(&e) =>
             {
                 log::info!(
                     "vstimd: no last-session config yet ('{name}') — starting with an empty scene"
@@ -332,13 +332,13 @@ struct Args {
     preferred_clock_source: Option<Option<ClockSource>>,
 }
 
-/// Choose the directory for named stim-configs (and the save-on-quit slot and
+/// Choose the directory for named scene-configs (and the save-on-quit slot and
 /// archives). An explicit `--config-dir` is honoured verbatim. Otherwise prefer
 /// the deployed default (`/var/lib/braemons/vstimd`, matching the packaged
 /// systemd `StateDirectory`); if it is not writable — e.g. a non-root dev run —
 /// fall back to `~/.local/braemons/vstimd`, then the current directory.
 fn resolve_config_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBuf {
-    use vstimd::io_config::{first_writable_dir, DEFAULT_CONFIG_DIR};
+    use vstimd::scene_config_file::{first_writable_dir, DEFAULT_CONFIG_DIR};
     if let Some(dir) = explicit {
         return dir;
     }
@@ -351,14 +351,14 @@ fn resolve_config_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBu
 
 /// Install the shipped demo configs into `dir` — writing the missing ones and
 /// replacing the ones this server wrote that nobody has since edited (see
-/// [`vstimd::io_config::seed_demo_configs`] for the full rule). Never fatal: a
+/// [`vstimd::scene_config_file::seed_demo_configs`] for the full rule). Never fatal: a
 /// read-only or full config dir costs the demos, not the server.
 ///
 /// Installing and refreshing are logged apart on purpose: "installed" added a
 /// file, "updated" *overwrote* one that was already there, and an operator
 /// reading the journal after an upgrade needs to tell those apart.
 fn seed_demo_configs(dir: &std::path::Path) {
-    let report = vstimd::io_config::seed_demo_configs(dir);
+    let report = vstimd::scene_config_file::seed_demo_configs(dir);
     if !report.installed.is_empty() {
         log::info!("vstimd: installed demo configs: {}", report.installed.join(", "));
     }
@@ -373,7 +373,7 @@ fn seed_demo_configs(dir: &std::path::Path) {
     let kept: Vec<&str> = report
         .kept
         .iter()
-        .filter(|(_, why)| *why != vstimd::io_config::DemoSkip::UpToDate)
+        .filter(|(_, why)| *why != vstimd::scene_config_file::DemoSkip::UpToDate)
         .map(|(name, _)| *name)
         .collect();
     if !kept.is_empty() {
@@ -744,8 +744,8 @@ fn print_usage() {
     eprintln!("                            overrides rig-config's [display] clock (default: auto)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
     eprintln!("      --rig-config <path>   Rig config (default: {})", vstimd::rig_config::DEFAULT_PATH);
-    eprintln!("      --config <path>       Load stim-config file at startup");
-    eprintln!("      --config-dir <path>   Directory for named stim-config files");
+    eprintln!("      --config <path>       Load scene-config file at startup");
+    eprintln!("      --config-dir <path>   Directory for named scene-config files");
     eprintln!("                            (default: /var/lib/braemons/vstimd, else");
     eprintln!("                            ~/.local/braemons/vstimd if not writable)");
 

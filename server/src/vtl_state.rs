@@ -201,7 +201,7 @@ pub struct VtlNameEntry {
 
 /// Serializable VTL configuration — owned by `VtlState.config`.
 ///
-/// This is the experiment-level (stim-config) portion of VTL config: named
+/// This is the experiment-level (scene-config) portion of VTL config: named
 /// lines that describe what each bit means for the current experiment.
 /// Hardware-level settings (shm name, bank counts, vblank trigger bit) live
 /// in the rig-config (`RigConfig.vtl`).
