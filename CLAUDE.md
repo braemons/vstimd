@@ -42,7 +42,9 @@ See `docs/PLAN.md` for the full design and roadmap.
   `SceneState` split across `dispatch.rs` (routing + command summary) and one `*_commands.rs` per
   domain. A new command needs an arm in `dispatch.rs` and the body in its group module.
 - `proto.rs` stays at the crate root, not under `ipc/` — the scene and the web surface speak it too.
-- `scene/` — state only; nothing here speaks protobuf (`config_io.rs` is the scene-side load/save).
+- `scene/` — state only; nothing here speaks protobuf. `scene_config.rs` is the serializable
+  `SceneConfig` type; the named-config load/save methods are on `SceneState` in `scene_state.rs`;
+  the file format and directory layout are in `io_config.rs` at the root.
 - `render/` — the display application. `overlay_ui/` holds the egui overlay, one file per group
   under `overlay_ui/panels/`; `vk/` is the only Vulkan layer.
 - `input/`, `system_info.rs`, `system_metrics.rs`, `benchmark.rs` are peers of `render/`, not part

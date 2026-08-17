@@ -1,5 +1,4 @@
 pub mod animation;
-pub mod config_io;
 pub mod deferred;
 pub mod photodiode;
 pub mod scene_config;

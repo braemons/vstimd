@@ -1,5 +1,5 @@
 //! Config persistence commands. The scene-side loading and saving they call
-//! lives in `scene::config_io`; only the proto plumbing is here.
+//! lives on `SceneState` in `scene::scene_state`; only the proto plumbing is here.
 
 use super::response::{err, ok_ack, ok_body};
 use crate::io_config::{
