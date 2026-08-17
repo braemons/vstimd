@@ -1,0 +1,18 @@
+syntax = "proto3";
+package vstimd.v1;
+
+// Who a stimulus is, as opposed to what it looks like or where it sits.
+// Carried by every Create* request.
+//
+// A message rather than a bare `string name` so this can grow — tags, a group,
+// a client-supplied UUID — without threading a new field through six separate
+// create requests and teaching every client about each one.
+//
+// There is deliberately no `id` yet: the server assigns the UUID and returns it
+// in Response.id. A client-supplied id existed here and had no caller; the case
+// that would want one (a client driving several servers, where the same stimulus
+// should carry one identity across all of them) can add the field when it
+// actually arrives.
+message StimulusIdentity {
+  string name = 1; // optional human-readable label
+}

@@ -3,6 +3,8 @@ package vstimd.v1;
 
 import "vstimd/v1/vec2.proto";
 import "vstimd/v1/color.proto";
+import "vstimd/v1/stimuli/identity.proto";
+import "vstimd/v1/transform.proto";
 
 // ── Text enumerations ─────────────────────────────────────────────────────────
 
@@ -19,26 +21,16 @@ enum LanguageStyle {
 // System command: create a text stimulus.
 // Returns the new handle in Response.handle and the UUID in Response.id.
 //
-// Text is laid out inside the bounding box defined by `box_size`, with word-wrap.
-// The box is positioned at `pos` (centre in pixel-space, Y-up).
-// `anchor` controls which point of the box is placed at `pos`:
+// Text is laid out inside the bounding box defined by `params.box_size`, with
+// word-wrap. The box is positioned at `placement.pos` (centre in pixel-space,
+// Y-up). `params.anchor` controls which point of the box is placed there:
 //   "center" (default), "top-left", "top-right", "bottom-left", "bottom-right"
+//
+// See CreateRectRequest for the shared identity/placement/params shape.
 message CreateTextRequest {
-  string        text           = 1;  // UTF-8 content
-  string        font           = 2;  // font family name (e.g. "Open Sans")
-  float         letter_height  = 3;  // cap-height in pixels (0 → default 32)
-  // Named box_size, not size: `size` next to letter_height reads as the font
-  // size, and the config field and the client argument are box-named already.
-  Vec2          box_size       = 4;  // bounding box [width, height] in pixels
-  Vec2          pos            = 5;  // centre in pixel-space (Y-up)
-  string        anchor         = 6;  // "center"|"top-left"|"top-right"|"bottom-left"|"bottom-right"
-  Color         text_color     = 7;  // glyph colour (absent → white); same property SetTextColor sets
-  Color         fill_color     = 8;  // background fill (absent → transparent)
-  Color         border_color   = 9;  // box border (absent → no border)
-  bool          flip_horiz     = 10; // mirror text horizontally
-  LanguageStyle language_style = 11; // bidi / shaping mode (default LTR)
-  string        id             = 12; // client-supplied UUID (empty → server generates one)
-  string        name           = 13; // optional human-readable label
+  StimulusIdentity identity  = 1;
+  Transform2D      placement = 2;
+  TextParams       params    = 3;
 }
 
 // ── Text-specific mutations ───────────────────────────────────────────────────
@@ -57,15 +49,21 @@ message SetTextColorRequest {
 
 // ── Text query params ─────────────────────────────────────────────────────────
 
+// Text content and styling. Used by both CreateTextRequest and
+// QueryStimulusResponse.params, so the defaults noted here are what a create
+// reads from an unset field and what a query reports back.
 message TextParams {
-  string        text           = 1;
-  string        font           = 2;
-  float         letter_height  = 3;
-  Vec2          box_size       = 4;
-  string        anchor         = 5;
-  Color         fill_color     = 6;  // background box fill colour
-  Color         border_color   = 7;  // box border colour
-  bool          flip_horiz     = 8;
-  LanguageStyle language_style = 9;
-  Color         text_color     = 10; // glyph colour (set by SetTextColorRequest)
+  string        text           = 1;  // UTF-8 content
+  string        font           = 2;  // font family name (e.g. "Open Sans")
+  float         letter_height  = 3;  // cap-height in pixels (0 → default 32)
+  // Named box_size, not size: `size` next to letter_height reads as the font
+  // size, and the config field and the client argument are box-named already.
+  Vec2          box_size       = 4;  // bounding box [width, height] (0 → 200×100)
+  string        anchor         = 5;  // "center"|"top-left"|"top-right"|"bottom-left"|"bottom-right"
+  Color         fill_color     = 6;  // background box fill (absent → transparent)
+  Color         border_color   = 7;  // box border (absent → no border)
+  bool          flip_horiz     = 8;  // mirror text horizontally
+  LanguageStyle language_style = 9;  // bidi / shaping mode (default LTR)
+  Color         text_color     = 10; // glyph colour (absent → white); also what
+                                     // SetTextColorRequest sets
 }

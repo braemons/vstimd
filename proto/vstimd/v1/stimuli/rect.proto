@@ -1,29 +1,24 @@
 syntax = "proto3";
 package vstimd.v1;
 
-import "vstimd/v1/color.proto";
-import "vstimd/v1/vec2.proto";
+import "vstimd/v1/stimuli/identity.proto";
 import "vstimd/v1/stimuli/shapes.proto";
+import "vstimd/v1/transform.proto";
 
 // System command: create a rectangle stimulus.
 // Returns the new handle in Response.handle and the UUID in Response.id.
+//
+// Every Create* request has the same three parts, in the same order: who it is,
+// where it sits, what it is. The third part is the very `*Params` message
+// QueryStimulusResponse reports back, so creating a stimulus and reading one
+// speak one vocabulary — a client can round-trip a stimulus without a
+// field-by-field translation layer in between, and a field added to RectParams
+// reaches both directions at once.
 message CreateRectRequest {
-  Vec2 center = 1; // pixel-space position (origin = screen centre, Y-up)
-  float width = 2; // full width in pixels  (0 → default 100)
-  float height = 3; // full height in pixels (0 → default 100)
-  Color fill_color = 4; // fill colour (absent → scene default_fill)
-  string id = 5; // client-supplied UUID (empty string → server generates one)
-  string name = 6; // optional human-readable label
-  // Full fill/outline/draw-mode state. Absent → fill from `fill_color` (or the
-  // scene default_fill) and outline from the scene default_outline, i.e. the
-  // behaviour before this field existed. Present → each of its own fields falls
-  // back the same way when unset, so a client may set only `draw_mode`.
-  //
-  // Without this, creating an outlined rect took four round trips
-  // (CreateRect + SetDrawMode + SetOutlineColor + SetOutlineWidth) and the
-  // stimulus was on screen with the wrong appearance for three of them.
-  ShapeAppearance appearance = 7;
-  float angle = 8; // orientation in degrees (CCW), matching CreateEllipse
+  StimulusIdentity identity = 1;
+  // Centre and rotation. Absent → screen centre, 0°.
+  Transform2D placement = 2;
+  RectParams params = 3;
 }
 
 // Stimulus command: resize a Rect stimulus.
@@ -33,8 +28,19 @@ message SetRectSizeRequest {
   float height = 2;
 }
 
+// Rect geometry and appearance. Used by both CreateRectRequest and
+// QueryStimulusResponse.params, so the zero-means-default convention below is
+// what a create reads and what a query reports.
 message RectParams {
-  float width = 1;
-  float height = 2;
+  float width = 1;  // full width in pixels  (0 → default 100)
+  float height = 2; // full height in pixels (0 → default 100)
+  // Full fill/outline/draw-mode state. Absent → fill from the scene
+  // default_fill and outline from the scene default_outline. Present → each of
+  // its own fields falls back the same way when unset, so a client may set only
+  // `draw_mode`.
+  //
+  // Without this, creating an outlined rect took four round trips
+  // (CreateRect + SetDrawMode + SetOutlineColor + SetOutlineWidth) and the
+  // stimulus was on screen with the wrong appearance for three of them.
   ShapeAppearance appearance = 3;
 }
