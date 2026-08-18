@@ -7,7 +7,7 @@
 //! many-to-one mapping lives here and nowhere else.
 
 use super::convert::{
-    placement_to_scene, proto_draw_mode_to_scene, scene_identity, shape_appearance_from_proto,
+    placement_from_proto, draw_mode_from_proto, identity_from_proto, shape_appearance_from_proto,
 };
 use super::response::{err, err_not_2d, err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
 use crate::proto;
@@ -39,8 +39,8 @@ impl SceneState {
             Ok(a) => a,
             Err(e) => return *e,
         };
-        let (pos, angle) = placement_to_scene(placement);
-        let identity = scene_identity(identity);
+        let (pos, angle) = placement_from_proto(placement);
+        let identity = identity_from_proto(identity);
         let id = identity.id;
         let stimulus = Stimulus::from(Shape::new(pos, angle, appearance, geometry));
         let handle = self.add_stimulus(StimulusSceneEntry::new(identity, stimulus));
@@ -347,7 +347,7 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetDrawModeRequest,
     ) -> proto::Response {
-        let mode = match proto_draw_mode_to_scene(cmd.mode) {
+        let mode = match draw_mode_from_proto(cmd.mode) {
             Ok(m) => m,
             Err(e) => return *e,
         };

@@ -1,13 +1,16 @@
-//! Animation commands and the proto <-> Animation mapping in both directions.
+//! Animation commands. The proto <-> Animation mapping they read and write lives
+//! in `convert::animation`, with every other conversion.
 
+use super::convert::{
+    animation_body_to_proto, animation_from_proto, output_vtl_bit_from_proto, vtl_bit_from_proto,
+    vtl_bit_to_proto, vtl_edge_from_proto, vtl_edge_to_proto,
+};
 use super::response::{err, ok_ack, ok_body, ok_handle};
-use super::vtl_commands::{resolve_output_handle, resolve_vtl_handle, vtl_bit_to_proto};
 use crate::proto;
 use crate::scene::animation::{
-    AnimState, Animation, AnimationEntry, CancelAction, FinalAction, StartAction, VtlEdge,
-    VtlPolarity,
+    AnimState, AnimationEntry, CancelAction, FinalAction, StartAction,
 };
-use crate::scene::{SceneState, VtlBit};
+use crate::scene::SceneState;
 use crate::vtl_state::{VtlNameEntry, VtlState};
 
 impl SceneState {
@@ -23,7 +26,7 @@ impl SceneState {
 
         let start_action_trigger_line =
             if start_action.contains(StartAction::START_ACTION_TRIGGER_LINE) {
-                match resolve_output_handle(cmd.start_action_trigger_line.as_ref(), vtl_names) {
+                match output_vtl_bit_from_proto(cmd.start_action_trigger_line.as_ref(), vtl_names) {
                     Ok(bit) => Some(bit),
                     Err(e) => return *e,
                 }
@@ -35,7 +38,7 @@ impl SceneState {
 
         let final_action_trigger_line =
             if final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE) {
-                match resolve_output_handle(cmd.final_action_trigger_line.as_ref(), vtl_names) {
+                match output_vtl_bit_from_proto(cmd.final_action_trigger_line.as_ref(), vtl_names) {
                     Ok(bit) => Some(bit),
                     Err(e) => return *e,
                 }
@@ -44,7 +47,7 @@ impl SceneState {
             };
 
         let final_action_level_line = if final_action.contains(FinalAction::DONE_LEVEL) {
-            match resolve_output_handle(cmd.final_action_level_line.as_ref(), vtl_names) {
+            match output_vtl_bit_from_proto(cmd.final_action_level_line.as_ref(), vtl_names) {
                 Ok(bit) => Some(bit),
                 Err(e) => return *e,
             }
@@ -53,8 +56,8 @@ impl SceneState {
         };
 
         let start_trigger = if cmd.start_trigger.is_some() {
-            match resolve_vtl_handle(cmd.start_trigger.as_ref(), vtl_names) {
-                Ok(bit) => Some((bit, proto_vtl_edge(cmd.start_edge))),
+            match vtl_bit_from_proto(cmd.start_trigger.as_ref(), vtl_names) {
+                Ok(bit) => Some((bit, vtl_edge_from_proto(cmd.start_edge))),
                 Err(e) => return *e,
             }
         } else {
@@ -62,8 +65,8 @@ impl SceneState {
         };
 
         let cancel_trigger = if cmd.cancel_trigger.is_some() {
-            match resolve_vtl_handle(cmd.cancel_trigger.as_ref(), vtl_names) {
-                Ok(bit) => Some((bit, proto_vtl_edge(cmd.cancel_edge))),
+            match vtl_bit_from_proto(cmd.cancel_trigger.as_ref(), vtl_names) {
+                Ok(bit) => Some((bit, vtl_edge_from_proto(cmd.cancel_edge))),
                 Err(e) => return *e,
             }
         } else {
@@ -74,7 +77,7 @@ impl SceneState {
 
         let cancel_action_trigger_line =
             if cancel_action.contains(CancelAction::CANCEL_ACTION_TRIGGER_LINE) {
-                match resolve_output_handle(cmd.cancel_action_trigger_line.as_ref(), vtl_names) {
+                match output_vtl_bit_from_proto(cmd.cancel_action_trigger_line.as_ref(), vtl_names) {
                     Ok(bit) => Some(bit),
                     Err(e) => return *e,
                 }
@@ -82,7 +85,7 @@ impl SceneState {
                 None
             };
 
-        let animation = match proto_to_animation(&cmd, vtl_names) {
+        let animation = match animation_from_proto(&cmd, vtl_names) {
             Ok(a) => a,
             Err(e) => return *e,
         };
@@ -231,12 +234,12 @@ impl SceneState {
         };
 
         let (start_trigger, start_edge) = match entry.start_trigger {
-            Some((bit, edge)) => (Some(vtl_bit_to_proto(bit)), edge_to_proto(edge)),
+            Some((bit, edge)) => (Some(vtl_bit_to_proto(bit)), vtl_edge_to_proto(edge)),
             None => (None, 0),
         };
 
         let (cancel_trigger, cancel_edge) = match entry.cancel_trigger {
-            Some((bit, edge)) => (Some(vtl_bit_to_proto(bit)), edge_to_proto(edge)),
+            Some((bit, edge)) => (Some(vtl_bit_to_proto(bit)), vtl_edge_to_proto(edge)),
             None => (None, 0),
         };
 
@@ -258,7 +261,7 @@ impl SceneState {
                     proto::AnimationStimuli { handles: entry.target.stimuli().to_vec() },
                 )),
             }),
-            body: Some(animation_to_proto_body(&entry.animation)),
+            body: Some(animation_body_to_proto(&entry.animation)),
         };
 
         ok_body(proto::response::Body::QueryAnimationResponse(
@@ -269,174 +272,5 @@ impl SceneState {
                 type_name: entry.animation.type_name().to_string(),
             },
         ))
-    }
-}
-
-fn edge_to_proto(e: VtlEdge) -> i32 {
-    match e {
-        VtlEdge::Rising => proto::VtlEdge::Rising as i32,
-        VtlEdge::Falling => proto::VtlEdge::Falling as i32,
-    }
-}
-
-fn polarity_to_proto(p: VtlPolarity) -> i32 {
-    match p {
-        VtlPolarity::ActiveHigh => proto::VtlPolarity::ActiveHigh as i32,
-        VtlPolarity::ActiveLow => proto::VtlPolarity::ActiveLow as i32,
-    }
-}
-
-fn animation_to_proto_body(anim: &Animation) -> proto::create_animation_request::Body {
-    use proto::create_animation_request::Body as PBody;
-    match anim {
-        Animation::CoupleVisibilityToTriggerLine { trigger, polarity } => {
-            PBody::CoupleVisibilityToTriggerLine(proto::CoupleVisibilityToTriggerLine {
-                trigger: Some(vtl_bit_to_proto(*trigger)),
-                polarity: polarity_to_proto(*polarity),
-            })
-        }
-        Animation::EnableOnTriggerEdge {
-            trigger,
-            edge,
-            enabled,
-        } => PBody::EnableOnTriggerEdge(proto::EnableOnTriggerEdge {
-            trigger: Some(vtl_bit_to_proto(*trigger)),
-            edge: edge_to_proto(*edge),
-            enabled: *enabled,
-        }),
-        Animation::FlashForNFrames { duration_frames } => {
-            PBody::FlashForNFrames(proto::FlashForNFrames {
-                duration_frames: *duration_frames,
-            })
-        }
-        Animation::FlickerForNFrames {
-            on_frames,
-            off_frames,
-            total_frames,
-            start_on_phase,
-        } => PBody::FlickerForNFrames(proto::FlickerForNFrames {
-            on_frames: *on_frames,
-            off_frames: *off_frames,
-            total_frames: *total_frames,
-            start_on_phase: *start_on_phase,
-        }),
-        Animation::MoveAlongPath2D { coords } => PBody::MoveAlongPath2d(proto::MoveAlongPath2D {
-            x: coords.iter().map(|c| c[0]).collect(),
-            y: coords.iter().map(|c| c[1]).collect(),
-        }),
-        Animation::MoveAlongSegments2D {
-            waypoints,
-            speed_px_per_sec,
-        } => PBody::MoveAlongSegments2d(proto::MoveAlongSegments2D {
-            x: waypoints.iter().map(|w| w[0]).collect(),
-            y: waypoints.iter().map(|w| w[1]).collect(),
-            speed_px_per_sec: *speed_px_per_sec,
-        }),
-        Animation::ExternalPosition2D {
-            shm_name,
-            x_offset,
-            y_offset,
-        } => PBody::ExternalPosition2d(proto::ExternalPosition2D {
-            shm_name: shm_name.clone(),
-            x_offset: *x_offset,
-            y_offset: *y_offset,
-        }),
-    }
-}
-
-fn proto_vtl_edge(e: i32) -> VtlEdge {
-    match proto::VtlEdge::try_from(e).unwrap_or(proto::VtlEdge::Rising) {
-        proto::VtlEdge::Rising => VtlEdge::Rising,
-        proto::VtlEdge::Falling => VtlEdge::Falling,
-    }
-}
-
-fn proto_vtl_polarity(p: i32) -> VtlPolarity {
-    match proto::VtlPolarity::try_from(p).unwrap_or(proto::VtlPolarity::ActiveHigh) {
-        proto::VtlPolarity::ActiveHigh => VtlPolarity::ActiveHigh,
-        proto::VtlPolarity::ActiveLow => VtlPolarity::ActiveLow,
-    }
-}
-
-// ── Animation proto → Rust mapping ───────────────────────────────────────────
-
-fn proto_to_animation(
-    cmd: &proto::CreateAnimationRequest,
-    vtl_names: &[VtlNameEntry],
-) -> Result<Animation, Box<proto::Response>> {
-    use proto::create_animation_request::Body as PBody;
-
-    let vtl_bit =
-        |h: Option<&proto::VirtualTriggerLineHandle>| -> Result<VtlBit, Box<proto::Response>> {
-            resolve_vtl_handle(h, vtl_names)
-        };
-
-    let proto_edge = |e: i32| -> VtlEdge { proto_vtl_edge(e) };
-
-    match cmd.body.as_ref() {
-        Some(PBody::CoupleVisibilityToTriggerLine(c)) => {
-            Ok(Animation::CoupleVisibilityToTriggerLine {
-                trigger: vtl_bit(c.trigger.as_ref())?,
-                polarity: proto_vtl_polarity(c.polarity),
-            })
-        }
-        Some(PBody::EnableOnTriggerEdge(c)) => Ok(Animation::EnableOnTriggerEdge {
-            trigger: vtl_bit(c.trigger.as_ref())?,
-            edge: proto_edge(c.edge),
-            enabled: c.enabled,
-        }),
-        Some(PBody::FlashForNFrames(c)) => Ok(Animation::FlashForNFrames {
-            duration_frames: c.duration_frames,
-        }),
-        Some(PBody::FlickerForNFrames(c)) => Ok(Animation::FlickerForNFrames {
-            on_frames: c.on_frames,
-            off_frames: c.off_frames,
-            total_frames: c.total_frames,
-            start_on_phase: c.start_on_phase,
-        }),
-        Some(PBody::MoveAlongPath2d(c)) => {
-            if c.x.len() != c.y.len() {
-                return Err(Box::new(err(
-                    proto::ErrorCode::InvalidArgument,
-                    "MoveAlongPath2D: x and y must have equal length",
-                )));
-            }
-            Ok(Animation::MoveAlongPath2D {
-                coords: c.x.iter().zip(c.y.iter()).map(|(&x, &y)| [x, y]).collect(),
-            })
-        }
-        Some(PBody::MoveAlongSegments2d(c)) => {
-            if c.x.len() != c.y.len() {
-                return Err(Box::new(err(
-                    proto::ErrorCode::InvalidArgument,
-                    "MoveAlongSegments2D: x and y must have equal length",
-                )));
-            }
-            if c.x.len() < 2 {
-                return Err(Box::new(err(
-                    proto::ErrorCode::InvalidArgument,
-                    "MoveAlongSegments2D: at least 2 waypoints required",
-                )));
-            }
-            Ok(Animation::MoveAlongSegments2D {
-                waypoints: c.x.iter().zip(c.y.iter()).map(|(&x, &y)| [x, y]).collect(),
-                speed_px_per_sec: c.speed_px_per_sec,
-            })
-        }
-        // Refused rather than accepted-and-ignored: `advance_one` never opens the
-        // segment, so an accepted ExternalPosition2D arms, runs forever and moves
-        // nothing while reporting success — the stimulus silently stays put for a
-        // whole session. Returning NOT_SUPPORTED until #84 lands is the honest
-        // answer; the fields are kept so the message does not have to change.
-        Some(PBody::ExternalPosition2d(_)) => Err(Box::new(err(
-            proto::ErrorCode::NotSupported,
-            "ExternalPosition2D is not implemented yet (see \
-             https://github.com/braemons/vstimd/issues/84): the shared-memory \
-             segment is never read, so the stimulus would not move",
-        ))),
-        None => Err(Box::new(err(
-            proto::ErrorCode::InvalidArgument,
-            "animation body must be set",
-        ))),
     }
 }

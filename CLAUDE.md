@@ -55,9 +55,12 @@ See `docs/PLAN.md` for the full design and roadmap.
 - `ipc/` — ZMQ transport plus the protobuf dispatcher. `handle_request` is an inherent method on
   `SceneState` split across `dispatch.rs` (routing + command summary) and one `*_commands.rs` per
   domain. A new command needs an arm in `dispatch.rs` and the body in its group module.
-- `ipc/convert/` — **every** proto <-> scene conversion, one submodule per stimulus kind
-  (`grating.rs`, `text.rs`) plus the shared ones in `mod.rs`. A conversion belongs here, never
-  in `scene/`.
+- `ipc/convert/` — **every** proto <-> scene conversion: one submodule per stimulus body
+  (`grating.rs`, `text.rs`), one per non-stimulus domain (`animation.rs`, `vtl.rs`), and the
+  shared ones in `mod.rs`. A conversion belongs here, never in `scene/` and never inside a
+  `*_commands.rs`. Names are `X_from_proto` / `X_to_proto`, in that direction — nothing else,
+  so the direction of a call is readable rather than looked up. Decode an enum as
+  `Enum::try_from(v).unwrap_or(Unspecified)`.
 - `proto.rs` stays at the crate root, not under `ipc/` — the scene and the web surface speak it too.
 - `scene/` — state only; nothing here speaks protobuf.
 

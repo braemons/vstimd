@@ -1,7 +1,7 @@
 //! Create/modify commands for the text stimulus.
 
 use super::convert::{
-    anchor_from_str, placement_to_scene, proto_to_language_style, scene_identity,
+    anchor_from_str, placement_from_proto, language_style_from_proto, identity_from_proto,
     text_render_params_from_proto,
 };
 use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
@@ -37,7 +37,7 @@ impl SceneState {
 
     pub(super) fn cmd_create_text(&mut self, cmd: proto::CreateTextRequest) -> proto::Response {
         let params = cmd.params.unwrap_or_default();
-        let (pos, angle) = placement_to_scene(cmd.placement);
+        let (pos, angle) = placement_from_proto(cmd.placement);
         let requested = params.box_size.unwrap_or_default();
         let box_size = [
             if requested.x == 0.0 { 200.0 } else { requested.x },
@@ -49,9 +49,9 @@ impl SceneState {
             params.letter_height
         };
         let anchor = anchor_from_str(&params.anchor);
-        let language_style = proto_to_language_style(params.language_style);
+        let language_style = language_style_from_proto(params.language_style);
         let render_params = text_render_params_from_proto(&params);
-        let identity = scene_identity(cmd.identity);
+        let identity = identity_from_proto(cmd.identity);
         let id = identity.id;
         let handle = self.alloc_stim_handle();
         self.config.stimuli.insert(

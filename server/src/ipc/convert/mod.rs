@@ -5,6 +5,15 @@
 //! here next to the shared ones, one submodule per stimulus body, mirroring the
 //! `*_commands.rs` split of the dispatcher that consumes them.
 //!
+//! The two conversions that are not per-body live here too: `animation` for the
+//! `CreateAnimationRequest` body and its edge/polarity enums, and `vtl` for line
+//! handles — both of which used to sit inside the command module that consumed
+//! them, where nothing stopped a fourth copy of the taxonomy appearing beside them.
+//!
+//! Every function reads `X_from_proto` or `X_to_proto`, in that direction. The
+//! four dialects this replaced (`proto_to_X`, `proto_X_to_scene`, `X_from_proto`,
+//! `proto_X`) made the direction of a call something you looked up rather than read.
+//!
 //! This module holds what every body needs — colours, draw modes, the user-facing
 //! type, and the identity and placement every `Create*` request carries — plus the
 //! shape appearance, which three of the geometries share.
@@ -12,14 +21,22 @@
 //! "Every" is meant literally: `scene/` names no proto type anywhere, so a change to
 //! the wire cannot reach the scene tree without passing through this module.
 
+mod animation;
 mod grating;
 mod text;
+mod vtl;
 
-pub(super) use grating::{
-    grating_params_from_proto, grating_query_params, proto_to_mask, proto_to_waveform,
+pub(super) use animation::{
+    animation_body_to_proto, animation_from_proto, vtl_edge_from_proto, vtl_edge_to_proto,
 };
-pub(super) use text::{anchor_from_str, proto_to_language_style, text_query_params,
+pub(super) use grating::{
+    grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,
+};
+pub(super) use text::{anchor_from_str, language_style_from_proto, text_params_to_proto,
     text_render_params_from_proto};
+pub(super) use vtl::{
+    output_vtl_bit_from_proto, vtl_bit_from_proto, vtl_bit_to_proto, vtl_kind_from_proto,
+};
 
 use crate::Color;
 use crate::proto;
@@ -68,7 +85,7 @@ pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusTyp
     }
 }
 
-pub(super) fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
+pub(super) fn draw_mode_from_proto(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
     match proto::ShapeDrawMode::try_from(mode).unwrap_or(proto::ShapeDrawMode::Unspecified) {
         proto::ShapeDrawMode::Unspecified => Ok(SceneDrawMode::Fill),
         proto::ShapeDrawMode::Filled => Ok(SceneDrawMode::Fill),
@@ -77,7 +94,7 @@ pub(super) fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, Box<p
     }
 }
 
-pub(super) fn scene_draw_mode_to_proto(mode: SceneDrawMode) -> i32 {
+pub(super) fn draw_mode_to_proto(mode: SceneDrawMode) -> i32 {
     match mode {
         SceneDrawMode::Fill => proto::ShapeDrawMode::Filled as i32,
         SceneDrawMode::Stroke => proto::ShapeDrawMode::Outlined as i32,
@@ -91,11 +108,11 @@ pub(super) fn shape_appearance_to_proto(a: &ShapeAppearance) -> proto::ShapeAppe
         fill_color: Some(a.fill_color.into()),
         outline_color: Some(a.outline_color.into()),
         outline_width: a.stroke_width,
-        draw_mode: scene_draw_mode_to_proto(a.draw_mode),
+        draw_mode: draw_mode_to_proto(a.draw_mode),
     }
 }
 
-fn color_or_default(c: Option<proto::Color>, default: Color) -> Color {
+pub(super) fn color_or_default(c: Option<proto::Color>, default: Color) -> Color {
     c.map(|c| c.into()).unwrap_or(default)
 }
 
@@ -131,7 +148,7 @@ pub(super) fn shape_appearance_from_proto(
         } else {
             a.outline_width
         },
-        draw_mode: proto_draw_mode_to_scene(a.draw_mode)?,
+        draw_mode: draw_mode_from_proto(a.draw_mode)?,
     })
 }
 
@@ -139,7 +156,7 @@ pub(super) fn shape_appearance_from_proto(
 ///
 /// Absent, or absent `pos`, means the screen centre at 0° — the same default the
 /// bare `center`/`angle` fields gave before placement was a message.
-pub(super) fn placement_to_scene(placement: Option<proto::Transform2D>) -> ([f32; 2], f32) {
+pub(super) fn placement_from_proto(placement: Option<proto::Transform2D>) -> ([f32; 2], f32) {
     let Some(t) = placement else {
         return ([0.0, 0.0], 0.0);
     };
@@ -151,7 +168,7 @@ pub(super) fn placement_to_scene(placement: Option<proto::Transform2D>) -> ([f32
 ///
 /// The server assigns every stimulus id: `proto::StimulusIdentity` carries only a
 /// name, so this is where a stimulus acquires the UUID the response echoes back.
-pub(super) fn scene_identity(identity: Option<proto::StimulusIdentity>) -> StimulusIdentity {
+pub(super) fn identity_from_proto(identity: Option<proto::StimulusIdentity>) -> StimulusIdentity {
     StimulusIdentity::new(identity.and_then(|i| nonempty(i.name)))
 }
 

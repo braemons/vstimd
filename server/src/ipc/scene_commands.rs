@@ -2,8 +2,8 @@
 //! info, and the stimulus query/list payloads.
 
 use super::convert::{
-    grating_query_params, nonempty, parse_version, shape_appearance_to_proto,
-    stimulus_type_to_proto, text_query_params,
+    grating_params_to_proto, nonempty, parse_version, shape_appearance_to_proto,
+    stimulus_type_to_proto, text_params_to_proto,
 };
 use super::response::{err, err_not_found, ok_ack, ok_body};
 use crate::proto;
@@ -166,12 +166,12 @@ impl SceneState {
                     }
                 }
             }
-            StimulusBody::Grating(g) => grating_query_params(g)
+            StimulusBody::Grating(g) => grating_params_to_proto(g)
                 .shape
-                .expect("grating_query_params always sets a shape"),
-            StimulusBody::Text(t) => text_query_params(t)
+                .expect("grating_params_to_proto always sets a shape"),
+            StimulusBody::Text(t) => text_params_to_proto(t)
                 .shape
-                .expect("text_query_params always sets a shape"),
+                .expect("text_params_to_proto always sets a shape"),
             // Unreachable: no command constructs a `Mesh3d` yet. Phase B owes the
             // `Sphere3DParams`/`Cube3DParams` oneof arms and a `transform_3d` arm on
             // the `placement` oneof — neither exists in the proto today, so there is
