@@ -161,6 +161,29 @@ make test-e2e-null
 VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 make test-e2e
 ```
 
+### Watching the on-screen suite
+
+`make test-e2e` renders for real, and every test captions itself in yellow near
+the top of the display:
+
+```
+[GRAT-09] mask — none, circle, gaussian, hann, raised cosine, left to right
+```
+
+The id in front is stable and belongs to that test alone, so anything that does
+not look right can simply be written down as its id and found again with
+`grep -rn GRAT-09 client/python/tests/e2e`. The prefix names the area — `RECT`,
+`CIRC`, `ELLI`, `POLY`, `SHAPE`, `GRAT`, `TEXT`, `ANIM`, `SHARED`, `QUERY`,
+`SYS`, `CFG`, `VTL`, `DEMO`, and `PSY` for the PsychoPy-compatible API.
+
+Each test holds its scene on screen long enough to be judged. `--step-delay`
+sets that dwell in seconds (default 1.0); the null suites pin it to 0, so
+headless runs pay nothing for it:
+
+```bash
+uv run pytest tests/e2e/test_e2e.py --step-delay 2.5   # slower, easier to watch
+```
+
 ## Status and versioning
 
 Pre-1.0: the API may still change between minor versions.

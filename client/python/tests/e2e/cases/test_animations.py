@@ -15,29 +15,19 @@ from vstimd.stimuli import GratingParams, RectParams, ShapeAppearance
 from vstimd.stimuli.stimuli_models import Color, Vec2
 from vstimd.vtl import VtlKind, VtlHandle
 
-from ._helpers import (
-    label as _label,
-)
-from ._helpers import (
-    make_rect as _make_rect,
-)
-from ._helpers import (
-    update_label as _update_label,
-)
-from ._helpers import (
-    wait_for_anim_run_start as _wait_for_run_start,
-)
-from ._helpers import (
-    wait_for_anim_state as _wait_for_state,
-)
+from ._helpers import Stage
+from ._helpers import make_rect as _make_rect
+from ._helpers import wait_for_anim_run_start as _wait_for_run_start
+from ._helpers import wait_for_anim_state as _wait_for_state
 
 
-def test_anim_flash_state_transitions(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-01",
+    "a dark red 80×80 px square in the centre that switches on by itself "
+    "for 30 frames (half a second) and then goes off and stays off",
+)
+def test_anim_flash_state_transitions(conn: Connection, stage: Stage) -> None:
     """Flash runs for N frames and ends in DONE state."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "flashing red rect — 30 frames")
     s = _make_rect(conn, x=0, y=0, enabled=False)
 
     a = conn.animations.create_flash(
@@ -57,7 +47,7 @@ def test_anim_flash_state_transitions(
         AnimationState.RUNNING,
     )
 
-    time.sleep(step_delay)
+    stage.hold()
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=4.0)
     assert final == AnimationState.DONE, f"animation did not reach DONE (got {final!r})"
@@ -67,15 +57,15 @@ def test_anim_flash_state_transitions(
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_flash_stimulus_visible_during_run(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-02",
+    "a red square left of centre, on for the 60 frames the flash runs and "
+    "off for good once it ends",
+)
+def test_anim_flash_stimulus_visible_during_run(conn: Connection, stage: Stage) -> None:
     """Stimulus is enabled while flash is running and disabled after DISABLE final action."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "rect ON during flash, then OFF")
     s = _make_rect(conn, x=-150, y=0, enabled=False)
 
     a = conn.animations.create_flash(
@@ -87,8 +77,7 @@ def test_anim_flash_stimulus_visible_during_run(
     info = conn.stimuli.query(s)
     assert info.enabled is True, "stimulus should be enabled while flash is running"
 
-    _update_label(conn, lbl, tid, "rect ON (flash running)")
-    time.sleep(step_delay)
+    stage.step("rect ON (flash running)")
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=4.0)
     assert final == AnimationState.DONE
@@ -96,20 +85,19 @@ def test_anim_flash_stimulus_visible_during_run(
     info = conn.stimuli.query(s)
     assert info.enabled is False, "stimulus should be disabled after flash + DISABLE"
 
-    _update_label(conn, lbl, tid, "rect OFF (flash done, DISABLE)")
-    time.sleep(step_delay)
+    stage.step("rect OFF (flash done, DISABLE)")
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_flash_start_trigger(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-03",
+    "a red square right of centre that stays hidden until a rising edge "
+    "arrives on input line (0,10), then flashes for 30 frames",
+)
+def test_anim_flash_start_trigger(conn: Connection, stage: Stage) -> None:
     """Flash with start_trigger stays ARMED until a rising edge fires it."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "flash waiting for trigger edge")
     s = _make_rect(conn, x=150, y=0, enabled=False)
 
     a = conn.animations.create_flash(
@@ -126,30 +114,28 @@ def test_anim_flash_start_trigger(
         "should remain ARMED before trigger"
     )
 
-    _update_label(conn, lbl, tid, "ARMED — waiting for trigger")
-    time.sleep(step_delay)
+    stage.step("ARMED — waiting for trigger")
 
     conn.vtl.set_line(VtlHandle.input(0, 10), True)
     time.sleep(0.1)
     conn.vtl.set_line(VtlHandle.input(0, 10), False)
 
-    _update_label(conn, lbl, tid, "triggered — rect ON")
-    time.sleep(step_delay)
+    stage.step("triggered — rect ON")
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=4.0)
     assert final == AnimationState.DONE
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_flash_disarm_resets_state(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-04",
+    "nothing visible below centre: the flash there is armed waiting on a "
+    "trigger that never comes, then disarmed — its square never appears",
+)
+def test_anim_flash_disarm_resets_state(conn: Connection, stage: Stage) -> None:
     """Disarming a flash while ARMED returns it to IDLE."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "flash armed then disarmed")
     s = _make_rect(conn, x=0, y=-100, enabled=False)
 
     a = conn.animations.create_flash(
@@ -160,30 +146,28 @@ def test_anim_flash_disarm_resets_state(
     time.sleep(0.1)
     assert conn.animations.query(a).state == AnimationState.ARMED
 
-    _update_label(conn, lbl, tid, "ARMED, about to disarm")
-    time.sleep(step_delay)
+    stage.step("ARMED, about to disarm")
 
     conn.animations.disarm(a)
     assert conn.animations.query(a).state == AnimationState.IDLE
 
-    _update_label(conn, lbl, tid, "IDLE after disarm")
-    time.sleep(step_delay * 0.5)
+    stage.step("IDLE after disarm", hold=0.5)
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_cancel_command_running(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-05",
+    "a red square in the centre, visible while its long flash runs, that "
+    "disappears the moment the animation is cancelled from the client",
+)
+def test_anim_cancel_command_running(conn: Connection, stage: Stage) -> None:
     """Cancelling a RUNNING animation via the software command is a clean teardown → DONE.
 
     Distinct from disarm (which returns to IDLE): cancel runs the final action
     (DISABLE here) and lands in DONE.
     """
-    tid = request.node.name
-    lbl = _label(conn, tid, "flash cancelled while running (→DONE, disabled)")
     s = _make_rect(conn, x=0, y=0, enabled=False)
 
     # Long duration so it is still running when we cancel.
@@ -196,8 +180,7 @@ def test_anim_cancel_command_running(
     time.sleep(0.05)
     assert conn.stimuli.query(s).enabled is True, "stimulus enabled while running"
 
-    _update_label(conn, lbl, tid, "RUNNING — about to cancel")
-    time.sleep(step_delay)
+    stage.step("RUNNING — about to cancel")
 
     conn.animations.cancel(a)
 
@@ -205,20 +188,20 @@ def test_anim_cancel_command_running(
     assert final == AnimationState.DONE, "cancel ends in DONE (not IDLE like disarm)"
     assert conn.stimuli.query(s).enabled is False, "cancel runs DISABLE teardown"
 
-    _update_label(conn, lbl, tid, "cancelled — DONE, rect OFF")
-    time.sleep(step_delay * 0.5)
+    stage.step("cancelled — DONE, rect OFF", hold=0.5)
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_cancel_trigger_running(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-06",
+    "a red square in the centre, visible while its long flash runs, that "
+    "disappears when a rising edge on input line (0,50) cancels the "
+    "animation",
+)
+def test_anim_cancel_trigger_running(conn: Connection, stage: Stage) -> None:
     """A cancel_trigger VTL edge aborts a RUNNING animation with clean teardown → DONE."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "flash cancelled by VTL edge (0,50)")
     s = _make_rect(conn, x=0, y=0, enabled=False)
 
     a = conn.animations.create_flash(
@@ -234,8 +217,7 @@ def test_anim_cancel_trigger_running(
     time.sleep(0.05)
     assert conn.stimuli.query(s).enabled is True
 
-    _update_label(conn, lbl, tid, "RUNNING — firing cancel edge")
-    time.sleep(step_delay)
+    stage.step("RUNNING — firing cancel edge")
 
     conn.vtl.set_line(VtlHandle.input(0, 50), True)
     time.sleep(0.1)
@@ -245,20 +227,20 @@ def test_anim_cancel_trigger_running(
     assert final == AnimationState.DONE
     assert conn.stimuli.query(s).enabled is False, "cancel edge ran DISABLE teardown"
 
-    _update_label(conn, lbl, tid, "cancelled by edge — DONE")
-    time.sleep(step_delay * 0.5)
+    stage.step("cancelled by edge — DONE", hold=0.5)
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_cancel_trigger_while_armed(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-07",
+    "nothing visible in the centre: a flash armed on input (0,51) is "
+    "cancelled by an edge on (0,52) before its trigger ever comes, so its "
+    "square stays off",
+)
+def test_anim_cancel_trigger_while_armed(conn: Connection, stage: Stage) -> None:
     """A cancel_trigger edge stops an ARMED animation before it ever starts → DONE."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "flash cancelled while ARMED (never starts)")
     s = _make_rect(conn, x=0, y=0, enabled=False)
 
     # Waits on start_trigger (0,51); we never fire it — instead we fire the
@@ -276,8 +258,7 @@ def test_anim_cancel_trigger_while_armed(
     time.sleep(0.1)
     assert conn.animations.query(a).state == AnimationState.ARMED
 
-    _update_label(conn, lbl, tid, "ARMED — firing cancel edge")
-    time.sleep(step_delay)
+    stage.step("ARMED — firing cancel edge")
 
     conn.vtl.set_line(VtlHandle.input(0, 52), True)
     time.sleep(0.1)
@@ -289,42 +270,40 @@ def test_anim_cancel_trigger_while_armed(
         "flash never started; stimulus stays off"
     )
 
-    _update_label(conn, lbl, tid, "cancelled while ARMED — DONE")
-    time.sleep(step_delay * 0.5)
+    stage.step("cancelled while ARMED — DONE", hold=0.5)
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_flicker_cycles(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-08",
+    "a red square up and left of centre flickering 6 frames on, 6 frames "
+    "off (about 5 Hz) for one second, then off",
+)
+def test_anim_flicker_cycles(conn: Connection, stage: Stage) -> None:
     """Flicker toggles a stimulus on and off at the specified cadence."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "rect flickering 6/6 frames")
     s = _make_rect(conn, x=-200, y=100)
 
     a = conn.animations.create_flicker(s, on_frames=6, off_frames=6, total_frames=60)
     conn.animations.arm(a)
 
-    _update_label(conn, lbl, tid, "flickering")
-    time.sleep(step_delay * 2)
+    stage.step("flickering", hold=2)
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=5.0)
     assert final == AnimationState.DONE, f"flicker did not complete (got {final!r})"
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_flicker_indefinite_then_disarm(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-09",
+    "a red square up and right of centre flickering 8 on / 8 off with no "
+    "end time, until it is disarmed and stays on",
+)
+def test_anim_flicker_indefinite_then_disarm(conn: Connection, stage: Stage) -> None:
     """Indefinite flicker stays RUNNING until explicitly disarmed."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "indefinite flicker — then disarmed")
     s = _make_rect(conn, x=200, y=100)
 
     a = conn.animations.create_flicker(s, on_frames=8, off_frames=8)
@@ -333,8 +312,7 @@ def test_anim_flicker_indefinite_then_disarm(
     running = _wait_for_state(conn, a, AnimationState.RUNNING, timeout=2.0)
     assert running == AnimationState.RUNNING, "indefinite flicker should reach RUNNING"
 
-    _update_label(conn, lbl, tid, "RUNNING (indefinite flicker)")
-    time.sleep(step_delay * 2)
+    stage.step("RUNNING (indefinite flicker)", hold=2)
 
     assert conn.animations.query(a).state == AnimationState.RUNNING, (
         "indefinite flicker should stay RUNNING"
@@ -348,20 +326,19 @@ def test_anim_flicker_indefinite_then_disarm(
         "anim_enabled should be True after disarming flicker"
     )
 
-    _update_label(conn, lbl, tid, "IDLE after disarm")
-    time.sleep(step_delay * 0.5)
+    stage.step("IDLE after disarm", hold=0.5)
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_flicker_off_phase_start(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-10",
+    "a red square above centre that stays hidden for the first two seconds "
+    "(the flicker starts in its off phase) and only then appears",
+)
+def test_anim_flicker_off_phase_start(conn: Connection, stage: Stage) -> None:
     """Flicker with start_on_phase=False begins in the off-phase_cycles (stimulus hidden first)."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "flicker starts in OFF phase_cycles")
     s = _make_rect(conn, x=0, y=100)
 
     # 30 on / 120 off (2 s at 60 fps); starts in off-phase_cycles → ample window to observe hidden state
@@ -377,8 +354,7 @@ def test_anim_flicker_off_phase_start(
         "stimulus should start in off-phase_cycles (anim_enabled=False)"
     )
 
-    _update_label(conn, lbl, tid, "off-phase_cycles (rect hidden)")
-    time.sleep(step_delay * 0.5)
+    stage.step("off-phase_cycles (rect hidden)", hold=0.5)
 
     # after the off-phase_cycles (120 frames / 60 fps = 2 s) it should flip to on
     time.sleep(2.1)
@@ -387,22 +363,21 @@ def test_anim_flicker_off_phase_start(
         "stimulus should be in on-phase_cycles after off-phase_cycles ends"
     )
 
-    _update_label(conn, lbl, tid, "on-phase_cycles (rect visible)")
-    time.sleep(step_delay)
+    stage.step("on-phase_cycles (rect visible)")
 
     _wait_for_state(conn, a, AnimationState.DONE, timeout=4.0)
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_enable_on_trigger_edge_rising(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-11",
+    "a red square down and left of centre, hidden until a rising edge on "
+    "input line (0,20) switches it on for good",
+)
+def test_anim_enable_on_trigger_edge_rising(conn: Connection, stage: Stage) -> None:
     """EnableOnTriggerEdge enables a disabled stimulus on a rising edge, then DONE."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "rect enabled by rising edge on (0,20)")
     s = _make_rect(conn, x=-100, y=-100, enabled=False)
 
     a = conn.animations.create_enable_on_trigger_edge(
@@ -421,8 +396,7 @@ def test_anim_enable_on_trigger_edge_rising(
         "stimulus must still be disabled before edge"
     )
 
-    _update_label(conn, lbl, tid, "RUNNING — waiting for rising edge")
-    time.sleep(step_delay)
+    stage.step("RUNNING — waiting for rising edge")
 
     conn.vtl.set_line(VtlHandle.input(0, 20), True)
     time.sleep(0.1)
@@ -435,20 +409,19 @@ def test_anim_enable_on_trigger_edge_rising(
         "stimulus should be enabled after rising edge"
     )
 
-    _update_label(conn, lbl, tid, "rect ON (trigger fired)")
-    time.sleep(step_delay)
+    stage.step("rect ON (trigger fired)")
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_enable_on_trigger_edge_falling(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-12",
+    "a red square down and right of centre, visible until a falling edge on "
+    "input line (0,21) switches it off",
+)
+def test_anim_enable_on_trigger_edge_falling(conn: Connection, stage: Stage) -> None:
     """EnableOnTriggerEdge with FALLING edge fires on the high→low transition."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "rect DISABLED by falling edge on (0,21)")
     s = _make_rect(conn, x=100, y=-100, enabled=True)
 
     a = conn.animations.create_enable_on_trigger_edge(
@@ -462,8 +435,7 @@ def test_anim_enable_on_trigger_edge_falling(
     conn.vtl.set_line(VtlHandle.input(0, 21), True)
     time.sleep(0.1)
 
-    _update_label(conn, lbl, tid, "RUNNING — waiting for falling edge")
-    time.sleep(step_delay)
+    stage.step("RUNNING — waiting for falling edge")
 
     conn.vtl.set_line(VtlHandle.input(0, 21), False)
 
@@ -474,20 +446,20 @@ def test_anim_enable_on_trigger_edge_falling(
         "stimulus should be disabled after falling edge"
     )
 
-    _update_label(conn, lbl, tid, "rect OFF (falling edge fired)")
-    time.sleep(step_delay)
+    stage.step("rect OFF (falling edge fired)")
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_couple_visibility_to_vtl_line(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-13",
+    "a red square near the bottom edge that follows input line (0,30) "
+    "directly: off while the line is low, on while it is high, off again "
+    "when it drops",
+)
+def test_anim_couple_visibility_to_vtl_line(conn: Connection, stage: Stage) -> None:
     """CoupleVisibility mirrors anim_enabled to the level of a VTL input line."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "rect coupled to VTL (0,30)")
     s = _make_rect(conn, x=0, y=-200, enabled=False)
 
     a = conn.animations.create_couple_visibility_to_trigger_line(
@@ -503,8 +475,7 @@ def test_anim_couple_visibility_to_vtl_line(
         "anim_enabled should be False when line is LOW"
     )
 
-    _update_label(conn, lbl, tid, "line LOW → rect OFF")
-    time.sleep(step_delay)
+    stage.step("line LOW → rect OFF")
 
     conn.vtl.set_line(VtlHandle.input(0, 30), True)
     time.sleep(0.1)
@@ -512,8 +483,7 @@ def test_anim_couple_visibility_to_vtl_line(
         "anim_enabled should be True when line is HIGH"
     )
 
-    _update_label(conn, lbl, tid, "line HIGH → rect ON")
-    time.sleep(step_delay)
+    stage.step("line HIGH → rect ON")
 
     conn.vtl.set_line(VtlHandle.input(0, 30), False)
     time.sleep(0.1)
@@ -521,8 +491,7 @@ def test_anim_couple_visibility_to_vtl_line(
         "anim_enabled should be False when line returns LOW"
     )
 
-    _update_label(conn, lbl, tid, "line LOW → rect OFF again")
-    time.sleep(step_delay)
+    stage.step("line LOW → rect OFF again")
 
     conn.animations.disarm(a)
     assert conn.animations.query(a).state == AnimationState.IDLE
@@ -532,15 +501,15 @@ def test_anim_couple_visibility_to_vtl_line(
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_couple_visibility_inverted_polarity(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-14",
+    "a red square at the bottom left doing the opposite of ANIM-13: on "
+    "while input line (0,31) is low, off while it is high",
+)
+def test_anim_couple_visibility_inverted_polarity(conn: Connection, stage: Stage) -> None:
     """CoupleVisibility with ACTIVE_LOW: HIGH → anim_enabled=False, LOW → anim_enabled=True."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "couple inverted polarity on (0,31)")
     s = _make_rect(conn, x=-250, y=-200, enabled=False)
 
     a = conn.animations.create_couple_visibility_to_trigger_line(
@@ -556,8 +525,7 @@ def test_anim_couple_visibility_inverted_polarity(
         "inverted polarity: line LOW → anim_enabled=True"
     )
 
-    _update_label(conn, lbl, tid, "line LOW → rect ON (inverted)")
-    time.sleep(step_delay)
+    stage.step("line LOW → rect ON (inverted)")
 
     conn.vtl.set_line(VtlHandle.input(0, 31), True)
     time.sleep(0.1)
@@ -565,21 +533,20 @@ def test_anim_couple_visibility_inverted_polarity(
         "inverted polarity: line HIGH → anim_enabled=False"
     )
 
-    _update_label(conn, lbl, tid, "line HIGH → rect OFF (inverted)")
-    time.sleep(step_delay)
+    stage.step("line HIGH → rect OFF (inverted)")
 
     conn.animations.disarm(a)
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_move_along_path_2d(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-15",
+    "a green 60×60 px square sweeping from the left edge to the right edge "
+    "through 41 waypoints, then disappearing where it stops",
+)
+def test_anim_move_along_path_2d(conn: Connection, stage: Stage) -> None:
     """MoveAlongPath2D moves a stimulus through a sequence of positions."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "rect swept left-to-right via path")
     s = conn.stimuli.shapes.create_rect(
         position_px=Vec2(-200, 0),
         params=RectParams(
@@ -596,7 +563,7 @@ def test_anim_move_along_path_2d(
     )
     conn.animations.arm(a)
 
-    _update_label(conn, lbl, tid, "moving left→right")
+    stage.show("moving left→right")
     # Wait for a few frames then confirm position has moved from the start.
     time.sleep(0.1)
     mid_info = conn.stimuli.query(s)
@@ -604,7 +571,7 @@ def test_anim_move_along_path_2d(
         f"position should have advanced from start, got x={mid_info.pos_px.x}"
     )
 
-    time.sleep(step_delay * 2)
+    stage.hold(2)
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=5.0)
     assert final == AnimationState.DONE, (
@@ -620,15 +587,15 @@ def test_anim_move_along_path_2d(
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_move_along_segments_2d(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-16",
+    "a blue 50×50 px square tracing a triangle at a steady 400 px/s and "
+    "disappearing when it gets back to the corner it started from",
+)
+def test_anim_move_along_segments_2d(conn: Connection, stage: Stage) -> None:
     """MoveAlongSegments2D moves at constant pixel-per-second speed along waypoints."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "rect moving along triangle at 400 px/s")
     s = conn.stimuli.shapes.create_rect(
         position_px=Vec2(-200, -100),
         params=RectParams(
@@ -649,7 +616,7 @@ def test_anim_move_along_segments_2d(
     )
     conn.animations.arm(a)
 
-    _update_label(conn, lbl, tid, "moving along triangle")
+    stage.show("moving along triangle")
     # Wait a short time and confirm the stimulus has left the starting position.
     time.sleep(0.15)
     mid_info = conn.stimuli.query(s)
@@ -657,7 +624,7 @@ def test_anim_move_along_segments_2d(
         f"position should have moved from start, got x={mid_info.pos_px.x}"
     )
 
-    time.sleep(step_delay * 3)
+    stage.hold(3)
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=10.0)
     assert final == AnimationState.DONE, (
@@ -675,15 +642,16 @@ def test_anim_move_along_segments_2d(
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_final_action_restore_visibility(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-17",
+    "a red square above centre, on while a 20-frame flash runs and hidden "
+    "again afterwards — RESTORE_VISIBILITY puts back the state it had "
+    "before",
+)
+def test_anim_final_action_restore_visibility(conn: Connection, stage: Stage) -> None:
     """RESTORE_VISIBILITY final action returns stimulus to its pre-animation enabled state."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "flash — restore_visibility restores disabled rect")
     s = _make_rect(conn, x=0, y=150, enabled=False)
 
     a = conn.animations.create_flash(
@@ -696,8 +664,7 @@ def test_anim_final_action_restore_visibility(
         "stimulus should be enabled while flash is running"
     )
 
-    _update_label(conn, lbl, tid, "rect ON (flash running)")
-    time.sleep(step_delay)
+    stage.step("rect ON (flash running)")
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=3.0)
     assert final == AnimationState.DONE
@@ -706,20 +673,20 @@ def test_anim_final_action_restore_visibility(
         "RESTORE_VISIBILITY should restore pre-animation disabled state"
     )
 
-    _update_label(conn, lbl, tid, "rect OFF (restored)")
-    time.sleep(step_delay)
+    stage.step("rect OFF (restored)")
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_final_action_trigger_line(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-18",
+    "a red square below centre flashing for 15 frames; on completion it "
+    "pulses the named output line 'anim_done_out', which is checked over "
+    "the wire",
+)
+def test_anim_final_action_trigger_line(conn: Connection, stage: Stage) -> None:
     """FINAL_ACTION_TRIGGER_LINE fires an output bit on a named VTL line when the animation completes."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "flash fires VTL output on completion")
 
     conn.vtl.set_line_name(
         bank=0, bit=40, kind=VtlKind.OUTPUT, name="anim_done_out"
@@ -734,8 +701,7 @@ def test_anim_final_action_trigger_line(
     )
     conn.animations.arm(a)
 
-    _update_label(conn, lbl, tid, "flash running — output fires at end")
-    time.sleep(step_delay)
+    stage.step("flash running — output fires at end")
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=3.0)
     assert final == AnimationState.DONE
@@ -745,16 +711,19 @@ def test_anim_final_action_trigger_line(
         "output line should be registered"
     )
 
-    _update_label(conn, lbl, tid, "done — output pulsed")
-    time.sleep(step_delay)
+    stage.step("done — output pulsed")
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
     conn.vtl.set_line_name(bank=0, bit=40, kind=VtlKind.OUTPUT, name="")
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_list_and_query(conn: Connection) -> None:
+@pytest.mark.onscreen(
+    "ANIM-19",
+    "nothing visible: two disabled squares above centre carry a flash and a "
+    "flicker, and the server lists both with their names and IDLE state",
+)
+def test_anim_list_and_query(conn: Connection, stage: Stage) -> None:
     """list() and query() return accurate metadata for all active animations."""
     s1 = _make_rect(conn, x=-100, y=200, enabled=False)
     s2 = _make_rect(conn, x=100, y=200, enabled=False)
@@ -781,18 +750,20 @@ def test_anim_list_and_query(conn: Connection) -> None:
     assert details.state == AnimationState.IDLE
     assert s1 in details.stimuli
 
+    stage.hold(0.5)
     conn.animations.delete(a1)
     conn.animations.delete(a2)
     conn.stimuli.delete(s1)
     conn.stimuli.delete(s2)
 
 
-def test_anim_flash_with_grating(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-20",
+    "a 200×200 px grating in the centre switched on by a flash for 40 "
+    "frames and off again — animations drive gratings, not just rects",
+)
+def test_anim_flash_with_grating(conn: Connection, stage: Stage) -> None:
     """Flash works with grating stimuli (not just rects)."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "grating enabled by flash")
     g = conn.stimuli.grating.create_grating(
         position_px=Vec2(0, 0),
         params=GratingParams(width_px=200, height_px=200, sf_cycles_per_px=0.04, contrast=0.9),
@@ -807,8 +778,7 @@ def test_anim_flash_with_grating(
     time.sleep(0.05)
     assert conn.stimuli.query(g).enabled is True
 
-    _update_label(conn, lbl, tid, "grating ON (flash)")
-    time.sleep(step_delay)
+    stage.step("grating ON (flash)")
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=3.0)
     assert final == AnimationState.DONE
@@ -816,15 +786,15 @@ def test_anim_flash_with_grating(
 
     conn.animations.delete(a)
     conn.stimuli.delete(g)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_multiple_stimuli(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-21",
+    "three red squares in a row below centre, switched on and off together "
+    "by one flash animation driving all three",
+)
+def test_anim_multiple_stimuli(conn: Connection, stage: Stage) -> None:
     """Flash can control multiple stimuli at once."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "three rects flashed together")
     stimuli = [_make_rect(conn, x=x, y=-50, enabled=False) for x in (-200, 0, 200)]
 
     a = conn.animations.create_flash(
@@ -836,8 +806,7 @@ def test_anim_multiple_stimuli(
     for s in stimuli:
         assert conn.stimuli.query(s).enabled is True, "all three stimuli should be ON"
 
-    _update_label(conn, lbl, tid, "three rects ON simultaneously")
-    time.sleep(step_delay)
+    stage.step("three rects ON simultaneously")
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=3.0)
     assert final == AnimationState.DONE
@@ -849,15 +818,15 @@ def test_anim_multiple_stimuli(
     conn.animations.delete(a)
     for s in stimuli:
         conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_start_action_enable(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-22",
+    "a red square above centre switched on by the animation's start action "
+    "and switched off again by its final action",
+)
+def test_anim_start_action_enable(conn: Connection, stage: Stage) -> None:
     """StartAction.ENABLE enables stimuli when animation starts; FinalAction.DISABLE disables on completion."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "start_action=ENABLE, final=DISABLE")
     s = _make_rect(conn, x=0, y=150, enabled=False)
 
     # Stimulus starts disabled — start_action enables it; DISABLE final_action turns it off at the end.
@@ -876,8 +845,7 @@ def test_anim_start_action_enable(
         "StartAction.ENABLE should enable stimulus at start"
     )
 
-    _update_label(conn, lbl, tid, "rect ON (start_action enabled it)")
-    time.sleep(step_delay)
+    stage.step("rect ON (start_action enabled it)")
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=3.0)
     assert final == AnimationState.DONE
@@ -888,20 +856,21 @@ def test_anim_start_action_enable(
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_moving_bar_rf_mapping(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-23",
+    "the classic RF-mapping sweep: a narrow white 20×400 px bar appears at "
+    "the left edge, crosses the screen at 400 px/s and vanishes on the "
+    "right",
+)
+def test_anim_moving_bar_rf_mapping(conn: Connection, stage: Stage) -> None:
     """RF-mapping pattern: a bar sweeps across the screen, enabled at start and disabled at end.
 
     This is the canonical receptive field mapping stimulus: a narrow vertical bar
     hidden until the animation fires, sweeps left-to-right at constant speed, and
     disappears automatically on completion.
     """
-    tid = request.node.name
-    lbl = _label(conn, tid, "RF-mapping bar: hidden→sweep L→R→hidden")
 
     # Narrow vertical bar, initially disabled (will be enabled by start_action).
     bar = conn.stimuli.shapes.create_rect(
@@ -935,8 +904,7 @@ def test_anim_moving_bar_rf_mapping(
     )
     assert info.pos_px.x > -400.0, f"bar should have started moving, got x={info.pos_px.x}"
 
-    _update_label(conn, lbl, tid, "bar sweeping left→right")
-    time.sleep(step_delay * 2)
+    stage.step("bar sweeping left→right", hold=2)
 
     final = _wait_for_state(conn, a, AnimationState.DONE, timeout=6.0)
     assert final == AnimationState.DONE, (
@@ -952,15 +920,18 @@ def test_anim_moving_bar_rf_mapping(
         "bar should be disabled by FinalAction.DISABLE after sweep"
     )
 
-    _update_label(conn, lbl, tid, "bar done — hidden again")
-    time.sleep(step_delay)
+    stage.step("bar done — hidden again")
 
     conn.animations.delete(a)
     conn.stimuli.delete(bar)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_external_position_2d_is_refused(conn: Connection) -> None:
+@pytest.mark.onscreen(
+    "ANIM-24",
+    "a plain white rect and nothing else: driving a stimulus from shared "
+    "memory is refused by the server rather than silently doing nothing",
+)
+def test_anim_external_position_2d_is_refused(conn: Connection, stage: Stage) -> None:
     """Unimplemented, and refused rather than silently doing nothing (#84).
 
     The server never opens the shared-memory segment, so accepting this would arm
@@ -970,16 +941,18 @@ def test_anim_external_position_2d_is_refused(conn: Connection) -> None:
     s = conn.stimuli.shapes.create_rect()
     with pytest.raises(NotSupportedError):
         conn.animations.create_external_position_2d(s, shm_name="/vstimd_test_ext_pos")
+    stage.hold(0.5)
     conn.stimuli.delete(s)
 
 
-def test_anim_output_edge_chaining(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-25",
+    "two red squares either side of centre: the left one flashes briefly, "
+    "and its completion pulse on output (0,20) sets the right one flashing",
+)
+def test_anim_output_edge_chaining(conn: Connection, stage: Stage) -> None:
     """Animation A pulses an output line on completion; animation B starts off
     that OUTPUT edge — chaining entirely inside the server, no input loopback."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "A finishes → pulses output (0,20) → B starts")
     sa = _make_rect(conn, x=-150, y=0, enabled=False)
     sb = _make_rect(conn, x=150, y=0, enabled=False)
 
@@ -1014,24 +987,24 @@ def test_anim_output_edge_chaining(
         f"B should start off A's output edge (got {started!r})"
     )
 
-    _update_label(conn, lbl, tid, "B started from A's output edge")
-    time.sleep(step_delay * 0.5)
+    stage.step("B started from A's output edge", hold=0.5)
 
     _wait_for_state(conn, b, AnimationState.DONE, timeout=3.0)
     conn.animations.delete(a)
     conn.animations.delete(b)
     conn.stimuli.delete(sa)
     conn.stimuli.delete(sb)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_output_edge_cancel_chaining(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-26",
+    "two red squares either side of centre: the right one is on "
+    "indefinitely until the left one finishes and its output pulse (0,21) "
+    "cancels it",
+)
+def test_anim_output_edge_cancel_chaining(conn: Connection, stage: Stage) -> None:
     """Animation A pulses an output line on completion; a long-running animation
     B is cancelled off that OUTPUT edge — interlock entirely inside the server."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "A finishes → pulses output (0,21) → B cancelled")
     sa = _make_rect(conn, x=-150, y=0, enabled=False)
     sb = _make_rect(conn, x=150, y=0, enabled=False)
 
@@ -1061,8 +1034,7 @@ def test_anim_output_edge_cancel_chaining(
     _wait_for_state(conn, b, AnimationState.RUNNING, timeout=2.0)
     assert conn.stimuli.query(sb).enabled is True, "B visible while running"
 
-    _update_label(conn, lbl, tid, "B running — A about to finish")
-    time.sleep(step_delay)
+    stage.step("B running — A about to finish")
 
     # A completes; its output pulse cancels B one frame later (DISABLE teardown).
     assert _wait_for_state(conn, a, AnimationState.DONE, timeout=3.0) == AnimationState.DONE
@@ -1070,22 +1042,21 @@ def test_anim_output_edge_cancel_chaining(
     time.sleep(0.05)
     assert conn.stimuli.query(sb).enabled is False, "B ran DISABLE cancel teardown"
 
-    _update_label(conn, lbl, tid, "B cancelled by A's output edge")
-    time.sleep(step_delay * 0.5)
+    stage.step("B cancelled by A's output edge", hold=0.5)
 
     conn.animations.delete(a)
     conn.animations.delete(b)
     conn.stimuli.delete(sa)
     conn.stimuli.delete(sb)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_output_edge_fan_out(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-27",
+    "three red squares in a row: the left one flashes, and its single "
+    "output pulse (0,22) starts the middle and right ones together",
+)
+def test_anim_output_edge_fan_out(conn: Connection, stage: Stage) -> None:
     """One output edge starts several animations at once (fan-out)."""
-    tid = request.node.name
-    lbl = _label(conn, tid, "A finishes → output (0,22) → B and C start")
     sa = _make_rect(conn, x=-200, y=0, enabled=False)
     sb = _make_rect(conn, x=0, y=0, enabled=False)
     sc = _make_rect(conn, x=200, y=0, enabled=False)
@@ -1121,8 +1092,7 @@ def test_anim_output_edge_fan_out(
             f"follower {f} should start off A's output edge (got {started!r})"
         )
 
-    _update_label(conn, lbl, tid, "B and C started from one output edge")
-    time.sleep(step_delay * 0.5)
+    stage.step("B and C started from one output edge", hold=0.5)
 
     for f in followers:
         _wait_for_state(conn, f, AnimationState.DONE, timeout=3.0)
@@ -1131,7 +1101,6 @@ def test_anim_output_edge_fan_out(
     conn.stimuli.delete(sa)
     conn.stimuli.delete(sb)
     conn.stimuli.delete(sc)
-    conn.stimuli.delete(lbl)
 
 
 def _line_high(conn: Connection, name: str) -> bool:
@@ -1157,16 +1126,18 @@ def _wait_line(conn: Connection, name: str, want: bool, timeout: float = 4.0) ->
     return _line_high(conn, name)
 
 
-def test_anim_flash_rearm_fires_on_every_trigger_edge(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-28",
+    "a red square right of centre flashing once per trigger edge, three "
+    "trials in a row — REARM puts the animation back on watch after each "
+    "run",
+)
+def test_anim_flash_rearm_fires_on_every_trigger_edge(conn: Connection, stage: Stage) -> None:
     """REARM returns a triggered flash to ARMED, so each edge fires it again.
 
     Without REARM the animation lands in DONE after the first edge and ignores
     every later one — the whole trial sequence stops after trial 1.
     """
-    tid = request.node.name
-    lbl = _label(conn, tid, "flash re-arms after each trigger")
     s = _make_rect(conn, x=150, y=0, enabled=False)
 
     # Long enough that a poll cannot step over the whole run: the wait below has
@@ -1196,24 +1167,25 @@ def test_anim_flash_rearm_fires_on_every_trigger_edge(
         # Runs, then re-arms rather than finishing in DONE.
         back = _wait_for_state(conn, a, AnimationState.ARMED, timeout=4.0)
         assert back == AnimationState.ARMED, f"trial {trial}: did not re-arm"
-        _update_label(conn, lbl, tid, f"trial {trial + 1} fired, re-armed")
-        time.sleep(step_delay / 3)
+        stage.show(f"trial {trial + 1} fired, re-armed")
+        stage.hold(0.33)
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
 
 
-def test_anim_done_level_holds_until_next_start(
-    conn: Connection, request: pytest.FixtureRequest, step_delay: float
-) -> None:
+@pytest.mark.onscreen(
+    "ANIM-29",
+    "a red square left of centre flashing on each trigger edge; the "
+    "checking is on output line 'e2e_done_level', which stays high between "
+    "runs",
+)
+def test_anim_done_level_holds_until_next_start(conn: Connection, stage: Stage) -> None:
     """DONE_LEVEL is the sticky counterpart to the one-frame completion pulse.
 
     It answers "has this run finished?" at any time, and clears when the
     animation next starts so each run answers for itself.
     """
-    tid = request.node.name
-    lbl = _label(conn, tid, "done-level holds after completion")
     s = _make_rect(conn, x=-150, y=0, enabled=False)
 
     # Name the line so its level can be read back through list_lines().
@@ -1242,8 +1214,7 @@ def test_anim_done_level_holds_until_next_start(
     # rather than a mark.
     time.sleep(0.2)
     assert _line_high(conn, "e2e_done_level"), "level did not hold after completion"
-    _update_label(conn, lbl, tid, "finished — level HIGH")
-    time.sleep(step_delay / 2)
+    stage.step("finished — level HIGH", hold=0.5)
 
     # Starting again clears it.
     conn.vtl.set_line(VtlHandle.input(0, 13), True)
@@ -1253,5 +1224,4 @@ def test_anim_done_level_holds_until_next_start(
     _wait_for_state(conn, a, AnimationState.ARMED, timeout=4.0)
     conn.animations.delete(a)
     conn.stimuli.delete(s)
-    conn.stimuli.delete(lbl)
     conn.vtl.set_line_name(0, 21, VtlKind.OUTPUT, "")
