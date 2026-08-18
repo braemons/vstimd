@@ -25,7 +25,7 @@ from vstimd.stimuli import Vec2, Color
 conn.system.set_deferred_mode(active=True)
 
 conn.stimuli.set_enabled(h1, True)
-conn.stimuli.set_position(h2, pos=Vec2(100, 0))
+conn.stimuli.set_position(h2, pos_px=Vec2(100, 0))
 conn.stimuli.set_fill_color(h3, color=Color(1.0, 0.0, 0.0))
 
 conn.system.set_deferred_mode(active=False)   # commit — all three appear on same frame

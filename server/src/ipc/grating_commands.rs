@@ -41,10 +41,10 @@ impl SceneState {
 
     pub(super) fn cmd_create_grating(&mut self, cmd: proto::CreateGratingRequest) -> proto::Response {
         let params = cmd.params.unwrap_or_default();
-        let width = if params.width == 0.0 { 200.0 } else { params.width };
-        let height = if params.height == 0.0 { 200.0 } else { params.height };
+        let width_px = if params.width_px == 0.0 { 200.0 } else { params.width_px };
+        let height_px = if params.height_px == 0.0 { 200.0 } else { params.height_px };
         // The rotation is the stripe orientation — see CreateGratingRequest.placement.
-        let (pos, angle) = placement_from_proto(cmd.placement);
+        let (pos_px, angle_deg) = placement_from_proto(cmd.placement);
         let grating_params = grating_params_from_proto(&params);
         let identity = identity_from_proto(cmd.identity);
         let id = identity.id;
@@ -53,7 +53,7 @@ impl SceneState {
             handle,
             StimulusSceneEntry::new(
                 identity,
-                Stimulus::from(Grating::new(pos, angle, [width, height], grating_params)),
+                Stimulus::from(Grating::new(pos_px, angle_deg, [width_px, height_px], grating_params)),
             ),
         );
         ok_handle_with_id(handle, &id)
@@ -67,7 +67,7 @@ impl SceneState {
         cmd: proto::SetGratingPhaseRequest,
     ) -> proto::Response {
         self.with_grating(handle, "SetGratingPhase", |s, deferred| {
-            s.set_phase(deferred, cmd.phase);
+            s.set_phase(deferred, cmd.phase_cycles);
         })
     }
 
@@ -77,7 +77,7 @@ impl SceneState {
         cmd: proto::SetGratingSfRequest,
     ) -> proto::Response {
         self.with_grating(handle, "SetGratingSf", |s, deferred| {
-            s.set_sf(deferred, cmd.sf);
+            s.set_sf(deferred, cmd.sf_cycles_per_px);
         })
     }
 
@@ -117,7 +117,7 @@ impl SceneState {
         cmd: proto::SetGratingDriftSpeedRequest,
     ) -> proto::Response {
         self.with_grating(handle, "SetGratingDriftSpeed", |s, deferred| {
-            s.set_drift_speed(deferred, cmd.speed);
+            s.set_drift_speed(deferred, cmd.speed_hz);
         })
     }
 
@@ -137,7 +137,7 @@ impl SceneState {
         cmd: proto::SetGratingDriftAngleRequest,
     ) -> proto::Response {
         self.with_grating(handle, "SetGratingDriftAngle", |s, deferred| {
-            s.set_drift_angle(deferred, cmd.angle_deg);
+            s.set_drift_angle(deferred, cmd.drift_angle_deg);
         })
     }
 

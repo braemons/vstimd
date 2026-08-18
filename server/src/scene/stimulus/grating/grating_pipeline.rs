@@ -9,8 +9,8 @@ use crate::render::vk::VkMesh;
 ///   offset  0: screen_half     [f32; 2]
 ///   offset  8: center_px       [f32; 2]
 ///   offset 16: half_size       [f32; 2]
-///   offset 24: sf              f32
-///   offset 28: phase           f32
+///   offset 24: sf_cycles_per_px              f32
+///   offset 28: phase_cycles           f32
 ///   offset 32: ori_rad         f32
 ///   offset 36: contrast        f32
 ///   offset 40: global_opacity  f32      ← global alpha multiplier
@@ -27,8 +27,8 @@ pub struct GratingPushConstants {
     pub screen_half: [f32; 2],
     pub center_px: [f32; 2],
     pub half_size: [f32; 2],
-    pub sf: f32,
-    pub phase: f32,
+    pub sf_cycles_per_px: f32,
+    pub phase_cycles: f32,
     pub ori_rad: f32,
     pub contrast: f32,
     pub global_opacity: f32,

@@ -19,7 +19,7 @@ export function App() {
         </span>
         {info && (
           <span style={{ color: "#888" }}>
-            {info.width}×{info.height} @ {info.frameRate.toFixed(0)} Hz · v{info.version}
+            {info.widthPx}×{info.heightPx} @ {info.frameRateHz.toFixed(0)} Hz · v{info.version}
           </span>
         )}
       </header>

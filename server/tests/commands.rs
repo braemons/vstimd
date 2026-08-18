@@ -78,10 +78,10 @@ fn test_create_rect() {
         sys(),
         proto::CreateRectRequest {
             placement: Some(proto::Transform2D {
-                pos: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
+                pos_px: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
                 rotation_deg: 0.0,
             }),
-            params: Some(proto::RectParams { width: 200.0, height: 100.0, ..Default::default() }),
+            params: Some(proto::RectParams { width_px: 200.0, height_px: 100.0, ..Default::default() }),
             ..Default::default()
         },
     ), None);
@@ -98,10 +98,10 @@ fn test_create_rect_with_fill() {
     let resp = scene.handle_request(create_rect_req(
         sys(),
         proto::CreateRectRequest {
-            placement: Some(proto::Transform2D { pos: None, rotation_deg: 0.0 }),
+            placement: Some(proto::Transform2D { pos_px: None, rotation_deg: 0.0 }),
             params: Some(proto::RectParams {
-                width: 0.0,
-                height: 0.0,
+                width_px: 0.0,
+                height_px: 0.0,
                 appearance: Some(proto::ShapeAppearance { fill_color: Some(fill), ..Default::default() })
             }),
             ..Default::default()
@@ -124,8 +124,8 @@ fn test_create_rect_defaults() {
     let resp = scene.handle_request(create_rect_req(
         sys(),
         proto::CreateRectRequest {
-            placement: Some(proto::Transform2D { pos: None, rotation_deg: 0.0 }),
-            params: Some(proto::RectParams { width: 0.0, height: 0.0, ..Default::default() }),
+            placement: Some(proto::Transform2D { pos_px: None, rotation_deg: 0.0 }),
+            params: Some(proto::RectParams { width_px: 0.0, height_px: 0.0, ..Default::default() }),
             ..Default::default()
         },
     ), None);
@@ -135,8 +135,8 @@ fn test_create_rect_defaults() {
 
     assert_eq!(entry.stimulus.type_name(), "Rect");
     let r = entry.stimulus.shape().expect("expected Rect stimulus");
-    // width=0 → server default 100
-    assert_eq!(r.geometry.live.size(), Some([100.0, 100.0]));
+    // width_px=0 → server default 100
+    assert_eq!(r.geometry.live.size_px(), Some([100.0, 100.0]));
     assert_eq!(r.appearance.live.fill_color, default_fill);
 }
 
@@ -215,12 +215,12 @@ fn test_proto_roundtrip() {
         target: Some(sys()),
         body: Some(request::Body::CreateRect(proto::CreateRectRequest {
                                                  placement: Some(proto::Transform2D {
-                                                     pos: Some(proto::Vec2 { x: 1.0, y: 2.0 }),
+                                                     pos_px: Some(proto::Vec2 { x: 1.0, y: 2.0 }),
                                                      rotation_deg: 0.0,
                                                  }),
                                                  params: Some(proto::RectParams {
-                                                     width: 50.0,
-                                                     height: 30.0,
+                                                     width_px: 50.0,
+                                                     height_px: 30.0,
                                                      appearance: Some(proto::ShapeAppearance { fill_color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }), ..Default::default() })
                                                  }),
                                                  ..Default::default()
@@ -232,7 +232,7 @@ fn test_proto_roundtrip() {
 
     if let Some(request::Body::CreateRect(c)) = decoded.body {
         let params = c.params.expect("params survive the round trip");
-        assert_eq!(params.width, 50.0);
+        assert_eq!(params.width_px, 50.0);
         assert_eq!(params.appearance.unwrap().fill_color.unwrap().r, 1.0);
     } else {
         panic!("unexpected body variant");
@@ -246,12 +246,12 @@ fn test_create_ellipse() {
         target: Some(sys()),
         body: Some(request::Body::CreateEllipse(proto::CreateEllipseRequest {
                                                     placement: Some(proto::Transform2D {
-                                                        pos: Some(proto::Vec2 { x: 0.0, y: 0.0 }),
+                                                        pos_px: Some(proto::Vec2 { x: 0.0, y: 0.0 }),
                                                         rotation_deg: 45.0,
                                                     }),
                                                     params: Some(proto::EllipseParams {
-                                                        width: 120.0,
-                                                        height: 60.0,
+                                                        width_px: 120.0,
+                                                        height_px: 60.0,
                                                         appearance: Some(proto::ShapeAppearance { fill_color: Some(proto::Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0 }), ..Default::default() })
                                                     }),
                                                     ..Default::default()
@@ -263,8 +263,8 @@ fn test_create_ellipse() {
     let stim = &scene.stimuli[&h].stimulus;
     assert_eq!(stim.type_name(), "Ellipse");
     let e = stim.shape().expect("expected Ellipse stimulus");
-    assert_eq!(e.geometry.live.size(), Some([120.0, 60.0]));
-    assert_eq!(e.transform.live.angle, 45.0);
+    assert_eq!(e.geometry.live.size_px(), Some([120.0, 60.0]));
+    assert_eq!(e.transform.live.angle_deg, 45.0);
 }
 
 #[test]
@@ -275,7 +275,7 @@ fn test_set_position() {
         .handle as u32;
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
-        body: Some(request::Body::SetPosition(proto::SetPositionRequest { x: 42.0, y: -7.0 })),
+        body: Some(request::Body::SetPosition(proto::SetPositionRequest { x_px: 42.0, y_px: -7.0 })),
     }, None);
     assert!(is_ok(&resp));
     assert_eq!(scene.stimuli[&h].stimulus.get_pos_2d(), Some([42.0, -7.0]));
@@ -308,12 +308,12 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
 
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
-        body: Some(request::Body::SetPosition(proto::SetPositionRequest { x: 15.0, y: 25.0 })),
+        body: Some(request::Body::SetPosition(proto::SetPositionRequest { x_px: 15.0, y_px: 25.0 })),
     }, None);
     assert!(is_ok(&resp));
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
-        body: Some(request::Body::SetOrientation(proto::SetOrientationRequest { angle_deg: 30.0 })),
+        body: Some(request::Body::SetRotation(proto::SetRotationRequest { rotation_deg: 30.0 })),
     }, None);
     assert!(is_ok(&resp));
     let resp = scene.handle_request(proto::Request {
@@ -344,15 +344,15 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     assert!(is_ok(&resp));
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
-        body: Some(request::Body::SetOutlineWidth(proto::SetOutlineWidthRequest { line_width: 7.0 })),
+        body: Some(request::Body::SetOutlineWidth(proto::SetOutlineWidthRequest { line_width_px: 7.0 })),
     }, None);
     assert!(is_ok(&resp));
 
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos, [15.0, 25.0]);
-    assert_eq!(t.live.angle, 30.0);
+    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+    assert_eq!(t.live.angle_deg, 30.0);
 
     let app = stim.shape_appearance().expect("expected shape");
     // SetAlpha writes the shared opacity and leaves the fill's own alpha alone.
@@ -360,7 +360,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     assert_eq!(stim.opacity().live, 0.9);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert_eq!(app.live.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
-    assert_eq!(app.live.stroke_width, 7.0);
+    assert_eq!(app.live.stroke_width_px, 7.0);
     assert!(stim.flags().dirty);
 }
 
@@ -373,12 +373,12 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
 
     let stim_obj = &mut scene.stimuli.get_mut(&h).unwrap().stimulus;
     stim_obj.transform2d_mut().expect("expected 2-D stimulus").live =
-        vstimd::scene::Transform2D { pos: [1.0, 2.0], angle: 3.0 };
+        vstimd::scene::Transform2D { pos_px: [1.0, 2.0], angle_deg: 3.0 };
     {
         let app = stim_obj.shape_appearance_mut().expect("expected shape");
         app.live.fill_color = Color::new(0.11, 0.12, 0.13, 0.14);
         app.live.outline_color = Color::new(0.21, 0.22, 0.23, 0.24);
-        app.live.stroke_width = 2.5;
+        app.live.stroke_width_px = 2.5;
         app.live.draw_mode = vstimd::scene::DrawMode::FillAndStroke;
     }
     stim_obj.flags_mut().dirty = false;
@@ -389,12 +389,12 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
 
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
-        body: Some(request::Body::SetPosition(proto::SetPositionRequest { x: 15.0, y: 25.0 })),
+        body: Some(request::Body::SetPosition(proto::SetPositionRequest { x_px: 15.0, y_px: 25.0 })),
     }, None);
     assert!(is_ok(&resp));
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
-        body: Some(request::Body::SetOrientation(proto::SetOrientationRequest { angle_deg: 30.0 })),
+        body: Some(request::Body::SetRotation(proto::SetRotationRequest { rotation_deg: 30.0 })),
     }, None);
     assert!(is_ok(&resp));
     let resp = scene.handle_request(proto::Request {
@@ -425,28 +425,28 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     assert!(is_ok(&resp));
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
-        body: Some(request::Body::SetOutlineWidth(proto::SetOutlineWidthRequest { line_width: 7.0 })),
+        body: Some(request::Body::SetOutlineWidth(proto::SetOutlineWidthRequest { line_width_px: 7.0 })),
     }, None);
     assert!(is_ok(&resp));
 
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos, [1.0, 2.0]);
-    assert_eq!(t.live.angle, 3.0);
-    assert_eq!(t.copy.pos, [15.0, 25.0]);
-    assert_eq!(t.copy.angle, 30.0);
+    assert_eq!(t.live.pos_px, [1.0, 2.0]);
+    assert_eq!(t.live.angle_deg, 3.0);
+    assert_eq!(t.copy.pos_px, [15.0, 25.0]);
+    assert_eq!(t.copy.angle_deg, 30.0);
 
     let app = stim.shape_appearance().expect("expected shape");
     assert_eq!(app.live.fill_color, Color::new(0.11, 0.12, 0.13, 0.14));
     assert_eq!(app.live.outline_color, Color::new(0.21, 0.22, 0.23, 0.24));
-    assert_eq!(app.live.stroke_width, 2.5);
+    assert_eq!(app.live.stroke_width_px, 2.5);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::FillAndStroke);
     assert_eq!(app.copy.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
     assert_eq!(stim.opacity().copy, 0.9);
     assert_eq!(stim.opacity().live, 1.0, "opacity is staged, not live, in deferred mode");
     assert_eq!(app.copy.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
-    assert_eq!(app.copy.stroke_width, 7.0);
+    assert_eq!(app.copy.stroke_width_px, 7.0);
     assert!(app.copy.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert!(!stim.flags().dirty);
 
@@ -461,12 +461,12 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos, [15.0, 25.0]);
-    assert_eq!(t.live.angle, 30.0);
+    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+    assert_eq!(t.live.angle_deg, 30.0);
     let app = stim.shape_appearance().expect("expected shape");
     assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
     assert_eq!(app.live.outline_color, Color::new(0.8, 0.7, 0.6, 0.5));
-    assert_eq!(app.live.stroke_width, 7.0);
+    assert_eq!(app.live.stroke_width_px, 7.0);
     assert!(app.live.draw_mode == vstimd::scene::DrawMode::Stroke);
     assert_eq!(stim.opacity().live, 0.9, "the staged opacity flipped with the rest");
     assert!(stim.flags().dirty);
@@ -481,13 +481,13 @@ fn test_set_rect_size() {
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
         body: Some(request::Body::SetRectSize(proto::SetRectSizeRequest {
-            width: 80.0,
-            height: 40.0,
+            width_px: 80.0,
+            height_px: 40.0,
         })),
     }, None);
     assert!(is_ok(&resp));
     let r = scene.stimuli[&h].stimulus.shape().expect("expected Rect");
-    assert_eq!(r.geometry.live.size(), Some([80.0, 40.0]));
+    assert_eq!(r.geometry.live.size_px(), Some([80.0, 40.0]));
 }
 
 #[test]
@@ -499,7 +499,7 @@ fn test_set_rect_size_wrong_type() {
     }, None).handle as u32;
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
-        body: Some(request::Body::SetRectSize(proto::SetRectSizeRequest { width: 50.0, height: 50.0 })),
+        body: Some(request::Body::SetRectSize(proto::SetRectSizeRequest { width_px: 50.0, height_px: 50.0 })),
     }, None);
     assert!(!is_ok(&resp));
     assert_eq!(resp.code, proto::ErrorCode::WrongStimulusType as i32);
@@ -512,12 +512,12 @@ fn test_query_stimulus() {
         target: Some(sys()),
         body: Some(request::Body::CreateRect(proto::CreateRectRequest {
                                                  placement: Some(proto::Transform2D {
-                                                     pos: Some(proto::Vec2 { x: 5.0, y: 10.0 }),
+                                                     pos_px: Some(proto::Vec2 { x: 5.0, y: 10.0 }),
                                                      rotation_deg: 0.0,
                                                  }),
                                                  params: Some(proto::RectParams {
-                                                     width: 200.0,
-                                                     height: 100.0,
+                                                     width_px: 200.0,
+                                                     height_px: 100.0,
                                                      appearance: Some(proto::ShapeAppearance { fill_color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }), ..Default::default() })
                                                  }),
                                                  ..Default::default()
@@ -533,12 +533,12 @@ fn test_query_stimulus() {
     if let Some(proto::response::Body::StimulusInfo(info)) = resp.body {
         assert_eq!(info.stimulus_type, proto::StimulusType::Rect as i32);
         assert!(info.enabled);
-        let pos = placement_2d(&info).pos.unwrap();
-        assert_eq!(pos.x, 5.0);
-        assert_eq!(pos.y, 10.0);
+        let pos_px = placement_2d(&info).pos_px.unwrap();
+        assert_eq!(pos_px.x, 5.0);
+        assert_eq!(pos_px.y, 10.0);
         if let Some(proto::stimulus_params::Shape::Rect(rp)) = info.params.unwrap().shape {
-            assert_eq!(rp.width, 200.0);
-            assert_eq!(rp.height, 100.0);
+            assert_eq!(rp.width_px, 200.0);
+            assert_eq!(rp.height_px, 100.0);
             // Appearance is shape state, reported with the shape's own params.
             assert_eq!(rp.appearance.unwrap().fill_color.unwrap().r, 1.0);
         } else {
@@ -661,14 +661,14 @@ fn test_create_text() {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
                                                  placement: Some(proto::Transform2D {
-                                                     pos: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
+                                                     pos_px: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
                                                      rotation_deg: 0.0,
                                                  }),
                                                  params: Some(proto::TextParams {
                                                      text: "hello".into(),
                                                      font: "Open Sans".into(),
-                                                     letter_height: 32.0,
-                                                     box_size: Some(proto::Vec2 { x: 400.0, y: 80.0 }),
+                                                     letter_height_px: 32.0,
+                                                     box_size_px: Some(proto::Vec2 { x: 400.0, y: 80.0 }),
                                                      anchor: "center".into(),
                                                      text_color: Some(proto::Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }),
                                                      ..Default::default()
@@ -685,8 +685,8 @@ fn test_create_text() {
     assert_eq!(t.text_live, "hello");
     assert_eq!(t.font_family, "Open Sans");
     assert_eq!(t.letter_height_px, 32.0);
-    assert_eq!(t.box_size.live, [400.0, 80.0]);
-    assert_eq!(t.transform.live.pos, [10.0, -20.0]);
+    assert_eq!(t.box_size_px.live, [400.0, 80.0]);
+    assert_eq!(t.transform.live.pos_px, [10.0, -20.0]);
     assert_eq!(t.params.live.color, Color::new(1.0, 1.0, 0.0, 1.0));
     assert_eq!(t.params.live.fill_color.a, 0.0); // transparent by default
 }
@@ -707,7 +707,7 @@ fn test_create_text_defaults() {
     assert!(is_ok(&resp), "unexpected error: {}", resp.error);
     let h = resp.handle as u32;
     let t = scene.stimuli[&h].stimulus.text().expect("expected Text stimulus");
-    assert_eq!(t.box_size.live, [200.0, 100.0]);
+    assert_eq!(t.box_size_px.live, [200.0, 100.0]);
     assert_eq!(t.letter_height_px, 32.0);
     assert_eq!(t.params.live.color, Color::WHITE); // white default
 }
@@ -811,14 +811,14 @@ fn test_query_text_stimulus() {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
                                                  placement: Some(proto::Transform2D {
-                                                     pos: Some(proto::Vec2 { x: 5.0, y: -10.0 }),
+                                                     pos_px: Some(proto::Vec2 { x: 5.0, y: -10.0 }),
                                                      rotation_deg: 0.0,
                                                  }),
                                                  params: Some(proto::TextParams {
                                                      text: "hello".into(),
                                                      font: "Cairo".into(),
-                                                     letter_height: 24.0,
-                                                     box_size: Some(proto::Vec2 { x: 300.0, y: 60.0 }),
+                                                     letter_height_px: 24.0,
+                                                     box_size_px: Some(proto::Vec2 { x: 300.0, y: 60.0 }),
                                                      anchor: "top-left".into(),
                                                      text_color: Some(proto::Color { r: 0.5, g: 0.5, b: 1.0, a: 1.0 }),
                                                      ..Default::default()
@@ -836,14 +836,14 @@ fn test_query_text_stimulus() {
     if let Some(proto::response::Body::StimulusInfo(info)) = resp.body {
         assert_eq!(info.stimulus_type, proto::StimulusType::Text as i32);
         assert!(info.enabled);
-        let pos = placement_2d(&info).pos.unwrap();
-        assert_eq!((pos.x, pos.y), (5.0, -10.0));
+        let pos_px = placement_2d(&info).pos_px.unwrap();
+        assert_eq!((pos_px.x, pos_px.y), (5.0, -10.0));
         if let Some(proto::stimulus_params::Shape::Text(tp)) = info.params.unwrap().shape {
             assert_eq!(tp.text, "hello");
             assert_eq!(tp.font, "Cairo");
-            assert_eq!(tp.letter_height, 24.0);
+            assert_eq!(tp.letter_height_px, 24.0);
             assert_eq!(tp.anchor, "top-left");
-            let size = tp.box_size.unwrap();
+            let size = tp.box_size_px.unwrap();
             assert_eq!((size.x, size.y), (300.0, 60.0));
         } else {
             panic!("expected Text params");
@@ -1272,7 +1272,7 @@ fn test_query_reports_shared_opacity() {
 
 // ── Sizes are full extents, end to end ────────────────────────────────────────
 
-/// Every create command takes full width/height and the scene stores exactly
+/// Every create command takes full width_px/height_px and the scene stores exactly
 /// that, with no halving anywhere in between. This is the invariant the v3
 /// config format rests on, and it was missing for gratings — CreateGrating kept
 /// halving into the scene while the query multiplied back, so the wire looked
@@ -1285,21 +1285,21 @@ fn test_create_stores_full_extents() {
         .handle_request(create_rect_req(
             sys(),
             proto::CreateRectRequest {
-                params: Some(proto::RectParams { width: 200.0, height: 100.0, ..Default::default() }),
+                params: Some(proto::RectParams { width_px: 200.0, height_px: 100.0, ..Default::default() }),
                 ..Default::default()
             },
         ), None)
         .handle as u32;
     let r = scene.stimuli[&h].stimulus.shape().expect("expected Rect");
-    assert_eq!(r.geometry.live.size(), Some([200.0, 100.0]));
+    assert_eq!(r.geometry.live.size_px(), Some([200.0, 100.0]));
 
     let h = scene
         .handle_request(proto::Request {
             target: Some(sys()),
             body: Some(request::Body::CreateEllipse(proto::CreateEllipseRequest {
                                                         params: Some(proto::EllipseParams {
-                                                            width: 300.0,
-                                                            height: 120.0,
+                                                            width_px: 300.0,
+                                                            height_px: 120.0,
                                                             ..Default::default()
                                                         }),
                                                         ..Default::default()
@@ -1307,15 +1307,15 @@ fn test_create_stores_full_extents() {
         }, None)
         .handle as u32;
     let e = scene.stimuli[&h].stimulus.shape().expect("expected Ellipse");
-    assert_eq!(e.geometry.live.size(), Some([300.0, 120.0]));
+    assert_eq!(e.geometry.live.size_px(), Some([300.0, 120.0]));
 
     let h = scene
         .handle_request(proto::Request {
             target: Some(sys()),
             body: Some(request::Body::CreateGrating(proto::CreateGratingRequest {
                                                         params: Some(proto::GratingParams {
-                                                            width: 400.0,
-                                                            height: 250.0,
+                                                            width_px: 400.0,
+                                                            height_px: 250.0,
                                                             ..Default::default()
                                                         }),
                                                         ..Default::default()
@@ -1323,7 +1323,7 @@ fn test_create_stores_full_extents() {
         }, None)
         .handle as u32;
     let g = scene.stimuli[&h].stimulus.grating().expect("expected Grating");
-    assert_eq!(g.size.live, [400.0, 250.0]);
+    assert_eq!(g.size_px.live, [400.0, 250.0]);
 }
 
 /// …and a query reports the same numbers the create took, for every sized type.
@@ -1335,14 +1335,14 @@ fn test_query_reports_the_size_that_was_asked_for() {
             "rect",
             request::Body::CreateRect(proto::CreateRectRequest {
                                           params: Some(proto::RectParams {
-                                              width: 200.0,
-                                              height: 100.0,
+                                              width_px: 200.0,
+                                              height_px: 100.0,
                                               ..Default::default()
                                           }),
                                           ..Default::default()
                                       }),
             |p| match p.shape.as_ref().unwrap() {
-                proto::stimulus_params::Shape::Rect(r) => (r.width, r.height),
+                proto::stimulus_params::Shape::Rect(r) => (r.width_px, r.height_px),
                 _ => panic!("wrong params type"),
             },
         ),
@@ -1350,14 +1350,14 @@ fn test_query_reports_the_size_that_was_asked_for() {
             "ellipse",
             request::Body::CreateEllipse(proto::CreateEllipseRequest {
                                              params: Some(proto::EllipseParams {
-                                                 width: 200.0,
-                                                 height: 100.0,
+                                                 width_px: 200.0,
+                                                 height_px: 100.0,
                                                  ..Default::default()
                                              }),
                                              ..Default::default()
                                          }),
             |p| match p.shape.as_ref().unwrap() {
-                proto::stimulus_params::Shape::Ellipse(e) => (e.width, e.height),
+                proto::stimulus_params::Shape::Ellipse(e) => (e.width_px, e.height_px),
                 _ => panic!("wrong params type"),
             },
         ),
@@ -1365,14 +1365,14 @@ fn test_query_reports_the_size_that_was_asked_for() {
             "grating",
             request::Body::CreateGrating(proto::CreateGratingRequest {
                                              params: Some(proto::GratingParams {
-                                                 width: 200.0,
-                                                 height: 100.0,
+                                                 width_px: 200.0,
+                                                 height_px: 100.0,
                                                  ..Default::default()
                                              }),
                                              ..Default::default()
                                          }),
             |p| match p.shape.as_ref().unwrap() {
-                proto::stimulus_params::Shape::Grating(g) => (g.width, g.height),
+                proto::stimulus_params::Shape::Grating(g) => (g.width_px, g.height_px),
                 _ => panic!("wrong params type"),
             },
         ),
@@ -1410,14 +1410,14 @@ fn create_rect_accepts_a_full_appearance() {
         create_rect_req(
             sys(),
             proto::CreateRectRequest {
-                placement: Some(proto::Transform2D { pos: None, rotation_deg: 15.0 }),
+                placement: Some(proto::Transform2D { pos_px: None, rotation_deg: 15.0 }),
                 params: Some(proto::RectParams {
-                    width: 100.0,
-                    height: 50.0,
+                    width_px: 100.0,
+                    height_px: 50.0,
                     appearance: Some(proto::ShapeAppearance {
                     fill_color: Some(Color::new(0.1, 0.2, 0.3, 1.0).into()),
                     outline_color: Some(Color::new(0.9, 0.8, 0.7, 1.0).into()),
-                    outline_width: 6.0,
+                    outline_width_px: 6.0,
                     draw_mode: proto::ShapeDrawMode::FilledAndOutlined as i32,
                 })
                 }),
@@ -1432,17 +1432,17 @@ fn create_rect_accepts_a_full_appearance() {
     let app = stim.shape_appearance().expect("expected a shape").live;
     assert_eq!(app.fill_color, Color::new(0.1, 0.2, 0.3, 1.0));
     assert_eq!(app.outline_color, Color::new(0.9, 0.8, 0.7, 1.0));
-    assert_eq!(app.stroke_width, 6.0);
+    assert_eq!(app.stroke_width_px, 6.0);
     assert_eq!(app.draw_mode, vstimd::scene::DrawMode::FillAndStroke);
     // A rect can now be born rotated, as an ellipse always could.
     assert_eq!(
-        stim.transform2d().expect("2-D stimulus").live.angle,
+        stim.transform2d().expect("2-D stimulus").live.angle_deg,
         15.0
     );
 }
 
 /// Absent `appearance` must reproduce the pre-field behaviour exactly: fill from
-/// `fill_color`, outline from the scene default, stroke width and draw mode from
+/// `fill_color`, outline from the scene default, stroke width_px and draw mode from
 /// `ShapeAppearance::default()`.
 #[test]
 fn create_rect_without_appearance_is_unchanged() {
@@ -1469,7 +1469,7 @@ fn create_rect_without_appearance_is_unchanged() {
         .live;
     assert_eq!(app.fill_color, Color::new(1.0, 0.0, 0.0, 1.0));
     assert_eq!(app.outline_color, default_outline);
-    assert_eq!(app.stroke_width, 2.0);
+    assert_eq!(app.stroke_width_px, 2.0);
     assert_eq!(app.draw_mode, vstimd::scene::DrawMode::Fill);
 }
 
@@ -1504,5 +1504,5 @@ fn create_ellipse_appearance_fields_fall_back_individually() {
     assert_eq!(app.draw_mode, vstimd::scene::DrawMode::Stroke);
     assert_eq!(app.fill_color, default_fill, "fill should fall back");
     assert_eq!(app.outline_color, default_outline, "outline should fall back");
-    assert_eq!(app.stroke_width, 2.0, "width 0 means unset, not hairline");
+    assert_eq!(app.stroke_width_px, 2.0, "width_px 0 means unset, not hairline");
 }

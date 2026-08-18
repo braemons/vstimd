@@ -44,6 +44,12 @@ See `docs/PLAN.md` for the full design and roadmap.
   `Kind` deliberately: it carries the stimulus data, and `Kind` reads as a synonym of
   `StimulusType` while being strictly coarser (all four shapes are one `Shape` arm).
   Never name a client-facing thing `kind`
+- **A quantity with a unit spells it in the name** — `width_px`, `rotation_deg`,
+  `drift_speed_hz`, `sf_cycles_per_px`, `position_cm` (3-D). This holds in the proto,
+  the scene, the config JSON and both clients, because the same name travels through
+  all four. Dimensionless quantities (`contrast`, `opacity`, `mask_param`, `*_frames`)
+  take no suffix, and the PsychoPy shim keeps PsychoPy's names (`pos`, `size`, `ori`,
+  `sf`). Rotation is `rotation_deg` everywhere — never `orientation`, never `angle`
 - The config format *is* the runtime shape (no DTO). Types owning runtime state
   (`StimulusFlags`, `Grating`, `Text`) hide it behind a `serde` impl delegating to an inner
   `*Config`; GPU resources never live in the scene tree at all

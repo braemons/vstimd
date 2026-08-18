@@ -17,9 +17,9 @@ export function StimuliPanel({ conn, snapshot }: Props) {
 
   async function addRect() {
     await conn?.stimuli.shapes.createRect({
-      pos: { x: 0, y: 0 },
-      width: 120,
-      height: 80,
+      posPx: { x: 0, y: 0 },
+      widthPx: 120,
+      heightPx: 80,
       color: rgb(0.9, 0.2, 0.2),
       name: `rect ${stimuli.length + 1}`,
     });
@@ -27,8 +27,8 @@ export function StimuliPanel({ conn, snapshot }: Props) {
 
   async function addCircle() {
     await conn?.stimuli.shapes.createCircle({
-      pos: { x: 0, y: 0 },
-      diameter: 100,
+      posPx: { x: 0, y: 0 },
+      diameterPx: 100,
       color: rgb(0.2, 0.6, 0.9),
       name: `circle ${stimuli.length + 1}`,
     });
@@ -68,7 +68,7 @@ export function StimuliPanel({ conn, snapshot }: Props) {
               <td>{s.name || <em>—</em>}</td>
               <td>{s.type}</td>
               <td style={{ fontFamily: "monospace", whiteSpace: "pre" }}>
-                {String(Math.round(s.pos.x)).padStart(6)},{String(Math.round(s.pos.y)).padStart(6)}
+                {String(Math.round(s.posPx.x)).padStart(6)},{String(Math.round(s.posPx.y)).padStart(6)}
               </td>
               <td>
                 {/* Shared property: valid for every kind, including gratings and text. */}

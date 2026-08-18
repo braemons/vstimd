@@ -8,9 +8,9 @@ import type { Color } from "./types.js";
 
 /** Public server-info type — no proto leakage. */
 export interface ServerInfo {
-  width: number;
-  height: number;
-  frameRate: number;
+  widthPx: number;
+  heightPx: number;
+  frameRateHz: number;
   /** Semver string, e.g. "0.1.0". */
   version: string;
   background?: Color;
@@ -20,9 +20,9 @@ export interface ServerInfo {
 export function toServerInfo(info: QueryServerInfoResponse | undefined): ServerInfo {
   const v = info?.version;
   return {
-    width: info?.width ?? 0,
-    height: info?.height ?? 0,
-    frameRate: info?.frameRate ?? 0,
+    widthPx: info?.widthPx ?? 0,
+    heightPx: info?.heightPx ?? 0,
+    frameRateHz: info?.frameRateHz ?? 0,
     version: v ? `${v.major}.${v.minor}.${v.patch}` : "",
     background: info?.backgroundColor,
   };

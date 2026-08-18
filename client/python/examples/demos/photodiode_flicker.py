@@ -48,10 +48,10 @@ def main() -> None:
         # Big and white: you want to be able to see the flicker from across the
         # room, and a photometer wants a lot of it.
         patch = conn.stimuli.shapes.create_rect(
-            position=Vec2(0, 100),
+            position_px=Vec2(0, 100),
             name="flicker_patch",
             params=RectParams(
-                width=1400, height=600,
+                width_px=1400, height_px=600,
                 appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
             ),
         )
@@ -62,7 +62,7 @@ def main() -> None:
         # Counted in frames, not milliseconds: 6 on + 6 off is one 12-frame
         # period, which is 5 Hz at 60 Hz and something else at another rate.
         # Omitting `total_frames` means it never stops. StartAction.ENABLE makes
-        # the first on-phase actually show the patch rather than assuming it is
+        # the first on-phase_cycles actually show the patch rather than assuming it is
         # already visible.
         flicker = conn.animations.create_flicker(
             patch,

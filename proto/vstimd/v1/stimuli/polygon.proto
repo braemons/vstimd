@@ -23,14 +23,14 @@ message CreatePolygonRequest {
 // Stimulus command: replace all vertices of a Polygon stimulus.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Polygon.
 message SetPolygonVerticesRequest {
-  repeated Vec2 vertices = 1;
+  repeated Vec2 vertices_px = 1;
 }
 
 // ── Polygon geometry and appearance ───────────────────────────────────────────
 
 message PolygonParams {
   // Pixel-space, Y-up, relative to the stimulus centre.
-  repeated Vec2 vertices = 1;
+  repeated Vec2 vertices_px = 1;
   // When true the last vertex is implicitly connected back to the first,
   // forming a closed polygon. When false only the stroke outline is drawn and
   // the fill is silently ignored.

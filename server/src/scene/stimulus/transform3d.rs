@@ -24,13 +24,13 @@ use crate::Color;
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 pub struct Transform3D {
     /// World space, cm.
-    pub position: [f32; 3],
+    pub position_cm: [f32; 3],
     /// Degrees, yaw/pitch/roll — applied in `EulerRot::YXZ` order. Becomes a
     /// `glam::Quat` in memory once glam lands; the order is the part that
     /// silently differs between clients, so it is pinned here and in the
     /// `.proto`.
-    pub rotation_euler: [f32; 3],
-    /// Non-uniform scale. Composed *on top of* the nominal size a
+    pub rotation_euler_deg: [f32; 3],
+    /// Non-uniform scale. Composed *on top of* the nominal size_cm a
     /// [`Mesh3dGeometry`](super::Mesh3dGeometry) carries.
     pub scale: [f32; 3],
 }
@@ -38,15 +38,15 @@ pub struct Transform3D {
 impl Default for Transform3D {
     fn default() -> Self {
         Self {
-            position: [0.0; 3],
-            rotation_euler: [0.0; 3],
+            position_cm: [0.0; 3],
+            rotation_euler_deg: [0.0; 3],
             scale: [1.0; 3],
         }
     }
 }
 
 impl Transform3D {
-    /// Model matrix, folding in the geometry's nominal size.
+    /// Model matrix, folding in the geometry's nominal size_cm.
     ///
     /// Unimplemented: needs `glam::Mat4::from_scale_rotation_translation` and a
     /// decision on the Y-flip against the 2-D path's Y-up clip space (§3.3 —

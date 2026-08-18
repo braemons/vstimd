@@ -51,20 +51,20 @@ class GratingParams:
     ``GratingParams`` message the wire uses in both directions. Every field
     defaults to the server's "unset" value, so a create names only what it
     cares about and inherits the rest — 0 means *default*, not literally zero,
-    for ``width``/``height``/``sf``/``contrast``.
+    for ``width_px``/``height_px``/``sf_cycles_per_px``/``contrast``.
     """
 
-    width: float = 0.0
-    height: float = 0.0
-    sf: float = 0.0
-    phase: float = 0.0
+    width_px: float = 0.0
+    height_px: float = 0.0
+    sf_cycles_per_px: float = 0.0
+    phase_cycles: float = 0.0
     contrast: float = 0.0
     waveform: GratingTexture = GratingTexture.SIN
     mask: GratingMask = GratingMask.NONE
     mask_param: float = 0.0
-    drift_speed: float = 0.0
+    drift_speed_hz: float = 0.0
     drift_coupled: bool = True
-    drift_angle: float = 0.0
+    drift_angle_deg: float = 0.0
     fore_color: Color = field(default_factory=lambda: Color(1.0, 1.0, 1.0, 1.0))
     back_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0, 1.0))
 
@@ -81,34 +81,34 @@ class GratingParams:
             else Color(0.0, 0.0, 0.0, 1.0)
         )
         return cls(
-            width=proto.width,
-            height=proto.height,
-            sf=proto.sf,
-            phase=proto.phase,
+            width_px=proto.width_px,
+            height_px=proto.height_px,
+            sf_cycles_per_px=proto.sf_cycles_per_px,
+            phase_cycles=proto.phase_cycles,
             contrast=proto.contrast,
             waveform=_PROTO_TO_WAVEFORM.get(proto.waveform, GratingTexture.SIN),
             mask=_PROTO_TO_MASK.get(proto.mask, GratingMask.NONE),
             mask_param=proto.mask_param,
-            drift_speed=proto.drift_speed,
+            drift_speed_hz=proto.drift_speed_hz,
             drift_coupled=not proto.drift_decoupled,
-            drift_angle=proto.drift_angle,
+            drift_angle_deg=proto.drift_angle_deg,
             fore_color=fore,
             back_color=back,
         )
 
     def to_proto(self) -> grating_pb2.GratingParams:
         return grating_pb2.GratingParams(
-            width=self.width,
-            height=self.height,
-            sf=self.sf,
-            phase=self.phase,
+            width_px=self.width_px,
+            height_px=self.height_px,
+            sf_cycles_per_px=self.sf_cycles_per_px,
+            phase_cycles=self.phase_cycles,
             contrast=self.contrast,
             waveform=_WAVEFORM_TO_PROTO.get(self.waveform, grating_pb2.WAVEFORM_TYPE_SIN),
             mask=_MASK_TO_PROTO.get(self.mask, grating_pb2.MASK_TYPE_NONE),
             mask_param=self.mask_param,
-            drift_speed=self.drift_speed,
+            drift_speed_hz=self.drift_speed_hz,
             drift_decoupled=not self.drift_coupled,
-            drift_angle=self.drift_angle,
+            drift_angle_deg=self.drift_angle_deg,
             fore_color=self.fore_color.to_proto(),
             back_color=self.back_color.to_proto(),
         )

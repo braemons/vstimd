@@ -69,8 +69,8 @@ with Connection("tcp://stimulus-pc:5555") as conn:
     stim_onset = VtlHandle.named("stim_onset", VtlKind.OUTPUT)
 
     target = conn.stimuli.shapes.create_circle(
-        position=(0, 0),
-        params=CircleParams(diameter=200),
+        position_px=(0, 0),
+        params=CircleParams(diameter_px=200),
     )
     conn.stimuli.set_enabled(target, False)
 

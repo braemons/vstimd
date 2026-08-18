@@ -52,7 +52,7 @@ def test_upload_and_load_roundtrip(conn: Connection) -> None:
     # Create a rect, save config, delete everything, load back.
     h = conn.stimuli.shapes.create_rect(
         name="cfg_roundtrip_rect",
-        params=RectParams(width=50, height=50),
+        params=RectParams(width_px=50, height_px=50),
     )
     conn.config.save("e2e_test_roundtrip", overwrite=True)
     conn.system.clear_all()

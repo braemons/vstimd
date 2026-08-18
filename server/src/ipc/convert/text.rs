@@ -68,10 +68,10 @@ pub(crate) fn text_params_to_proto(s: &Text) -> proto::StimulusParams {
         shape: Some(proto::stimulus_params::Shape::Text(proto::TextParams {
             text:          s.text_live.clone(),
             font:          s.font_family.clone(),
-            letter_height: s.letter_height_px,
-            box_size: Some(proto::Vec2 {
-                x: s.box_size.live[0],
-                y: s.box_size.live[1],
+            letter_height_px: s.letter_height_px,
+            box_size_px: Some(proto::Vec2 {
+                x: s.box_size_px.live[0],
+                y: s.box_size_px.live[1],
             }),
             anchor: anchor_to_str(s.anchor).to_string(),
             fill_color:   Some(p.fill_color.into()),

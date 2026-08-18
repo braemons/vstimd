@@ -83,13 +83,13 @@ impl SceneState {
         let version = parse_version();
         ok_body(proto::response::Body::ServerInfo(
             proto::QueryServerInfoResponse {
-                width: w,
-                height: h,
+                width_px: w,
+                height_px: h,
                 // Nominal, not measured: this is what clients convert durations
                 // against, and a measurement would make the same script produce
                 // a different frame count on every run (#120).
-                frame_rate: self.runtime.nominal_frame_rate,
-                measured_frame_rate: self.runtime.frame_rate,
+                frame_rate_hz: self.runtime.nominal_frame_rate_hz,
+                measured_frame_rate_hz: self.runtime.frame_rate_hz,
                 background_color: Some(bg.into()),
                 backend: proto::RenderBackend::Unspecified as i32,
                 version: Some(version),
@@ -144,23 +144,23 @@ impl SceneState {
             StimulusBody::Shape(s) => {
                 let appearance = Some(shape_appearance_to_proto(&s.appearance.live));
                 match s.geometry.live {
-                    ShapeGeometry::Rect { size } => {
+                    ShapeGeometry::Rect { size_px } => {
                         proto::stimulus_params::Shape::Rect(proto::RectParams {
-                            width: size[0],
-                            height: size[1],
+                            width_px: size_px[0],
+                            height_px: size_px[1],
                             appearance,
                         })
                     }
-                    ShapeGeometry::Ellipse { size } => {
+                    ShapeGeometry::Ellipse { size_px } => {
                         proto::stimulus_params::Shape::Ellipse(proto::EllipseParams {
-                            width: size[0],
-                            height: size[1],
+                            width_px: size_px[0],
+                            height_px: size_px[1],
                             appearance,
                         })
                     }
-                    ShapeGeometry::Circle { diameter } => {
+                    ShapeGeometry::Circle { diameter_px } => {
                         proto::stimulus_params::Shape::Circle(proto::CircleParams {
-                            diameter,
+                            diameter_px,
                             appearance,
                         })
                     }
@@ -187,11 +187,11 @@ impl SceneState {
         // stimulus has nothing to put in it until §10.2's `transform_3d` lands.
         let placement = stim.transform2d().map(|t| {
             proto::query_stimulus_response::Placement::Transform2d(proto::Transform2D {
-                pos: Some(proto::Vec2 {
-                    x: t.live.pos[0],
-                    y: t.live.pos[1],
+                pos_px: Some(proto::Vec2 {
+                    x: t.live.pos_px[0],
+                    y: t.live.pos_px[1],
                 }),
-                rotation_deg: t.live.angle,
+                rotation_deg: t.live.angle_deg,
             })
         });
         proto::QueryStimulusResponse {

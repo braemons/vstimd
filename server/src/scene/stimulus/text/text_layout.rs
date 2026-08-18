@@ -90,14 +90,14 @@ pub fn layout_and_rasterize(
     font_system: &mut TextFontSystem,
     swash_cache: &mut TextSwashCache,
 ) -> Vec<LaidOutGlyph> {
-    let pos = stim.transform.live.pos;
-    let [box_w, box_h] = stim.box_size.live;
+    let pos_px = stim.transform.live.pos_px;
+    let [box_w, box_h] = stim.box_size_px.live;
     let size_px = stim.letter_height_px.max(1.0);
     let line_height = size_px * 1.25;
 
     // Compute text-box top-left in Y-up screen coordinates, then convert to
     // Y-down pixel coordinates for the cosmic-text buffer.
-    let (tl_x_up, tl_y_up) = anchor_top_left(pos, [box_w, box_h], stim.anchor);
+    let (tl_x_up, tl_y_up) = anchor_top_left(pos_px, [box_w, box_h], stim.anchor);
     let box_origin_x = tl_x_up + screen_w * 0.5;  // Y-down: right of center
     let box_origin_y = screen_h * 0.5 - tl_y_up;  // Y-down: below center
 
@@ -153,7 +153,7 @@ pub fn layout_and_rasterize(
             continue; // skip colour emoji
         }
         if image.placement.width == 0 || image.placement.height == 0 {
-            continue; // whitespace / zero-size glyph
+            continue; // whitespace / zero-size_px glyph
         }
 
         // PhysicalGlyph.x/y is the advance position (baseline anchor).
@@ -178,9 +178,9 @@ pub fn layout_and_rasterize(
 
 /// Returns the Y-up screen coordinates of the top-left corner of the text box,
 /// given the anchor point position and box dimensions.
-fn anchor_top_left(pos: [f32; 2], size: [f32; 2], anchor: Anchor) -> (f32, f32) {
-    let [cx, cy] = pos;
-    let [w, h] = size;
+fn anchor_top_left(pos_px: [f32; 2], size_px: [f32; 2], anchor: Anchor) -> (f32, f32) {
+    let [cx, cy] = pos_px;
+    let [w, h] = size_px;
     match anchor {
         Anchor::Center      => (cx - w * 0.5, cy + h * 0.5),
         Anchor::TopLeft     => (cx,       cy),

@@ -55,10 +55,10 @@ message SetTextColorRequest {
 message TextParams {
   string        text           = 1;  // UTF-8 content
   string        font           = 2;  // font family name (e.g. "Open Sans")
-  float         letter_height  = 3;  // cap-height in pixels (0 → default 32)
+  float         letter_height_px = 3;  // cap-height (0 → default 32)
   // Named box_size, not size: `size` next to letter_height reads as the font
   // size, and the config field and the client argument are box-named already.
-  Vec2          box_size       = 4;  // bounding box [width, height] (0 → 200×100)
+  Vec2          box_size_px    = 4;  // bounding box [width, height] (0 → 200×100)
   string        anchor         = 5;  // "center"|"top-left"|"top-right"|"bottom-left"|"bottom-right"
   Color         fill_color     = 6;  // background box fill (absent → transparent)
   Color         border_color   = 7;  // box border (absent → no border)

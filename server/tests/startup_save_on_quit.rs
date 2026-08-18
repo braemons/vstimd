@@ -122,8 +122,8 @@ fn create_a_rect(port: u16) {
             target: Some(request::Target::System(proto::SystemTarget {})),
             body: Some(request::Body::CreateRect(proto::CreateRectRequest {
                                                      params: Some(proto::RectParams {
-                                                         width: 200.0,
-                                                         height: 100.0,
+                                                         width_px: 200.0,
+                                                         height_px: 100.0,
                                                          ..Default::default()
                                                      }),
                                                      ..Default::default()

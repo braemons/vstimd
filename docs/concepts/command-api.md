@@ -24,7 +24,7 @@ from vstimd import Connection
 
 with Connection() as conn:                 # default: tcp://localhost:5555
     info = conn.system.query_server_info()
-    print(info.width, info.height, info.frame_rate)
+    print(info.width_px, info.height_px, info.frame_rate_hz)
 ```
 
 For a remote device, pass its address:
@@ -46,10 +46,10 @@ from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
 with Connection() as conn:
     rect = conn.stimuli.shapes.create_rect(
-        position=Vec2(0, 0),
+        position_px=Vec2(0, 0),
         params=RectParams(
-            width=300,
-            height=150,
+            width_px=300,
+            height_px=150,
             appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0)),  # red
         ),
     )
@@ -72,7 +72,7 @@ conn.stimuli.set_alpha(rect, 0.5)                     # half transparent
 conn.stimuli.set_enabled(rect, True)                  # show it
 
 state = conn.stimuli.query(rect)                       # full current state
-print(state.enabled, state.pos, state.opacity)
+print(state.enabled, state.pos_px, state.opacity)
 ```
 
 `set_enabled(handle, False)` hides a stimulus without deleting it; `delete(handle)`
@@ -107,18 +107,18 @@ deferred batch: the server accumulates the changes and flips them all on one fra
 ```python
 with Connection() as conn:
     left  = conn.stimuli.shapes.create_rect(
-        position=Vec2(-200, 0),
+        position_px=Vec2(-200, 0),
         params=RectParams(
-            width=100,
-            height=100,
+            width_px=100,
+            height_px=100,
             appearance=ShapeAppearance(fill_color=Color(1, 0, 0)),
         ),
     )
     right = conn.stimuli.shapes.create_rect(
-        position=Vec2(200, 0),
+        position_px=Vec2(200, 0),
         params=RectParams(
-            width=100,
-            height=100,
+            width_px=100,
+            height_px=100,
             appearance=ShapeAppearance(fill_color=Color(0, 0, 1)),
         ),
     )
@@ -156,14 +156,14 @@ from vstimd.stimuli import CircleParams, Color, RectParams, ShapeAppearance, Vec
 
 with Connection("tcp://stimulus-pc:5555") as conn:
     fix = conn.stimuli.shapes.create_circle(
-        position=Vec2(0, 0),
-        params=CircleParams(diameter=20, appearance=ShapeAppearance(fill_color=Color(1, 1, 1))),
+        position_px=Vec2(0, 0),
+        params=CircleParams(diameter_px=20, appearance=ShapeAppearance(fill_color=Color(1, 1, 1))),
     )
     target = conn.stimuli.shapes.create_rect(
-        position=Vec2(300, 0),
+        position_px=Vec2(300, 0),
         params=RectParams(
-            width=80,
-            height=80,
+            width_px=80,
+            height_px=80,
             appearance=ShapeAppearance(fill_color=Color(0, 1, 0)),
         ),
     )

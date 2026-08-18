@@ -69,13 +69,13 @@ def add_explanation(conn: Connection, text: str) -> StimulusHandle:
     special — it is an ordinary text stimulus.
     """
     return conn.stimuli.text.create_text(
-        position=EXPLANATION_POS,
+        position_px=EXPLANATION_POS,
         name="explanation",
         params=TextParams(
             text=text,
-            letter_height=24,
+            letter_height_px=24,
             text_color=Color(0.9, 0.9, 0.9),
             fill_color=Color(0.0, 0.0, 0.0, 0.65),
-            box_size=Vec2(EXPLANATION_BOX[0], EXPLANATION_BOX[1]),
+            box_size_px=Vec2(EXPLANATION_BOX[0], EXPLANATION_BOX[1]),
         ),
     )

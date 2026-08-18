@@ -41,7 +41,7 @@ class Window:
 
         self._conn = Connection(address)
         info = self._conn.system.query_server_info()
-        self.size: tuple[int, int] = (info.width, info.height)
+        self.size: tuple[int, int] = (info.width_px, info.height_px)
         self.units = units
         self.monitor = monitor
         self.deferred = deferred

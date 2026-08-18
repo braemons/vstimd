@@ -196,7 +196,7 @@ impl Stimulus {
     /// Reset self-advanced runtime state to what a fresh config load produces.
     ///
     /// Some kinds carry state the render thread advances on its own, each frame,
-    /// from their config parameters: a grating's `phase_accum` (drift), and
+    /// from their config parameters: a grating's `phase_accum_cycles` (drift), and
     /// later a random-dot pattern's seed or a movie's frame counter. Loading a
     /// config — or re-arming one mid-session — must zero that state, or the
     /// stimulus resumes from wherever the *previous* session left it.
@@ -254,8 +254,8 @@ impl Stimulus {
         let Some(t) = self.transform2d_mut() else {
             return Err(WrongDimension);
         };
-        let angle = if deferred { t.copy.angle } else { t.live.angle };
-        t.set(deferred, Transform2D { pos: [x, y], angle });
+        let angle_deg = if deferred { t.copy.angle_deg } else { t.live.angle_deg };
+        t.set(deferred, Transform2D { pos_px: [x, y], angle_deg });
         if !deferred {
             self.flags_mut().mark_dirty();
         }
@@ -268,8 +268,8 @@ impl Stimulus {
         let Some(t) = self.transform2d_mut() else {
             return Err(WrongDimension);
         };
-        let pos = if deferred { t.copy.pos } else { t.live.pos };
-        t.set(deferred, Transform2D { pos, angle: degrees });
+        let pos_px = if deferred { t.copy.pos_px } else { t.live.pos_px };
+        t.set(deferred, Transform2D { pos_px, angle_deg: degrees });
         if !deferred {
             self.flags_mut().mark_dirty();
         }
@@ -278,7 +278,7 @@ impl Stimulus {
 
     /// 2-D position, or `None` for a 3-D stimulus.
     pub fn get_pos_2d(&self) -> Option<[f32; 2]> {
-        self.transform2d().map(|t| t.live.pos)
+        self.transform2d().map(|t| t.live.pos_px)
     }
 
     // ── Visibility ────────────────────────────────────────────────────────────

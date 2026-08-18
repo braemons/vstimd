@@ -36,8 +36,8 @@ from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
 with Connection() as conn:
     h = conn.stimuli.shapes.create_rect(
-        position=Vec2(-200, 0),
-        params=RectParams(width=300, height=200,
+        position_px=Vec2(-200, 0),
+        params=RectParams(width_px=300, height_px=200,
                           appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0))),
     )
     conn.stimuli.set_enabled(h, False)
@@ -76,8 +76,8 @@ win.flip()
 | Class | Notes |
 |---|---|
 | `Window` | Owns the `Connection`; `flip()` flushes the command queue |
-| `Rect` | `create_rect`, position, size, fill color, orientation, alpha |
-| `Circle` | `create_circle`, position, radius, fill color, orientation, alpha |
+| `Rect` | `create_rect`, position, size, fill color, rotation_deg, alpha |
+| `Circle` | `create_circle`, position, radius, fill color, rotation_deg, alpha |
 | `GratingStim` | `create_grating`, all grating parameters; `mask` accepts `'circle'`, `'gauss'`, `'raisedCos'` |
 
 All constructor arguments from `psychopy.visual` are accepted. Parameters that

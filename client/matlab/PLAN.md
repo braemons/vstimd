@@ -97,7 +97,7 @@ Constructor reads the returned handle from `Response.handle` (analogous to
 
 | ARCADE | vstimd | Notes |
 |---|---|---|
-| `shape.angle = deg` | `SetOrientationRequest` | same CCW degrees |
+| `shape.angle_deg = deg` | `SetOrientationRequest` | same CCW degrees |
 | `shape.drawMode = m` | `SetDrawModeRequest` | 1=filled, 2=outlined, 3=both |
 | `shape.faceColor = [r g b]` | `SetFillColorRequest` | 0–255 → 0–1 |
 | `shape.faceAlpha = a` | `SetAlphaRequest` | a/255 → 0–1 |
@@ -115,23 +115,23 @@ Constructor reads the returned handle from `Response.handle` (analogous to
 | ARCADE | vstimd |
 |---|---|
 | `Rectangle()` | `CreateRectRequest` |
-| `rect.width = w` | `SetRectSizeRequest{width:w, height:obj.height}` |
-| `rect.height = h` | `SetRectSizeRequest{width:obj.width, height:h}` |
+| `rect.width_px = w` | `SetRectSizeRequest{width:w, height:obj.height_px}` |
+| `rect.height_px = h` | `SetRectSizeRequest{width:obj.width_px, height:h}` |
 
 ### Ellipse
 
 | ARCADE | vstimd |
 |---|---|
 | `Ellipse()` | `CreateEllipseRequest` |
-| `e.width = w` | `SetEllipseSizeRequest{width:w, height:obj.height}` |
-| `e.height = h` | `SetEllipseSizeRequest{width:obj.width, height:h}` |
+| `e.width_px = w` | `SetEllipseSizeRequest{width:w, height:obj.height_px}` |
+| `e.height_px = h` | `SetEllipseSizeRequest{width:obj.width_px, height:h}` |
 
 ### Circle
 
 | ARCADE | vstimd |
 |---|---|
 | `Circle()` | `CreateCircleRequest` |
-| `c.diameter = d` | `SetDiscRadiusRequest{radius:d/2}` |
+| `c.diameter_px = d` | `SetDiscRadiusRequest{radius:d/2}` |
 | `get(c, 'diameter')` | `QueryStimulusRequest` → `params.disc.radius * 2` |
 
 ## Stimulus types not yet in vstimd

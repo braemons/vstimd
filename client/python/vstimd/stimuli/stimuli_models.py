@@ -59,19 +59,19 @@ class StimulusInfo:
 
     The fields here are the ones every stimulus has. Type-specific state lives in
     ``params`` — including the fill/outline appearance of a shape, which is
-    reached through the ``fill_color`` / ``outline_color`` / ``outline_width`` /
+    reached through the ``fill_color`` / ``outline_color`` / ``outline_width_px`` /
     ``draw_mode`` convenience properties below and is ``None`` for a grating or a
     text stimulus, which have no such thing.
 
-    ``pos`` and ``orientation`` come from the 2-D placement. They are ``None``
+    ``pos_px`` and ``rotation_deg`` come from the 2-D placement. They are ``None``
     for a stimulus placed in 3-D space, which reports a 3-D transform instead
     (none exist yet — see dev/3D_ROADMAP.md).
     """
 
     stimulus_type: StimulusType
     enabled: bool
-    pos: Vec2 | None
-    orientation: float | None
+    pos_px: Vec2 | None
+    rotation_deg: float | None
     # Shared per-stimulus opacity in [0, 1]; multiplies the alpha of every colour
     # the stimulus carries.
     opacity: float
@@ -88,19 +88,19 @@ class StimulusInfo:
         )
         if shape_which == "rect":
             params: StimulusParams | None = RectParams(
-                width=proto.params.rect.width,
-                height=proto.params.rect.height,
+                width_px=proto.params.rect.width_px,
+                height_px=proto.params.rect.height_px,
                 appearance=_appearance_or_default(proto.params.rect),
             )
         elif shape_which == "circle":
             params = CircleParams(
-                diameter=proto.params.circle.diameter,
+                diameter_px=proto.params.circle.diameter_px,
                 appearance=_appearance_or_default(proto.params.circle),
             )
         elif shape_which == "ellipse":
             params = EllipseParams(
-                width=proto.params.ellipse.width,
-                height=proto.params.ellipse.height,
+                width_px=proto.params.ellipse.width_px,
+                height_px=proto.params.ellipse.height_px,
                 appearance=_appearance_or_default(proto.params.ellipse),
             )
         elif shape_which == "grating":
@@ -109,7 +109,7 @@ class StimulusInfo:
             params = TextParams.from_proto(proto.params.text)
         elif shape_which == "polygon":
             params = PolygonParams(
-                vertices=[Vec2(v.x, v.y) for v in proto.params.polygon.vertices],
+                vertices_px=[Vec2(v.x, v.y) for v in proto.params.polygon.vertices_px],
                 close_shape=proto.params.polygon.close_shape,
                 appearance=_appearance_or_default(proto.params.polygon),
             )
@@ -122,8 +122,8 @@ class StimulusInfo:
                 proto.stimulus_type, StimulusType.UNKNOWN
             ),
             enabled=proto.enabled,
-            pos=Vec2.from_proto(proto.transform_2d.pos) if is_2d else None,
-            orientation=proto.transform_2d.rotation_deg if is_2d else None,
+            pos_px=Vec2.from_proto(proto.transform_2d.pos_px) if is_2d else None,
+            rotation_deg=proto.transform_2d.rotation_deg if is_2d else None,
             opacity=proto.opacity,
             params=params,
             id=proto.id,
@@ -154,9 +154,9 @@ class StimulusInfo:
         return a.outline_color if a else None
 
     @property
-    def outline_width(self) -> float | None:
+    def outline_width_px(self) -> float | None:
         a = self.appearance
-        return a.outline_width if a else None
+        return a.outline_width_px if a else None
 
     @property
     def draw_mode(self) -> ShapeDrawMode | None:

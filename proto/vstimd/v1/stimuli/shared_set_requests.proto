@@ -20,13 +20,13 @@ message SetNameRequest {
 
 // Stimulus command: move the centre of a stimulus.
 message SetPositionRequest {
-  float x = 1;
-  float y = 2;
+  float x_px = 1;
+  float y_px = 2;
 }
 
 // Stimulus command: set rotation angle (counter-clockwise degrees).
-message SetOrientationRequest {
-  float angle_deg = 1;
+message SetRotationRequest {
+  float rotation_deg = 1;
 }
 
 // Stimulus command: set fill/body colour.

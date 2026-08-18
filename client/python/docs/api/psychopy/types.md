@@ -21,5 +21,5 @@
 
    Either a two-element tuple ``(x, y)`` or a two-element list ``[x, y]``.
    Units are interpreted according to the ``units`` parameter of the enclosing
-   stimulus or window (``'pix'``, ``'norm'``, ``'height'``, ``'deg'``, ``'cm'``).
+   stimulus or window (``'pix'``, ``'norm'``, ``'height_px'``, ``'deg'``, ``'cm'``).
 ```

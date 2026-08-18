@@ -22,7 +22,7 @@ message CreateCircleRequest {
 // Stimulus command: resize a Circle stimulus.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Circle.
 message SetCircleDiameterRequest {
-  float diameter = 1;
+  float diameter_px = 1;
 }
 
 message CircleParams {
@@ -30,7 +30,7 @@ message CircleParams {
   // (CreateRect's width/height, CreateEllipse's width/height, a grating's patch
   // size), and a circle sized by half of one was the odd one out — the reader
   // could not tell which convention a number followed without knowing the type.
-  float diameter = 1; // diameter in pixels (0 → default 100)
+  float diameter_px = 1; // (0 → default 100)
   // See CreateRectRequest's RectParams.appearance for the fallback rules.
   ShapeAppearance appearance = 2;
 }

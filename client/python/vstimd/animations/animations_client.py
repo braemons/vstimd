@@ -70,7 +70,7 @@ class AnimationClient:
 
         with Connection() as conn:
             h = conn.stimuli.shapes.create_rect(
-                params=RectParams(width=100, height=100,
+                params=RectParams(width_px=100, height_px=100,
                                   appearance=ShapeAppearance(fill_color=Color(1, 0, 0))),
             )
             anim = conn.animations.create_flash(h, duration_ms=100)
@@ -377,7 +377,7 @@ class AnimationClient:
     ) -> AnimationHandle:
         """Flicker stimuli on/off. Omit ``total_*`` to run forever.
 
-        ``start_on_phase=False`` starts in the off-phase instead of the on-phase.
+        ``start_on_phase=False`` starts in the off-phase_cycles instead of the on-phase_cycles.
         If ``start_trigger`` is given, waits for that edge before starting.
         """
         msg = animations_pb2.FlickerForNFrames(
@@ -405,8 +405,8 @@ class AnimationClient:
     def create_move_along_path_2d(
         self,
         stimuli: Stimuli,
-        x: list[float],
-        y: list[float],
+        x_px: list[float],
+        y_px: list[float],
         *,
         name: str = "",
         start_action_mask: StartAction = StartAction(0),
@@ -423,14 +423,14 @@ class AnimationClient:
     ) -> AnimationHandle:
         """Move stimulus through a sequence of 2-D positions, one per frame.
 
-        ``x`` and ``y`` must have the same length. The animation completes after
-        all positions have been played. Coordinates are in screen units.
+        ``x_px`` and ``y_px`` must have the same length. The animation completes
+        after all positions have been played.
         """
-        if len(x) != len(y):
-            raise ValueError("x and y must have equal length")
+        if len(x_px) != len(y_px):
+            raise ValueError("x_px and y_px must have equal length")
         req = self._make_req(
             stimuli, {
-                "move_along_path_2d": animations_pb2.MoveAlongPath2D(x=x, y=y),
+                "move_along_path_2d": animations_pb2.MoveAlongPath2D(x_px=x_px, y_px=y_px),
             },
             name=name,
             start_action_mask=start_action_mask,
@@ -448,8 +448,8 @@ class AnimationClient:
     def create_move_along_segments_2d(
         self,
         stimuli: Stimuli,
-        x: list[float],
-        y: list[float],
+        x_px: list[float],
+        y_px: list[float],
         speed_px_per_sec: float,
         *,
         name: str = "",
@@ -467,18 +467,18 @@ class AnimationClient:
     ) -> AnimationHandle:
         """Move stimulus along piecewise-linear waypoints at a constant speed.
 
-        ``x`` and ``y`` must have the same length and at least 2 entries.
+        ``x_px`` and ``y_px`` must have the same length and at least 2 entries.
         ``speed_px_per_sec`` is in screen units per second; the server converts
         to frame steps using the measured display frame rate.
         """
-        if len(x) != len(y):
-            raise ValueError("x and y must have equal length")
-        if len(x) < 2:
+        if len(x_px) != len(y_px):
+            raise ValueError("x_px and y_px must have equal length")
+        if len(x_px) < 2:
             raise ValueError("at least 2 waypoints required")
         req = self._make_req(
             stimuli, {
                 "move_along_segments_2d": animations_pb2.MoveAlongSegments2D(
-                    x=x, y=y, speed_px_per_sec=speed_px_per_sec,
+                    x_px=x_px, y_px=y_px, speed_px_per_sec=speed_px_per_sec,
                 ),
             },
             name=name,
@@ -503,8 +503,8 @@ class AnimationClient:
         # report success and never move the stimulus. See
         # https://github.com/braemons/vstimd/issues/84.
         *,
-        x_offset: float = 0.0,
-        y_offset: float = 0.0,
+        x_offset_px: float = 0.0,
+        y_offset_px: float = 0.0,
         name: str = "",
         start_action_mask: StartAction = StartAction(0),
         start_action_trigger_line: Optional[VtlHandle] = None,
@@ -530,8 +530,8 @@ class AnimationClient:
             stimuli, {
                 "external_position_2d": animations_pb2.ExternalPosition2D(
                     shm_name=shm_name,
-                    x_offset=x_offset,
-                    y_offset=y_offset,
+                    x_offset_px=x_offset_px,
+                    y_offset_px=y_offset_px,
                 ),
             },
             name=name,

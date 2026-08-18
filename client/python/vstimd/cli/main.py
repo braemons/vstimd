@@ -56,9 +56,9 @@ _ADDRESS_ROWS: tuple[tuple[str, str], ...] = (
 
 
 def _format_address_help() -> str:
-    width = max(len(left) for left, _ in _ADDRESS_ROWS)
+    width_px = max(len(left) for left, _ in _ADDRESS_ROWS)
     lines = ["Choosing a server (first match wins):"]
-    lines += [f"  {left:<{width}}  {right}" for left, right in _ADDRESS_ROWS]
+    lines += [f"  {left:<{width_px}}  {right}" for left, right in _ADDRESS_ROWS]
     return "\n".join(lines)
 
 
@@ -129,10 +129,10 @@ def format_overview() -> str:
         "  vstimd-client [OPTIONS] COMMAND [ARGS...]",
         "",
     ]
-    width = max(len(name) for _, commands in _COMMAND_GROUPS for name, _ in commands)
+    width_px = max(len(name) for _, commands in _COMMAND_GROUPS for name, _ in commands)
     for title, commands in _COMMAND_GROUPS:
         lines.append(f"{title}:")
-        lines += [f"  {name:<{width}}  {help_text}" for name, help_text in commands]
+        lines += [f"  {name:<{width_px}}  {help_text}" for name, help_text in commands]
         lines.append("")
     lines += [
         _ADDRESS_HELP,
@@ -319,9 +319,9 @@ def cmd_info(conn: Connection, args: argparse.Namespace) -> int:
     if args.as_json:
         _print_json(
             {
-                "width": info.width,
-                "height": info.height,
-                "frame_rate": info.frame_rate,
+                "width_px": info.width_px,
+                "height_px": info.height_px,
+                "frame_rate_hz": info.frame_rate_hz,
                 "version": str(info.version),
                 "background_color": [bg.r, bg.g, bg.b, bg.a],
             }
@@ -330,8 +330,8 @@ def cmd_info(conn: Connection, args: argparse.Namespace) -> int:
     _print_pairs(
         [
             ("version", str(info.version)),
-            ("resolution", f"{info.width}x{info.height}"),
-            ("frame rate", f"{info.frame_rate:.2f} Hz"),
+            ("resolution", f"{info.width_px}x{info.height_px}"),
+            ("frame rate", f"{info.frame_rate_hz:.2f} Hz"),
             ("background", f"{bg.r:.3f} {bg.g:.3f} {bg.b:.3f} {bg.a:.3f}"),
         ]
     )
@@ -497,9 +497,9 @@ def _print_json(payload: object) -> None:
 
 
 def _print_pairs(pairs: Sequence[tuple[str, str]]) -> None:
-    width = max(len(key) for key, _ in pairs)
+    width_px = max(len(key) for key, _ in pairs)
     for key, value in pairs:
-        print(f"{key:<{width}}  {value}")
+        print(f"{key:<{width_px}}  {value}")
 
 
 def _print_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> None:
@@ -595,9 +595,9 @@ def _server_label(server: DiscoveredServer) -> str:
 def _select_server(servers: Sequence[DiscoveredServer], args: argparse.Namespace) -> str:
     """Ask which of several discovered rigs to use."""
     count = len(servers)
-    width = max(len(_server_label(s)) for s in servers)
+    width_px = max(len(_server_label(s)) for s in servers)
     listing = [
-        f"  {i}  {_server_label(s):<{width}}  {s.address}"
+        f"  {i}  {_server_label(s):<{width_px}}  {s.address}"
         for i, s in enumerate(servers, 1)
     ]
 

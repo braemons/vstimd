@@ -86,8 +86,8 @@ def _canonical(cfg: dict) -> dict:
             # either state at the moment we look.
             stim["common"]["flags"].pop("enabled", None)
         body = stim["body"]
-        if body["type"] == "Grating" and body["params"]["drift_speed"] != 0.0:
-            body["params"].pop("phase", None)   # advances every frame
+        if body["type"] == "Grating" and body["params"]["drift_speed_hz"] != 0.0:
+            body["params"].pop("phase_cycles", None)   # advances every frame
         stimuli.append([entries[handle]["name"], _round(stim)])
 
     anims = []

@@ -40,26 +40,26 @@
           "body": {
             "type": "Grating",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 0.0
               ],
-              "angle": 45.0
+              "angle_deg": 45.0
             },
-            "size": [
+            "size_px": [
               600.0,
               600.0
             ],
             "params": {
-              "sf": 0.02,
-              "phase": 0.0,
+              "sf_cycles_per_px": 0.02,
+              "phase_cycles": 0.0,
               "contrast": 1.0,
               "waveform": "Sin",
               "mask": "RaisedCos",
               "mask_param": 0.2,
-              "drift_speed": 0.0,
+              "drift_speed_hz": 0.0,
               "drift_coupled": true,
-              "drift_angle": 0.0,
+              "drift_angle_deg": 0.0,
               "fore_color": [
                 1.0,
                 1.0,
@@ -90,26 +90,26 @@
           "body": {
             "type": "Grating",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 0.0
               ],
-              "angle": 135.0
+              "angle_deg": 135.0
             },
-            "size": [
+            "size_px": [
               600.0,
               600.0
             ],
             "params": {
-              "sf": 0.02,
-              "phase": 0.0,
+              "sf_cycles_per_px": 0.02,
+              "phase_cycles": 0.0,
               "contrast": 1.0,
               "waveform": "Sin",
               "mask": "RaisedCos",
               "mask_param": 0.2,
-              "drift_speed": 0.0,
+              "drift_speed_hz": 0.0,
               "drift_coupled": true,
-              "drift_angle": 0.0,
+              "drift_angle_deg": 0.0,
               "fore_color": [
                 1.0,
                 1.0,
@@ -140,11 +140,11 @@
           "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 0.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -159,12 +159,12 @@
                 1.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "FillAndStroke"
             },
             "geometry": {
               "type": "Circle",
-              "diameter": 12.0
+              "diameter_px": 12.0
             }
           }
         }
@@ -183,11 +183,11 @@
           "body": {
             "type": "Text",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 -340.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "params": {
               "color": [
@@ -210,11 +210,11 @@
               ],
               "flip_horiz": false
             },
-            "box_size": [
+            "box_size_px": [
               1500.0,
               320.0
             ],
-            "text_live": "demo_gratings_triggered — trigger in, trigger out\n\nTwo masked gratings at the centre, hidden until triggered. Each re-arms itself, so\nevery rising edge fires another 2 s presentation (120 frames @ 60 Hz).\n\nin_pin11 -> 45 deg   ·   onset out_pin36   ·   end out_pin37   ·   done out_pin35\nin_pin12 -> 135 deg  ·   onset out_pin38   ·   end out_pin40   ·   done out_pin32\n\nOnset and end pulse for one frame — the marks a recording system timestamps.\nThe done line instead stays HIGH until that grating's next presentation starts.",
+            "text_live": "demo_gratings_triggered \u2014 trigger in, trigger out\n\nTwo masked gratings at the centre, hidden until triggered. Each re-arms itself, so\nevery rising edge fires another 2 s presentation (120 frames @ 60 Hz).\n\nin_pin11 -> 45 deg   \u00b7   onset out_pin36   \u00b7   end out_pin37   \u00b7   done out_pin35\nin_pin12 -> 135 deg  \u00b7   onset out_pin38   \u00b7   end out_pin40   \u00b7   done out_pin32\n\nOnset and end pulse for one frame \u2014 the marks a recording system timestamps.\nThe done line instead stays HIGH until that grating's next presentation starts.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",

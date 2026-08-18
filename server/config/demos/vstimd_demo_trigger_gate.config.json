@@ -40,26 +40,26 @@
           "body": {
             "type": "Grating",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 0.0
               ],
-              "angle": 90.0
+              "angle_deg": 90.0
             },
-            "size": [
+            "size_px": [
               700.0,
               700.0
             ],
             "params": {
-              "sf": 0.015,
-              "phase": 0.0,
+              "sf_cycles_per_px": 0.015,
+              "phase_cycles": 0.0,
               "contrast": 1.0,
               "waveform": "Sqr",
               "mask": "Circle",
               "mask_param": 0.0,
-              "drift_speed": 0.0,
+              "drift_speed_hz": 0.0,
               "drift_coupled": true,
-              "drift_angle": 0.0,
+              "drift_angle_deg": 0.0,
               "fore_color": [
                 1.0,
                 1.0,
@@ -90,11 +90,11 @@
           "body": {
             "type": "Text",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 -340.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "params": {
               "color": [
@@ -117,11 +117,11 @@
               ],
               "flip_horiz": false
             },
-            "box_size": [
+            "box_size_px": [
               1500.0,
               320.0
             ],
-            "text_live": "demo_trigger_gate — visibility follows an input level\n\nThe square-wave patch is visible exactly while in_pin7 (header pin 7) is HIGH,\nand hidden while it is LOW — level-coupled, not edge-triggered, so it needs\nno re-arming and shows input wiring problems immediately.\nNo output pins are driven.",
+            "text_live": "demo_trigger_gate \u2014 visibility follows an input level\n\nThe square-wave patch is visible exactly while in_pin7 (header pin 7) is HIGH,\nand hidden while it is LOW \u2014 level-coupled, not edge-triggered, so it needs\nno re-arming and shows input wiring problems immediately.\nNo output pins are driven.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",

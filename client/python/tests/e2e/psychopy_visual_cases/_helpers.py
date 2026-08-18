@@ -8,14 +8,14 @@ from vstimd.stimuli import TextParams
 def label(win: visual.Window, test_id: str, description: str = "") -> int:
     text = f"[{test_id}] {description}".rstrip()
     return win._conn.stimuli.text.create_text(
-        position=Vec2(0, 260),
+        position_px=Vec2(0, 260),
         name="_label",
         params=TextParams(
             text=text,
-            letter_height=28,
+            letter_height_px=28,
             text_color=Color(1.0, 1.0, 0.0),
             anchor="center",
-            box_size=Vec2(900, 200),
+            box_size_px=Vec2(900, 200),
         ),
     )
 

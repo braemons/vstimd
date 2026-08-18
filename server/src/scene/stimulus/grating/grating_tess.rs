@@ -3,8 +3,8 @@ use crate::geom::Vertex;
 use super::grating_stimulus::Grating;
 
 pub fn tessellate_grating(s: &Grating, half_w: f32, half_h: f32) -> (Vec<Vertex>, Vec<u32>) {
-    let [hw, hh] = [s.size.live[0] * 0.5, s.size.live[1] * 0.5];
-    let [cx, cy] = s.transform.live.pos;
+    let [hw, hh] = [s.size_px.live[0] * 0.5, s.size_px.live[1] * 0.5];
+    let [cx, cy] = s.transform.live.pos_px;
     // Axis-aligned quad in NDC — the fragment shader handles orientation internally.
     let corners = [
         (cx - hw, cy - hh),
@@ -44,7 +44,7 @@ mod tests {
 
     #[test]
     fn ndc_coordinates_centered() {
-        // Patch centred at origin, half-size 100×50, screen half 400×300.
+        // Patch centred at origin, half-size_px 100×50, screen half 400×300.
         let s = stim_at(0.0, 0.0, 100.0, 50.0);
         let (verts, _) = tessellate_grating(&s, 400.0, 300.0);
         // Corner order: bottom-left, bottom-right, top-right, top-left
@@ -61,7 +61,7 @@ mod tests {
 
     #[test]
     fn ndc_offset_patch() {
-        // Patch at pixel (200, 0), half-size 100×100, screen half 400×300.
+        // Patch at pixel (200, 0), half-size_px 100×100, screen half 400×300.
         let s = stim_at(200.0, 0.0, 100.0, 100.0);
         let (verts, _) = tessellate_grating(&s, 400.0, 300.0);
         let xs: Vec<f32> = verts.iter().map(|v| v.position[0]).collect();

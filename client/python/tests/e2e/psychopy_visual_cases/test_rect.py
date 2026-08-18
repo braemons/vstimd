@@ -13,13 +13,13 @@ from ._helpers import label as _label, update_label as _update_label
 def test_create_rect(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
     lbl = _label(win, tid, "red 200×100 rect")
-    rect = visual.Rect(win, width=200, height=100, fillColor="red", autoDraw=True)
+    rect = visual.Rect(win, width_px=200, height_px=100, fillColor="red", autoDraw=True)
 
     info = win._conn.stimuli.query(rect._handle)
     assert info.stimulus_type == StimulusType.RECT
     assert isinstance(info.params, RectParams)
-    assert info.params.width == pytest.approx(200.0, abs=0.5)
-    assert info.params.height == pytest.approx(100.0, abs=0.5)
+    assert info.params.width_px == pytest.approx(200.0, abs=0.5)
+    assert info.params.height_px == pytest.approx(100.0, abs=0.5)
     assert info.fill_color.r == pytest.approx(1.0, abs=0.01)
     assert info.fill_color.g == pytest.approx(0.0, abs=0.01)
     assert info.fill_color.b == pytest.approx(0.0, abs=0.01)
@@ -33,19 +33,19 @@ def test_create_rect(win: visual.Window, step_delay: float, request: pytest.Fixt
 def test_rect_position_size(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
     lbl = _label(win, tid, "blue 400×300 at centre")
-    rect = visual.Rect(win, width=400, height=300, fillColor="blue", pos=(0, 0), autoDraw=True)
+    rect = visual.Rect(win, width_px=400, height_px=300, fillColor="blue", pos=(0, 0), autoDraw=True)
     win.flip()
     time.sleep(step_delay)
 
     _update_label(win, lbl, tid, "green 100×100 top-right")
     rect.size = (100, 100)
-    rect.pos = (300, 200)
+    rect.pos_px = (300, 200)
     rect.fillColor = "green"
     win.flip()
     time.sleep(step_delay)
 
     _update_label(win, lbl, tid, "yellow 100×100 bottom-left")
-    rect.pos = (-300, -200)
+    rect.pos_px = (-300, -200)
     rect.fillColor = "yellow"
     win.flip()
     time.sleep(step_delay)
@@ -57,7 +57,7 @@ def test_rect_position_size(win: visual.Window, step_delay: float, request: pyte
 def test_rect_colors(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
     lbl = _label(win, tid, "red")
-    rect = visual.Rect(win, width=200, height=200, fillColor="red", autoDraw=True)
+    rect = visual.Rect(win, width_px=200, height_px=200, fillColor="red", autoDraw=True)
     win.flip()
     time.sleep(step_delay)
 
@@ -75,8 +75,8 @@ def test_rect_colors(win: visual.Window, step_delay: float, request: pytest.Fixt
 def test_rect_opacity(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
     lbl = _label(win, tid, "red + blue, both opaque")
-    rect1 = visual.Rect(win, width=300, height=300, fillColor="red", pos=(-100, 0), autoDraw=True)
-    rect2 = visual.Rect(win, width=300, height=300, fillColor="blue", pos=(100, 0), autoDraw=True)
+    rect1 = visual.Rect(win, width_px=300, height_px=300, fillColor="red", pos=(-100, 0), autoDraw=True)
+    rect2 = visual.Rect(win, width_px=300, height_px=300, fillColor="blue", pos=(100, 0), autoDraw=True)
     win.flip()
     time.sleep(step_delay)
 

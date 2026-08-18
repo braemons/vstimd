@@ -18,7 +18,7 @@ impl NullBackend {
 
         let frame_period = {
             let s = scene.read().unwrap();
-            std::time::Duration::from_secs_f32(1.0 / s.runtime.frame_rate)
+            std::time::Duration::from_secs_f32(1.0 / s.runtime.frame_rate_hz)
         };
         loop {
             if crate::process::shutdown::is_requested() {

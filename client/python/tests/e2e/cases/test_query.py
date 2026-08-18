@@ -10,12 +10,12 @@ from vstimd.stimuli.stimuli_models import Color, Vec2
 
 def test_query_pos(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect(
-        position=Vec2(120, -80),
-        params=RectParams(width=50, height=50),
+        position_px=Vec2(120, -80),
+        params=RectParams(width_px=50, height_px=50),
     )
     info = conn.stimuli.query(handle)
-    assert info.pos.x == pytest.approx(120.0, abs=0.5)
-    assert info.pos.y == pytest.approx(-80.0, abs=0.5)
+    assert info.pos_px.x == pytest.approx(120.0, abs=0.5)
+    assert info.pos_px.y == pytest.approx(-80.0, abs=0.5)
     conn.stimuli.delete(handle)
 
 
@@ -52,9 +52,9 @@ def test_query_fill_color(conn: Connection) -> None:
 
 def test_query_orientation(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect()
-    conn.stimuli.set_orientation(handle, 45.0)
+    conn.stimuli.set_rotation(handle, 45.0)
     info = conn.stimuli.query(handle)
-    assert info.orientation == pytest.approx(45.0, abs=0.1)
+    assert info.rotation_deg == pytest.approx(45.0, abs=0.1)
     conn.stimuli.delete(handle)
 
 

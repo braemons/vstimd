@@ -22,7 +22,7 @@ pub(crate) fn spawn_demo_stimuli(
                     fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
                     ..Default::default()
                 },
-                ShapeGeometry::Circle { diameter: 160.0 },
+                ShapeGeometry::Circle { diameter_px: 160.0 },
             )),
         ),
     );
@@ -38,7 +38,7 @@ pub(crate) fn spawn_demo_stimuli(
                     fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
                     ..Default::default()
                 },
-                ShapeGeometry::Rect { size: [240.0, 100.0] },
+                ShapeGeometry::Rect { size_px: [240.0, 100.0] },
             )),
         ),
     );
@@ -52,9 +52,9 @@ pub(crate) fn spawn_demo_stimuli(
                 0.0,
                 [100.0, 100.0],
                 GratingParams {
-                    sf: 0.05,
+                    sf_cycles_per_px: 0.05,
                     contrast: 1.0,
-                    drift_speed: 1.0,
+                    drift_speed_hz: 1.0,
                     waveform: Waveform::Sin,
                     ..Default::default()
                 },

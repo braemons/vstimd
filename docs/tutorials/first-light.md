@@ -38,13 +38,13 @@ precisely the distinction this scene exists to make. Note that
 
 ```python
 conn.stimuli.text.create_text(
-    position=Vec2(0, 220),
+    position_px=Vec2(0, 220),
     name="title",
     params=TextParams(
         text="vstimd — first light",
-        letter_height=80,
+        letter_height_px=80,
         text_color=Color(1.0, 1.0, 1.0),
-        box_size=Vec2(1600, 120),
+        box_size_px=Vec2(1600, 120),
     ),
 )
 ```
@@ -59,10 +59,10 @@ the middle.
 
 ```python
 conn.stimuli.shapes.create_circle(
-    position=Vec2(0, 60),
+    position_px=Vec2(0, 60),
     name="fixation_dot",
     params=CircleParams(
-        diameter=16,
+        diameter_px=16,
         appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
     ),
 )
@@ -84,11 +84,11 @@ CORNERS = [
 
 for name, x, y in CORNERS:
     conn.stimuli.shapes.create_rect(
-        position=Vec2(x, y),
+        position_px=Vec2(x, y),
         name=name,
         params=RectParams(
-            width=80,
-            height=80,
+            width_px=80,
+            height_px=80,
             appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
         ),
     )
@@ -100,7 +100,7 @@ the display is not showing you the whole frame — overscan, a wrong mode, or a
 compositor in the way.
 
 !!! note "The saved config uses the same numbers as the command"
-    `width=80, height=80` is recorded as `"size": [80.0, 80.0]` in the config
+    `width_px=80, height_px=80` is recorded as `"size_px": [80.0, 80.0]` in the config
     JSON — full width and height, exactly what you passed.
 
 ## 5. The caption, and save

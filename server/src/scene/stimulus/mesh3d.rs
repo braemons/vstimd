@@ -8,7 +8,7 @@
 //!
 //! §9.1 of the roadmap lists these as separate `Stimulus` variants. They should
 //! not be. Per §1.6 the mesh cache is keyed by *geometry*, not by stimulus
-//! handle, so a cube and a sphere differ only in a `MeshKey` plus a nominal size
+//! handle, so a cube and a sphere differ only in a `MeshKey` plus a nominal size_cm
 //! folded into the model matrix — exactly the relationship rect/ellipse/circle
 //! have, which is why they share [`Shape`](super::Shape). They also share a
 //! pipeline (`mesh3d_pipeline`), a push-constant layout (§B.5), a texture cache
@@ -44,10 +44,10 @@ pub struct Mesh3d {
     pub texture_path: Option<String>,
 }
 
-/// Which primitive, and its nominal size.
+/// Which primitive, and its nominal size_cm.
 ///
 /// Sizes are **full extents** in centimetres, matching the 2-D convention that
-/// `CreateRect{width, height}` and the saved `"size"` are the same numbers. The
+/// `CreateRect{width, height}` and the saved `"size_cm"` are the same numbers. The
 /// unit cube is 2 units across, so the halving happens when building the model
 /// matrix — never in the API or the config, and never as a `half_size` field
 /// (that split is what the v3 config format removed).
@@ -56,12 +56,12 @@ pub struct Mesh3d {
 pub enum Mesh3dGeometry {
     Cube {
         /// Full extents, cm.
-        size: [f32; 3],
+        size_cm: [f32; 3],
     },
     Sphere {
         /// Full extent across, cm — the same convention `Circle` uses, so every
         /// geometry in the scene is sized by its full extent.
-        diameter: f32,
+        diameter_cm: f32,
         /// Tessellation quality — the only fields that select geometry, hence
         /// the only ones in the [`MeshKey`].
         rings: u32,
@@ -71,13 +71,13 @@ pub enum Mesh3dGeometry {
     /// and walls from many instances of this one mesh.
     Plane {
         /// Full extents, cm.
-        size: [f32; 2],
+        size_cm: [f32; 2],
     },
 }
 
 impl Default for Mesh3dGeometry {
     fn default() -> Self {
-        Self::Cube { size: [10.0; 3] }
+        Self::Cube { size_cm: [10.0; 3] }
     }
 }
 
@@ -113,7 +113,7 @@ impl Mesh3dGeometry {
     }
 
     /// The shared-mesh cache key. Only tessellation-affecting fields
-    /// participate: `size` and `diameter` fold into the model matrix, so a resize
+    /// participate: `size_cm` and `diameter_cm` fold into the model matrix, so a resize
     /// does **not** re-tessellate, and a screen resize does not invalidate 3-D
     /// meshes at all (unlike 2-D, whose vertices are baked to NDC).
     pub fn mesh_key(&self) -> MeshKey {
@@ -124,11 +124,11 @@ impl Mesh3dGeometry {
         }
     }
 
-    /// The nominal size to fold into the model matrix as scale, so the shared
+    /// The nominal size_cm to fold into the model matrix as scale, so the shared
     /// mesh can stay a *unit* primitive.
     ///
     /// Unimplemented pending the tessellator it has to agree with: the halving
-    /// convention (`size * 0.5` for the 2-units-across unit cube) is only
+    /// convention (`size_cm * 0.5` for the 2-units-across unit cube) is only
     /// correct relative to how `tess3d` emits the unit geometry, and writing one
     /// without the other bakes in a factor-of-two nobody can later locate.
     pub fn model_scale(&self) -> [f32; 3] {

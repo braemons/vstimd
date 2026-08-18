@@ -90,9 +90,9 @@ describe("vstimd web client e2e (--null)", () => {
 
   it("creates a stimulus and returns a handle", async () => {
     const handle = await conn.stimuli.shapes.createRect({
-      pos: { x: 123, y: 45 },
-      width: 80,
-      height: 40,
+      posPx: { x: 123, y: 45 },
+      widthPx: 80,
+      heightPx: 40,
       color: rgb(1, 0, 0),
       name: "e2e-rect",
     });
@@ -101,56 +101,56 @@ describe("vstimd web client e2e (--null)", () => {
 
   it("reflects created stimuli in the live snapshot", async () => {
     await conn.stimuli.shapes.createRect({
-      pos: { x: -200, y: 75 },
-      width: 60,
-      height: 60,
+      posPx: { x: -200, y: 75 },
+      widthPx: 60,
+      heightPx: 60,
       color: rgb(0, 1, 0),
       name: "snap-rect",
     });
 
     const snap = await conn.nextSnapshot();
     // screen_size is seeded under --null, so the map has an aspect ratio.
-    expect(snap.serverInfo?.width ?? 0).toBeGreaterThan(0);
+    expect(snap.serverInfo?.widthPx ?? 0).toBeGreaterThan(0);
 
     const ours = snap.stimuli.find((s) => s.name === "snap-rect");
     expect(ours, "created stimulus should appear in the snapshot").toBeDefined();
     expect(ours!.type).toBe("rect");
-    expect(ours!.pos.x).toBeCloseTo(-200, 3);
-    expect(ours!.pos.y).toBeCloseTo(75, 3);
+    expect(ours!.posPx.x).toBeCloseTo(-200, 3);
+    expect(ours!.posPx.y).toBeCloseTo(75, 3);
   });
 
-  it("applies size and orientation setters", async () => {
-    const handle = await conn.stimuli.shapes.createRect({ width: 100, height: 50, name: "sized" });
+  it("applies size and rotationDeg setters", async () => {
+    const handle = await conn.stimuli.shapes.createRect({ widthPx: 100, heightPx: 50, name: "sized" });
     await conn.stimuli.setRectSize(handle, 240, 120);
-    await conn.stimuli.setOrientation(handle, 30);
+    await conn.stimuli.setRotation(handle, 30);
 
     const snap = await conn.nextSnapshot();
     const ours = snap.stimuli.find((s) => s.name === "sized")!;
-    expect(ours.size.width).toBeCloseTo(240, 3);
-    expect(ours.size.height).toBeCloseTo(120, 3);
-    expect(ours.orientation).toBeCloseTo(30, 3);
+    expect(ours.size.widthPx).toBeCloseTo(240, 3);
+    expect(ours.size.heightPx).toBeCloseTo(120, 3);
+    expect(ours.rotationDeg).toBeCloseTo(30, 3);
   });
 
   it("creates a named ellipse with the expected size", async () => {
-    await conn.stimuli.shapes.createEllipse({ width: 160, height: 80, name: "ell" });
+    await conn.stimuli.shapes.createEllipse({ widthPx: 160, heightPx: 80, name: "ell" });
     const snap = await conn.nextSnapshot();
     const ell = snap.stimuli.find((s) => s.name === "ell")!;
     expect(ell.type).toBe("ellipse");
-    expect(ell.size.width).toBeCloseTo(160, 3);
-    expect(ell.size.height).toBeCloseTo(80, 3);
+    expect(ell.size.widthPx).toBeCloseTo(160, 3);
+    expect(ell.size.heightPx).toBeCloseTo(80, 3);
   });
 
   it("creates a grating", async () => {
-    await conn.stimuli.grating.create({ width: 300, height: 200, sf: 0.04, name: "grat", waveform: "sqr" });
+    await conn.stimuli.grating.create({ widthPx: 300, heightPx: 200, sfCyclesPerPx: 0.04, name: "grat", waveform: "sqr" });
     const snap = await conn.nextSnapshot();
     const g = snap.stimuli.find((s) => s.name === "grat")!;
     expect(g.type).toBe("grating");
-    expect(g.size.width).toBeCloseTo(300, 3);
-    expect(g.size.height).toBeCloseTo(200, 3);
+    expect(g.size.widthPx).toBeCloseTo(300, 3);
+    expect(g.size.heightPx).toBeCloseTo(200, 3);
   });
 
   it("creates and updates a text stimulus", async () => {
-    const h = await conn.stimuli.text.create({ text: "hello", letterHeight: 40, name: "txt" });
+    const h = await conn.stimuli.text.create({ text: "hello", letterHeightPx: 40, name: "txt" });
     await conn.stimuli.text.setText(h, "world!");
     const snap = await conn.nextSnapshot();
     const t = snap.stimuli.find((s) => s.name === "txt")!;
@@ -212,19 +212,19 @@ describe("vstimd web client e2e (--null)", () => {
   });
 
   it("round-trips a position update (RF-mapping style)", async () => {
-    const handle = await conn.stimuli.shapes.createCircle({ diameter: 40, name: "drag-me" });
+    const handle = await conn.stimuli.shapes.createCircle({ diameterPx: 40, name: "drag-me" });
     await conn.stimuli.setPosition(handle, { x: 333, y: -111 });
 
     const snap = await conn.nextSnapshot();
     const ours = snap.stimuli.find((s) => s.name === "drag-me");
     // The snapshot exposes the handle, so a map UI can drive setPosition from it.
     expect(ours!.handle).toBe(handle);
-    expect(ours!.pos.x).toBeCloseTo(333, 3);
-    expect(ours!.pos.y).toBeCloseTo(-111, 3);
+    expect(ours!.posPx.x).toBeCloseTo(333, 3);
+    expect(ours!.posPx.y).toBeCloseTo(-111, 3);
   });
 
   it("applies the generic outline / draw-mode setters", async () => {
-    const h = await conn.stimuli.shapes.createRect({ width: 40, height: 40, name: "outlined" });
+    const h = await conn.stimuli.shapes.createRect({ widthPx: 40, heightPx: 40, name: "outlined" });
     // No snapshot field for these yet — assert the commands are accepted (no throw).
     await conn.stimuli.setDrawMode(h, "filledAndOutlined");
     await conn.stimuli.setOutlineColor(h, rgb(0, 0, 1));
@@ -239,8 +239,8 @@ describe("vstimd web client e2e (--null)", () => {
     // The client builds these correctly, but the server does not yet implement
     // them — see https://github.com/braemons/vstimd/issues/43. Tighten this to
     // assert the reorder once the server supports it.
-    const a = await conn.stimuli.shapes.createRect({ width: 10, height: 10, name: "order-a" });
-    const b = await conn.stimuli.shapes.createRect({ width: 10, height: 10, name: "order-b" });
+    const a = await conn.stimuli.shapes.createRect({ widthPx: 10, heightPx: 10, name: "order-a" });
+    const b = await conn.stimuli.shapes.createRect({ widthPx: 10, heightPx: 10, name: "order-b" });
     await expect(conn.stimuli.bringToFront(a)).rejects.toBeInstanceOf(NotSupportedError);
     await expect(conn.stimuli.sendToBack(b)).rejects.toBeInstanceOf(NotSupportedError);
     await expect(conn.stimuli.swapDrawOrder(a, b)).rejects.toBeInstanceOf(NotSupportedError);
@@ -257,7 +257,7 @@ describe("vstimd web client e2e (--null)", () => {
   });
 
   it("creates, arms, and lists an animation", async () => {
-    const h = await conn.stimuli.shapes.createRect({ width: 20, height: 20, name: "flash-me" });
+    const h = await conn.stimuli.shapes.createRect({ widthPx: 20, heightPx: 20, name: "flash-me" });
     const anim = await conn.animations.flash(h, { durationFrames: 5, name: "flash-anim" });
     expect(anim).toBeGreaterThan(0);
 
@@ -276,7 +276,7 @@ describe("vstimd web client e2e (--null)", () => {
   });
 
   it("saves, lists, retrieves, and loads a config", async () => {
-    await conn.stimuli.shapes.createRect({ width: 50, height: 50, name: "cfg-rect" });
+    await conn.stimuli.shapes.createRect({ widthPx: 50, heightPx: 50, name: "cfg-rect" });
     await conn.config.save("e2e_web", { overwrite: true });
 
     expect(await conn.config.list()).toContain("e2e_web");
