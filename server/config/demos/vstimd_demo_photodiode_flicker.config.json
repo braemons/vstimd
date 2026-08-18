@@ -37,14 +37,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 100.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -59,12 +59,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Rect",
-              "size": [
+              "size_px": [
                 1400.0,
                 600.0
               ]
@@ -83,14 +83,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Text",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 -340.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "params": {
               "color": [
@@ -113,11 +113,11 @@
               ],
               "flip_horiz": false
             },
-            "box_size": [
+            "box_size_px": [
               1500.0,
               320.0
             ],
-            "text_live": "demo_photodiode_flicker — frame timing\n\nThe photodiode patch (bottom-left corner) inverts on every single frame,\nso a photodiode on that corner reports the real refresh rate.\nThe big white patch flickers at 5 Hz (6 frames on / 6 off at 60 Hz) as a\nvisible cross-check. Both run on load and never stop; no triggers used.",
+            "text_live": "demo_photodiode_flicker \u2014 frame timing\n\nThe photodiode patch (bottom-left corner) inverts on every single frame,\nso a photodiode on that corner reports the real refresh rate.\nThe big white patch flickers at 5 Hz (6 frames on / 6 off at 60 Hz) as a\nvisible cross-check. Both run on load and never stop; no triggers used.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",

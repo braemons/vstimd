@@ -35,11 +35,11 @@ pub struct SceneRuntimeState {
     /// Rolling mean of measured frame durations, updated by the render thread
     /// each frame. Telemetry only — it jitters, so nothing whose result has to
     /// be reproducible may compute with it (#120).
-    pub frame_rate: f32,
+    pub frame_rate_hz: f32,
     /// Nominal refresh rate of the display mode, set once by the render loop.
     /// The rate animations convert against: a fixed property of the rig, so a
     /// config plays back the same way on every run.
-    pub nominal_frame_rate: f32,
+    pub nominal_frame_rate_hz: f32,
     /// Set by the render thread on each frame. `None` until the first frame completes.
     pub screen_size: Option<(u32, u32)>,
     /// Screen size at which meshes were last tessellated. When this changes all
@@ -69,8 +69,8 @@ impl SceneRuntimeState {
             config_dir,
             deferred_mode: false,
             pending_flip: false,
-            frame_rate: 60.0,
-            nominal_frame_rate: 60.0,
+            frame_rate_hz: 60.0,
+            nominal_frame_rate_hz: 60.0,
             screen_size: None,
             last_uploaded_size: (0, 0),
             error_mask: 0,
@@ -352,14 +352,18 @@ impl SceneState {
     /// Record a completed command in the ring buffer.
     /// Called from `handle_request` while the write lock is already held —
     /// no extra synchronisation needed.
+    ///
+    /// Takes the outcome rather than the `proto::Response` it came from: what the
+    /// overlay's log shows is "did this command succeed", and reading a proto type
+    /// here would make the scene speak the wire for two fields it does not own.
     pub fn push_command_log(
         &mut self,
         handle: u32,
         summary: String,
-        response: &crate::proto::Response,
+        ok: bool,
+        response_handle: i32,
     ) {
         const MAX_LOG: usize = 200;
-        let ok = response.code == 0;
         if !ok {
             self.runtime.command_log_errors += 1;
         }
@@ -369,7 +373,7 @@ impl SceneState {
             handle,
             summary,
             ok,
-            response: response.handle,
+            response: response_handle,
         });
         if self.runtime.command_log.len() > MAX_LOG {
             self.runtime.command_log.pop_front();

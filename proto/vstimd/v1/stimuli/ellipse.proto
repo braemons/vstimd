@@ -17,13 +17,13 @@ message CreateEllipseRequest {
 // Stimulus command: resize an Ellipse stimulus.
 // Returns WRONG_STIMULUS_TYPE if the handle is not an Ellipse.
 message SetEllipseSizeRequest {
-  float width = 1;
-  float height = 2;
+  float width_px = 1;
+  float height_px = 2;
 }
 
 message EllipseParams {
-  float width = 1;  // full width in pixels  (0 → default 100)
-  float height = 2; // full height in pixels (0 → default 100)
+  float width_px = 1;  // full width  (0 → default 100)
+  float height_px = 2; // full height (0 → default 100)
   // See CreateRectRequest's RectParams.appearance for the fallback rules.
   ShapeAppearance appearance = 3;
 }

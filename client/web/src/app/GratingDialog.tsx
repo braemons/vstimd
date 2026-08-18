@@ -23,13 +23,13 @@ export function GratingDialog({ conn, defaultName, onClose }: Props) {
   const [name, setName] = useState(defaultName);
   const [x, setX] = useState(0);
   const [y, setY] = useState(0);
-  const [width, setWidth] = useState(200);
-  const [height, setHeight] = useState(200);
-  const [sf, setSf] = useState(0.05);
+  const [widthPx, setWidth] = useState(200);
+  const [heightPx, setHeight] = useState(200);
+  const [sfCyclesPerPx, setSf] = useState(0.05);
   const [contrast, setContrast] = useState(1);
-  const [phase, setPhase] = useState(0);
+  const [phaseCycles, setPhase] = useState(0);
   const [angle, setAngle] = useState(0);
-  const [driftSpeed, setDriftSpeed] = useState(0);
+  const [driftSpeedHz, setDriftSpeed] = useState(0);
   const [opacity, setOpacity] = useState(1);
   const [waveform, setWaveform] = useState<Waveform>("sin");
   const [mask, setMask] = useState<GratingMask>("none");
@@ -37,14 +37,14 @@ export function GratingDialog({ conn, defaultName, onClose }: Props) {
   async function submit() {
     const handle = await conn.stimuli.grating.create({
       name,
-      pos: { x, y },
-      width,
-      height,
-      sf,
+      posPx: { x, y },
+      widthPx,
+      heightPx,
+      sfCyclesPerPx,
       contrast,
-      phase,
+      phaseCycles,
       angle,
-      driftSpeed,
+      driftSpeedHz,
       waveform,
       mask,
       foreColor: rgb(1, 1, 1),
@@ -69,24 +69,24 @@ export function GratingDialog({ conn, defaultName, onClose }: Props) {
       </Field>
       <Field label="Size w, h">
         <div style={{ display: "flex", gap: 6 }}>
-          <NumberInput value={width} onChange={setWidth} />
-          <NumberInput value={height} onChange={setHeight} />
+          <NumberInput value={widthPx} onChange={setWidth} />
+          <NumberInput value={heightPx} onChange={setHeight} />
         </div>
       </Field>
       <Field label="Spatial freq">
-        <NumberInput value={sf} onChange={setSf} step={0.01} />
+        <NumberInput value={sfCyclesPerPx} onChange={setSf} step={0.01} />
       </Field>
       <Field label="Contrast">
         <NumberInput value={contrast} onChange={setContrast} step={0.05} />
       </Field>
       <Field label="Phase">
-        <NumberInput value={phase} onChange={setPhase} step={0.05} />
+        <NumberInput value={phaseCycles} onChange={setPhase} step={0.05} />
       </Field>
       <Field label="Angle (deg)">
         <NumberInput value={angle} onChange={setAngle} />
       </Field>
       <Field label="Drift speed">
-        <NumberInput value={driftSpeed} onChange={setDriftSpeed} step={0.1} />
+        <NumberInput value={driftSpeedHz} onChange={setDriftSpeed} step={0.1} />
       </Field>
       <Field label="Opacity">
         <NumberInput value={opacity} onChange={setOpacity} step={0.05} />

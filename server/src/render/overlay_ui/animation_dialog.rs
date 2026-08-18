@@ -2,7 +2,7 @@
 //!
 //! Builds an [`AnimationEntry`] the caller inserts via
 //! [`SceneState::add_animation`]. Covers the keyboard-friendly [`Animation`]
-//! variants; `MoveAlongPath2D` (bulk coords) and `ExternalPosition2D` (shm) are
+//! variants; `MoveAlongPath2D` (bulk coords_px) and `ExternalPosition2D` (shm) are
 //! intentionally omitted from v1.
 
 use crate::scene::animation::{Animation, CancelAction, FinalAction, StartAction};
@@ -180,7 +180,7 @@ impl AnimationDialog {
                 },
             },
             AnimationDialogKind::MoveSegments => Animation::MoveAlongSegments2D {
-                waypoints: Self::parse_waypoints(&self.waypoints_text),
+                waypoints_px: Self::parse_waypoints(&self.waypoints_text),
                 speed_px_per_sec: self.speed,
             },
         };
@@ -307,7 +307,7 @@ impl AnimationDialog {
                                 ui.add(egui::DragValue::new(&mut self.flicker_total).range(1..=1_000_000));
                             });
                         }
-                        ui.checkbox(&mut self.start_on_phase, "Start in on-phase");
+                        ui.checkbox(&mut self.start_on_phase, "Start in on-phase_cycles");
                     }
                     AnimationDialogKind::EnableOnEdge | AnimationDialogKind::CoupleVisibility => {
                         self.trigger_picker(ui, lines);

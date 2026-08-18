@@ -12,7 +12,7 @@ use super::text_params::{Anchor, LanguageStyle, TextRenderParams};
 pub struct TextConfig {
     pub transform: Deferred<Transform2D>,
     pub params: Deferred<TextRenderParams>,
-    pub box_size: Deferred<[f32; 2]>,
+    pub box_size_px: Deferred<[f32; 2]>,
     pub text_live: String,
     // These never change post-creation (would require full re-layout).
     pub font_family: String,
@@ -62,17 +62,11 @@ impl<'de> serde::Deserialize<'de> for Text {
 }
 
 impl Text {
-    /// Deliberately still `"TextStimulus"`, not `"Text"`: this string reaches
-    /// clients in `WRONG_STIMULUS_TYPE` error messages, so it is wire surface
-    /// rather than an internal name to tidy up alongside the type. (The config
-    /// `"type"` tag is the *kind* name, also `"Text"`, which is a coincidence
-    /// rather than the same string.)
-    pub const TYPE_NAME: &'static str = "TextStimulus";
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        pos: [f32; 2],
-        angle: f32,
-        box_size: [f32; 2],
+        pos_px: [f32; 2],
+        angle_deg: f32,
+        box_size_px: [f32; 2],
         text: String,
         font_family: String,
         letter_height_px: f32,
@@ -83,9 +77,9 @@ impl Text {
         let text_copy = text.clone();
         Self {
             config: TextConfig {
-                transform: Deferred::new(Transform2D { pos, angle }),
+                transform: Deferred::new(Transform2D { pos_px, angle_deg }),
                 params: Deferred::new(params),
-                box_size: Deferred::new(box_size),
+                box_size_px: Deferred::new(box_size_px),
                 text_live: text,
                 font_family,
                 letter_height_px,
@@ -118,14 +112,14 @@ impl Text {
     pub fn make_copy(&mut self) {
         self.transform.make_copy();
         self.params.make_copy();
-        self.box_size.make_copy();
+        self.box_size_px.make_copy();
         self.text_copy = self.text_live.clone();
     }
 
     pub fn flip(&mut self) {
         self.transform.flip();
         self.params.flip();
-        self.box_size.flip();
+        self.box_size_px.flip();
         self.text_live = self.text_copy.clone();
     }
 }

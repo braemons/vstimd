@@ -4,7 +4,7 @@
 
     win = visual.Window(size=(1920, 1080), address='tcp://192.168.1.10:5555')
     circ = visual.Circle(win, radius=50, fillColor='red')
-    rect = visual.Rect(win, width=200, height=100, fillColor=(-1, 1, -1))
+    rect = visual.Rect(win, width_px=200, height_px=100, fillColor=(-1, 1, -1))
     circ.draw()
     win.flip()
 """

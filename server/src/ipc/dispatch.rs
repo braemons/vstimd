@@ -13,8 +13,8 @@ use crate::vtl_state::VtlState;
 /// Centre out of a create request's placement, defaulting to the origin the way
 /// the create commands themselves do.
 fn placement_pos(placement: Option<&proto::Transform2D>) -> (f32, f32) {
-    let pos = placement.and_then(|t| t.pos.as_ref());
-    (pos.map_or(0.0, |p| p.x), pos.map_or(0.0, |p| p.y))
+    let pos_px = placement.and_then(|t| t.pos_px.as_ref());
+    (pos_px.map_or(0.0, |p| p.x), pos_px.map_or(0.0, |p| p.y))
 }
 
 fn command_summary(req: &proto::Request) -> String {
@@ -23,41 +23,41 @@ fn command_summary(req: &proto::Request) -> String {
             let p = c.params.as_ref();
             format!(
                 "CreateRect {:.0}×{:.0}",
-                p.map_or(0.0, |p| p.width),
-                p.map_or(0.0, |p| p.height),
+                p.map_or(0.0, |p| p.width_px),
+                p.map_or(0.0, |p| p.height_px),
             )
         }
         Some(request::Body::CreateCircle(c)) => {
-            format!("CreateCircle d={:.0}", c.params.as_ref().map_or(0.0, |p| p.diameter))
+            format!("CreateCircle d={:.0}", c.params.as_ref().map_or(0.0, |p| p.diameter_px))
         }
         Some(request::Body::CreateEllipse(c)) => {
             let p = c.params.as_ref();
             format!(
                 "CreateEllipse {:.0}×{:.0}",
-                p.map_or(0.0, |p| p.width),
-                p.map_or(0.0, |p| p.height),
+                p.map_or(0.0, |p| p.width_px),
+                p.map_or(0.0, |p| p.height_px),
             )
         }
         Some(request::Body::SetEnabled(c)) => {
             format!("SetEnabled({})", if c.enabled { "on" } else { "off" })
         }
         Some(request::Body::Delete(_)) => "Delete".into(),
-        Some(request::Body::SetPosition(c)) => format!("SetPosition({:.1},{:.1})", c.x, c.y),
-        Some(request::Body::SetOrientation(c)) => format!("SetOrientation({:.1}°)", c.angle_deg),
+        Some(request::Body::SetPosition(c)) => format!("SetPosition({:.1},{:.1})", c.x_px, c.y_px),
+        Some(request::Body::SetRotation(c)) => format!("SetRotation({:.1}°)", c.rotation_deg),
         Some(request::Body::SetFillColor(_)) => "SetFillColor".into(),
         Some(request::Body::SetAlpha(c)) => format!("SetAlpha({:.2})", c.opacity),
         Some(request::Body::SetRectSize(c)) => {
-            format!("SetRectSize {:.0}×{:.0}", c.width, c.height)
+            format!("SetRectSize {:.0}×{:.0}", c.width_px, c.height_px)
         }
         Some(request::Body::SetCircleDiameter(c)) => {
-            format!("SetCircleDiameter({:.0})", c.diameter)
+            format!("SetCircleDiameter({:.0})", c.diameter_px)
         }
         Some(request::Body::SetEllipseSize(c)) => {
-            format!("SetEllipseSize {:.0}×{:.0}", c.width, c.height)
+            format!("SetEllipseSize {:.0}×{:.0}", c.width_px, c.height_px)
         }
         Some(request::Body::SetDrawMode(_)) => "SetDrawMode".into(),
         Some(request::Body::SetOutlineColor(_)) => "SetOutlineColor".into(),
-        Some(request::Body::SetOutlineWidth(c)) => format!("SetOutlineWidth({:.1})", c.line_width),
+        Some(request::Body::SetOutlineWidth(c)) => format!("SetOutlineWidth({:.1})", c.line_width_px),
         Some(request::Body::SetBackground(_)) => "SetBackground".into(),
         Some(request::Body::SetDeferredMode(c)) => {
             if c.cancel {
@@ -78,36 +78,36 @@ fn command_summary(req: &proto::Request) -> String {
             let p = c.params.as_ref();
             let (x, y) = placement_pos(c.placement.as_ref());
             format!(
-                "CreateGrating {:.0}×{:.0} sf={:.4} pos=({x:.1},{y:.1})",
-                p.map_or(0.0, |p| p.width),
-                p.map_or(0.0, |p| p.height),
-                p.map_or(0.0, |p| p.sf),
+                "CreateGrating {:.0}×{:.0} sf_cycles_per_px={:.4} pos_px=({x:.1},{y:.1})",
+                p.map_or(0.0, |p| p.width_px),
+                p.map_or(0.0, |p| p.height_px),
+                p.map_or(0.0, |p| p.sf_cycles_per_px),
             )
         }
         Some(request::Body::CreateText(c)) => {
             let (x, y) = placement_pos(c.placement.as_ref());
             format!(
-                "CreateText {:?} pos=({x:.1},{y:.1})",
+                "CreateText {:?} pos_px=({x:.1},{y:.1})",
                 c.params.as_ref().map_or("", |p| p.text.as_str()),
             )
         }
         Some(request::Body::SetText(c)) => format!("SetText({:?})", c.text),
         Some(request::Body::SetTextColor(_)) => "SetTextColor".into(),
-        Some(request::Body::SetGratingPhase(c)) => format!("SetGratingPhase({:.3})", c.phase),
-        Some(request::Body::SetGratingSf(c)) => format!("SetGratingSf({:.4})", c.sf),
+        Some(request::Body::SetGratingPhase(c)) => format!("SetGratingPhase({:.3})", c.phase_cycles),
+        Some(request::Body::SetGratingSf(c)) => format!("SetGratingSf({:.4})", c.sf_cycles_per_px),
         Some(request::Body::SetGratingContrast(c)) => {
             format!("SetGratingContrast({:.2})", c.contrast)
         }
         Some(request::Body::SetGratingWaveform(_)) => "SetGratingWaveform".into(),
         Some(request::Body::SetGratingMask(_)) => "SetGratingMask".into(),
         Some(request::Body::SetGratingDriftSpeed(c)) => {
-            format!("SetGratingDriftSpeed({:.3})", c.speed)
+            format!("SetGratingDriftSpeed({:.3})", c.speed_hz)
         }
         Some(request::Body::SetGratingDriftDecoupled(c)) => {
             format!("SetGratingDriftDecoupled({})", c.decoupled)
         }
         Some(request::Body::SetGratingDriftAngle(c)) => {
-            format!("SetGratingDriftAngle({:.1}°)", c.angle_deg)
+            format!("SetGratingDriftAngle({:.1}°)", c.drift_angle_deg)
         }
         Some(request::Body::SetGratingForeColor(_)) => "SetGratingForeColor".into(),
         Some(request::Body::SetGratingBackColor(_)) => "SetGratingBackColor".into(),
@@ -177,7 +177,12 @@ impl SceneState {
             },
         };
 
-        self.push_command_log(log_handle, log_summary.clone(), &response);
+        self.push_command_log(
+            log_handle,
+            log_summary.clone(),
+            response.code == proto::ErrorCode::Ok as i32,
+            response.handle,
+        );
 
         if response.code == proto::ErrorCode::Ok as i32 {
             if log_handle == 0 {
@@ -313,7 +318,7 @@ impl SceneState {
             request::Body::Delete(_) => self.cmd_delete(handle),
             request::Body::SetName(cmd) => self.cmd_set_name(handle, cmd),
             request::Body::SetPosition(cmd) => self.cmd_set_position(handle, cmd),
-            request::Body::SetOrientation(cmd) => self.cmd_set_orientation(handle, cmd),
+            request::Body::SetRotation(cmd) => self.cmd_set_orientation(handle, cmd),
             request::Body::SetFillColor(cmd) => self.cmd_set_fill_color(handle, cmd),
             request::Body::SetAlpha(cmd) => self.cmd_set_alpha(handle, cmd),
             request::Body::SetRectSize(cmd) => self.cmd_set_rect_size(handle, cmd),

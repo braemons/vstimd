@@ -1,4 +1,5 @@
 use super::shape_appearance::ShapeAppearance;
+use super::stimulus_type::StimulusType;
 use super::transform2d::Transform2D;
 use crate::scene::deferred::Deferred;
 
@@ -16,7 +17,7 @@ use crate::scene::deferred::Deferred;
 /// lives in `ipc/` — an internal kind name never reaches a client.
 ///
 /// No runtime state, so no config/runtime split (unlike
-/// [`Grating`](super::Grating), which owns `phase_accum`).
+/// [`Grating`](super::Grating), which owns `phase_accum_cycles`).
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Shape {
     pub transform: Deferred<Transform2D>,
@@ -32,43 +33,51 @@ pub struct Shape {
 #[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]
 pub enum ShapeGeometry {
-    Rect { size: [f32; 2] },
-    Ellipse { size: [f32; 2] },
-    Circle { diameter: f32 },
+    Rect { size_px: [f32; 2] },
+    Ellipse { size_px: [f32; 2] },
+    Circle { diameter_px: f32 },
 }
 
 impl Default for ShapeGeometry {
     fn default() -> Self {
-        Self::Rect { size: [0.0, 0.0] }
+        Self::Rect { size_px: [0.0, 0.0] }
     }
 }
 
 impl ShapeGeometry {
-    /// The **user-facing** type name, as it appears in the config `"type"` tag,
-    /// in `StimulusType`, and in `WRONG_STIMULUS_TYPE` error messages. Never the
-    /// internal kind name — a client has never heard of "Shape".
-    pub fn type_name(&self) -> &'static str {
+    /// Which user-facing type this geometry is. The many-to-one hop out of the
+    /// renderer's taxonomy: all three arms live in one [`StimulusBody::Shape`].
+    ///
+    /// [`StimulusBody::Shape`]: super::StimulusBody::Shape
+    pub fn stimulus_type(&self) -> StimulusType {
         match self {
-            Self::Rect { .. } => "Rect",
-            Self::Ellipse { .. } => "Ellipse",
-            Self::Circle { .. } => "Circle",
+            Self::Rect { .. } => StimulusType::Rect,
+            Self::Ellipse { .. } => StimulusType::Ellipse,
+            Self::Circle { .. } => StimulusType::Circle,
         }
     }
 
+    /// The **user-facing** type name, as it appears in the config `"type"` tag and
+    /// in `WRONG_STIMULUS_TYPE` error messages. Never the internal body name — a
+    /// client has never heard of "Shape".
+    pub fn type_name(&self) -> &'static str {
+        self.stimulus_type().type_name()
+    }
+
     /// Full extents in px — `None` for a circle, which needs only the one number
-    /// [`diameter`](Self::diameter) carries.
-    pub fn size(&self) -> Option<[f32; 2]> {
+    /// [`diameter_px`](Self::diameter_px) carries.
+    pub fn size_px(&self) -> Option<[f32; 2]> {
         match *self {
-            Self::Rect { size } | Self::Ellipse { size } => Some(size),
+            Self::Rect { size_px } | Self::Ellipse { size_px } => Some(size_px),
             Self::Circle { .. } => None,
         }
     }
 
     /// Diameter in px — `None` for rect and ellipse. A full extent like the
     /// others, so every geometry here is sized by the same convention.
-    pub fn diameter(&self) -> Option<f32> {
+    pub fn diameter_px(&self) -> Option<f32> {
         match *self {
-            Self::Circle { diameter } => Some(diameter),
+            Self::Circle { diameter_px } => Some(diameter_px),
             Self::Rect { .. } | Self::Ellipse { .. } => None,
         }
     }
@@ -76,13 +85,13 @@ impl ShapeGeometry {
 
 impl Shape {
     pub fn new(
-        pos: [f32; 2],
-        angle: f32,
+        pos_px: [f32; 2],
+        angle_deg: f32,
         appearance: ShapeAppearance,
         geometry: ShapeGeometry,
     ) -> Self {
         Self {
-            transform: Deferred::new(Transform2D { pos, angle }),
+            transform: Deferred::new(Transform2D { pos_px, angle_deg }),
             appearance: Deferred::new(appearance),
             geometry: Deferred::new(geometry),
         }

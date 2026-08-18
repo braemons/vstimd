@@ -159,7 +159,7 @@ impl DrmVblank {
 /// the legacy `DRM_IOCTL_WAIT_VBLANK` ioctl is not supported by the driver
 /// (e.g. NVIDIA Tegra nvdisplay).
 ///
-/// # Two-phase usage (avoids double-blocking with FIFO acquire)
+/// # Two-phase_cycles usage (avoids double-blocking with FIFO acquire)
 ///
 /// With `VK_PRESENT_MODE_FIFO_KHR`, `vkAcquireNextImageKHR` already blocks at
 /// the display vblank boundary.  If we also block on `FIRST_PIXEL_OUT` *before*

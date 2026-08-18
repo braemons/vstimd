@@ -36,11 +36,11 @@ class GratingStim:
 
     Key differences from PsychoPy:
 
-    - ``sf`` is in cycles/pixel (same as PsychoPy units='pix').  Pass the
+    - ``sf_cycles_per_px`` is in cycles/pixel (same as PsychoPy units='pix').  Pass the
       window's pixel-per-degree conversion if you need cycles/degree.
-    - Drift is handled server-side: set ``drift_speed`` (cycles/s) once;
-      the server accumulates phase every frame, avoiding ZMQ-jitter.
-    - ``phase`` is a scalar in [0, 1].  Two-element (x, y) phases are
+    - Drift is handled server-side: set ``drift_speed_hz`` (cycles/s) once;
+      the server accumulates phase_cycles every frame, avoiding ZMQ-jitter.
+    - ``phase_cycles`` is a scalar in [0, 1].  Two-element (x, y) phases are
       not supported — only the first element is used.
     - ``color`` / ``foreColor`` sets the peak colour (carrier = +1).
       ``backColor`` sets the trough colour (carrier = -1, default black).
@@ -54,18 +54,18 @@ class GratingStim:
         units: str = "",
         pos: PsychoPyVec2 = (0.0, 0.0),
         size: PsychoPyVec2 | float | None = None,
-        sf: float = 0.05,
+        sf_cycles_per_px: float = 0.05,
         ori: float = 0.0,
-        phase: float | tuple[float, float] = 0.0,
+        phase_cycles: float | tuple[float, float] = 0.0,
         color: PsychoPyColor = "white",
         colorSpace: str = "rgb",
         contrast: float = 1.0,
         opacity: float = 1.0,
         backColor: PsychoPyColor = "black",
         # drift (vstimd extension — not in PsychoPy)
-        drift_speed: float = 0.0,
+        drift_speed_hz: float = 0.0,
         drift_decoupled: bool = False,
-        drift_angle: float = 0.0,
+        drift_angle_deg: float = 0.0,
         autoDraw: bool = False,
         name: str | None = None,
         # accepted-but-ignored PsychoPy params
@@ -94,10 +94,10 @@ class GratingStim:
                 f"GratingStim: mask={mask!r} is not supported. "
                 f"Supported values: {[e.value for e in GratingMask]} or None."
             )
-        if isinstance(phase, tuple) and len(phase) > 1 and float(phase[1]) != 0.0:
+        if isinstance(phase_cycles, tuple) and len(phase_cycles) > 1 and float(phase_cycles[1]) != 0.0:
             raise NotImplementedError(
-                "GratingStim: two-element phase (x, y) is not supported — only the x component is used. "
-                "Pass a scalar or ensure phase[1] == 0."
+                "GratingStim: two-element phase_cycles (x, y) is not supported — only the x component is used. "
+                "Pass a scalar or ensure phase_cycles[1] == 0."
             )
         if blendmode != "avg":
             raise NotImplementedError(
@@ -126,26 +126,26 @@ class GratingStim:
 
         # Size
         if size is None:
-            width = height = 256.0
+            width_px = height_px = 256.0
         elif isinstance(size, (int, float)):
-            width = height = float(size)
+            width_px = height_px = float(size)
         else:
-            width, height = float(size[0]), float(size[1])
-        self._width = width
-        self._height = height
+            width_px, height_px = float(size[0]), float(size[1])
+        self._width = width_px
+        self._height = height_px
 
         # Phase: PsychoPy accepts (x, y) but we use only one axis.
-        self._phase = float(phase[0]) if isinstance(phase, tuple) else float(phase)
+        self._phase = float(phase_cycles[0]) if isinstance(phase_cycles, tuple) else float(phase_cycles)
         self._pos: tuple[float, float] = (float(pos[0]), float(pos[1]))
         self._ori = float(ori)
-        self._sf = float(sf)
+        self._sf = float(sf_cycles_per_px)
         self._contrast = float(contrast)
         self._opacity = float(opacity)
         self._color: PsychoPyColor = color
         self._back_color: PsychoPyColor = backColor
-        self._drift_speed = float(drift_speed)
+        self._drift_speed = float(drift_speed_hz)
         self._drift_decoupled = bool(drift_decoupled)
-        self._drift_angle = float(drift_angle)
+        self._drift_angle = float(drift_angle_deg)
         self._auto_draw = False
 
         waveform_enum  = tex  if tex  is not None else GratingTexture.SIN
@@ -155,25 +155,25 @@ class GratingStim:
         px, py = self._to_px(self._pos)
         pw = self._scalar_px(self._width)
         ph = self._scalar_px(self._height)
-        # sf is in cycles/unit — convert to cycles/pixel
+        # sf_cycles_per_px is in cycles/unit — convert to cycles/pixel
         psf = self._sf_to_px(self._sf)
         self._handle: StimulusHandle = win._conn.stimuli.grating.create_grating(
-            position=StimulusVec2(px, py),
-            rotation=self._ori,
+            position_px=StimulusVec2(px, py),
+            rotation_deg=self._ori,
             params=GratingParams(
-                width=pw,
-                height=ph,
-                sf=psf,
-                phase=self._phase,
+                width_px=pw,
+                height_px=ph,
+                sf_cycles_per_px=psf,
+                phase_cycles=self._phase,
                 contrast=self._contrast,
                 fore_color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0),
                 back_color=to_color(backColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0),
                 waveform=waveform_enum,
                 mask=mask_enum,
                 mask_param=mask_param,
-                drift_speed=self._drift_speed,
+                drift_speed_hz=self._drift_speed,
                 drift_coupled=not (self._drift_decoupled),
-                drift_angle=self._drift_angle,
+                drift_angle_deg=self._drift_angle,
             ),
         )
 
@@ -198,14 +198,14 @@ class GratingStim:
         assert isinstance(result, float)
         return result
 
-    def _sf_to_px(self, sf: float) -> float:
+    def _sf_to_px(self, sf_cycles_per_px: float) -> float:
         """Convert spatial frequency from units/cycle to cycles/pixel."""
         units = self._effective_units()
         if units in ("pix", ""):
-            return sf
+            return sf_cycles_per_px
         # For other units, convert 1 unit to pixels then invert.
         one_unit_px = self._scalar_px(1.0)
-        return sf / one_unit_px if one_unit_px != 0.0 else sf
+        return sf_cycles_per_px / one_unit_px if one_unit_px != 0.0 else sf_cycles_per_px
 
     # ── autoDraw / draw ───────────────────────────────────────────────────────
 
@@ -250,7 +250,7 @@ class GratingStim:
     @ori.setter
     def ori(self, value: float) -> None:
         self._ori = float(value)
-        self._win._dispatch(self._win._conn.stimuli.set_orientation, self._handle, self._ori)
+        self._win._dispatch(self._win._conn.stimuli.set_rotation, self._handle, self._ori)
 
     def setOri(self, value: float, operation: str = "", log: bool | None = None) -> None:
         self.ori = value
@@ -262,24 +262,24 @@ class GratingStim:
     # ── Grating parameters ────────────────────────────────────────────────────
 
     @property
-    def sf(self) -> float:
+    def sf_cycles_per_px(self) -> float:
         return self._sf
 
-    @sf.setter
-    def sf(self, value: float) -> None:
+    @sf_cycles_per_px.setter
+    def sf_cycles_per_px(self, value: float) -> None:
         self._sf = float(value)
         psf = self._sf_to_px(self._sf)
         self._win._dispatch(self._win._conn.stimuli.grating.set_sf, self._handle, psf)
 
     def setSF(self, value: float, log: bool | None = None) -> None:
-        self.sf = value
+        self.sf_cycles_per_px = value
 
     @property
-    def phase(self) -> float:
+    def phase_cycles(self) -> float:
         return self._phase
 
-    @phase.setter
-    def phase(self, value: float | tuple[float, float]) -> None:
+    @phase_cycles.setter
+    def phase_cycles(self, value: float | tuple[float, float]) -> None:
         self._phase = float(value[0]) if isinstance(value, tuple) else float(value)
         self._win._dispatch(self._win._conn.stimuli.grating.set_phase, self._handle, self._phase)
 
@@ -288,7 +288,7 @@ class GratingStim:
             value = self._phase + float(value)
         elif operation == "-":
             value = self._phase - float(value)
-        self.phase = value
+        self.phase_cycles = value
 
     @property
     def contrast(self) -> float:
@@ -396,11 +396,11 @@ class GratingStim:
     # ── Drift (vstimd extension) ──────────────────────────────────────────────
 
     @property
-    def drift_speed(self) -> float:
+    def drift_speed_hz(self) -> float:
         return self._drift_speed
 
-    @drift_speed.setter
-    def drift_speed(self, value: float) -> None:
+    @drift_speed_hz.setter
+    def drift_speed_hz(self, value: float) -> None:
         self._drift_speed = float(value)
         self._win._dispatch(
             self._win._conn.stimuli.grating.set_drift_speed, self._handle, self._drift_speed
@@ -418,11 +418,11 @@ class GratingStim:
         )
 
     @property
-    def drift_angle(self) -> float:
+    def drift_angle_deg(self) -> float:
         return self._drift_angle
 
-    @drift_angle.setter
-    def drift_angle(self, value: float) -> None:
+    @drift_angle_deg.setter
+    def drift_angle_deg(self, value: float) -> None:
         self._drift_angle = float(value)
         self._win._dispatch(
             self._win._conn.stimuli.grating.set_drift_angle, self._handle, self._drift_angle

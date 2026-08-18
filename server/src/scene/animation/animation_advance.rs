@@ -99,7 +99,7 @@ pub(crate) fn advance_one(
                     }
                 }
 
-                // FlashForNFrames enables stimuli at start; FlickerForNFrames sets initial phase.
+                // FlashForNFrames enables stimuli at start; FlickerForNFrames sets initial phase_cycles.
                 let Some(entry) = scene.config.animations.get(&handle) else {
                     return;
                 };
@@ -231,10 +231,10 @@ pub(crate) fn advance_one(
                 total_frames.is_some_and(|tf| frame_counter + 1 >= tf)
             }
 
-            Animation::MoveAlongPath2D { coords } => {
+            Animation::MoveAlongPath2D { coords_px } => {
                 let idx = frame_counter as usize;
-                if idx < coords.len() {
-                    let [x, y] = coords[idx];
+                if idx < coords_px.len() {
+                    let [x, y] = coords_px[idx];
                     for &sh in &stim_handles {
                         if let Some(e) = scene.config.stimuli.get_mut(&sh)
                             && e.stimulus.move_to_2d(false, x, y).is_err()
@@ -250,17 +250,17 @@ pub(crate) fn advance_one(
                         }
                     }
                 }
-                frame_counter + 1 >= coords.len() as u32
+                frame_counter + 1 >= coords_px.len() as u32
             }
             Animation::MoveAlongSegments2D {
-                waypoints,
+                waypoints_px,
                 speed_px_per_sec,
             } => {
-                if waypoints.len() < 2 || *speed_px_per_sec <= 0.0 {
+                if waypoints_px.len() < 2 || *speed_px_per_sec <= 0.0 {
                     true
                 } else {
                     // Compute cumulative lengths along each segment.
-                    let seg_lens: Vec<f32> = waypoints
+                    let seg_lens: Vec<f32> = waypoints_px
                         .windows(2)
                         .map(|w| {
                             let dx = w[1][0] - w[0][0];
@@ -273,7 +273,7 @@ pub(crate) fn advance_one(
                     // and this is recomputed every tick, so a jittering divisor
                     // would move the stimulus differently on each run (#120).
                     let total_frames = (total_len / speed_px_per_sec
-                        * scene.runtime.nominal_frame_rate)
+                        * scene.runtime.nominal_frame_rate_hz)
                         .ceil() as u32;
                     let total_frames = total_frames.max(1);
 
@@ -283,7 +283,7 @@ pub(crate) fn advance_one(
 
                     // Walk segments to find the current interpolated position.
                     let mut accum = 0.0f32;
-                    let mut pos = waypoints[0];
+                    let mut pos_px = waypoints_px[0];
                     for (i, &seg_len) in seg_lens.iter().enumerate() {
                         if accum + seg_len >= dist || i + 1 == seg_lens.len() {
                             let local_t = if seg_len > 0.0 {
@@ -292,9 +292,9 @@ pub(crate) fn advance_one(
                                 0.0
                             };
                             let local_t = local_t.clamp(0.0, 1.0);
-                            let a = waypoints[i];
-                            let b = waypoints[i + 1];
-                            pos = [
+                            let a = waypoints_px[i];
+                            let b = waypoints_px[i + 1];
+                            pos_px = [
                                 a[0] + (b[0] - a[0]) * local_t,
                                 a[1] + (b[1] - a[1]) * local_t,
                             ];
@@ -304,7 +304,7 @@ pub(crate) fn advance_one(
                     }
                     for &sh in &stim_handles {
                         if let Some(e) = scene.config.stimuli.get_mut(&sh)
-                            && e.stimulus.move_to_2d(false, pos[0], pos[1]).is_err()
+                            && e.stimulus.move_to_2d(false, pos_px[0], pos_px[1]).is_err()
                         {
                             log::warn!(
                                 "animation #{handle}: stimulus #{sh} is 3-D; \

@@ -32,12 +32,24 @@ make typecheck      # ty type checking
 See `docs/PLAN.md` for the full design and roadmap.
 
 **Key decisions:**
-- Stimulus types: `Stimulus { common, kind }` — shared state (flags, opacity) above a
-  `StimulusKind` enum, composition throughout (not trait objects or inheritance)
-- `StimulusKind` is the **renderer's** taxonomy (one arm per pipeline/cache: `Shape`,
+- Stimulus types: `Stimulus { common, body }` — shared state (flags, opacity) above a
+  `StimulusBody` enum, composition throughout (not trait objects or inheritance)
+- `StimulusBody` is the **renderer's** taxonomy (one arm per pipeline/cache: `Shape`,
   `Grating`, `Text`, `Mesh3d`); the finer user-facing names (`Rect`, `Circle`, `Cube3D`)
-  live in the geometry enums. Internal kind names must never reach a client — errors and
-  `StimulusType` come from `ShapeGeometry::type_name` / `Mesh3dGeometry::type_name`
+  live in the geometry enums. Internal body names must never reach a client — the
+  user-facing taxonomy is the native `scene::StimulusType`, which every geometry maps
+  to via `stimulus_type()` and which owns the only client-visible spelling
+  (`type_name()`). `ipc/convert` maps it to the wire enum, exhaustively, so adding a
+  type is a compile error until its wire value is chosen. It is called `Body` and not
+  `Kind` deliberately: it carries the stimulus data, and `Kind` reads as a synonym of
+  `StimulusType` while being strictly coarser (all four shapes are one `Shape` arm).
+  Never name a client-facing thing `kind`
+- **A quantity with a unit spells it in the name** — `width_px`, `rotation_deg`,
+  `drift_speed_hz`, `sf_cycles_per_px`, `position_cm` (3-D). This holds in the proto,
+  the scene, the config JSON and both clients, because the same name travels through
+  all four. Dimensionless quantities (`contrast`, `opacity`, `mask_param`, `*_frames`)
+  take no suffix, and the PsychoPy shim keeps PsychoPy's names (`pos`, `size`, `ori`,
+  `sf`). Rotation is `rotation_deg` everywhere — never `orientation`, never `angle`
 - The config format *is* the runtime shape (no DTO). Types owning runtime state
   (`StimulusFlags`, `Grating`, `Text`) hide it behind a `serde` impl delegating to an inner
   `*Config`; GPU resources never live in the scene tree at all
@@ -49,9 +61,12 @@ See `docs/PLAN.md` for the full design and roadmap.
 - `ipc/` — ZMQ transport plus the protobuf dispatcher. `handle_request` is an inherent method on
   `SceneState` split across `dispatch.rs` (routing + command summary) and one `*_commands.rs` per
   domain. A new command needs an arm in `dispatch.rs` and the body in its group module.
-- `ipc/convert/` — **every** proto <-> scene conversion, one submodule per stimulus kind
-  (`grating.rs`, `text.rs`) plus the shared ones in `mod.rs`. A conversion belongs here, never
-  in `scene/`.
+- `ipc/convert/` — **every** proto <-> scene conversion: one submodule per stimulus body
+  (`grating.rs`, `text.rs`), one per non-stimulus domain (`animation.rs`, `vtl.rs`), and the
+  shared ones in `mod.rs`. A conversion belongs here, never in `scene/` and never inside a
+  `*_commands.rs`. Names are `X_from_proto` / `X_to_proto`, in that direction — nothing else,
+  so the direction of a call is readable rather than looked up. Decode an enum as
+  `Enum::try_from(v).unwrap_or(Unspecified)`.
 - `proto.rs` stays at the crate root, not under `ipc/` — the scene and the web surface speak it too.
 - `scene/` — state only; nothing here speaks protobuf.
 

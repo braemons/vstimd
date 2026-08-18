@@ -46,7 +46,7 @@ export class Connection {
     this.system = new SystemClient(send);
     this.vtl = new VtlClient(send);
     this.animations = new AnimationsClient(send, () =>
-      this.system.queryServerInfo().then((i) => i.frameRate),
+      this.system.queryServerInfo().then((i) => i.frameRateHz),
     );
     this.config = new ConfigClient(send);
   }

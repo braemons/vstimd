@@ -8,7 +8,7 @@ use super::grating_pipeline::GratingPushConstants;
 
 /// The grating state a config file records.
 ///
-/// Split out from [`Grating`] because `phase_accum` is render-thread runtime
+/// Split out from [`Grating`] because `phase_accum_cycles` is render-thread runtime
 /// state that must not round-trip through a config: the split lives at the leaf
 /// that owns the runtime data, so composition gives a scene tree that
 /// serializes correctly without a parallel `Runtime` mirror of it.
@@ -17,7 +17,7 @@ pub struct GratingConfig {
     pub transform: Deferred<Transform2D>,
     /// Full patch extents in pixels: `[width, height]`, as the command API
     /// takes and reports them.
-    pub size: Deferred<[f32; 2]>,
+    pub size_px: Deferred<[f32; 2]>,
     pub params: Deferred<GratingParams>,
 }
 
@@ -28,9 +28,9 @@ pub struct GratingConfig {
 #[derive(Clone)]
 pub struct Grating {
     pub config: GratingConfig,
-    /// Phase accumulated by the render thread each frame from `drift_speed`.
-    /// Not deferred — updated in place; reset to 0 when drift_speed is set to 0.
-    pub phase_accum: f32,
+    /// Phase accumulated by the render thread each frame from `drift_speed_hz`.
+    /// Not deferred — updated in place; reset to 0 when drift_speed_hz is set to 0.
+    pub phase_accum_cycles: f32,
 }
 
 impl std::ops::Deref for Grating {
@@ -46,7 +46,7 @@ impl std::ops::DerefMut for Grating {
     }
 }
 
-/// Serializes as [`GratingConfig`]; `phase_accum` is render-thread runtime state
+/// Serializes as [`GratingConfig`]; `phase_accum_cycles` is render-thread runtime state
 /// and a saved value would describe a session that is over.
 impl serde::Serialize for Grating {
     fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
@@ -58,26 +58,25 @@ impl<'de> serde::Deserialize<'de> for Grating {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         Ok(Self {
             config: GratingConfig::deserialize(d)?,
-            phase_accum: 0.0,
+            phase_accum_cycles: 0.0,
         })
     }
 }
 
 impl Grating {
-    pub const TYPE_NAME: &'static str = "Grating";
     pub fn new(
-        pos: [f32; 2],
-        angle: f32,
-        size: [f32; 2], // [width, height] in pixels (full extents)
+        pos_px: [f32; 2],
+        angle_deg: f32,
+        size_px: [f32; 2], // [width, height] in pixels (full extents)
         params: GratingParams,
     ) -> Self {
         Self {
             config: GratingConfig {
-                transform: Deferred::new(Transform2D { pos, angle }),
-                size: Deferred::new(size),
+                transform: Deferred::new(Transform2D { pos_px, angle_deg }),
+                size_px: Deferred::new(size_px),
                 params: Deferred::new(params),
             },
-            phase_accum: 0.0,
+            phase_accum_cycles: 0.0,
         }
     }
 
@@ -113,25 +112,25 @@ impl Grating {
         );
     }
 
-    pub fn set_phase(&mut self, deferred: bool, phase: f32) {
+    pub fn set_phase(&mut self, deferred: bool, phase_cycles: f32) {
         let prev = if deferred {
             self.params.copy
         } else {
             self.params.live
         };
-        self.params.set(deferred, GratingParams { phase, ..prev });
+        self.params.set(deferred, GratingParams { phase_cycles, ..prev });
         if !deferred {
-            self.phase_accum = 0.0;
+            self.phase_accum_cycles = 0.0;
         }
     }
 
-    pub fn set_sf(&mut self, deferred: bool, sf: f32) {
+    pub fn set_sf(&mut self, deferred: bool, sf_cycles_per_px: f32) {
         let prev = if deferred {
             self.params.copy
         } else {
             self.params.live
         };
-        self.params.set(deferred, GratingParams { sf, ..prev });
+        self.params.set(deferred, GratingParams { sf_cycles_per_px, ..prev });
     }
 
     pub fn set_contrast(&mut self, deferred: bool, contrast: f32) {
@@ -172,12 +171,12 @@ impl Grating {
         self.params.set(
             deferred,
             GratingParams {
-                drift_speed: speed,
+                drift_speed_hz: speed,
                 ..prev
             },
         );
         if !deferred && speed == 0.0 {
-            self.phase_accum = 0.0;
+            self.phase_accum_cycles = 0.0;
         }
     }
 
@@ -206,25 +205,25 @@ impl Grating {
         self.params.set(
             deferred,
             GratingParams {
-                drift_angle: angle_deg,
+                drift_angle_deg: angle_deg,
                 ..prev
             },
         );
     }
 
     pub fn reset_phase_accum(&mut self) {
-        self.phase_accum = 0.0;
+        self.phase_accum_cycles = 0.0;
     }
 
     pub fn make_copy(&mut self) {
         self.transform.make_copy();
-        self.size.make_copy();
+        self.size_px.make_copy();
         self.params.make_copy();
     }
 
     pub fn flip(&mut self) {
         self.transform.flip();
-        self.size.flip();
+        self.size_px.flip();
         self.params.flip();
     }
 }
@@ -233,11 +232,11 @@ impl Grating {
 pub fn grating_phase_inc(s: &Grating, fps: f32) -> f32 {
     let p = &s.params.live;
     if p.drift_coupled {
-        p.drift_speed / fps
+        p.drift_speed_hz / fps
     } else {
-        let grating_rad = s.transform.live.angle.to_radians();
-        let drift_rad = p.drift_angle.to_radians();
-        p.drift_speed * (drift_rad - grating_rad).cos() / fps
+        let grating_rad = s.transform.live.angle_deg.to_radians();
+        let drift_rad = p.drift_angle_deg.to_radians();
+        p.drift_speed_hz * (drift_rad - grating_rad).cos() / fps
     }
 }
 
@@ -258,11 +257,11 @@ pub fn build_grating_push_constants(
     let p = &s.params.live;
     GratingPushConstants {
         screen_half: [screen_w * 0.5, screen_h * 0.5],
-        center_px: s.transform.live.pos,
-        half_size: [s.size.live[0] * 0.5, s.size.live[1] * 0.5],
-        sf: p.sf,
-        phase: p.phase + s.phase_accum,
-        ori_rad: s.transform.live.angle.to_radians(),
+        center_px: s.transform.live.pos_px,
+        half_size: [s.size_px.live[0] * 0.5, s.size_px.live[1] * 0.5],
+        sf_cycles_per_px: p.sf_cycles_per_px,
+        phase_cycles: p.phase_cycles + s.phase_accum_cycles,
+        ori_rad: s.transform.live.angle_deg.to_radians(),
         contrast: p.contrast,
         global_opacity: opacity,
         _pad_color: 0,
@@ -289,21 +288,21 @@ mod tests {
     #[test]
     fn set_phase_immediate_resets_accum() {
         let mut s = default_stim();
-        s.phase_accum = 1.5;
+        s.phase_accum_cycles = 1.5;
         s.set_phase(false, 0.5);
-        assert_eq!(s.phase_accum, 0.0);
-        assert_eq!(s.params.live.phase, 0.5);
+        assert_eq!(s.phase_accum_cycles, 0.0);
+        assert_eq!(s.params.live.phase_cycles, 0.5);
     }
 
     #[test]
     fn set_phase_deferred_preserves_accum() {
         let mut s = default_stim();
-        s.phase_accum = 1.5;
+        s.phase_accum_cycles = 1.5;
         s.set_phase(true, 0.5);
-        assert_eq!(s.phase_accum, 1.5);
+        assert_eq!(s.phase_accum_cycles, 1.5);
         // live untouched, copy updated
-        assert_ne!(s.params.live.phase, 0.5);
-        assert_eq!(s.params.copy.phase, 0.5);
+        assert_ne!(s.params.live.phase_cycles, 0.5);
+        assert_eq!(s.params.copy.phase_cycles, 0.5);
     }
 
     // ── set_fore_color / set_back_color ───────────────────────────────────────

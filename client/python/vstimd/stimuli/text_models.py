@@ -32,8 +32,8 @@ _PROTO_TO_LANGUAGE_STYLE: dict[int, LanguageStyle] = {
 class TextParams:
     text: str = ""
     font: str = ""
-    letter_height: float = 0.0
-    box_size: Vec2 = field(default_factory=lambda: Vec2(0.0, 0.0))
+    letter_height_px: float = 0.0
+    box_size_px: Vec2 = field(default_factory=lambda: Vec2(0.0, 0.0))
     anchor: str = "center"
     text_color: Color = field(default_factory=lambda: Color(1.0, 1.0, 1.0, 1.0))
     fill_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0, 0.0))
@@ -46,9 +46,9 @@ class TextParams:
         return cls(
             text=proto.text,
             font=proto.font,
-            letter_height=proto.letter_height,
-            box_size=Vec2.from_proto(proto.box_size)
-            if proto.HasField("box_size")
+            letter_height_px=proto.letter_height_px,
+            box_size_px=Vec2.from_proto(proto.box_size_px)
+            if proto.HasField("box_size_px")
             else Vec2(0.0, 0.0),
             anchor=proto.anchor,
             text_color=Color.from_proto(proto.text_color)
@@ -68,8 +68,8 @@ class TextParams:
         return text_pb2.TextParams(
             text=self.text,
             font=self.font,
-            letter_height=self.letter_height,
-            box_size=self.box_size.to_proto(),
+            letter_height_px=self.letter_height_px,
+            box_size_px=self.box_size_px.to_proto(),
             anchor=self.anchor,
             text_color=self.text_color.to_proto(),
             fill_color=self.fill_color.to_proto(),

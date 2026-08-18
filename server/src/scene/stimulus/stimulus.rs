@@ -3,6 +3,7 @@ use super::mesh3d::Mesh3d;
 use super::shape::Shape;
 use super::stimulus_common::StimulusCommon;
 use super::stimulus_flags::StimulusFlags;
+use super::stimulus_type::StimulusType;
 use super::text::Text;
 use crate::scene::deferred::Deferred;
 pub use crate::scene::stimulus::shape_appearance::ShapeAppearance;
@@ -10,32 +11,37 @@ use crate::scene::stimulus::transform2d::Transform2D;
 
 // ── Stimulus ──────────────────────────────────────────────────────────────────
 
-/// One stimulus: the state every stimulus has, plus the state its kind has.
+/// One stimulus: the state every stimulus has, plus the state its body has.
 ///
-/// Shared state lives *above* the kind, so [`flags`](Self::flags),
+/// Shared state lives *above* the body, so [`flags`](Self::flags),
 /// [`opacity`](Self::opacity) and friends are field reads rather than one match
-/// arm per variant. Adding a kind does not touch them.
+/// arm per variant. Adding a body variant does not touch them.
 ///
-/// Serialized as `{"common": {...}, "kind": {"type": "Shape", ...}}`. The config
+/// Serialized as `{"common": {...}, "body": {"type": "Shape", ...}}`. The config
 /// format is the runtime shape — there is no separate DTO. Each type that owns
 /// runtime state ([`StimulusFlags`], [`Grating`], [`Text`]) hides it behind its
 /// own `serde` impl, so the tree serializes correctly by composition.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub struct Stimulus {
     pub common: StimulusCommon,
-    pub kind: StimulusKind,
+    pub body: StimulusBody,
 }
 
 /// What a stimulus draws — and, equivalently, which render path draws it.
 ///
+/// Named `Body`, not `Kind`: this enum *is* the stimulus content (each arm carries
+/// a whole [`Shape`], [`Grating`], [`Text`] or [`Mesh3d`]), and `Kind` reads as a
+/// near-synonym of the wire's `StimulusType` while meaning something strictly
+/// coarser — which is exactly the confusion this name avoids.
+///
 /// **This taxonomy is the renderer's, not the user's.** It is coarser than the
 /// wire API on purpose: `Rect`, `Ellipse` and `Circle` are all
-/// [`Shape`](StimulusKind::Shape); `Cube3D`, `Sphere3D` and `Plane3D` are all
-/// [`Mesh3d`](StimulusKind::Mesh3d). Each arm is one pipeline, one cache, one
+/// [`Shape`](StimulusBody::Shape); `Cube3D`, `Sphere3D` and `Plane3D` are all
+/// [`Mesh3d`](StimulusBody::Mesh3d). Each arm is one pipeline, one cache, one
 /// push-constant layout and one dirty/upload lifecycle.
 ///
 /// The finer user-facing names live in the geometry enums and in `ipc/`. An
-/// internal kind name must never reach a protocol response or an error message —
+/// internal body name must never reach a protocol response or an error message —
 /// see [`ShapeGeometry::type_name`](super::ShapeGeometry::type_name).
 ///
 /// Adding an arm here means adding a render path, which is a much bigger job
@@ -48,7 +54,7 @@ pub struct Stimulus {
 /// [`Stimulus::type_name`].
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]
-pub enum StimulusKind {
+pub enum StimulusBody {
     // ── 2-D — placement in pixels, screen-centre origin, Y-up ──
     /// Rect / ellipse / circle → `solid_pipeline`.
     Shape(Shape),
@@ -63,12 +69,12 @@ pub enum StimulusKind {
     Mesh3d(Mesh3d),
 }
 
-impl StimulusKind {
+impl StimulusBody {
     /// True when a change of opacity invalidates the cached mesh, because this
     /// kind bakes opacity into its vertex colours instead of pushing it as a
     /// constant.
     ///
-    /// This is a render-path fact, so it lives on the kind: only the shape
+    /// This is a render-path fact, so it lives on the body: only the shape
     /// pipeline bakes opacity in (`render::tess`); grating and text carry it in
     /// push constants, rebuilt from live state every frame. It answers a
     /// different question from "does this kind have an appearance" — the two
@@ -76,15 +82,15 @@ impl StimulusKind {
     /// per-draw constants, which `Mesh3d` (a material, but push constants)
     /// already is.
     pub fn opacity_is_baked_into_mesh(&self) -> bool {
-        matches!(self, StimulusKind::Shape(_))
+        matches!(self, StimulusBody::Shape(_))
     }
 }
 
 impl Stimulus {
-    pub fn new(kind: StimulusKind) -> Self {
+    pub fn new(body: StimulusBody) -> Self {
         Self {
             common: StimulusCommon::new(),
-            kind,
+            body,
         }
     }
 
@@ -119,7 +125,7 @@ impl Stimulus {
         self.common
             .opacity
             .set(deferred, opacity.clamp(0.0, 1.0));
-        if !deferred && self.kind.opacity_is_baked_into_mesh() {
+        if !deferred && self.body.opacity_is_baked_into_mesh() {
             self.flags_mut().mark_dirty();
         }
     }
@@ -128,20 +134,20 @@ impl Stimulus {
 
     /// The 2-D transform, or `None` for a 3-D stimulus.
     pub fn transform2d(&self) -> Option<&Deferred<Transform2D>> {
-        match &self.kind {
-            StimulusKind::Shape(s) => Some(&s.transform),
-            StimulusKind::Grating(g) => Some(&g.transform),
-            StimulusKind::Text(t) => Some(&t.transform),
-            StimulusKind::Mesh3d(_) => None,
+        match &self.body {
+            StimulusBody::Shape(s) => Some(&s.transform),
+            StimulusBody::Grating(g) => Some(&g.transform),
+            StimulusBody::Text(t) => Some(&t.transform),
+            StimulusBody::Mesh3d(_) => None,
         }
     }
 
     pub fn transform2d_mut(&mut self) -> Option<&mut Deferred<Transform2D>> {
-        match &mut self.kind {
-            StimulusKind::Shape(s) => Some(&mut s.transform),
-            StimulusKind::Grating(g) => Some(&mut g.config.transform),
-            StimulusKind::Text(t) => Some(&mut t.config.transform),
-            StimulusKind::Mesh3d(_) => None,
+        match &mut self.body {
+            StimulusBody::Shape(s) => Some(&mut s.transform),
+            StimulusBody::Grating(g) => Some(&mut g.config.transform),
+            StimulusBody::Text(t) => Some(&mut t.config.transform),
+            StimulusBody::Mesh3d(_) => None,
         }
     }
 
@@ -150,37 +156,37 @@ impl Stimulus {
     /// The shape, or `None` for another kind. The narrowing hop for code that
     /// holds a `&Stimulus` and needs one specific kind.
     pub fn shape(&self) -> Option<&Shape> {
-        match &self.kind {
-            StimulusKind::Shape(s) => Some(s),
+        match &self.body {
+            StimulusBody::Shape(s) => Some(s),
             _ => None,
         }
     }
 
     pub fn grating(&self) -> Option<&Grating> {
-        match &self.kind {
-            StimulusKind::Grating(g) => Some(g),
+        match &self.body {
+            StimulusBody::Grating(g) => Some(g),
             _ => None,
         }
     }
 
     pub fn text(&self) -> Option<&Text> {
-        match &self.kind {
-            StimulusKind::Text(t) => Some(t),
+        match &self.body {
+            StimulusBody::Text(t) => Some(t),
             _ => None,
         }
     }
 
     /// Shape appearance (fill/outline/draw-mode) — `None` for other kinds.
     pub fn shape_appearance(&self) -> Option<&Deferred<ShapeAppearance>> {
-        match &self.kind {
-            StimulusKind::Shape(s) => Some(&s.appearance),
+        match &self.body {
+            StimulusBody::Shape(s) => Some(&s.appearance),
             _ => None,
         }
     }
 
     pub fn shape_appearance_mut(&mut self) -> Option<&mut Deferred<ShapeAppearance>> {
-        match &mut self.kind {
-            StimulusKind::Shape(s) => Some(&mut s.appearance),
+        match &mut self.body {
+            StimulusBody::Shape(s) => Some(&mut s.appearance),
             _ => None,
         }
     }
@@ -190,7 +196,7 @@ impl Stimulus {
     /// Reset self-advanced runtime state to what a fresh config load produces.
     ///
     /// Some kinds carry state the render thread advances on its own, each frame,
-    /// from their config parameters: a grating's `phase_accum` (drift), and
+    /// from their config parameters: a grating's `phase_accum_cycles` (drift), and
     /// later a random-dot pattern's seed or a movie's frame counter. Loading a
     /// config — or re-arming one mid-session — must zero that state, or the
     /// stimulus resumes from wherever the *previous* session left it.
@@ -202,11 +208,11 @@ impl Stimulus {
     /// A match on every kind — like `make_copy`/`flip` — so a new kind cannot
     /// compile without deciding whether it has dynamic state to reset.
     pub fn reset_dynamic_state(&mut self) {
-        match &mut self.kind {
-            StimulusKind::Shape(_) | StimulusKind::Text(_) => {}
-            StimulusKind::Grating(g) => g.reset_phase_accum(),
+        match &mut self.body {
+            StimulusBody::Shape(_) | StimulusBody::Text(_) => {}
+            StimulusBody::Grating(g) => g.reset_phase_accum(),
             // No dynamic state yet — Phase B meshes are static placeholders.
-            StimulusKind::Mesh3d(_) => {}
+            StimulusBody::Mesh3d(_) => {}
         }
     }
 
@@ -215,22 +221,22 @@ impl Stimulus {
     /// Snapshot all live state into copy fields. Call at the start of deferred mode.
     pub fn make_copy(&mut self) {
         self.common.make_copy();
-        match &mut self.kind {
-            StimulusKind::Shape(s) => s.make_copy(),
-            StimulusKind::Grating(g) => g.make_copy(),
-            StimulusKind::Text(t) => t.make_copy(),
-            StimulusKind::Mesh3d(m) => m.make_copy(),
+        match &mut self.body {
+            StimulusBody::Shape(s) => s.make_copy(),
+            StimulusBody::Grating(g) => g.make_copy(),
+            StimulusBody::Text(t) => t.make_copy(),
+            StimulusBody::Mesh3d(m) => m.make_copy(),
         }
     }
 
     /// Promote all copy fields to live. Call at the frame boundary when `pending_flip` is set.
     pub fn flip(&mut self) {
         self.common.flip();
-        match &mut self.kind {
-            StimulusKind::Shape(s) => s.flip(),
-            StimulusKind::Grating(g) => g.flip(),
-            StimulusKind::Text(t) => t.flip(),
-            StimulusKind::Mesh3d(m) => m.flip(),
+        match &mut self.body {
+            StimulusBody::Shape(s) => s.flip(),
+            StimulusBody::Grating(g) => g.flip(),
+            StimulusBody::Text(t) => t.flip(),
+            StimulusBody::Mesh3d(m) => m.flip(),
         }
     }
 
@@ -248,8 +254,8 @@ impl Stimulus {
         let Some(t) = self.transform2d_mut() else {
             return Err(WrongDimension);
         };
-        let angle = if deferred { t.copy.angle } else { t.live.angle };
-        t.set(deferred, Transform2D { pos: [x, y], angle });
+        let angle_deg = if deferred { t.copy.angle_deg } else { t.live.angle_deg };
+        t.set(deferred, Transform2D { pos_px: [x, y], angle_deg });
         if !deferred {
             self.flags_mut().mark_dirty();
         }
@@ -262,8 +268,8 @@ impl Stimulus {
         let Some(t) = self.transform2d_mut() else {
             return Err(WrongDimension);
         };
-        let pos = if deferred { t.copy.pos } else { t.live.pos };
-        t.set(deferred, Transform2D { pos, angle: degrees });
+        let pos_px = if deferred { t.copy.pos_px } else { t.live.pos_px };
+        t.set(deferred, Transform2D { pos_px, angle_deg: degrees });
         if !deferred {
             self.flags_mut().mark_dirty();
         }
@@ -272,7 +278,7 @@ impl Stimulus {
 
     /// 2-D position, or `None` for a 3-D stimulus.
     pub fn get_pos_2d(&self) -> Option<[f32; 2]> {
-        self.transform2d().map(|t| t.live.pos)
+        self.transform2d().map(|t| t.live.pos_px)
     }
 
     // ── Visibility ────────────────────────────────────────────────────────────
@@ -281,18 +287,23 @@ impl Stimulus {
         self.flags().is_visible()
     }
 
-    // ── Display name ──────────────────────────────────────────────────────────
+    // ── User-facing type ──────────────────────────────────────────────────────
 
-    /// The **user-facing** type name — what the config `"type"` tag holds and
-    /// what a `WRONG_STIMULUS_TYPE` error quotes back. Sourced from the geometry
-    /// so a client never sees an internal kind name.
-    pub fn type_name(&self) -> &'static str {
-        match &self.kind {
-            StimulusKind::Shape(s) => s.geometry.live.type_name(),
-            StimulusKind::Grating(_) => Grating::TYPE_NAME,
-            StimulusKind::Text(_) => Text::TYPE_NAME,
-            StimulusKind::Mesh3d(m) => m.geometry.live.type_name(),
+    /// Which type a client would call this. Sourced from the geometry, so an
+    /// internal body name can never reach one; `ipc` turns it into the wire enum.
+    pub fn stimulus_type(&self) -> StimulusType {
+        match &self.body {
+            StimulusBody::Shape(s) => s.geometry.live.stimulus_type(),
+            StimulusBody::Grating(_) => StimulusType::Grating,
+            StimulusBody::Text(_) => StimulusType::Text,
+            StimulusBody::Mesh3d(m) => m.geometry.live.stimulus_type(),
         }
+    }
+
+    /// The **user-facing** type name — what the config `"type"` tag holds and what
+    /// a `WRONG_STIMULUS_TYPE` error quotes back.
+    pub fn type_name(&self) -> &'static str {
+        self.stimulus_type().type_name()
     }
 }
 
@@ -320,24 +331,24 @@ impl std::error::Error for WrongDimension {}
 
 impl From<Shape> for Stimulus {
     fn from(s: Shape) -> Self {
-        Self::new(StimulusKind::Shape(s))
+        Self::new(StimulusBody::Shape(s))
     }
 }
 
 impl From<Grating> for Stimulus {
     fn from(g: Grating) -> Self {
-        Self::new(StimulusKind::Grating(g))
+        Self::new(StimulusBody::Grating(g))
     }
 }
 
 impl From<Text> for Stimulus {
     fn from(t: Text) -> Self {
-        Self::new(StimulusKind::Text(t))
+        Self::new(StimulusBody::Text(t))
     }
 }
 
 impl From<Mesh3d> for Stimulus {
     fn from(m: Mesh3d) -> Self {
-        Self::new(StimulusKind::Mesh3d(m))
+        Self::new(StimulusBody::Mesh3d(m))
     }
 }

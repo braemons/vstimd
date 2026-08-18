@@ -33,7 +33,7 @@ from vstimd import Connection
 from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
 with Connection() as conn:
-    h = conn.stimuli.shapes.create_rect(position=Vec2(-200, 0), params=RectParams(width=300, height=200,
+    h = conn.stimuli.shapes.create_rect(position_px=Vec2(-200, 0), params=RectParams(width_px=300, height_px=200,
                           appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0))))
     conn.stimuli.set_enabled(h, False)
     conn.stimuli.delete(h)

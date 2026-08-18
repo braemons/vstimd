@@ -383,7 +383,7 @@ impl DrmRenderLoopData {
 
             // Register the FIRST_PIXEL_OUT fence for the frame we are about to
             // present.  The fence is collected at the top of the next iteration.
-            // This two-phase register→collect pattern avoids double-blocking with
+            // This two-phase_cycles register→collect pattern avoids double-blocking with
             // the FIFO vkAcquireNextImageKHR (which also syncs to the display).
             if let Err(reason) = self.vblank.register(self.rs.timing.frame_index as u64) {
                 Self::fatal_display_error(reason);

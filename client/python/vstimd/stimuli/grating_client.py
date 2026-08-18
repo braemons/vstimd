@@ -38,15 +38,15 @@ class GratingClient:
         self,
         *,
         name: str = "",
-        position: Vec2 = Vec2(0.0, 0.0),
-        rotation: float = 0.0,
+        position_px: Vec2 = Vec2(0.0, 0.0),
+        rotation_deg: float = 0.0,
         params: GratingParams | None = None,
     ) -> StimulusHandle:
         """Create a grating stimulus and return its handle.
 
-        ``rotation`` is the stripe orientation, not the patch's: 0° gives vertical
-        stripes varying along X. It is the placement's rotation because it is the
-        same property ``set_orientation`` sets.
+        ``rotation_deg`` is the stripe rotation_deg, not the patch's: 0° gives vertical
+        stripes varying along X. It is the placement's rotation_deg because it is the
+        same property ``set_rotation`` sets.
 
         The grating interpolates between ``params.back_color`` (carrier = -1) and
         ``params.fore_color`` (carrier = +1), modulated by contrast. For
@@ -60,7 +60,7 @@ class GratingClient:
             system=service_pb2.SystemTarget(),
             create_grating=grating_pb2.CreateGratingRequest(
                 identity=StimulusIdentity(name=name).to_proto(),
-                placement=Transform2D(pos=position.to_proto(), rotation_deg=rotation),
+                placement=Transform2D(pos_px=position_px.to_proto(), rotation_deg=rotation_deg),
                 params=(params or GratingParams()).to_proto(),
             ),
         )
@@ -68,16 +68,16 @@ class GratingClient:
 
     # ── Grating-specific mutations ─────────────────────────────────────────────
 
-    def set_phase(self, handle: StimulusHandle, phase: float) -> ServerResponse:
+    def set_phase(self, handle: StimulusHandle, phase_cycles: float) -> ServerResponse:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_grating_phase=grating_pb2.SetGratingPhaseRequest(phase=phase),
+            set_grating_phase=grating_pb2.SetGratingPhaseRequest(phase_cycles=phase_cycles),
         )))
 
-    def set_sf(self, handle: StimulusHandle, sf: float) -> ServerResponse:
+    def set_sf(self, handle: StimulusHandle, sf_cycles_per_px: float) -> ServerResponse:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_grating_sf=grating_pb2.SetGratingSfRequest(sf=sf),
+            set_grating_sf=grating_pb2.SetGratingSfRequest(sf_cycles_per_px=sf_cycles_per_px),
         )))
 
     def set_contrast(self, handle: StimulusHandle, contrast: float) -> ServerResponse:
@@ -100,10 +100,10 @@ class GratingClient:
             set_grating_mask=grating_pb2.SetGratingMaskRequest(mask=_MASK_TO_PROTO[mask]),
         )))
 
-    def set_drift_speed(self, handle: StimulusHandle, drift_speed: float) -> ServerResponse:
+    def set_drift_speed(self, handle: StimulusHandle, drift_speed_hz: float) -> ServerResponse:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_grating_drift_speed=grating_pb2.SetGratingDriftSpeedRequest(speed=drift_speed),
+            set_grating_drift_speed=grating_pb2.SetGratingDriftSpeedRequest(speed_hz=drift_speed_hz),
         )))
 
     def set_drift_decoupled(self, handle: StimulusHandle, drift_decoupled: bool) -> ServerResponse:
@@ -114,10 +114,10 @@ class GratingClient:
             ),
         )))
 
-    def set_drift_angle(self, handle: StimulusHandle, drift_angle: float) -> ServerResponse:
+    def set_drift_angle(self, handle: StimulusHandle, drift_angle_deg: float) -> ServerResponse:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_grating_drift_angle=grating_pb2.SetGratingDriftAngleRequest(angle_deg=drift_angle),
+            set_grating_drift_angle=grating_pb2.SetGratingDriftAngleRequest(drift_angle_deg=drift_angle_deg),
         )))
 
     def set_fore_color(self, handle: StimulusHandle, color: Color) -> ServerResponse:

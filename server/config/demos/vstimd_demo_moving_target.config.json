@@ -37,14 +37,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 -800.0,
                 0.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -59,12 +59,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Circle",
-              "diameter": 60.0
+              "diameter_px": 60.0
             }
           }
         }
@@ -80,14 +80,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Text",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 -340.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "params": {
               "color": [
@@ -110,11 +110,11 @@
               ],
               "flip_horiz": false
             },
-            "box_size": [
+            "box_size_px": [
               1500.0,
               320.0
             ],
-            "text_live": "demo_moving_target — motion plus an output pulse\n\nA 30 px target sweeps from x = -800 to x = +800 at 600 px/s, then restarts.\nEach completed sweep pulses out_pin36 (header pin 36) for one frame —\nscope that pin against the display to measure end-to-end output latency.\nRuns on load; no input trigger needed.",
+            "text_live": "demo_moving_target \u2014 motion plus an output pulse\n\nA 30 px target sweeps from x = -800 to x = +800 at 600 px/s, then restarts.\nEach completed sweep pulses out_pin36 (header pin 36) for one frame \u2014\nscope that pin against the display to measure end-to-end output latency.\nRuns on load; no input trigger needed.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",
@@ -149,7 +149,7 @@
         "cancel_action_trigger_line": null,
         "animation": {
           "MoveAlongSegments2D": {
-            "waypoints": [
+            "waypoints_px": [
               [
                 -800.0,
                 0.0

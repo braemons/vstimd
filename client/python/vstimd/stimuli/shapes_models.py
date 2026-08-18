@@ -52,9 +52,9 @@ class ShapeAppearance:
     # with both set, since the server reports what the stimulus actually has.
     fill_color: Color | None = None
     outline_color: Color | None = None
-    # 0 means unset here too, matching the proto: a 0-width outline draws nothing
-    # anyway, so `draw_mode` is how an outline is turned off, not width.
-    outline_width: float = 0.0
+    # 0 means unset here too, matching the proto: a 0-width_px outline draws nothing
+    # anyway, so `draw_mode` is how an outline is turned off, not width_px.
+    outline_width_px: float = 0.0
     draw_mode: ShapeDrawMode = ShapeDrawMode.FILLED
 
     @classmethod
@@ -66,7 +66,7 @@ class ShapeAppearance:
             outline_color=Color.from_proto(proto.outline_color)
             if proto.HasField("outline_color")
             else None,
-            outline_width=proto.outline_width,
+            outline_width_px=proto.outline_width_px,
             draw_mode=_PROTO_TO_DRAW_MODE.get(proto.draw_mode, ShapeDrawMode.FILLED),
         )
 
@@ -74,7 +74,7 @@ class ShapeAppearance:
         return shapes_pb2.ShapeAppearance(
             fill_color=self.fill_color.to_proto() if self.fill_color else None,
             outline_color=self.outline_color.to_proto() if self.outline_color else None,
-            outline_width=self.outline_width,
+            outline_width_px=self.outline_width_px,
             draw_mode=_SHAPE_DRAW_MODE_TO_PROTO.get(
                 self.draw_mode, shapes_pb2.SHAPE_DRAW_MODE_FILLED
             ),
@@ -97,14 +97,14 @@ def _appearance_or_default(params: object) -> ShapeAppearance:
 
 @dataclass
 class RectParams:
-    width: float = 0.0
-    height: float = 0.0
+    width_px: float = 0.0
+    height_px: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
     def to_proto(self) -> rect_pb2.RectParams:
         return rect_pb2.RectParams(
-            width=self.width,
-            height=self.height,
+            width_px=self.width_px,
+            height_px=self.height_px,
             appearance=self.appearance.to_proto(),
         )
 
@@ -112,39 +112,39 @@ class RectParams:
 @dataclass
 class CircleParams:
     # Diameter, not radius: a full extent, like every other geometry here.
-    diameter: float = 0.0
+    diameter_px: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
     def to_proto(self) -> circle_pb2.CircleParams:
         return circle_pb2.CircleParams(
-            diameter=self.diameter,
+            diameter_px=self.diameter_px,
             appearance=self.appearance.to_proto(),
         )
 
 
 @dataclass
 class EllipseParams:
-    width: float = 0.0
-    height: float = 0.0
+    width_px: float = 0.0
+    height_px: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
     def to_proto(self) -> ellipse_pb2.EllipseParams:
         return ellipse_pb2.EllipseParams(
-            width=self.width,
-            height=self.height,
+            width_px=self.width_px,
+            height_px=self.height_px,
             appearance=self.appearance.to_proto(),
         )
 
 
 @dataclass
 class PolygonParams:
-    vertices: list[Vec2] = field(default_factory=list)
+    vertices_px: list[Vec2] = field(default_factory=list)
     close_shape: bool = True
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
     def to_proto(self) -> polygon_pb2.PolygonParams:
         return polygon_pb2.PolygonParams(
-            vertices=[v.to_proto() for v in self.vertices],
+            vertices_px=[v.to_proto() for v in self.vertices_px],
             close_shape=self.close_shape,
             appearance=self.appearance.to_proto(),
         )

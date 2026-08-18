@@ -51,7 +51,7 @@ fn scene_with_rect(dir: &std::path::Path) -> SceneState {
             [10.0, 20.0],
             0.0,
             ShapeAppearance::default(),
-            ShapeGeometry::Rect { size: [100.0, 50.0] },
+            ShapeGeometry::Rect { size_px: [100.0, 50.0] },
         )),
     ));
     scene

@@ -80,7 +80,7 @@ message Request {
     SetNameRequest set_name = 42;
     DeleteRequest delete = 31;
     SetPositionRequest set_position = 32;
-    SetOrientationRequest set_orientation = 33;
+    SetRotationRequest set_rotation = 33;
     SetFillColorRequest set_fill_color = 34;
     SetAlphaRequest set_alpha = 35;
     SetRectSizeRequest set_rect_size = 36;

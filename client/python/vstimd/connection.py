@@ -41,7 +41,7 @@ class Connection:
 
         with Connection() as conn:
             h = conn.stimuli.shapes.create_rect(
-                params=RectParams(width=200, height=100,
+                params=RectParams(width_px=200, height_px=100,
                                   appearance=ShapeAppearance(fill_color=Color(1, 0, 0))),
             )
             conn.vtl.set_line_name(0, 0, VtlKind.OUTPUT, "frame_sync")
@@ -76,7 +76,7 @@ class Connection:
         self.vtl = VtlClient(self._send)
         self.animations = AnimationClient(
             self._send,
-            fps_getter=lambda: self.system.query_server_info().frame_rate,
+            fps_getter=lambda: self.system.query_server_info().frame_rate_hz,
         )
         self.config = ConfigClient(self._send)
         if wait_ready:

@@ -1,28 +1,91 @@
 //! Every proto <-> scene conversion, in one place.
 //!
 //! Nothing under `scene/` speaks protobuf: the scene owns runtime state and the
-//! wire format is this module's problem alone. So the per-stimulus conversions
-//! live here next to the shared ones, one submodule per stimulus kind, mirroring
-//! the `*_commands.rs` split of the dispatcher that consumes them.
+//! wire format is this module's problem alone. So the per-stimulus conversions live
+//! here next to the shared ones, one submodule per stimulus body, mirroring the
+//! `*_commands.rs` split of the dispatcher that consumes them.
 //!
-//! This module holds what every kind needs — draw modes, colours, the identity
-//! and placement every `Create*` request carries — and the shape appearance,
-//! which three of the geometry kinds share.
+//! The two conversions that are not per-body live here too: `animation` for the
+//! `CreateAnimationRequest` body and its edge/polarity enums, and `vtl` for line
+//! handles — both of which used to sit inside the command module that consumed
+//! them, where nothing stopped a fourth copy of the taxonomy appearing beside them.
+//!
+//! Every function reads `X_from_proto` or `X_to_proto`, in that direction. The
+//! four dialects this replaced (`proto_to_X`, `proto_X_to_scene`, `X_from_proto`,
+//! `proto_X`) made the direction of a call something you looked up rather than read.
+//!
+//! This module holds what every body needs — colours, draw modes, the user-facing
+//! type, and the identity and placement every `Create*` request carries — plus the
+//! shape appearance, which three of the geometries share.
+//!
+//! "Every" is meant literally: `scene/` names no proto type anywhere, so a change to
+//! the wire cannot reach the scene tree without passing through this module.
 
+mod animation;
 mod grating;
 mod text;
+mod vtl;
 
-pub(super) use grating::{
-    grating_params_from_proto, grating_query_params, proto_to_mask, proto_to_waveform,
+pub(super) use animation::{
+    animation_body_to_proto, animation_from_proto, vtl_edge_from_proto, vtl_edge_to_proto,
 };
-pub(super) use text::{anchor_from_str, proto_to_language_style, text_query_params,
+pub(super) use grating::{
+    grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,
+};
+pub(super) use text::{anchor_from_str, language_style_from_proto, text_params_to_proto,
     text_render_params_from_proto};
+pub(super) use vtl::{
+    output_vtl_bit_from_proto, vtl_bit_from_proto, vtl_bit_to_proto, vtl_kind_from_proto,
+};
 
 use crate::Color;
 use crate::proto;
-use crate::scene::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance, StimulusIdentity};
+use crate::scene::stimulus::{
+    DrawMode as SceneDrawMode, ShapeAppearance, StimulusIdentity,
+    StimulusType as SceneStimulusType,
+};
 
-pub(super) fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
+// Colour is the one conversion the whole wire surface needs, in both directions.
+// The impls live here rather than beside the type: coherence is per-crate, so
+// nothing forces them into `color.rs`, and `scene/` has no business naming a proto
+// type. Written as `From` rather than free functions because `Option::map(Into::into)`
+// at the call sites is what keeps the absent-field handling readable.
+
+impl From<proto::Color> for Color {
+    fn from(c: proto::Color) -> Self {
+        Self { r: c.r, g: c.g, b: c.b, a: c.a }
+    }
+}
+
+impl From<Color> for proto::Color {
+    fn from(c: Color) -> Self {
+        Self { r: c.r, g: c.g, b: c.b, a: c.a }
+    }
+}
+
+/// The scene's user-facing type → the wire enum.
+///
+/// The only place the two encodings of that taxonomy meet. `StimulusType` is
+/// exhaustive here, so adding a stimulus type is a compile error until the wire
+/// value is chosen — which is the whole reason the scene owns a native enum instead
+/// of handing out strings and letting this match be written from memory.
+pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusType {
+    match t {
+        SceneStimulusType::Rect => proto::StimulusType::Rect,
+        SceneStimulusType::Ellipse => proto::StimulusType::Ellipse,
+        SceneStimulusType::Circle => proto::StimulusType::Circle,
+        SceneStimulusType::Grating => proto::StimulusType::Grating,
+        SceneStimulusType::Text => proto::StimulusType::Text,
+        // Phase B: dev/3D_ROADMAP.md §10.2 reserves wire values 20–29 for these.
+        // Unreachable until a command constructs a `Mesh3d`, and reporting one of
+        // the 2-D values instead would be a lie a client could not detect.
+        SceneStimulusType::Cube3D | SceneStimulusType::Sphere3D | SceneStimulusType::Plane3D => {
+            unimplemented!("Phase B: STIMULUS_TYPE_CUBE_3D / _SPHERE_3D / _PLANE_3D")
+        }
+    }
+}
+
+pub(super) fn draw_mode_from_proto(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
     match proto::ShapeDrawMode::try_from(mode).unwrap_or(proto::ShapeDrawMode::Unspecified) {
         proto::ShapeDrawMode::Unspecified => Ok(SceneDrawMode::Fill),
         proto::ShapeDrawMode::Filled => Ok(SceneDrawMode::Fill),
@@ -31,7 +94,7 @@ pub(super) fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, Box<p
     }
 }
 
-pub(super) fn scene_draw_mode_to_proto(mode: SceneDrawMode) -> i32 {
+pub(super) fn draw_mode_to_proto(mode: SceneDrawMode) -> i32 {
     match mode {
         SceneDrawMode::Fill => proto::ShapeDrawMode::Filled as i32,
         SceneDrawMode::Stroke => proto::ShapeDrawMode::Outlined as i32,
@@ -44,26 +107,26 @@ pub(super) fn shape_appearance_to_proto(a: &ShapeAppearance) -> proto::ShapeAppe
     proto::ShapeAppearance {
         fill_color: Some(a.fill_color.into()),
         outline_color: Some(a.outline_color.into()),
-        outline_width: a.stroke_width,
-        draw_mode: scene_draw_mode_to_proto(a.draw_mode),
+        outline_width_px: a.stroke_width_px,
+        draw_mode: draw_mode_to_proto(a.draw_mode),
     }
 }
 
-fn color_or_default(c: Option<proto::Color>, default: Color) -> Color {
+pub(super) fn color_or_default(c: Option<proto::Color>, default: Color) -> Color {
     c.map(|c| c.into()).unwrap_or(default)
 }
 
 /// Proto → shape fill/outline state, for the `Create*` commands.
 ///
 /// `appearance` absent means the scene defaults throughout: fill from
-/// `default_fill`, outline from `default_outline`, stroke width and draw mode
+/// `default_fill`, outline from `default_outline`, stroke width_px and draw mode
 /// from [`ShapeAppearance::default`].
 ///
 /// `appearance` present overrides field by field, each with the same fallback,
 /// so a client may set only `draw_mode` and inherit the rest. Zero means unset
-/// for `outline_width`, matching the convention the create commands already use
-/// for `width`/`height`/`diameter` — and a 0-width outline draws nothing anyway,
-/// so `draw_mode` is how you turn an outline off, not width.
+/// for `outline_width_px`, matching the convention the create commands already use
+/// for `width_px`/`height_px`/`diameter_px` — and a 0-width_px outline draws nothing anyway,
+/// so `draw_mode` is how you turn an outline off, not width_px.
 pub(super) fn shape_appearance_from_proto(
     appearance: Option<proto::ShapeAppearance>,
     default_fill: Color,
@@ -80,32 +143,32 @@ pub(super) fn shape_appearance_from_proto(
     Ok(ShapeAppearance {
         fill_color: color_or_default(a.fill_color, base.fill_color),
         outline_color: color_or_default(a.outline_color, base.outline_color),
-        stroke_width: if a.outline_width == 0.0 {
-            base.stroke_width
+        stroke_width_px: if a.outline_width_px == 0.0 {
+            base.stroke_width_px
         } else {
-            a.outline_width
+            a.outline_width_px
         },
-        draw_mode: proto_draw_mode_to_scene(a.draw_mode)?,
+        draw_mode: draw_mode_from_proto(a.draw_mode)?,
     })
 }
 
-/// A create request's `placement` → the scene's `(pos, angle)` pair.
+/// A create request's `placement` → the scene's `(pos_px, angle_deg)` pair.
 ///
-/// Absent, or absent `pos`, means the screen centre at 0° — the same default the
-/// bare `center`/`angle` fields gave before placement was a message.
-pub(super) fn placement_to_scene(placement: Option<proto::Transform2D>) -> ([f32; 2], f32) {
+/// Absent, or absent `pos_px`, means the screen centre at 0° — the same default the
+/// bare `center`/`angle_deg` fields gave before placement was a message.
+pub(super) fn placement_from_proto(placement: Option<proto::Transform2D>) -> ([f32; 2], f32) {
     let Some(t) = placement else {
         return ([0.0, 0.0], 0.0);
     };
-    let pos = t.pos.unwrap_or_default();
-    ([pos.x, pos.y], t.rotation_deg)
+    let pos_px = t.pos_px.unwrap_or_default();
+    ([pos_px.x, pos_px.y], t.rotation_deg)
 }
 
 /// A create request's `identity` → the scene's, minting the id.
 ///
 /// The server assigns every stimulus id: `proto::StimulusIdentity` carries only a
 /// name, so this is where a stimulus acquires the UUID the response echoes back.
-pub(super) fn scene_identity(identity: Option<proto::StimulusIdentity>) -> StimulusIdentity {
+pub(super) fn identity_from_proto(identity: Option<proto::StimulusIdentity>) -> StimulusIdentity {
     StimulusIdentity::new(identity.and_then(|i| nonempty(i.name)))
 }
 
@@ -137,6 +200,36 @@ pub(super) fn parse_version_str(s: &str) -> proto::Version {
         major: parts.next().unwrap_or(0),
         minor: parts.next().unwrap_or(0),
         patch: parts.next().unwrap_or(0),
+    }
+}
+
+#[cfg(test)]
+mod stimulus_type_tests {
+    use super::*;
+
+    /// The scene's name and the wire's enum are two encodings of one taxonomy, and
+    /// they are only linked by the match above. This pins the pairs so a change to
+    /// either side has to be a deliberate edit here.
+    #[test]
+    fn scene_types_map_to_their_wire_values() {
+        for (scene, wire, name) in [
+            (SceneStimulusType::Rect, proto::StimulusType::Rect, "Rect"),
+            (SceneStimulusType::Ellipse, proto::StimulusType::Ellipse, "Ellipse"),
+            (SceneStimulusType::Circle, proto::StimulusType::Circle, "Circle"),
+            (SceneStimulusType::Grating, proto::StimulusType::Grating, "Grating"),
+            (SceneStimulusType::Text, proto::StimulusType::Text, "Text"),
+        ] {
+            assert_eq!(stimulus_type_to_proto(scene), wire, "wire value for {name}");
+            assert_eq!(scene.type_name(), name);
+        }
+    }
+
+    /// A 3-D type has no wire value yet, and must refuse rather than report a 2-D one
+    /// — a client cannot tell a wrong type from a right one.
+    #[test]
+    #[should_panic(expected = "Phase B")]
+    fn three_d_types_have_no_wire_value_yet() {
+        let _ = stimulus_type_to_proto(SceneStimulusType::Cube3D);
     }
 }
 

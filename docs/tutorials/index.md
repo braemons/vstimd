@@ -91,14 +91,14 @@ is an ordinary text stimulus:
 
 def add_explanation(conn, text):
     return conn.stimuli.text.create_text(
-        position=Vec2(0, -340),
+        position_px=Vec2(0, -340),
         name="explanation",
         params=TextParams(
             text=text,
-            letter_height=24,
+            letter_height_px=24,
             text_color=Color(0.9, 0.9, 0.9),
             fill_color=Color(0.0, 0.0, 0.0, 0.65),
-            box_size=Vec2(1500, 320),
+            box_size_px=Vec2(1500, 320),
         ),
     )
 ```
@@ -111,8 +111,8 @@ months later.
 ## Two things worth knowing before you start
 
 !!! note "Sizes are full sizes everywhere"
-    `RectParams(width=80, height=80)` makes an 80 × 80 px square, and the
-    saved JSON records `"size": [80.0, 80.0]`. Gratings and ellipses store
+    `RectParams(width_px=80, height_px=80)` makes an 80 × 80 px square, and the
+    saved JSON records `"size_px": [80.0, 80.0]`. Gratings and ellipses store
     `size` the same way, so a demo config can be read straight off as the
     arguments to pass. Circles are no exception: they take a `diameter`, not a
     radius, so every stimulus is sized the same way.

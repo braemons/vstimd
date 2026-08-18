@@ -70,15 +70,15 @@ fn tessellate_shape(
 ) -> ShapeTessellationResult {
     let mut builder = Path::builder();
     match s.geometry.live {
-        ShapeGeometry::Rect { size } => {
-            let [hw, hh] = [size[0] * 0.5, size[1] * 0.5];
+        ShapeGeometry::Rect { size_px } => {
+            let [hw, hh] = [size_px[0] * 0.5, size_px[1] * 0.5];
             builder.add_rectangle(
                 &Box2D::new(point(-hw, -hh), point(hw, hh)),
                 Winding::Positive,
             );
         }
-        ShapeGeometry::Ellipse { size } => {
-            let [rx, ry] = [size[0] * 0.5, size[1] * 0.5];
+        ShapeGeometry::Ellipse { size_px } => {
+            let [rx, ry] = [size_px[0] * 0.5, size_px[1] * 0.5];
             builder.add_ellipse(
                 point(0.0, 0.0),
                 Vector::new(rx, ry),
@@ -86,8 +86,8 @@ fn tessellate_shape(
                 Winding::Positive,
             );
         }
-        ShapeGeometry::Circle { diameter } => {
-            builder.add_circle(point(0.0, 0.0), diameter / 2.0, Winding::Positive);
+        ShapeGeometry::Circle { diameter_px } => {
+            builder.add_circle(point(0.0, 0.0), diameter_px / 2.0, Winding::Positive);
         }
     }
     let path = builder.build();
@@ -167,7 +167,7 @@ fn tessellate_stroke(
     half_w: f32,
     half_h: f32,
 ) -> (Vec<Vertex>, Vec<u32>) {
-    let sw = appearance.stroke_width;
+    let sw = appearance.stroke_width_px;
     if sw <= 0.0 { return (vec![], vec![]); }
     let color = appearance.outline_color;
     let mut buffers: VertexBuffers<Vertex, u32> = VertexBuffers::new();
@@ -196,13 +196,13 @@ pub fn tessellate_photodiode(
         return (vec![], vec![]);
     }
     let color = if state.lit { Color::WHITE } else { Color::BLACK };
-    let size = 60.0_f32;
+    let size_px = 60.0_f32;
     let half_w = screen_size.0 as f32 * 0.5;
     let half_h = screen_size.1 as f32 * 0.5;
     let (x0, x1, y0, y1) = if state.position == 0 {
-        (-half_w, -half_w + size, -half_h, -half_h + size)
+        (-half_w, -half_w + size_px, -half_h, -half_h + size_px)
     } else {
-        (half_w - size, half_w, -half_h, -half_h + size)
+        (half_w - size_px, half_w, -half_h, -half_h + size_px)
     };
     let v = |x, y| Vertex { position: px_to_ndc(x, y, half_w, half_h), normal: FRONT_NORMAL, uv: NO_UV, color };
     let vertices = vec![v(x0, y0), v(x1, y0), v(x1, y1), v(x0, y1)];

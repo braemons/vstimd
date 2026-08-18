@@ -83,12 +83,12 @@ fn test_zmq_create_rect() {
                     target: Some(sys()),
                     body: Some(request::Body::CreateRect(proto::CreateRectRequest {
                                                              placement: Some(proto::Transform2D {
-                                                                 pos: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
+                                                                 pos_px: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
                                                                  rotation_deg: 0.0,
                                                              }),
                                                              params: Some(proto::RectParams {
-                                                                 width: 200.0,
-                                                                 height: 100.0,
+                                                                 width_px: 200.0,
+                                                                 height_px: 100.0,
                                                                  appearance: Some(proto::ShapeAppearance { fill_color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }), ..Default::default() })
                                                              }),
                                                              ..Default::default()
@@ -116,8 +116,8 @@ fn test_zmq_lifecycle() {
                     target: Some(sys()),
                     body: Some(request::Body::CreateRect(proto::CreateRectRequest {
                                                              params: Some(proto::RectParams {
-                                                                 width: 100.0,
-                                                                 height: 50.0,
+                                                                 width_px: 100.0,
+                                                                 height_px: 50.0,
                                                                  ..Default::default()
                                                              }),
                                                              ..Default::default()
@@ -207,8 +207,8 @@ fn test_zmq_multiple_stimuli() {
                         target: Some(sys()),
                         body: Some(request::Body::CreateRect(proto::CreateRectRequest {
                                                                  params: Some(proto::RectParams {
-                                                                     width: 50.0 * (i + 1) as f32,
-                                                                     height: 50.0,
+                                                                     width_px: 50.0 * (i + 1) as f32,
+                                                                     height_px: 50.0,
                                                                      ..Default::default()
                                                                  }),
                                                                  ..Default::default()

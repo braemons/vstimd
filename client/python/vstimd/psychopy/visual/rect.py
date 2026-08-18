@@ -17,8 +17,8 @@ class Rect:
     def __init__(
         self,
         win: Window,
-        width: float = 0.5,
-        height: float = 0.5,
+        width_px: float = 0.5,
+        height_px: float = 0.5,
         units: str = "",
         pos: PsychoPyVec2 = (0.0, 0.0),
         size: PsychoPyVec2 | float | None = None,
@@ -50,12 +50,12 @@ class Rect:
 
         if size is not None:
             if isinstance(size, (int, float)):
-                width = height = float(size)
+                width_px = height_px = float(size)
             else:
-                width, height = float(size[0]), float(size[1])
+                width_px, height_px = float(size[0]), float(size[1])
 
-        self._width = float(width)
-        self._height = float(height)
+        self._width = float(width_px)
+        self._height = float(height_px)
         self._pos: tuple[float, float] = (float(pos[0]), float(pos[1]))
         self._ori = float(ori)
         self._opacity = float(opacity)
@@ -65,7 +65,7 @@ class Rect:
         px, py = self._to_px(self._pos)
         pw = self._scalar_px(self._width)
         ph = self._scalar_px(self._height)
-        self._handle: StimulusHandle = win._conn.stimuli.shapes.create_rect(position=StimulusVec2(px, py), params=RectParams(width=pw, height=ph, appearance=ShapeAppearance(
+        self._handle: StimulusHandle = win._conn.stimuli.shapes.create_rect(position_px=StimulusVec2(px, py), params=RectParams(width_px=pw, height_px=ph, appearance=ShapeAppearance(
                 fill_color=to_color(fillColor, colorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
             )))
         if self._opacity != 1.0:
@@ -137,19 +137,19 @@ class Rect:
         self.size = value
 
     @property
-    def width(self) -> float:
+    def width_px(self) -> float:
         return self._width
 
-    @width.setter
-    def width(self, value: float) -> None:
+    @width_px.setter
+    def width_px(self, value: float) -> None:
         self.size = (float(value), self._height)
 
     @property
-    def height(self) -> float:
+    def height_px(self) -> float:
         return self._height
 
-    @height.setter
-    def height(self, value: float) -> None:
+    @height_px.setter
+    def height_px(self, value: float) -> None:
         self.size = (self._width, float(value))
 
     @property
@@ -159,7 +159,7 @@ class Rect:
     @ori.setter
     def ori(self, value: float) -> None:
         self._ori = float(value)
-        self._win._dispatch(self._win._conn.stimuli.set_orientation, self._handle, self._ori)
+        self._win._dispatch(self._win._conn.stimuli.set_rotation, self._handle, self._ori)
 
     def setOri(self, value: float, operation: str = "", log: bool | None = None) -> None:
         self.ori = value

@@ -41,7 +41,7 @@ from vstimd import Connection
 
 with Connection() as conn:                 # default: tcp://localhost:5555
     info = conn.system.query_server_info()
-    print(info.width, info.height, info.frame_rate)
+    print(info.width_px, info.height_px, info.frame_rate_hz)
 ```
 
 Pass an address for a remote device: `Connection("tcp://stimulus-pc:5555")`.
@@ -54,7 +54,7 @@ acknowledges, and a server error is raised as a typed exception (see
 
 | Namespace | What it does | Key methods |
 |---|---|---|
-| `conn.stimuli` | Generic per-stimulus commands | `set_position`, `set_orientation`, `set_fill_color`, `set_alpha`, `set_enabled`, `set_name`, `delete`, `query`, `bring_to_front`, `send_to_back`, `swap_draw_order` |
+| `conn.stimuli` | Generic per-stimulus commands | `set_position`, `set_rotation`, `set_fill_color`, `set_alpha`, `set_enabled`, `set_name`, `delete`, `query`, `bring_to_front`, `send_to_back`, `swap_draw_order` |
 | `conn.stimuli.shapes` | Create/mutate shapes | `create_rect`, `create_circle`, `create_ellipse`, `set_rect_size`, `set_circle_diameter`, `set_ellipse_size`, `set_draw_mode`, `set_outline_color`, `set_outline_width` |
 | `conn.stimuli.grating` | Create/mutate gratings | `create_grating`, `set_phase`, `set_sf`, `set_contrast`, `set_waveform`, `set_mask`, `set_drift_speed`, `set_drift_angle`, `set_fore_color`, … (opacity: use `conn.stimuli.set_alpha`) |
 | `conn.stimuli.text` | Create/mutate text | `create_text`, `set_text`, `set_text_color` |
@@ -87,10 +87,10 @@ from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
 with Connection() as conn:
     rect = conn.stimuli.shapes.create_rect(
-        position=Vec2(0, 0),
+        position_px=Vec2(0, 0),
         params=RectParams(
-            width=300,
-            height=150,
+            width_px=300,
+            height_px=150,
             appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0)),
         ),
     )

@@ -357,8 +357,8 @@ Two cleanups to `StimulusParams` belong with this work:
 
 - **Rename the oneof `shape` → `type`.** It holds gratings and text, which are not shapes. Not
   `kind`: its arms are `rect`/`circle`/`ellipse`/`polygon`/`grating`/`text`, which is the
-  granularity of the wire's `StimulusType`, not of the server's coarser `StimulusKind` (where all
-  four shapes are one `Shape` arm). `kind` is the renderer's word and must not reach a client.
+  granularity of the wire's `StimulusType`, not of the server's coarser `StimulusBody` (where all
+  four shapes are one `Shape` arm). `body` is the renderer's word and must not reach a client.
   User-visible in generated code (`WhichOneof("shape")` in Python, `shape?.case` in TypeScript),
   so it touches both clients.
 - **Move `StimulusParams` out of `query.proto`** into its own file beside `identity.proto`, so a

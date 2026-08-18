@@ -49,18 +49,18 @@ def test_create_with_name(conn: Connection) -> None:
 
 
 def test_set_position(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_rect(position=Vec2(0, 0))
+    handle = conn.stimuli.shapes.create_rect(position_px=Vec2(0, 0))
     conn.stimuli.set_position(handle, Vec2(200, -100))
     info = conn.stimuli.query(handle)
-    assert info.pos.x == pytest.approx(200.0, abs=0.5)
-    assert info.pos.y == pytest.approx(-100.0, abs=0.5)
+    assert info.pos_px.x == pytest.approx(200.0, abs=0.5)
+    assert info.pos_px.y == pytest.approx(-100.0, abs=0.5)
     conn.stimuli.delete(handle)
 
 
 def test_set_orientation(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect()
-    conn.stimuli.set_orientation(handle, 30.0)
-    assert conn.stimuli.query(handle).orientation == pytest.approx(30.0, abs=0.1)
+    conn.stimuli.set_rotation(handle, 30.0)
+    assert conn.stimuli.query(handle).rotation_deg == pytest.approx(30.0, abs=0.1)
     conn.stimuli.delete(handle)
 
 

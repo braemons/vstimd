@@ -85,9 +85,9 @@ def _canonical(cfg: dict) -> dict:
             # An animation owns this stimulus's visibility and may have it in
             # either state at the moment we look.
             stim["common"]["flags"].pop("enabled", None)
-        kind = stim["kind"]
-        if kind["type"] == "Grating" and kind["params"]["drift_speed"] != 0.0:
-            kind["params"].pop("phase", None)   # advances every frame
+        body = stim["body"]
+        if body["type"] == "Grating" and body["params"]["drift_speed_hz"] != 0.0:
+            body["params"].pop("phase_cycles", None)   # advances every frame
         stimuli.append([entries[handle]["name"], _round(stim)])
 
     anims = []

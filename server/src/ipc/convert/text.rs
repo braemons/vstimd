@@ -1,12 +1,14 @@
 //! Text <-> proto conversions.
 
+use super::color_or_default;
+use crate::Color;
 use crate::proto;
 
 use crate::scene::stimulus::text::{Anchor, LanguageStyle, Text, TextRenderParams};
 
 // ── Anchor ────────────────────────────────────────────────────────────────────
 
-pub fn anchor_from_str(s: &str) -> Anchor {
+pub(crate) fn anchor_from_str(s: &str) -> Anchor {
     match s {
         "top-left"     => Anchor::TopLeft,
         "top-right"    => Anchor::TopRight,
@@ -16,7 +18,7 @@ pub fn anchor_from_str(s: &str) -> Anchor {
     }
 }
 
-pub fn anchor_to_str(a: Anchor) -> &'static str {
+pub(crate) fn anchor_to_str(a: Anchor) -> &'static str {
     match a {
         Anchor::Center      => "center",
         Anchor::TopLeft     => "top-left",
@@ -28,7 +30,7 @@ pub fn anchor_to_str(a: Anchor) -> &'static str {
 
 // ── LanguageStyle ─────────────────────────────────────────────────────────────
 
-pub fn proto_to_language_style(v: i32) -> LanguageStyle {
+pub(crate) fn language_style_from_proto(v: i32) -> LanguageStyle {
     match proto::LanguageStyle::try_from(v).unwrap_or(proto::LanguageStyle::Unspecified) {
         proto::LanguageStyle::Rtl    => LanguageStyle::Rtl,
         proto::LanguageStyle::Arabic => LanguageStyle::Arabic,
@@ -36,7 +38,7 @@ pub fn proto_to_language_style(v: i32) -> LanguageStyle {
     }
 }
 
-pub fn language_style_to_proto(ls: LanguageStyle) -> i32 {
+pub(crate) fn language_style_to_proto(ls: LanguageStyle) -> i32 {
     match ls {
         LanguageStyle::Ltr    => proto::LanguageStyle::Ltr as i32,
         LanguageStyle::Rtl    => proto::LanguageStyle::Rtl as i32,
@@ -46,16 +48,10 @@ pub fn language_style_to_proto(ls: LanguageStyle) -> i32 {
 
 // ── CreateTextRequest → scene types ───────────────────────────────────────────
 
-pub fn text_render_params_from_proto(cmd: &proto::TextParams) -> TextRenderParams {
-    let color = cmd.text_color.as_ref()
-        .map(|c| crate::Color::new(c.r, c.g, c.b, c.a))
-        .unwrap_or(crate::Color::WHITE);
-    let fill_color = cmd.fill_color.as_ref()
-        .map(|c| crate::Color::new(c.r, c.g, c.b, c.a))
-        .unwrap_or(crate::Color::TRANSPARENT);
-    let border_color = cmd.border_color.as_ref()
-        .map(|c| crate::Color::new(c.r, c.g, c.b, c.a))
-        .unwrap_or(crate::Color::TRANSPARENT);
+pub(crate) fn text_render_params_from_proto(cmd: &proto::TextParams) -> TextRenderParams {
+    let color = color_or_default(cmd.text_color, Color::WHITE);
+    let fill_color = color_or_default(cmd.fill_color, Color::TRANSPARENT);
+    let border_color = color_or_default(cmd.border_color, Color::TRANSPARENT);
     TextRenderParams {
         color,
         fill_color,
@@ -66,16 +62,16 @@ pub fn text_render_params_from_proto(cmd: &proto::TextParams) -> TextRenderParam
 
 // ── Scene → QueryStimulusResponse payload ────────────────────────────────────
 
-pub fn text_query_params(s: &Text) -> proto::StimulusParams {
+pub(crate) fn text_params_to_proto(s: &Text) -> proto::StimulusParams {
     let p = &s.params.live;
     proto::StimulusParams {
         shape: Some(proto::stimulus_params::Shape::Text(proto::TextParams {
             text:          s.text_live.clone(),
             font:          s.font_family.clone(),
-            letter_height: s.letter_height_px,
-            box_size: Some(proto::Vec2 {
-                x: s.box_size.live[0],
-                y: s.box_size.live[1],
+            letter_height_px: s.letter_height_px,
+            box_size_px: Some(proto::Vec2 {
+                x: s.box_size_px.live[0],
+                y: s.box_size_px.live[1],
             }),
             anchor: anchor_to_str(s.anchor).to_string(),
             fill_color:   Some(p.fill_color.into()),

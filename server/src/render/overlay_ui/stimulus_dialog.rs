@@ -12,8 +12,11 @@ use crate::scene::{
     StimulusSceneEntry, Waveform,
 };
 
+/// Which stimulus the dialog is about to create — the *user-facing* taxonomy, the
+/// same one `scene::StimulusType` names. Not `Kind`: `StimulusBody` is the word for
+/// the renderer's coarser taxonomy, where Rect, Circle and Ellipse are one arm.
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum StimulusDialogKind {
+enum StimulusDialogType {
     Rect,
     Circle,
     Ellipse,
@@ -24,10 +27,10 @@ pub struct StimulusDialog {
     pub open: bool,
     /// Set when the dialog is opened so the first field grabs keyboard focus.
     focus_first: bool,
-    kind: StimulusDialogKind,
+    stimulus_type: StimulusDialogType,
     name: String,
-    pos: [f32; 2],
-    angle: f32,
+    pos_px: [f32; 2],
+    angle_deg: f32,
     /// Full width/height in px (halved on build).
     rect_size: [f32; 2],
     circle_diameter: f32,
@@ -47,10 +50,10 @@ impl Default for StimulusDialog {
         Self {
             open: false,
             focus_first: false,
-            kind: StimulusDialogKind::Rect,
+            stimulus_type: StimulusDialogType::Rect,
             name: String::new(),
-            pos: [0.0, 0.0],
-            angle: 0.0,
+            pos_px: [0.0, 0.0],
+            angle_deg: 0.0,
             rect_size: [120.0, 80.0],
             circle_diameter: 160.0,
             ellipse_size: [160.0, 100.0],
@@ -82,24 +85,24 @@ impl StimulusDialog {
             ..Default::default()
         };
         let shape = |geometry| {
-            Stimulus::from(Shape::new(self.pos, self.angle, appearance, geometry))
+            Stimulus::from(Shape::new(self.pos_px, self.angle_deg, appearance, geometry))
         };
-        let stimulus = match self.kind {
-            StimulusDialogKind::Rect => shape(ShapeGeometry::Rect { size: self.rect_size }),
-            StimulusDialogKind::Circle => shape(ShapeGeometry::Circle {
-                diameter: self.circle_diameter,
+        let stimulus = match self.stimulus_type {
+            StimulusDialogType::Rect => shape(ShapeGeometry::Rect { size_px: self.rect_size }),
+            StimulusDialogType::Circle => shape(ShapeGeometry::Circle {
+                diameter_px: self.circle_diameter,
             }),
-            StimulusDialogKind::Ellipse => shape(ShapeGeometry::Ellipse {
-                size: self.ellipse_size,
+            StimulusDialogType::Ellipse => shape(ShapeGeometry::Ellipse {
+                size_px: self.ellipse_size,
             }),
-            StimulusDialogKind::Grating => Stimulus::from(Grating::new(
-                self.pos,
-                self.angle,
+            StimulusDialogType::Grating => Stimulus::from(Grating::new(
+                self.pos_px,
+                self.angle_deg,
                 self.grating_size,
                 GratingParams {
-                    sf: self.grating_sf,
+                    sf_cycles_per_px: self.grating_sf,
                     contrast: self.grating_contrast,
-                    drift_speed: self.grating_drift,
+                    drift_speed_hz: self.grating_drift,
                     waveform: self.grating_waveform,
                     ..Default::default()
                 },
@@ -121,14 +124,14 @@ impl StimulusDialog {
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
                     ui.label("Type:");
-                    let r = ui.selectable_value(&mut self.kind, StimulusDialogKind::Rect, "Rect");
+                    let r = ui.selectable_value(&mut self.stimulus_type, StimulusDialogType::Rect, "Rect");
                     if self.focus_first {
                         r.request_focus();
                         self.focus_first = false;
                     }
-                    ui.selectable_value(&mut self.kind, StimulusDialogKind::Circle, "Circle");
-                    ui.selectable_value(&mut self.kind, StimulusDialogKind::Ellipse, "Ellipse");
-                    ui.selectable_value(&mut self.kind, StimulusDialogKind::Grating, "Grating");
+                    ui.selectable_value(&mut self.stimulus_type, StimulusDialogType::Circle, "Circle");
+                    ui.selectable_value(&mut self.stimulus_type, StimulusDialogType::Ellipse, "Ellipse");
+                    ui.selectable_value(&mut self.stimulus_type, StimulusDialogType::Grating, "Grating");
                 });
                 ui.horizontal(|ui| {
                     ui.label("Name:");
@@ -140,19 +143,19 @@ impl StimulusDialog {
                     .show(ui, |ui| {
                         ui.label("Position x,y");
                         ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut self.pos[0]).speed(1.0));
-                            ui.add(egui::DragValue::new(&mut self.pos[1]).speed(1.0));
+                            ui.add(egui::DragValue::new(&mut self.pos_px[0]).speed(1.0));
+                            ui.add(egui::DragValue::new(&mut self.pos_px[1]).speed(1.0));
                         });
                         ui.end_row();
 
-                        if self.kind != StimulusDialogKind::Circle {
+                        if self.stimulus_type != StimulusDialogType::Circle {
                             ui.label("Angle°");
-                            ui.add(egui::DragValue::new(&mut self.angle).speed(1.0));
+                            ui.add(egui::DragValue::new(&mut self.angle_deg).speed(1.0));
                             ui.end_row();
                         }
 
-                        match self.kind {
-                            StimulusDialogKind::Rect => {
+                        match self.stimulus_type {
+                            StimulusDialogType::Rect => {
                                 ui.label("Size w×h");
                                 ui.horizontal(|ui| {
                                     ui.add(
@@ -168,7 +171,7 @@ impl StimulusDialog {
                                 });
                                 ui.end_row();
                             }
-                            StimulusDialogKind::Circle => {
+                            StimulusDialogType::Circle => {
                                 ui.label("Diameter");
                                 ui.add(
                                     egui::DragValue::new(&mut self.circle_diameter)
@@ -177,7 +180,7 @@ impl StimulusDialog {
                                 );
                                 ui.end_row();
                             }
-                            StimulusDialogKind::Ellipse => {
+                            StimulusDialogType::Ellipse => {
                                 ui.label("Size w×h");
                                 ui.horizontal(|ui| {
                                     ui.add(
@@ -193,7 +196,7 @@ impl StimulusDialog {
                                 });
                                 ui.end_row();
                             }
-                            StimulusDialogKind::Grating => {
+                            StimulusDialogType::Grating => {
                                 ui.label("Size w×h");
                                 ui.horizontal(|ui| {
                                     ui.add(
@@ -253,7 +256,7 @@ impl StimulusDialog {
                         }
 
                         // Grating uses its own fore/back colors; fill applies to shapes only.
-                        if self.kind != StimulusDialogKind::Grating {
+                        if self.stimulus_type != StimulusDialogType::Grating {
                             ui.label("Fill RGBA");
                             ui.horizontal(|ui| {
                                 for c in &mut self.fill {

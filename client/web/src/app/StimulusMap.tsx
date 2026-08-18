@@ -12,23 +12,23 @@ interface Props {
   snapshot: SceneSnapshot | null;
 }
 
-const FALLBACK = { width: 1920, height: 1080 };
+const FALLBACK = { widthPx: 1920, heightPx: 1080 };
 
 export function StimulusMap({ conn, snapshot }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // Optimistic override for the stimulus currently being dragged.
-  const dragRef = useRef<{ handle: number; pos: Vec2 } | null>(null);
+  const dragRef = useRef<{ handle: number; posPx: Vec2 } | null>(null);
   const pendingRef = useRef<Vec2 | null>(null);
   const rafRef = useRef<number | null>(null);
   const [, force] = useState(0);
 
   const screen = snapshot?.serverInfo
-    ? { width: snapshot.serverInfo.width || FALLBACK.width, height: snapshot.serverInfo.height || FALLBACK.height }
+    ? { widthPx: snapshot.serverInfo.widthPx || FALLBACK.widthPx, heightPx: snapshot.serverInfo.heightPx || FALLBACK.heightPx }
     : FALLBACK;
 
   // Canvas <-> stimulus-space transforms (origin centre, +y up).
   function geom(canvas: HTMLCanvasElement) {
-    const scale = Math.min(canvas.width / screen.width, canvas.height / screen.height);
+    const scale = Math.min(canvas.width / screen.widthPx, canvas.height / screen.heightPx);
     const cx = canvas.width / 2;
     const cy = canvas.height / 2;
     return {
@@ -42,7 +42,7 @@ export function StimulusMap({ conn, snapshot }: Props) {
     const list = snapshot?.stimuli ?? [];
     const drag = dragRef.current;
     if (!drag) return list;
-    return list.map((s) => (s.handle === drag.handle ? { ...s, pos: drag.pos } : s));
+    return list.map((s) => (s.handle === drag.handle ? { ...s, posPx: drag.posPx } : s));
   }
 
   // Redraw whenever the snapshot or drag changes.
@@ -55,22 +55,22 @@ export function StimulusMap({ conn, snapshot }: Props) {
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     // screen border
-    const tl = toCanvas({ x: -screen.width / 2, y: screen.height / 2 });
+    const tl = toCanvas({ x: -screen.widthPx / 2, y: screen.heightPx / 2 });
     ctx.strokeStyle = "#444";
-    ctx.strokeRect(tl.x, tl.y, screen.width * scale, screen.height * scale);
+    ctx.strokeRect(tl.x, tl.y, screen.widthPx * scale, screen.heightPx * scale);
 
     for (const s of stimuli()) {
-      const c = toCanvas(s.pos);
+      const c = toCanvas(s.posPx);
       const col = s.fillColor;
       const css = col ? `rgba(${col.r * 255},${col.g * 255},${col.b * 255},${s.enabled ? col.a : 0.25})` : "#888";
       // True-to-scale: stimulus pixels → canvas pixels. Keep a small floor so
       // tiny stimuli stay clickable/visible.
-      const w = Math.max(4, s.size.width * scale);
-      const h = Math.max(4, s.size.height * scale);
+      const w = Math.max(4, s.size.widthPx * scale);
+      const h = Math.max(4, s.size.heightPx * scale);
 
       ctx.save();
       ctx.translate(c.x, c.y);
-      ctx.rotate((-s.orientation * Math.PI) / 180); // +y up → canvas +y down
+      ctx.rotate((-s.rotationDeg * Math.PI) / 180); // +y up → canvas +y down
       ctx.fillStyle = css;
       ctx.strokeStyle = "#fff";
       ctx.lineWidth = 1;
@@ -97,9 +97,9 @@ export function StimulusMap({ conn, snapshot }: Props) {
     // topmost (last drawn) first; axis-aligned bbox with a clickable floor.
     const list = stimuli();
     for (let i = list.length - 1; i >= 0; i--) {
-      const c = toCanvas(list[i].pos);
-      const hw = Math.max(8, (list[i].size.width * scale) / 2);
-      const hh = Math.max(8, (list[i].size.height * scale) / 2);
+      const c = toCanvas(list[i].posPx);
+      const hw = Math.max(8, (list[i].size.widthPx * scale) / 2);
+      const hh = Math.max(8, (list[i].size.heightPx * scale) / 2);
       if (Math.abs(sx - c.x) <= hw && Math.abs(sy - c.y) <= hh) return list[i];
     }
     return null;
@@ -108,9 +108,9 @@ export function StimulusMap({ conn, snapshot }: Props) {
   function flush() {
     rafRef.current = null;
     const drag = dragRef.current;
-    const pos = pendingRef.current;
-    if (drag && pos && conn) {
-      conn.stimuli.setPosition(drag.handle, pos).catch(() => {});
+    const posPx = pendingRef.current;
+    if (drag && posPx && conn) {
+      conn.stimuli.setPosition(drag.handle, posPx).catch(() => {});
       pendingRef.current = null;
     }
   }
@@ -120,7 +120,7 @@ export function StimulusMap({ conn, snapshot }: Props) {
     const hit = hitTest(e.clientX - rect.left, e.clientY - rect.top);
     if (!hit) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    dragRef.current = { handle: hit.handle, pos: hit.pos };
+    dragRef.current = { handle: hit.handle, posPx: hit.posPx };
     force((n) => n + 1);
   }
 
@@ -129,9 +129,9 @@ export function StimulusMap({ conn, snapshot }: Props) {
     const canvas = e.currentTarget;
     const rect = canvas.getBoundingClientRect();
     const { toStimulus } = geom(canvas);
-    const pos = toStimulus(e.clientX - rect.left, e.clientY - rect.top);
-    dragRef.current = { handle: dragRef.current.handle, pos };
-    pendingRef.current = pos;
+    const posPx = toStimulus(e.clientX - rect.left, e.clientY - rect.top);
+    dragRef.current = { handle: dragRef.current.handle, posPx };
+    pendingRef.current = posPx;
     if (rafRef.current == null) rafRef.current = requestAnimationFrame(flush);
     force((n) => n + 1);
   }

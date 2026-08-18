@@ -24,14 +24,14 @@ pub enum Animation {
         off_frames: u32,
         /// None = run forever.
         total_frames: Option<u32>,
-        /// If false, start in the off-phase instead of the on-phase.
+        /// If false, start in the off-phase_cycles instead of the on-phase_cycles.
         start_on_phase: bool,
     },
     /// Move stimulus through a preloaded sequence of positions, one per frame.
-    MoveAlongPath2D { coords: Vec<[f32; 2]> },
-    /// Move stimulus along piecewise-linear waypoints at a constant speed.
+    MoveAlongPath2D { coords_px: Vec<[f32; 2]> },
+    /// Move stimulus along piecewise-linear waypoints_px at a constant speed.
     MoveAlongSegments2D {
-        waypoints: Vec<[f32; 2]>,
+        waypoints_px: Vec<[f32; 2]>,
         speed_px_per_sec: f32,
     },
     /// Read 2-D position from a POSIX shm float array each frame.
@@ -39,8 +39,8 @@ pub enum Animation {
     /// TODO(#84): unimplemented — `animation_advance` never reads the segment.
     ExternalPosition2D {
         shm_name: String,
-        x_offset: f32,
-        y_offset: f32,
+        x_offset_px: f32,
+        y_offset_px: f32,
     },
 }
 

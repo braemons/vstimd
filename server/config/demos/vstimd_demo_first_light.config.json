@@ -37,14 +37,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Text",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 220.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "params": {
               "color": [
@@ -67,11 +67,11 @@
               ],
               "flip_horiz": false
             },
-            "box_size": [
+            "box_size_px": [
               1600.0,
               120.0
             ],
-            "text_live": "vstimd — first light",
+            "text_live": "vstimd \u2014 first light",
             "font_family": "",
             "letter_height_px": 80.0,
             "anchor": "Center",
@@ -90,14 +90,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 60.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -112,12 +112,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Circle",
-              "diameter": 16.0
+              "diameter_px": 16.0
             }
           }
         }
@@ -133,14 +133,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 -900.0,
                 480.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -155,12 +155,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Rect",
-              "size": [
+              "size_px": [
                 80.0,
                 80.0
               ]
@@ -179,14 +179,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 900.0,
                 480.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -201,12 +201,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Rect",
-              "size": [
+              "size_px": [
                 80.0,
                 80.0
               ]
@@ -225,14 +225,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 -900.0,
                 -480.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -247,12 +247,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Rect",
-              "size": [
+              "size_px": [
                 80.0,
                 80.0
               ]
@@ -271,14 +271,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 900.0,
                 -480.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -293,12 +293,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Rect",
-              "size": [
+              "size_px": [
                 80.0,
                 80.0
               ]
@@ -317,14 +317,14 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Text",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 -340.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "params": {
               "color": [
@@ -347,11 +347,11 @@
               ],
               "flip_horiz": false
             },
-            "box_size": [
+            "box_size_px": [
               1500.0,
               320.0
             ],
-            "text_live": "demo_first_light — the display works\n\nStatic scene: a centre dot and four corner squares (1800 x 960 px apart),\nso you can see at a glance that the whole display is being driven.\nNo triggers, no animations.\nNext: load demo_drifting_grating, or list all demos with config list.",
+            "text_live": "demo_first_light \u2014 the display works\n\nStatic scene: a centre dot and four corner squares (1800 x 960 px apart),\nso you can see at a glance that the whole display is being driven.\nNo triggers, no animations.\nNext: load demo_drifting_grating, or list all demos with config list.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",

@@ -48,8 +48,8 @@ handled by `visual/_units.py:to_pixels()`.
 | Unit | Conversion |
 |---|---|
 | `pix` (default) | identity |
-| `norm` | `x_px = x × width/2`, `y_px = y × height/2` |
-| `height` | `x_px = x × height`, `y_px = y × height` |
+| `norm` | `x_px = x × width_px/2`, `y_px = y × height_px/2` |
+| `height_px` | `x_px = x × height_px`, `y_px = y × height_px` |
 | `deg` | requires `monitor.deg2pix()` |
 | `cm` | requires `monitor.cm2pix()` |
 
@@ -99,8 +99,8 @@ but have currently no effect:
 | Class | Server command(s) used |
 |---|---|
 | `Window` | owns `Connection`; `flip()` flushes queue |
-| `Rect` | `create_rect`, `set_position`, `set_rect_size`, `set_fill_color`, `set_orientation`, `set_enabled`, `set_alpha` |
-| `Circle` | `create_circle`, `set_position`, `set_disc_radius`, `set_fill_color`, `set_orientation`, `set_enabled`, `set_alpha` |
+| `Rect` | `create_rect`, `set_position`, `set_rect_size`, `set_fill_color`, `set_rotation`, `set_enabled`, `set_alpha` |
+| `Circle` | `create_circle`, `set_position`, `set_disc_radius`, `set_fill_color`, `set_rotation`, `set_enabled`, `set_alpha` |
 
 ## Testing
 

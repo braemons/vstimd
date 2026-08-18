@@ -23,7 +23,7 @@ message SetDrawModeRequest {
 message ShapeAppearance {
   Color         fill_color    = 1;
   Color         outline_color = 2;
-  float         outline_width = 3; // stroke width in pixels
+  float         outline_width_px = 3; // stroke width
   ShapeDrawMode draw_mode     = 4;
 }
 
@@ -34,5 +34,5 @@ message SetOutlineColorRequest {
 
 // Stimulus command: set outline stroke width in pixels.
 message SetOutlineWidthRequest {
-  float line_width = 1;
+  float line_width_px = 1;
 }

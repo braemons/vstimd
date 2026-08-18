@@ -9,7 +9,7 @@ use crate::render::vk::{TextPushConstants, TextVertex};
 use crate::scene::photodiode::PHOTODIODE_HANDLE;
 use crate::scene::stimulus::grating::{build_grating_push_constants, grating_phase_inc};
 use crate::scene::stimulus::text::layout_and_rasterize;
-use crate::scene::stimulus::{DrawMode, StimulusKind};
+use crate::scene::stimulus::{DrawMode, StimulusBody};
 use crate::timing::{FramePhases, FrameTick};
 use crate::vtl_state::VtlState;
 
@@ -171,8 +171,8 @@ pub fn render_frame(
         sc.runtime.frame_count += 1;
         let _ = sc.runtime.frame_notifier.send(sc.runtime.frame_count);
         sc.runtime.screen_size = Some(screen_size);
-        sc.runtime.frame_rate = fps;
-        sc.runtime.nominal_frame_rate = nominal_fps;
+        sc.runtime.frame_rate_hz = fps;
+        sc.runtime.nominal_frame_rate_hz = nominal_fps;
         if sc.runtime.last_uploaded_size != screen_size {
             sc.runtime.last_uploaded_size = screen_size;
             for entry in sc.stimuli.values_mut() {
@@ -198,14 +198,14 @@ pub fn render_frame(
             let dirty = entry.stimulus.flags().dirty;
             let opacity = entry.stimulus.opacity().live;
             let mut clear_dirty = false;
-            match &mut entry.stimulus.kind {
-                StimulusKind::Grating(s) => {
-                    if visible && s.params.live.drift_speed != 0.0 {
-                        s.phase_accum += grating_phase_inc(s, nominal_fps);
+            match &mut entry.stimulus.body {
+                StimulusBody::Grating(s) => {
+                    if visible && s.params.live.drift_speed_hz != 0.0 {
+                        s.phase_accum_cycles += grating_phase_inc(s, nominal_fps);
                     }
                 }
 
-                StimulusKind::Text(text) => {
+                StimulusBody::Text(text) => {
                     let has_mesh = cache.text.meshes.contains_key(&handle);
                     if !dirty && (visible == has_mesh) {
                         continue;
@@ -274,7 +274,7 @@ pub fn render_frame(
                     clear_dirty = true;
                 }
 
-                StimulusKind::Shape(shape) => {
+                StimulusBody::Shape(shape) => {
                     let has_mesh = cache.solid.fill_meshes.contains_key(&handle)
                         || cache.solid.stroke_meshes.contains_key(&handle);
                     if !dirty && (visible == has_mesh) {
@@ -300,7 +300,7 @@ pub fn render_frame(
                 // Phase B: tessellate into the geometry-keyed `Mesh3dCache` and
                 // upload to device-local memory via a staging buffer. Nothing
                 // constructs a `Mesh3d` yet, so this is unreachable.
-                StimulusKind::Mesh3d(_) => {
+                StimulusBody::Mesh3d(_) => {
                     unimplemented!("Phase B: 3-D mesh upload — see dev/3D_ROADMAP.md §A.5, §B.6")
                 }
             }
@@ -445,7 +445,7 @@ pub fn render_frame(
                 continue;
             }
 
-            if let StimulusKind::Grating(s) = &stim.kind {
+            if let StimulusBody::Grating(s) = &stim.body {
                 if bound != Bound::Grating {
                     ctx.device.cmd_bind_pipeline(
                         cb,
@@ -479,7 +479,7 @@ pub fn render_frame(
                 );
                 ctx.device
                     .cmd_draw_indexed(cb, quad.index_count, 1, 0, 0, 0);
-            } else if let StimulusKind::Text(t) = &stim.kind {
+            } else if let StimulusBody::Text(t) = &stim.body {
                 if bound != Bound::Text {
                     ctx.device.cmd_bind_pipeline(
                         cb,

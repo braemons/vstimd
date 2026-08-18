@@ -76,7 +76,7 @@ fn create_rect(scene: &mut SceneState) -> u32 {
             [0.0, 0.0],
             0.0,
             ShapeAppearance::default(),
-            ShapeGeometry::Rect { size: [50.0, 50.0] },
+            ShapeGeometry::Rect { size_px: [50.0, 50.0] },
         )),
     ))
 }
@@ -345,7 +345,7 @@ fn flicker_on_off_phase_cycling() {
 
 #[test]
 fn flicker_start_off_phase() {
-    // start_on_phase=false: off-phase comes first.
+    // start_on_phase=false: off-phase_cycles comes first.
     // on=2, off=3, period=5:
     //   frames 0,1,2 → off (phase_frame 0,1,2 < off_frames=3 → off)
     //   frames 3,4   → on  (phase_frame 3,4 >= 3 → on)
@@ -407,7 +407,7 @@ fn flicker_total_frames_cutoff() {
 
 #[test]
 fn flicker_anim_enabled_reset_on_done() {
-    // on=2, off=2, total=3 → done on frame 2 (off-phase).
+    // on=2, off=2, total=3 → done on frame 2 (off-phase_cycles).
     // finalize() must reset anim_enabled=true.
     let mut scene = SceneState::new();
     let s = create_rect(&mut scene);
@@ -733,7 +733,7 @@ fn flicker_anim_enabled_restored_on_disarm() {
     advance(&mut scene); // frame 0: on
     advance(&mut scene); // frame 1: on
     advance(&mut scene); // frame 2: off (phase_frame=2 >= 2)
-    assert!(!is_anim_enabled(&scene, s), "in off-phase before disarm");
+    assert!(!is_anim_enabled(&scene, s), "in off-phase_cycles before disarm");
 
     use vstimd::proto;
     use vstimd::proto::request;
@@ -749,7 +749,7 @@ fn flicker_anim_enabled_restored_on_disarm() {
     assert_eq!(anim_state(&scene, a), &AnimState::Idle);
     assert!(
         is_anim_enabled(&scene, s),
-        "anim_enabled restored on disarm from off-phase"
+        "anim_enabled restored on disarm from off-phase_cycles"
     );
 }
 
@@ -1268,7 +1268,7 @@ fn flicker_anim_enabled_restored_on_delete() {
     advance(&mut scene); // frame 0: on
     advance(&mut scene); // frame 1: on
     advance(&mut scene); // frame 2: off (phase_frame=2 >= 2)
-    assert!(!is_anim_enabled(&scene, s), "in off-phase before delete");
+    assert!(!is_anim_enabled(&scene, s), "in off-phase_cycles before delete");
 
     scene.handle_request(
         proto::Request {
@@ -1282,7 +1282,7 @@ fn flicker_anim_enabled_restored_on_delete() {
     assert!(!scene.animations.contains_key(&a), "animation removed");
     assert!(
         is_anim_enabled(&scene, s),
-        "anim_enabled restored on delete from off-phase"
+        "anim_enabled restored on delete from off-phase_cycles"
     );
 }
 
@@ -1479,7 +1479,7 @@ fn cancel_command_releases_anim_enabled_on_running_flicker() {
     advance(&mut scene); // frame 0: on
     advance(&mut scene); // frame 1: on
     advance(&mut scene); // frame 2: off (phase_frame=2 >= 2)
-    assert!(!is_anim_enabled(&scene, s), "off-phase before cancel");
+    assert!(!is_anim_enabled(&scene, s), "off-phase_cycles before cancel");
 
     cancel_via_request(&mut scene, a);
     assert_eq!(
@@ -1664,12 +1664,12 @@ fn move_along_segments_ignores_the_measured_frame_rate() {
     // Two runs of an identical scene, with wildly different measurements.
     let positions_at = |measured_fps: f32| -> Vec<[f32; 2]> {
         let mut scene = SceneState::new();
-        scene.runtime.nominal_frame_rate = 60.0;
-        scene.runtime.frame_rate = measured_fps;
+        scene.runtime.nominal_frame_rate_hz = 60.0;
+        scene.runtime.frame_rate_hz = measured_fps;
         let stim = create_rect(&mut scene);
         let h = scene.add_animation(AnimationEntry::armed(
             Animation::MoveAlongSegments2D {
-                waypoints: vec![[-300.0, 0.0], [300.0, 0.0]],
+                waypoints_px: vec![[-300.0, 0.0], [300.0, 0.0]],
                 speed_px_per_sec: 600.0,
             },
             vec![stim],
@@ -1709,7 +1709,7 @@ fn grating_drift_uses_the_nominal_frame_rate() {
         [0.0, 0.0],
         0.0,
         [100.0, 100.0],
-        GratingParams { drift_speed: 2.0, ..Default::default() },
+        GratingParams { drift_speed_hz: 2.0, ..Default::default() },
     );
     // 2 cycles/s at 60 Hz is 1/30 cycle per frame, whatever the rig measured.
     assert!((grating_phase_inc(&s, 60.0) - 2.0 / 60.0).abs() < 1e-6);

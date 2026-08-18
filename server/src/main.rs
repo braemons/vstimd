@@ -94,7 +94,7 @@ fn main() {
         let h = rig.display.height.unwrap_or(1080);
         s.runtime.screen_size = Some((w, h));
         if let Some(hz) = rig.display.refresh_hz {
-            s.runtime.frame_rate = hz as f32;
+            s.runtime.frame_rate_hz = hz as f32;
         }
     }
 

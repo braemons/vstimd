@@ -17,7 +17,7 @@ fn make_rect_entry() -> StimulusSceneEntry {
                 fill_color: vstimd::Color::new(1.0, 0.5, 0.0, 1.0),
                 ..Default::default()
             },
-            ShapeGeometry::Rect { size: [200.0, 80.0] },
+            ShapeGeometry::Rect { size_px: [200.0, 80.0] },
         )),
     )
 }
@@ -33,7 +33,7 @@ fn make_circle_entry() -> StimulusSceneEntry {
                     fill_color: vstimd::Color::new(0.0, 0.0, 1.0, 1.0),
                     ..Default::default()
                 },
-                ShapeGeometry::Circle { diameter: 150.0 },
+                ShapeGeometry::Circle { diameter_px: 150.0 },
             ));
             // Disabled on purpose: the round-trip must carry the flag, not just
             // the geometry.
@@ -67,7 +67,7 @@ fn roundtrip_rect_stimulus() {
     assert_eq!(entry.name(), "test_rect");
     let rect = entry.stimulus.shape().expect("expected rect");
     assert_eq!(entry.stimulus.type_name(), "Rect");
-    assert_eq!(rect.transform.live.pos, [100.0, -50.0]);
+    assert_eq!(rect.transform.live.pos_px, [100.0, -50.0]);
     assert!((rect.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
 }
 

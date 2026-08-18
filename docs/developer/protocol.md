@@ -109,7 +109,7 @@ sock.connect("tcp://localhost:5555")
 # Build a "create rectangle" request (system target).
 req = service_pb2.Request(
     system=service_pb2.SystemTarget(),
-    create_rect=rect_pb2.CreateRectRequest(width=300, height=150),
+    create_rect=rect_pb2.CreateRectRequest(width_px=300, height_px=150),
 )
 sock.send(req.SerializeToString())
 

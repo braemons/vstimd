@@ -14,11 +14,11 @@ setting that is not a stimulus.
 
 ```python
 patch = conn.stimuli.shapes.create_rect(
-    position=Vec2(0, 100),
+    position_px=Vec2(0, 100),
     name="flicker_patch",
     params=RectParams(
-        width=1400,
-        height=600,
+        width_px=1400,
+        height_px=600,
         appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
     ),
 )
@@ -109,7 +109,7 @@ Photodiode patch on and inverting every frame.
   square wave at half the refresh rate (each full cycle is two frames). Missing
   or doubled cycles are dropped or repeated frames.
 - **The 5 Hz patch counts out.** Ten transitions per second, by eye.
-- **Compare against `frame_rate`.** `conn.system.query_server_info().frame_rate`
+- **Compare against `frame_rate`.** `conn.system.query_server_info().frame_rate_hz`
   is what vstimd measured. If the photodiode disagrees, believe the photodiode.
 
 ## Try changing it

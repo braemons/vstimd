@@ -1,7 +1,7 @@
 const FRAME_HISTORY_SIZE: usize = 120;
 
 /// Per-render-loop timing bookkeeping: aggregated frame statistics, last
-/// per-phase breakdown, and the swapchain frame index.
+/// per-phase_cycles breakdown, and the swapchain frame index.
 pub struct FrameTiming {
     pub stats: FrameStats,
     pub last_phases: FramePhases,
@@ -59,7 +59,7 @@ pub struct FrameTick {
     /// Extra vblanks elapsed beyond the expected one since the previous tick.
     /// 0 = on time.  1 = one dropped frame (GPU overran its budget once).
     pub dropped_frames: u32,
-    /// Per-phase breakdown for profiling (see `FramePhases`).
+    /// Per-phase_cycles breakdown for profiling (see `FramePhases`).
     pub phases: FramePhases,
 }
 

@@ -24,7 +24,7 @@ enum Phase {
 }
 
 pub struct BenchmarkState {
-    phase: Phase,
+    phase_cycles: Phase,
 }
 
 impl Default for BenchmarkState {
@@ -35,11 +35,11 @@ impl Default for BenchmarkState {
 
 impl BenchmarkState {
     pub fn new() -> Self {
-        Self { phase: Phase::Idle }
+        Self { phase_cycles: Phase::Idle }
     }
 
     pub fn is_running(&self) -> bool {
-        matches!(self.phase, Phase::Running { .. })
+        matches!(self.phase_cycles, Phase::Running { .. })
     }
 
     /// Start the grating stress test: reset drops, spawn gratings, begin timing.
@@ -68,7 +68,7 @@ impl BenchmarkState {
                     // pixel-space, origin at screen centre, Y-up
                     let cx = col as f32 * cell_w + cell_w / 2.0 - sw as f32 / 2.0;
                     let cy = sh as f32 / 2.0 - (row as f32 * cell_h + cell_h / 2.0);
-                    let angle = (col * rows + row) as f32 * (180.0 / (cols * rows) as f32);
+                    let angle_deg = (col * rows + row) as f32 * (180.0 / (cols * rows) as f32);
 
                     let h = sc.alloc_stim_handle();
                     sc.stimuli.insert(
@@ -77,12 +77,12 @@ impl BenchmarkState {
                             StimulusIdentity::new(None),
                             Stimulus::from(Grating::new(
                                 [cx, cy],
-                                angle,
+                                angle_deg,
                                 [stim_w / 2.0, stim_h / 2.0],
                                 GratingParams {
-                                    sf: 0.05,
+                                    sf_cycles_per_px: 0.05,
                                     contrast: 1.0,
-                                    drift_speed: 1.0,
+                                    drift_speed_hz: 1.0,
                                     waveform: Waveform::Sin,
                                     drift_coupled: true,
                                     mask: GratingMask::RaisedCos,
@@ -99,7 +99,7 @@ impl BenchmarkState {
             log::warn!("Benchmark: could not acquire scene write lock");
         }
 
-        self.phase = Phase::Running {
+        self.phase_cycles = Phase::Running {
             start_frame,
             start_drops: 0,
             duration_frames,
@@ -114,7 +114,7 @@ impl BenchmarkState {
         let current_drops = frame_stats.summary().drop_count;
 
         let should_finish = matches!(
-            &self.phase,
+            &self.phase_cycles,
             Phase::Running { start_frame, duration_frames, .. }
                 if current_frame.saturating_sub(*start_frame) >= *duration_frames
         );
@@ -125,7 +125,7 @@ impl BenchmarkState {
                 duration_frames,
                 handles,
                 ..
-            } = std::mem::replace(&mut self.phase, Phase::Idle)
+            } = std::mem::replace(&mut self.phase_cycles, Phase::Idle)
         {
             let grating_count = handles.len();
             if let Ok(mut sc) = scene.try_write() {
@@ -134,7 +134,7 @@ impl BenchmarkState {
                 }
             }
             let drop_count = current_drops.saturating_sub(start_drops);
-            self.phase = Phase::Done(BenchmarkResult {
+            self.phase_cycles = Phase::Done(BenchmarkResult {
                 grating_count,
                 duration_frames,
                 drop_count,
@@ -148,7 +148,7 @@ impl BenchmarkState {
             start_frame,
             duration_frames,
             ..
-        } = self.phase
+        } = self.phase_cycles
         {
             let elapsed = frame_stats
                 .summary()
@@ -161,7 +161,7 @@ impl BenchmarkState {
     }
 
     pub fn last_result(&self) -> Option<&BenchmarkResult> {
-        if let Phase::Done(ref r) = self.phase {
+        if let Phase::Done(ref r) = self.phase_cycles {
             Some(r)
         } else {
             None

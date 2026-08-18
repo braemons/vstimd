@@ -65,10 +65,10 @@ it, arm it, and it runs immediately for the given duration:
 from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
 target = conn.stimuli.shapes.create_rect(
-    position=Vec2(0, 0),
+    position_px=Vec2(0, 0),
     params=RectParams(
-        width=200,
-        height=200,
+        width_px=200,
+        height_px=200,
         appearance=ShapeAppearance(fill_color=Color(1, 1, 1)),
     ),
 )

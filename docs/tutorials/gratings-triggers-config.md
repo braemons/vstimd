@@ -65,13 +65,13 @@ from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 gratings = {}
 for label, angle in (("45deg", 45.0), ("135deg", 135.0)):
     handle = conn.stimuli.grating.create_grating(
-        position=Vec2(0, 0),
-        rotation=angle,
+        position_px=Vec2(0, 0),
+        rotation_deg=angle,
         name=f"grating_{label}",
         params=GratingParams(
-            width=600,
-            height=600,
-            sf=0.02,
+            width_px=600,
+            height_px=600,
+            sf_cycles_per_px=0.02,
             contrast=1.0,
             waveform=GratingTexture.SIN,
             mask=GratingMask.RAISED_COS,
@@ -103,10 +103,10 @@ orientation-carrying border of its own.
 from vstimd.stimuli.shapes_models import ShapeDrawMode
 
 dot = conn.stimuli.shapes.create_circle(
-    position=Vec2(0, 0),
+    position_px=Vec2(0, 0),
     name="fixation_dot",
     params=CircleParams(
-        diameter=12,
+        diameter_px=12,
         appearance=ShapeAppearance(fill_color=Color(0.0, 0.0, 0.0)),
     ),
 )

@@ -31,16 +31,16 @@ from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 from vstimd.stimuli.stimuli_models import Vec2
 
 conn.stimuli.grating.create_grating(
-    position=Vec2(0, 0),
-    rotation=0.0,                   # vertical stripes
+    position_px=Vec2(0, 0),
+    rotation_deg=0.0,                   # vertical stripes
     name="full_field_grating",
     params=GratingParams(
-        width=2400, height=1400,
-        sf=0.01,
+        width_px=2400, height_px=1400,
+        sf_cycles_per_px=0.01,
         contrast=1.0,
         waveform=GratingTexture.SIN,
         mask=GratingMask.NONE,
-        drift_speed=4.0,            # cycles/s
+        drift_speed_hz=4.0,            # cycles/s
     ),
 )
 ```
@@ -51,12 +51,12 @@ Parameter by parameter:
 |---|---|---|
 | `width`/`height` | 2400 × 1400 | Full size in px. Deliberately larger than a 1920 × 1080 frame, so no edge of the patch is ever on screen — that is what "full field" means. |
 | `sf` | 0.01 | Spatial frequency in **cycles per pixel**: one cycle per 100 px. Not cycles per degree — vstimd does not know your viewing distance. |
-| `rotation` | 0° | Orientation of the grating. 0° gives vertical stripes. Placement, not params — the same property `set_orientation` sets. |
+| `rotation` | 0° | Orientation of the grating. 0° gives vertical stripes. Placement, not params — the same property `set_rotation` sets. |
 | `waveform` | `SIN` | Also `SQR`, `SAW`, `TRI`. |
 | `mask` | `NONE` | No aperture — see [Gratings, triggers & a saved config](gratings-triggers-config.md) for a masked patch. |
 | `drift_speed` | 4.0 | **Cycles per second**, drifting perpendicular to the stripes. |
 
-At `sf=0.01` and `drift_speed=4.0`, the pattern moves 400 px/s.
+At `sf_cycles_per_px=0.01` and `drift_speed_hz=4.0`, the pattern moves 400 px/s.
 
 !!! note "Cycles per pixel, degrees per what?"
     Everything geometric in vstimd is in pixels, and the conversion to degrees
@@ -100,7 +100,7 @@ Saved as 'my_drifting_grating' — it starts drifting the moment it is loaded.
 ## Try changing it
 
 - Change the orientation live and watch the drift direction follow it:
-  `conn.stimuli.set_orientation(handle, 45)`.
+  `conn.stimuli.set_rotation(handle, 45)`.
 - Drop `contrast` to 0.1 and check the display still resolves the modulation.
 - Set `drift_speed` to half the frame rate in cycles/s at `sf` high enough to
   alias, and watch the motion reverse — a spatial-aliasing demo you get for free.

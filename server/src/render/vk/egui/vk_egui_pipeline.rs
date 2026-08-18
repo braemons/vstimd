@@ -88,9 +88,9 @@ impl VkEguiPipeline {
                     .name(entry_fs),
             ];
 
-            // ── Vertex input: pos, uv, color ────────────────────────────────
+            // ── Vertex input: pos_px, uv, color ────────────────────────────────
             // egui's epaint::Vertex layout:
-            //   pos: [f32; 2]   offset 0
+            //   pos_px: [f32; 2]   offset 0
             //   uv: [f32; 2]    offset 8
             //   color: [u8; 4]  offset 16 → normalized to [f32; 4]
             let binding = vk::VertexInputBindingDescription::default()

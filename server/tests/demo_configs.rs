@@ -143,9 +143,9 @@ fn gratings_demo_flashes_two_orientations_on_two_input_triggers() {
     assert_eq!(gratings.len(), 2);
     for g in &gratings {
         assert!(!g.stimulus.flags().enabled, "grating starts visible");
-        assert_eq!(g.stimulus.transform2d().expect("2-D stimulus").live.pos, [0.0, 0.0], "grating is off-centre");
+        assert_eq!(g.stimulus.transform2d().expect("2-D stimulus").live.pos_px, [0.0, 0.0], "grating is off-centre");
     }
-    let mut angles: Vec<f32> = gratings.iter().map(|g| g.stimulus.transform2d().expect("2-D stimulus").live.angle).collect();
+    let mut angles: Vec<f32> = gratings.iter().map(|g| g.stimulus.transform2d().expect("2-D stimulus").live.angle_deg).collect();
     angles.sort_by(f32::total_cmp);
     assert_eq!(angles, vec![45.0, 135.0], "the two gratings share an orientation");
 
@@ -269,7 +269,7 @@ fn drifting_grating_demo_drifts() {
         .expect("no grating");
     let g = entry.stimulus.grating().expect("checked above");
     assert!(entry.stimulus.flags().enabled, "the grating starts hidden");
-    assert!(g.params.live.drift_speed > 0.0, "the grating does not drift");
+    assert!(g.params.live.drift_speed_hz > 0.0, "the grating does not drift");
 }
 
 /// End-to-end for the demo that motivated all this: load the file the way
@@ -362,8 +362,8 @@ fn loading_the_moving_target_demo_starts_it_moving() {
     let mut scene = SceneState::new();
     scene.load_snapshot(cfg, LoadMode::Replace);
 
-    let pos = |s: &SceneState| s.stimuli.get(&1).unwrap().stimulus.transform2d().expect("2-D stimulus").live.pos;
-    let start = pos(&scene);
+    let pos_px = |s: &SceneState| s.stimuli.get(&1).unwrap().stimulus.transform2d().expect("2-D stimulus").live.pos_px;
+    let start = pos_px(&scene);
 
     let no_edges = VtlEdges::default();
     let mut levels = [0u64; vtl::MAX_BANKS];
@@ -375,7 +375,7 @@ fn loading_the_moving_target_demo_starts_it_moving() {
             &mut vstimd::vtl_state::VtlOutputs { levels: &mut levels, pulses: &mut pulses },
         );
     }
-    assert_ne!(pos(&scene), start, "the target never started moving");
+    assert_ne!(pos_px(&scene), start, "the target never started moving");
 }
 
 /// A scratch config dir for a seeding test. Per-test name so the cases can run

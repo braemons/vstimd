@@ -25,16 +25,16 @@ class ServerVersion:
 class ServerInfo:
     """Display and version information returned by :meth:`SystemClient.query_server_info`."""
 
-    width: int
-    height: int
-    frame_rate: float
+    width_px: int
+    height_px: int
+    frame_rate_hz: float
     version: ServerVersion
     background_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0))
 
     def __repr__(self) -> str:
         return (
-            f"ServerInfo(width={self.width}, height={self.height}, "
-            f"frame_rate={self.frame_rate:.1f}, version={self.version})"
+            f"ServerInfo(width_px={self.width_px}, height_px={self.height_px}, "
+            f"frame_rate_hz={self.frame_rate_hz:.1f}, version={self.version})"
         )
 
 

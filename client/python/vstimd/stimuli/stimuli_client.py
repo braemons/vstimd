@@ -29,7 +29,7 @@ class StimuliClient:
     Example::
 
         with Connection() as conn:
-            h = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=200, height=100,
+            h = conn.stimuli.shapes.create_rect(pos_px=Vec2(0, 0), width_px=200, height_px=100,
                                                 color=Color(1, 0, 0))
             conn.stimuli.set_enabled(h, False)
             conn.stimuli.delete(h)
@@ -67,22 +67,22 @@ class StimuliClient:
             )
         ))
 
-    def set_position(self, handle: StimulusHandle, pos: Vec2) -> ServerResponse:
+    def set_position(self, handle: StimulusHandle, pos_px: Vec2) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_position=shared_set_requests_pb2.SetPositionRequest(
-                    x=pos.x, y=pos.y
+                    x_px=pos_px.x, y_px=pos_px.y
                 ),
             )
         ))
 
-    def set_orientation(self, handle: StimulusHandle, angle_deg: float) -> ServerResponse:
+    def set_rotation(self, handle: StimulusHandle, rotation_deg: float) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
-                set_orientation=shared_set_requests_pb2.SetOrientationRequest(
-                    angle_deg=angle_deg
+                set_rotation=shared_set_requests_pb2.SetRotationRequest(
+                    rotation_deg=rotation_deg
                 ),
             )
         ))

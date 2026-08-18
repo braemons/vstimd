@@ -10,13 +10,13 @@ export class TextClient {
 
   async create(opts: {
     text: string;
-    pos?: Vec2;
+    posPx?: Vec2;
     font?: string;
-    letterHeight?: number;
+    letterHeightPx?: number;
     color?: Color;
     name?: string;
   }): Promise<StimulusHandle> {
-    const { text, pos = { x: 0, y: 0 }, font = "", letterHeight = 32, color, name = "" } = opts;
+    const { text, posPx = { x: 0, y: 0 }, font = "", letterHeightPx = 32, color, name = "" } = opts;
     const resp = await this.send(
       create(RequestSchema, {
         target: { case: "system", value: {} },
@@ -24,8 +24,8 @@ export class TextClient {
           case: "createText",
           value: {
             identity: { name },
-            placement: { pos },
-            params: { text, font, letterHeight, textColor: color },
+            placement: { posPx },
+            params: { text, font, letterHeightPx, textColor: color },
           },
         },
       }),
