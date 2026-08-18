@@ -37,7 +37,7 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Shape",
             "transform": {
               "pos": [
@@ -80,7 +80,7 @@
             },
             "opacity": 1.0
           },
-          "kind": {
+          "body": {
             "type": "Text",
             "transform": {
               "pos": [

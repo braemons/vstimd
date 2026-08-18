@@ -7,12 +7,13 @@
 //! many-to-one mapping lives here and nowhere else.
 
 use super::convert::{
-    placement_to_scene, proto_draw_mode_to_scene, scene_identity, shape_appearance_from_proto,
+    placement_from_proto, draw_mode_from_proto, identity_from_proto, shape_appearance_from_proto,
 };
-use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
+use super::response::{err, err_not_2d, err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
 use crate::proto;
 use crate::scene::stimulus::{
-    Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusKind, StimulusSceneEntry,
+    Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusBody, StimulusSceneEntry,
+    StimulusType,
 };
 use crate::scene::SceneState;
 
@@ -38,8 +39,8 @@ impl SceneState {
             Ok(a) => a,
             Err(e) => return *e,
         };
-        let (pos, angle) = placement_to_scene(placement);
-        let identity = scene_identity(identity);
+        let (pos, angle) = placement_from_proto(placement);
+        let identity = identity_from_proto(identity);
         let id = identity.id;
         let stimulus = Stimulus::from(Shape::new(pos, angle, appearance, geometry));
         let handle = self.add_stimulus(StimulusSceneEntry::new(identity, stimulus));
@@ -55,19 +56,20 @@ impl SceneState {
     /// kind, so the caller holding the whole [`Stimulus`] is the one that can
     /// write it. Doing that once here keeps the three setters one-liners.
     ///
-    /// `expected` is the **user-facing** type name quoted back in the error.
+    /// `expected` is the type quoted back in the error, as a [`StimulusType`] rather
+    /// than a name so the two cannot disagree.
     fn with_shape_geometry(
         &mut self,
         handle: u32,
         cmd: &str,
-        expected: &str,
+        expected: StimulusType,
         f: impl FnOnce(&mut ShapeGeometry, ShapeGeometry) -> bool,
     ) -> proto::Response {
         let deferred = self.runtime.deferred_mode;
         let Some(entry) = self.config.stimuli.get_mut(&handle) else {
             return err_not_found(handle);
         };
-        let StimulusKind::Shape(shape) = &mut entry.stimulus.kind else {
+        let StimulusBody::Shape(shape) = &mut entry.stimulus.body else {
             return err_wrong_type(&entry.stimulus, cmd, expected);
         };
         let prev = if deferred {
@@ -101,7 +103,7 @@ impl SceneState {
         let Some(entry) = self.config.stimuli.get_mut(&handle) else {
             return err_not_found(handle);
         };
-        let StimulusKind::Shape(shape) = &mut entry.stimulus.kind else {
+        let StimulusBody::Shape(shape) = &mut entry.stimulus.body else {
             return err(
                 proto::ErrorCode::WrongStimulusType,
                 format!(
@@ -221,7 +223,7 @@ impl SceneState {
                 if entry.stimulus.move_to_2d(deferred, cmd.x, cmd.y).is_ok() {
                     ok_ack()
                 } else {
-                    err_wrong_type(&entry.stimulus, "SetPosition", "2-D")
+                    err_not_2d(&entry.stimulus, "SetPosition")
                 }
             }
             None => err_not_found(handle),
@@ -241,7 +243,7 @@ impl SceneState {
                 if entry.stimulus.set_angle_2d(deferred, cmd.angle_deg).is_ok() {
                     ok_ack()
                 } else {
-                    err_wrong_type(&entry.stimulus, "SetOrientation", "2-D")
+                    err_not_2d(&entry.stimulus, "SetOrientation")
                 }
             }
             None => err_not_found(handle),
@@ -293,7 +295,7 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetRectSizeRequest,
     ) -> proto::Response {
-        self.with_shape_geometry(handle, "SetRectSize", "Rect", |next, prev| {
+        self.with_shape_geometry(handle, "SetRectSize", StimulusType::Rect, |next, prev| {
             if !matches!(prev, ShapeGeometry::Rect { .. }) {
                 return false;
             }
@@ -311,7 +313,7 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetCircleDiameterRequest,
     ) -> proto::Response {
-        self.with_shape_geometry(handle, "SetCircleDiameter", "Circle", |next, prev| {
+        self.with_shape_geometry(handle, "SetCircleDiameter", StimulusType::Circle, |next, prev| {
             if !matches!(prev, ShapeGeometry::Circle { .. }) {
                 return false;
             }
@@ -327,7 +329,7 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetEllipseSizeRequest,
     ) -> proto::Response {
-        self.with_shape_geometry(handle, "SetEllipseSize", "Ellipse", |next, prev| {
+        self.with_shape_geometry(handle, "SetEllipseSize", StimulusType::Ellipse, |next, prev| {
             if !matches!(prev, ShapeGeometry::Ellipse { .. }) {
                 return false;
             }
@@ -345,7 +347,7 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetDrawModeRequest,
     ) -> proto::Response {
-        let mode = match proto_draw_mode_to_scene(cmd.mode) {
+        let mode = match draw_mode_from_proto(cmd.mode) {
             Ok(m) => m,
             Err(e) => return *e,
         };

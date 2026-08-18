@@ -13,11 +13,11 @@
 >   each kind, as prescribed. `Stimulus` gained `placement()` returning a `Placement<'_>`
 >   enum, with `transform2d()`/`transform3d()` layered on top.
 > - **§9.1 / §9.4 — the enum is no longer flat, and `is_3d()` is not a variant list.**
->   `Stimulus` is a struct (`{common, kind}`); `StimulusKind` has one arm per *render path*.
+>   `Stimulus` is a struct (`{common, body}`); `StimulusBody` has one arm per *render path*.
 >   `Rect`/`Ellipse`/`Circle` share one `Shape` + `ShapeGeometry`, and `Cube3D`/`Sphere3D`/
 >   `Plane3D` share one `Mesh3d` + `Mesh3dGeometry` — they differ only in a `MeshKey` and a
 >   nominal size, which §1.6 already implies. `is_3d()` is derived from `placement()`, so a
->   new kind cannot compile without declaring its dimension. §9.4's hand-maintained
+>   new body cannot compile without declaring its dimension. §9.4's hand-maintained
 >   `matches!` list is exactly the thing that rots.
 > - **§9.3's `move_to` mapping is rejected.** `move_to`/`set_angle` return `false` for a 3-D
 >   stimulus rather than writing `position.xz`. Both spaces are Y-up (§3.1, §3.2), so routing

@@ -22,13 +22,20 @@ from .vec import Vec2
 
 
 class StimulusType(Enum):
+    """What the server calls a stimulus, as reported by ``query`` and ``list``.
+
+    The wire enum also reserves BITMAP, SHADER and PARTICLE, which no vstimd
+    server can construct or report. They are absent here for the same reason
+    the server's own ``StimulusType`` omits them: a member you can never
+    receive is a member you cannot write code against. Any type this client
+    does not know — those three, or one added by a newer server — reads as
+    ``UNKNOWN`` rather than raising, so an old client survives a new rig.
+    """
+
     UNKNOWN = "unknown"
     RECT = "rect"
     CIRCLE = "circle"
     ELLIPSE = "ellipse"
-    BITMAP = "bitmap"
-    SHADER = "shader"
-    PARTICLE = "particle"
     GRATING = "grating"
     TEXT = "text"
     POLYGON = "polygon"
@@ -40,9 +47,6 @@ _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     stimulus_type_pb2.STIMULUS_TYPE_RECT: StimulusType.RECT,
     stimulus_type_pb2.STIMULUS_TYPE_CIRCLE: StimulusType.CIRCLE,
     stimulus_type_pb2.STIMULUS_TYPE_ELLIPSE: StimulusType.ELLIPSE,
-    stimulus_type_pb2.STIMULUS_TYPE_BITMAP: StimulusType.BITMAP,
-    stimulus_type_pb2.STIMULUS_TYPE_SHADER: StimulusType.SHADER,
-    stimulus_type_pb2.STIMULUS_TYPE_PARTICLE: StimulusType.PARTICLE,
     stimulus_type_pb2.STIMULUS_TYPE_GRATING: StimulusType.GRATING,
     stimulus_type_pb2.STIMULUS_TYPE_TEXT: StimulusType.TEXT,
     stimulus_type_pb2.STIMULUS_TYPE_POLYGON: StimulusType.POLYGON,

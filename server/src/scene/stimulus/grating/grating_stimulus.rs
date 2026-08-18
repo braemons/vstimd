@@ -64,7 +64,6 @@ impl<'de> serde::Deserialize<'de> for Grating {
 }
 
 impl Grating {
-    pub const TYPE_NAME: &'static str = "Grating";
     pub fn new(
         pos: [f32; 2],
         angle: f32,

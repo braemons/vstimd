@@ -94,7 +94,35 @@ pub fn parse_config_json(s: &str) -> anyhow::Result<(SceneConfig, Sections)> {
         CONFIG_VERSION
     );
     let f: ConfigFile = serde_json::from_str(s)?;
+    reject_stimuli_without_a_wire_type(&f.scene)?;
     Ok((f.scene, f.io))
+}
+
+/// Refuse a scene holding a stimulus this server cannot describe on the wire.
+///
+/// `StimulusBody` deserializes every arm it has, including `Mesh3d`, but the 3-D
+/// types own no `StimulusType` wire value yet (`dev/3D_ROADMAP.md` §10.2 reserves
+/// 20-29) and no query-params arm. A loaded 3-D stimulus would therefore sit in the
+/// scene until the next `ListStimuli`, `QueryStimulus` or web snapshot walked it and
+/// hit the `unimplemented!()` that refuses to report a 2-D type for it — killing the
+/// thread that walked it.
+///
+/// Refusing the file is the honest end of that: the alternative is a scene the
+/// server can hold but not answer questions about. It lifts on its own once Phase B
+/// gives the 3-D types wire values, since this reads the same taxonomy `ipc/convert`
+/// maps and asks it exactly what convert asks.
+fn reject_stimuli_without_a_wire_type(scene: &SceneConfig) -> anyhow::Result<()> {
+    for entry in scene.stimuli.values() {
+        let stimulus_type = entry.stimulus.stimulus_type();
+        anyhow::ensure!(
+            !stimulus_type.is_3d(),
+            "stimulus {:?} is a {}: 3-D stimuli have no wire representation yet \
+             (dev/3D_ROADMAP.md §10.2), so this server cannot load them",
+            entry.name(),
+            stimulus_type.type_name(),
+        );
+    }
+    Ok(())
 }
 
 /// Read a config file from disk and parse it.

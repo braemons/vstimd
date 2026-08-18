@@ -19,6 +19,7 @@
 //! outside this file — rather than the eight new match arms §9.1's flat list
 //! would require.
 
+use super::stimulus_type::StimulusType;
 use super::transform3d::{Material3D, Transform3D};
 use crate::scene::deferred::Deferred;
 
@@ -58,8 +59,9 @@ pub enum Mesh3dGeometry {
         size: [f32; 3],
     },
     Sphere {
-        /// cm. Matches `Circle`, where API and config already agree.
-        radius: f32,
+        /// Full extent across, cm — the same convention `Circle` uses, so every
+        /// geometry in the scene is sized by its full extent.
+        diameter: f32,
         /// Tessellation quality — the only fields that select geometry, hence
         /// the only ones in the [`MeshKey`].
         rings: u32,
@@ -93,18 +95,25 @@ pub enum MeshKey {
 }
 
 impl Mesh3dGeometry {
-    /// The **user-facing** type name, as it appears in the config's
-    /// `geometry.type` tag and in `StimulusType`. See [`ShapeGeometry::type_name`](super::ShapeGeometry::type_name).
-    pub fn type_name(&self) -> &'static str {
+    /// Which user-facing type this geometry is — the same many-to-one hop
+    /// [`ShapeGeometry::stimulus_type`](super::ShapeGeometry::stimulus_type) makes,
+    /// out of the one [`StimulusBody::Mesh3d`](super::StimulusBody::Mesh3d) arm.
+    pub fn stimulus_type(&self) -> StimulusType {
         match self {
-            Self::Cube { .. } => "Cube3D",
-            Self::Sphere { .. } => "Sphere3D",
-            Self::Plane { .. } => "Plane3D",
+            Self::Cube { .. } => StimulusType::Cube3D,
+            Self::Sphere { .. } => StimulusType::Sphere3D,
+            Self::Plane { .. } => StimulusType::Plane3D,
         }
     }
 
+    /// The **user-facing** type name, as it appears in the config's `geometry.type`
+    /// tag. See [`ShapeGeometry::type_name`](super::ShapeGeometry::type_name).
+    pub fn type_name(&self) -> &'static str {
+        self.stimulus_type().type_name()
+    }
+
     /// The shared-mesh cache key. Only tessellation-affecting fields
-    /// participate: `size` and `radius` fold into the model matrix, so a resize
+    /// participate: `size` and `diameter` fold into the model matrix, so a resize
     /// does **not** re-tessellate, and a screen resize does not invalidate 3-D
     /// meshes at all (unlike 2-D, whose vertices are baked to NDC).
     pub fn mesh_key(&self) -> MeshKey {

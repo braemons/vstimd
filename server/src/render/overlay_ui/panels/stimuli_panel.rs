@@ -3,7 +3,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::render::overlay_ui::stimulus_dialog::StimulusDialog;
-use crate::scene::{SceneState, ShapeGeometry, StimulusKind};
+use crate::scene::{SceneState, ShapeGeometry, StimulusBody};
 
 pub(in crate::render::overlay_ui) fn stimuli_panel(
     ui: &mut egui::Ui,
@@ -41,17 +41,17 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                         // is a 2-D scene table for now.
                         let pos = stim.transform2d().map(|t| t.live.pos);
                         let wh = |[w, h]: [f32; 2]| format!("{}×{}", w as i32, h as i32);
-                        let size_label = match &stim.kind {
-                            StimulusKind::Grating(s) => wh(s.size.live),
-                            StimulusKind::Text(s) => wh(s.box_size.live),
-                            StimulusKind::Shape(s) => match s.geometry.live {
+                        let size_label = match &stim.body {
+                            StimulusBody::Grating(s) => wh(s.size.live),
+                            StimulusBody::Text(s) => wh(s.box_size.live),
+                            StimulusBody::Shape(s) => match s.geometry.live {
                                 ShapeGeometry::Rect { size }
                                 | ShapeGeometry::Ellipse { size } => wh(size),
                                 ShapeGeometry::Circle { diameter } => {
                                     format!("d={}", diameter as i32)
                                 }
                             },
-                            StimulusKind::Mesh3d(_) => "3-D".to_string(),
+                            StimulusBody::Mesh3d(_) => "3-D".to_string(),
                         };
                         let name_label = entry.name().to_string();
                         let uuid_str = entry.id().to_string();
