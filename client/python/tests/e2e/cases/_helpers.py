@@ -3,11 +3,16 @@
 from __future__ import annotations
 
 import time
+from typing import Callable
 
 from vstimd import Connection, HandleNotFoundError
 from vstimd.animations import AnimationHandle, AnimationState
 from vstimd.stimuli import RectParams, ShapeAppearance, StimulusHandle, TextParams
 from vstimd.stimuli.stimuli_models import Color, Vec2
+
+#: Near the top of the frame, clear of where demos put their own titles.
+CAPTION_POS = Vec2(0.0, 420.0)
+CAPTION_BOX = Vec2(1600.0, 80.0)
 
 
 class Stage:
@@ -24,12 +29,18 @@ class Stage:
     """
 
     def __init__(
-        self, conn: Connection, test_id: str, description: str, step_delay: float
+        self,
+        conn: Connection,
+        test_id: str,
+        description: str,
+        step_delay: float,
+        pause: Callable[[str, str], None] = lambda where, prompt: None,
     ) -> None:
         self.conn = conn
         self.test_id = test_id
         self.description = description
         self.step_delay = step_delay
+        self.pause = pause
         self._handle: StimulusHandle | None = None
 
     # ── caption ──────────────────────────────────────────────────────────────
@@ -38,31 +49,47 @@ class Stage:
         return f"[{self.test_id}] {description}".rstrip()
 
     def show(self, description: str | None = None) -> None:
-        """Put the caption on screen, creating it if it is not there.
+        """Put the caption on screen, replacing whatever was there.
+
+        The caption is rebuilt rather than rewritten because draw order is
+        creation order: a caption made once at the start of the test ends up
+        *under* every stimulus the test creates afterwards, and a test that
+        draws near the top of the frame can bury it. Creating the new one before
+        deleting the old also means there is no frame without a caption.
 
         Tests that clear the whole scene take the caption with them, so a
-        missing caption is a normal state to recover from rather than a failure.
+        missing handle is a normal state to recover from rather than a failure.
         """
         if description is not None:
             self.description = description
-        text = self._caption(self.description)
-        if self._handle is not None:
-            try:
-                self.conn.stimuli.text.set_text(self._handle, text)
-                return
-            except HandleNotFoundError:
-                self._handle = None
+        previous = self._handle
         self._handle = self.conn.stimuli.text.create_text(
-            position_px=Vec2(0, 250),
+            position_px=CAPTION_POS,
             name="_label",
             params=TextParams(
-                text=text,
+                text=self._caption(self.description),
                 letter_height_px=28,
                 text_color=Color(1.0, 1.0, 0.0),
+                # A dim backing box: the caption has to stay readable over a
+                # mid-grey background and over any stimulus it lands on.
+                fill_color=Color(0.0, 0.0, 0.0, 0.7),
                 anchor="center",
-                box_size_px=Vec2(1200, 200),
+                box_size_px=CAPTION_BOX,
             ),
         )
+        if previous is not None:
+            try:
+                self.conn.stimuli.delete(previous)
+            except HandleNotFoundError:
+                pass
+
+    def cue(self, description: str, hold: float = 0.6) -> None:
+        """Say what is *about* to happen, and pause long enough to read it.
+
+        Several animations are over in well under a second — a caption that only
+        goes up once they have started is a caption nobody gets to read.
+        """
+        self.step(description, hold=hold)
 
     def step(self, description: str, hold: float = 1.0) -> None:
         """Describe what is on screen *now*, then hold it there to be looked at."""
@@ -70,9 +97,14 @@ class Stage:
         self.hold(hold)
 
     def hold(self, factor: float = 1.0) -> None:
-        """Leave the current frame up for ``factor`` step delays."""
+        """Leave the current frame up for ``factor`` step delays.
+
+        With ``--pause=step`` the frame stays up until someone says otherwise,
+        which is the only way to study something that a dwell always cuts short.
+        """
         if self.step_delay > 0:
             time.sleep(self.step_delay * factor)
+        self.pause("step", self._caption(self.description))
 
     def close(self) -> None:
         if self._handle is None:

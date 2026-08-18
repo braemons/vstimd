@@ -184,6 +184,19 @@ headless runs pay nothing for it:
 uv run pytest tests/e2e/test_e2e.py --step-delay 2.5   # slower, easier to watch
 ```
 
+To stop and look at something properly, run the suite pausable. `--pause` waits
+for a keypress once per test; `--pause=step` waits at every caption change.
+Answer with Enter to go on, `c` to finish the run without pausing again, or `q`
+to stop the suite there:
+
+```bash
+uv run pytest tests/e2e/test_e2e.py --pause
+uv run pytest tests/e2e/test_e2e.py --pause=step -k grating
+```
+
+Pausing needs a terminal to ask: with stdin closed (CI, a backgrounded `make`)
+the first prompt turns pausing off and the run carries on.
+
 ## Status and versioning
 
 Pre-1.0: the API may still change between minor versions.

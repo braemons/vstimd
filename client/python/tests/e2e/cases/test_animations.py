@@ -31,7 +31,7 @@ def test_anim_flash_state_transitions(conn: Connection, stage: Stage) -> None:
     s = _make_rect(conn, x=0, y=0, enabled=False)
 
     a = conn.animations.create_flash(
-        s, duration_frames=30, name="flash_30", final_action_mask=FinalAction.DISABLE
+        s, duration_frames=60, name="flash_60", final_action_mask=FinalAction.DISABLE
     )
     assert conn.animations.query(a).state == AnimationState.IDLE
 
@@ -41,6 +41,7 @@ def test_anim_flash_state_transitions(conn: Connection, stage: Stage) -> None:
     listed = next(i for i in conn.animations.list_animations() if i.handle == a)
     assert listed.type_name == conn.animations.query(a).type_name
 
+    stage.cue("watch the centre: the square flashes on for a second")
     conn.animations.arm(a)
     assert conn.animations.query(a).state in (
         AnimationState.ARMED,
@@ -71,6 +72,7 @@ def test_anim_flash_stimulus_visible_during_run(conn: Connection, stage: Stage) 
     a = conn.animations.create_flash(
         s, duration_frames=60, final_action_mask=FinalAction.DISABLE
     )
+    stage.cue("watch left of centre: the square comes on, then goes off for good")
     conn.animations.arm(a)
 
     time.sleep(0.1)
@@ -102,7 +104,7 @@ def test_anim_flash_start_trigger(conn: Connection, stage: Stage) -> None:
 
     a = conn.animations.create_flash(
         s,
-        duration_frames=30,
+        duration_frames=60,
         start_trigger=VtlHandle.input(0, 10),
         start_edge=VtlEdge.RISING,
         final_action_mask=FinalAction.DISABLE,
@@ -285,7 +287,8 @@ def test_anim_flicker_cycles(conn: Connection, stage: Stage) -> None:
     """Flicker toggles a stimulus on and off at the specified cadence."""
     s = _make_rect(conn, x=-200, y=100)
 
-    a = conn.animations.create_flicker(s, on_frames=6, off_frames=6, total_frames=60)
+    a = conn.animations.create_flicker(s, on_frames=6, off_frames=6, total_frames=120)
+    stage.cue("watch the upper left: the square is about to flicker at ~5 Hz")
     conn.animations.arm(a)
 
     stage.step("flickering", hold=2)
@@ -386,6 +389,7 @@ def test_anim_enable_on_trigger_edge_rising(conn: Connection, stage: Stage) -> N
         edge=VtlEdge.RISING,
         enabled=True,
     )
+    stage.cue("watch the lower left: an edge on (0,20) will switch a square on")
     conn.animations.arm(a)
 
     time.sleep(0.1)
@@ -430,6 +434,7 @@ def test_anim_enable_on_trigger_edge_falling(conn: Connection, stage: Stage) -> 
         edge=VtlEdge.FALLING,
         enabled=False,
     )
+    stage.cue("watch the lower right: an edge on (0,21) will switch that square off")
     conn.animations.arm(a)
 
     conn.vtl.set_line(VtlHandle.input(0, 21), True)
@@ -655,8 +660,9 @@ def test_anim_final_action_restore_visibility(conn: Connection, stage: Stage) ->
     s = _make_rect(conn, x=0, y=150, enabled=False)
 
     a = conn.animations.create_flash(
-        s, duration_frames=20, final_action_mask=FinalAction.RESTORE_VISIBILITY
+        s, duration_frames=45, final_action_mask=FinalAction.RESTORE_VISIBILITY
     )
+    stage.cue("watch above centre: the square shows while the flash runs, then hides again")
     conn.animations.arm(a)
 
     time.sleep(0.05)
@@ -695,7 +701,7 @@ def test_anim_final_action_trigger_line(conn: Connection, stage: Stage) -> None:
     s = _make_rect(conn, x=0, y=-150, enabled=False)
     a = conn.animations.create_flash(
         s,
-        duration_frames=15,
+        duration_frames=45,
         final_action_mask=FinalAction.FINAL_ACTION_TRIGGER_LINE | FinalAction.DISABLE,
         final_action_trigger_line=VtlHandle.named("anim_done_out", VtlKind.OUTPUT),
     )
@@ -771,8 +777,9 @@ def test_anim_flash_with_grating(conn: Connection, stage: Stage) -> None:
     conn.stimuli.set_enabled(g, False)
 
     a = conn.animations.create_flash(
-        g, duration_frames=40, final_action_mask=FinalAction.DISABLE
+        g, duration_frames=60, final_action_mask=FinalAction.DISABLE
     )
+    stage.cue("watch the centre: a grating patch is about to be flashed on")
     conn.animations.arm(a)
 
     time.sleep(0.05)
@@ -798,8 +805,9 @@ def test_anim_multiple_stimuli(conn: Connection, stage: Stage) -> None:
     stimuli = [_make_rect(conn, x=x, y=-50, enabled=False) for x in (-200, 0, 200)]
 
     a = conn.animations.create_flash(
-        stimuli, duration_frames=30, final_action_mask=FinalAction.DISABLE
+        stimuli, duration_frames=60, final_action_mask=FinalAction.DISABLE
     )
+    stage.cue("watch the row below centre: all three squares flash together")
     conn.animations.arm(a)
 
     time.sleep(0.05)
@@ -832,7 +840,7 @@ def test_anim_start_action_enable(conn: Connection, stage: Stage) -> None:
     # Stimulus starts disabled — start_action enables it; DISABLE final_action turns it off at the end.
     a = conn.animations.create_flash(
         s,
-        duration_frames=30,
+        duration_frames=60,
         start_action_mask=StartAction.ENABLE,
         final_action_mask=FinalAction.DISABLE,
     )
@@ -959,7 +967,7 @@ def test_anim_output_edge_chaining(conn: Connection, stage: Stage) -> None:
     # A: short flash that pulses output bit (0, 20) when it completes.
     a = conn.animations.create_flash(
         sa,
-        duration_frames=6,
+        duration_frames=20,
         start_action_mask=StartAction.ENABLE,
         final_action_mask=FinalAction.DISABLE | FinalAction.FINAL_ACTION_TRIGGER_LINE,
         final_action_trigger_line=VtlHandle.output(0, 20),
@@ -967,7 +975,7 @@ def test_anim_output_edge_chaining(conn: Connection, stage: Stage) -> None:
     # B: waits for a rising edge on the OUTPUT line (0, 20).
     b = conn.animations.create_flash(
         sb,
-        duration_frames=30,
+        duration_frames=60,
         start_action_mask=StartAction.ENABLE,
         final_action_mask=FinalAction.DISABLE,
         start_trigger=VtlHandle.output(0, 20),
@@ -1063,7 +1071,7 @@ def test_anim_output_edge_fan_out(conn: Connection, stage: Stage) -> None:
 
     a = conn.animations.create_flash(
         sa,
-        duration_frames=6,
+        duration_frames=20,
         start_action_mask=StartAction.ENABLE,
         final_action_mask=FinalAction.DISABLE | FinalAction.FINAL_ACTION_TRIGGER_LINE,
         final_action_trigger_line=VtlHandle.output(0, 22),
@@ -1071,7 +1079,7 @@ def test_anim_output_edge_fan_out(conn: Connection, stage: Stage) -> None:
     followers = [
         conn.animations.create_flash(
             s,
-            duration_frames=30,
+            duration_frames=60,
             start_action_mask=StartAction.ENABLE,
             final_action_mask=FinalAction.DISABLE,
             start_trigger=VtlHandle.output(0, 22),
@@ -1144,7 +1152,7 @@ def test_anim_flash_rearm_fires_on_every_trigger_edge(conn: Connection, stage: S
     # to catch the animation outside ARMED to know the trigger was consumed.
     a = conn.animations.create_flash(
         s,
-        duration_frames=30,
+        duration_frames=45,
         start_trigger=VtlHandle.input(0, 12),
         start_edge=VtlEdge.RISING,
         final_action_mask=FinalAction.DISABLE | FinalAction.REARM,

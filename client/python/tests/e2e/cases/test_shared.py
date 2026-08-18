@@ -159,7 +159,13 @@ def test_set_alpha_on_every_stimulus_type(conn: Connection, stage: Stage) -> Non
         ("circle", lambda: conn.stimuli.shapes.create_circle()),
         ("ellipse", lambda: conn.stimuli.shapes.create_ellipse()),
         ("grating", lambda: conn.stimuli.grating.create_grating()),
-        ("text", lambda: conn.stimuli.text.create_text(params=TextParams(text="opacity"))),
+        # Letter height and box size are not optional in practice: a text
+        # stimulus without them renders at zero size, i.e. invisibly.
+        ("text", lambda: conn.stimuli.text.create_text(
+            params=TextParams(
+                text="opacity", letter_height_px=48, box_size_px=Vec2(400, 80)
+            ),
+        )),
     ]
     for name, create in stimuli:
         handle = create()

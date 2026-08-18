@@ -25,6 +25,17 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default=1.0,
         help="Seconds to pause between visual stimulus changes so a human can inspect them (default: 1.0)",
     )
+    parser.addoption(
+        "--pause",
+        nargs="?",
+        const="test",
+        default="off",
+        choices=["off", "test", "step"],
+        help="Wait for a keypress while the suite runs, so a frame can be "
+        "studied for as long as it takes: 'test' (the default when the flag is "
+        "given without a value) pauses once per test, 'step' pauses at every "
+        "caption change (default: off)",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -43,6 +54,47 @@ def server_address(request: pytest.FixtureRequest) -> str:
     return request.config.getoption("--server")
 
 
+class Pauser:
+    """Blocks the suite on a keypress, when the run asked to be pausable.
+
+    pytest owns stdin and stdout while a test runs, so the prompt has to
+    suspend capturing for as long as it is waiting — otherwise it is neither
+    printed nor answerable. A run with no terminal behind it (CI, a backgrounded
+    make) has no one to ask, so the first EOF turns pausing off for good.
+    """
+
+    def __init__(self, config: pytest.Config) -> None:
+        self.config = config
+        self.mode = config.getoption("--pause")
+
+    def __call__(self, where: str, prompt: str) -> None:
+        if self.mode != where:
+            return
+        capture = self.config.pluginmanager.getplugin("capturemanager")
+        if capture is not None:
+            capture.suspend_global_capture(in_=True)
+        try:
+            answer = input(
+                f"\n⏸  {prompt}\n"
+                "   [Enter] continue   [c] carry on without pausing   [q] quit: "
+            ).strip().lower()
+        except (EOFError, OSError):
+            self.mode = "off"  # nothing on stdin to ask
+            return
+        finally:
+            if capture is not None:
+                capture.resume_global_capture()
+        if answer == "c":
+            self.mode = "off"
+        elif answer == "q":
+            pytest.exit(f"stopped by request at {prompt}", returncode=0)
+
+
+@pytest.fixture(scope="session")
+def pauser(request: pytest.FixtureRequest) -> Pauser:
+    return Pauser(request.config)
+
+
 @pytest.fixture(scope="session")
 def conn(server_address: str) -> Connection:
     c = Connection(server_address)
@@ -59,7 +111,12 @@ def step_delay(request: pytest.FixtureRequest) -> float:
 
 
 @pytest.fixture(autouse=True)
-def stage(request: pytest.FixtureRequest, conn: Connection, step_delay: float) -> Stage:
+def stage(
+    request: pytest.FixtureRequest,
+    conn: Connection,
+    step_delay: float,
+    pauser: Pauser,
+) -> Stage:
     """Caption every test on screen with its id and what should be visible.
 
     Autouse, so a test cannot end up running anonymously: without an
@@ -75,10 +132,11 @@ def stage(request: pytest.FixtureRequest, conn: Connection, step_delay: float) -
         test_id, description = request.node.name, doc[0] if doc else ""
         deferred = False
 
-    s = Stage(conn, test_id, description, step_delay)
+    s = Stage(conn, test_id, description, step_delay, pause=pauser)
     if not deferred:
         s.show()
     yield s
+    pauser("test", f"[{s.test_id}] {s.description}")
     s.close()
 
 
