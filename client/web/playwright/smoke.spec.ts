@@ -155,8 +155,8 @@ test("drag on the map moves the stimulus (RF mapping)", async ({ page }) => {
   // The stimulus is created at (0,0) → rendered at the canvas centre. Drag it.
   const canvas = page.locator("canvas");
   const box = (await canvas.boundingBox())!;
-  const cx = box.x + box.widthPx / 2;
-  const cy = box.y + box.heightPx / 2;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
 
   await page.mouse.move(cx, cy);
   await page.mouse.down();
