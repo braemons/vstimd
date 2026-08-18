@@ -71,7 +71,14 @@ def server_process(server_address: str):
 
     yield
     proc.terminate()
-    proc.wait(timeout=5)
+    try:
+        proc.wait(timeout=20)
+    except subprocess.TimeoutExpired:
+        # A fullscreen Vulkan renderer can take longer than a polite terminate
+        # allows to hand the display back. The suite is over either way, so the
+        # teardown kills rather than failing the last test that ran.
+        proc.kill()
+        proc.wait(timeout=5)
     log_file.close()
     print(f"\nServer log: {log_path}")
 
