@@ -197,6 +197,15 @@ uv run pytest tests/e2e/test_e2e.py --pause=step -k grating
 Pausing needs a terminal to ask: with stdin closed (CI, a backgrounded `make`)
 the first prompt turns pausing off and the run carries on.
 
+The suite starts its server fullscreen, which covers the terminal the prompt is
+waiting in. Start a windowed server first and the suite attaches to that one
+instead of starting its own — and leaves it running afterwards:
+
+```bash
+cargo run --release -- --windowed 1280x720 &
+uv run pytest tests/e2e/test_e2e.py --pause
+```
+
 ## Status and versioning
 
 Pre-1.0: the API may still change between minor versions.
