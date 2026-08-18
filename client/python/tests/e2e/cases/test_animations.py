@@ -25,7 +25,9 @@ from ._helpers import (
     update_label as _update_label,
 )
 from ._helpers import (
-
+    wait_for_anim_run_start as _wait_for_run_start,
+)
+from ._helpers import (
     wait_for_anim_state as _wait_for_state,
 )
 
@@ -1138,6 +1140,21 @@ def _line_high(conn: Connection, name: str) -> bool:
     raise AssertionError(f"no VTL line named {name!r}")
 
 
+def _wait_line(conn: Connection, name: str, want: bool, timeout: float = 4.0) -> bool:
+    """Poll a named VTL line until it reads ``want``, or the timeout passes.
+
+    A line moves on a server frame, not on the command that triggers it, so a
+    level check after a trigger pulse needs a bounded wait rather than a fixed
+    sleep sized to a frame rate the test does not control.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if _line_high(conn, name) == want:
+            return want
+        time.sleep(0.02)
+    return _line_high(conn, name)
+
+
 def test_anim_flash_rearm_fires_on_every_trigger_edge(
     conn: Connection, request: pytest.FixtureRequest, step_delay: float
 ) -> None:
@@ -1150,9 +1167,11 @@ def test_anim_flash_rearm_fires_on_every_trigger_edge(
     lbl = _label(conn, tid, "flash re-arms after each trigger")
     s = _make_rect(conn, x=150, y=0, enabled=False)
 
+    # Long enough that a poll cannot step over the whole run: the wait below has
+    # to catch the animation outside ARMED to know the trigger was consumed.
     a = conn.animations.create_flash(
         s,
-        duration_frames=6,
+        duration_frames=30,
         start_trigger=VtlHandle.input(0, 12),
         start_edge=VtlEdge.RISING,
         final_action_mask=FinalAction.DISABLE | FinalAction.REARM,
@@ -1165,6 +1184,12 @@ def test_anim_flash_rearm_fires_on_every_trigger_edge(
         )
         conn.vtl.set_line(VtlHandle.input(0, 12), True)
         conn.vtl.set_line(VtlHandle.input(0, 12), False)
+
+        # The edge is consumed on the server's next frame, so wait for the run to
+        # actually start — otherwise the ARMED below is the one this trial began
+        # in, and the next trial's assert races the run it never waited for.
+        started = _wait_for_run_start(conn, a, timeout=4.0)
+        assert started != AnimationState.ARMED, f"trial {trial}: never started"
 
         # Runs, then re-arms rather than finishing in DONE.
         back = _wait_for_state(conn, a, AnimationState.ARMED, timeout=4.0)
@@ -1206,7 +1231,10 @@ def test_anim_done_level_holds_until_next_start(
 
     conn.vtl.set_line(VtlHandle.input(0, 13), True)
     conn.vtl.set_line(VtlHandle.input(0, 13), False)
-    _wait_for_state(conn, a, AnimationState.ARMED, timeout=4.0)
+    # The level is the honest observable here: it goes HIGH on the completing
+    # frame and stays there, whereas polling for ARMED matches the ARMED this
+    # animation is already in until the server consumes the edge a frame later.
+    assert _wait_line(conn, "e2e_done_level", True), "level never went HIGH on completion"
 
     # Still HIGH well after the completing frame — this is what makes it a level
     # rather than a mark.
@@ -1218,8 +1246,7 @@ def test_anim_done_level_holds_until_next_start(
     # Starting again clears it.
     conn.vtl.set_line(VtlHandle.input(0, 13), True)
     conn.vtl.set_line(VtlHandle.input(0, 13), False)
-    time.sleep(0.05)
-    assert not _line_high(conn, "e2e_done_level"), "level survived the next start"
+    assert not _wait_line(conn, "e2e_done_level", False), "level survived the next start"
 
     _wait_for_state(conn, a, AnimationState.ARMED, timeout=4.0)
     conn.animations.delete(a)
