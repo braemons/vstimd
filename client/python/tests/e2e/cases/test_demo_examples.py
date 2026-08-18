@@ -65,6 +65,21 @@ def _driven_handles(anim: dict) -> list[int]:
     return target.get("handles", []) if target.get("kind") == "Stimuli" else []
 
 
+# Animations that move their target every frame, so its position is a runtime
+# value rather than something the tutorial script sets.
+_MOVING_ANIMATIONS = frozenset(
+    {"MoveAlongPath2D", "MoveAlongSegments2D", "ExternalPosition2D"}
+)
+
+
+def _moves_its_target(anim: dict) -> bool:
+    """True when the animation writes its target's position on every frame."""
+    body = anim.get("animation")
+    if isinstance(body, dict):
+        return bool(_MOVING_ANIMATIONS & body.keys())
+    return body in _MOVING_ANIMATIONS
+
+
 def _canonical(cfg: dict) -> dict:
     """Reduce a config to the parts a tutorial is responsible for reproducing."""
     scene = cfg["scene"]
@@ -77,6 +92,12 @@ def _canonical(cfg: dict) -> dict:
     by_handle = sorted(entries, key=int)
     name_of = {h: entries[h]["name"] for h in by_handle}
     driven = {str(h) for a in animations.values() for h in _driven_handles(a)}
+    moved = {
+        str(h)
+        for a in animations.values()
+        if _moves_its_target(a)
+        for h in _driven_handles(a)
+    }
 
     stimuli = []
     for handle in by_handle:
@@ -86,6 +107,11 @@ def _canonical(cfg: dict) -> dict:
             # either state at the moment we look.
             stim["common"]["flags"].pop("enabled", None)
         body = stim["body"]
+        if handle in moved:
+            # A sweep owns this stimulus's position: by the time the config is
+            # retrieved the animation has already moved it some way along its
+            # path, and where exactly depends on how many frames have passed.
+            body.get("transform", {}).pop("pos_px", None)
         if body["type"] == "Grating" and body["params"]["drift_speed_hz"] != 0.0:
             body["params"].pop("phase_cycles", None)   # advances every frame
         stimuli.append([entries[handle]["name"], _round(stim)])

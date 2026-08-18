@@ -12,6 +12,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import warnings
 
 import pytest
 
@@ -68,9 +69,15 @@ def server_process(server_address: str):
         proc.wait(timeout=20)
     except subprocess.TimeoutExpired:
         # A fullscreen Vulkan renderer can take longer than a polite terminate
-        # allows to hand the display back. The suite is over either way, so the
-        # teardown kills rather than failing the last test that ran.
+        # allows to hand the display back, so escalate rather than fail the last
+        # test that ran.
         proc.kill()
-        proc.wait(timeout=5)
+        try:
+            proc.wait(timeout=30)
+        except subprocess.TimeoutExpired:
+            # SIGKILL is not negotiable, so a process still here is stuck in the
+            # kernel giving the display back. Say so and let the suite finish:
+            # how long cleanup took is not a result about the code under test.
+            warnings.warn(f"vstimd (pid {proc.pid}) has not exited after SIGKILL")
     log_file.close()
     print(f"\nServer log: {log_path}")
