@@ -2,6 +2,7 @@
 
 import dataclasses
 import datetime
+import json
 import os
 import pathlib
 import sys
@@ -42,6 +43,20 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         "(default: off)",
     )
     parser.addoption(
+        "--start-at",
+        type=int,
+        default=0,
+        help="Skip straight to test number N (see the numbering the pause "
+        "prompt shows). Set by the browser when jumping backwards",
+    )
+    parser.addoption(
+        "--nav-file",
+        default="",
+        help="JSON file the pause prompt hands a backward jump to, for the "
+        "browser (tests/e2e/browse.py) to act on. Without it, only forward "
+        "jumps are possible: pytest cannot re-run a test it has passed",
+    )
+    parser.addoption(
         "--review-log",
         default="e2e-review.md",
         help="Where to write the notes taken while pausing. Written only if "
@@ -57,6 +72,16 @@ class Flag:
     description: str
     node_id: str
     note: str
+
+
+@dataclasses.dataclass
+class Entry:
+    """One test in run order: its number, its id and what it should show."""
+
+    index: int
+    node_id: str
+    test_id: str
+    summary: str
 
 
 class Reviewer:
@@ -77,6 +102,36 @@ class Reviewer:
         self.config = config
         self.mode = config.getoption("--pause")
         self.flags: list[Flag] = []
+        #: Every test in run order, so the prompt can say where it is and jump.
+        self.entries: list[Entry] = []
+        self.index = 0
+        self.total = 0
+        #: Set by a forward jump; tests before it are skipped rather than run.
+        self.skip_until: int | None = None
+        #: Set only when this session's prompt asked to go back; anything left
+        #: over from an earlier session is spent and must not fire again.
+        self.pending_jump: int | None = None
+        self.outcomes = _LAST_OUTCOMES
+        self.session: pytest.Session | None = None
+        nav = config.getoption("--nav-file")
+        self.nav_file = pathlib.Path(nav) if nav else None
+        self._load()
+
+    # ── state carried across a restart ───────────────────────────────────────
+
+    def _load(self) -> None:
+        """Pick up the notes taken before a backward jump restarted pytest."""
+        if self.nav_file is None or not self.nav_file.exists():
+            return
+        state = json.loads(self.nav_file.read_text(encoding="utf-8"))
+        self.flags = [Flag(**f) for f in state.get("flags", [])]
+
+    def save(self, extra: dict | None = None) -> None:
+        if self.nav_file is None:
+            return
+        state = {"flags": [dataclasses.asdict(f) for f in self.flags], "jump": None}
+        state.update(extra or {})
+        self.nav_file.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
     # ── prompting ────────────────────────────────────────────────────────────
 
@@ -105,6 +160,21 @@ class Reviewer:
             if capture is not None:
                 capture.resume_global_capture()
 
+    # ── what the prompt shows ────────────────────────────────────────────────
+
+    def _progress(self) -> str:
+        """`[ 12/147 ] ███░░░░░░░░` — where in the suite this test is."""
+        if not self.total:
+            return ""
+        done = self.index / self.total
+        bar = "█" * round(done * 12) + "░" * (12 - round(done * 12))
+        return f"  [{self.index:>3}/{self.total}] {bar} {done * 100:3.0f}%"
+
+    _KEYS = (
+        "     j/⏎ next   k prev   5j/5k ±5   42G go to 42   gg/G first/last\n"
+        "     r replay   /text search   l list   f flag   c run on   q quit"
+    )
+
     def _prompt(self, stage: Stage, where: str) -> None:
         if self.mode != where:
             return
@@ -116,43 +186,148 @@ class Reviewer:
             if stage.description != stage.summary
             else ""
         )
+        outcome = self.outcomes.get(stage.node_id, "")
+        mark = {"passed": "✓", "failed": "✗ FAILED", "skipped": "– skipped"}.get(
+            outcome, ""
+        )
         while True:
             answer = self._ask(
-                f"\n  {'─' * 68}\n"
-                f"  ⏸  [{stage.test_id}]  {stage.summary}\n"
+                f"\n{self._progress()}\n"
+                f"  ⏸  [{stage.test_id}] {mark}  {stage.summary}\n"
                 f"{on_screen}"
-                f"     [Enter] next   [f] flag a problem   "
-                f"[c] run on   [q] quit: "
+                f"{self._KEYS}\n"
+                f"     > "
             )
             if answer is None:
                 return
-            answer = answer.strip().lower()
-            if answer == "f":
-                self._flag(stage)
-                continue  # back to the prompt: the frame is still up
-            if answer == "c":
-                self.mode = "off"
-            elif answer == "q":
-                pytest.exit(f"stopped at [{stage.test_id}] by request", returncode=0)
-            return
+            if self._act(answer.strip(), stage):
+                return
 
-    def _flag(self, stage: Stage) -> None:
-        note = self._ask(f"     what is wrong with [{stage.test_id}]? ")
-        if note is None:
-            return
-        self.flags.append(
-            Flag(stage.test_id, stage.summary, stage.node_id, note.strip())
-        )
-        # Straight to the terminal: a print here would land in pytest's capture
-        # buffer and only surface if the test went on to fail.
-        self._say(f"     ✗ flagged [{stage.test_id}]")
+    # ── acting on a key ──────────────────────────────────────────────────────
+
+    def _act(self, answer: str, stage: Stage) -> bool:
+        """Handle one keypress. True when the prompt is done and the run goes on.
+
+        The keys are vim's, because that is the muscle memory this audience
+        already has: counts prefix the motion (`5j`), `G` takes a line number,
+        `/` searches.
+        """
+        if answer in ("", "j", "n"):
+            return True
+        if answer in ("c", ":c"):
+            self.mode = "off"
+            return True
+        if answer in ("q", ":q", ":q!"):
+            self._stop(f"stopped at [{stage.test_id}] by request")
+            return True
+        if answer == "f":
+            self._flag(stage)
+            return False  # back to the prompt: the frame is still up
+        if answer in ("?", ":h", ":help"):
+            self._say(self._KEYS)
+            return False
+        if answer in ("l", ":ls", ":list"):
+            self._list()
+            return False
+        if answer.startswith("/"):
+            found = self._search(answer[1:].strip())
+            return self._go(found, stage) if found else False
+        return self._motion(answer, stage)
+
+    def _motion(self, answer: str, stage: Stage) -> bool:
+        """`k`, `5j`, `gg`, `G`, `42G`, `:42`, `42`, `r` — or nothing we know."""
+        target: int | None = None
+        if answer == "gg":
+            target = 1
+        elif answer == "G":
+            target = self.total
+        elif answer == "r":
+            target = self.index
+        elif answer in ("k", "p"):
+            target = self.index - 1
+        else:
+            # `:42` is vim's line jump written the ex way; `42` alone means the
+            # same thing here, since there is nothing else a bare number can be.
+            raw = answer.removeprefix(":")
+            digits = raw[: len(raw) - len(raw.lstrip("0123456789"))]
+            motion = raw[len(digits):]
+            if digits:
+                count = int(digits)
+                if motion == "j":
+                    target = self.index + count
+                elif motion == "k":
+                    target = self.index - count
+                elif motion in ("", "G"):
+                    target = count
+        if target is None:
+            self._say(f"     ? {answer!r} is not a key here\n{self._KEYS}")
+            return False
+        return self._go(target, stage)
+
+    def _go(self, target: int, stage: Stage) -> bool:
+        """Move to test number ``target``, forwards in this run or by restarting."""
+        target = max(1, min(target, self.total))
+        if target == self.index + 1:
+            return True                      # just carry on
+        if target > self.index:
+            self.skip_until = target          # skipped over as the session runs on
+            self._say(f"     → jumping to {target}")
+            return True
+        if self.nav_file is None:
+            self._say(
+                "     ← going back needs the browser: pytest cannot re-run a "
+                "test it has already passed.\n"
+                "       Run `make test-e2e-browse` instead of this target."
+            )
+            return False
+        self.pending_jump = target
+        self.save({"jump": target})
+        self._stop(f"jumping back to test {target}")
+        return True
+
+    def _stop(self, why: str) -> None:
+        """End the session after this test, rather than in the middle of it.
+
+        ``pytest.exit`` here would abandon the teardown this prompt is running
+        inside, and with it the scene reset — leaving stimuli, a background
+        colour or deferred mode behind for whatever runs next. ``shouldstop`` is
+        checked between tests, so the current one finishes cleaning up first.
+        """
+        self._say(f"     {why}")
+        if self.session is not None:
+            self.session.shouldstop = why
+        else:  # no session to ask: nothing has been set up to leave behind
+            pytest.exit(why, returncode=0)
+
+    def _search(self, text: str) -> int | None:
+        """Number of the next test whose id or caption contains ``text``."""
+        if not text:
+            return None
+        order = self.entries[self.index:] + self.entries[: self.index]
+        for entry in order:
+            haystack = f"{entry.test_id} {entry.summary}".lower()
+            if text.lower() in haystack:
+                return entry.index
+        self._say(f"     ? nothing matches {text!r}")
+        return None
+
+    def _list(self) -> None:
+        lines = []
+        for entry in self.entries:
+            here = "→" if entry.index == self.index else " "
+            flagged = "✗" if any(f.node_id == entry.node_id for f in self.flags) else " "
+            lines.append(
+                f"   {here}{flagged} {entry.index:>3}  [{entry.test_id}]  {entry.summary[:60]}"
+            )
+        self._say("\n".join(lines))
 
     # ── the two pause points ─────────────────────────────────────────────────
 
     def at_step(self, stage: Stage) -> None:
         self._prompt(stage, "step")
 
-    def at_test(self, stage: Stage) -> None:
+    def at_test(self, stage: Stage, index: int) -> None:
+        self.index = index
         self._prompt(stage, "test")
 
     # ── the report ───────────────────────────────────────────────────────────
@@ -175,6 +350,10 @@ class Reviewer:
 
 
 _REVIEWER = pytest.StashKey[Reviewer]()
+_INDEX = pytest.StashKey[int]()
+
+#: How each test came out, by node id — filled in as the reports come through.
+_LAST_OUTCOMES: dict[str, str] = {}
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -187,6 +366,51 @@ def pytest_configure(config: pytest.Config) -> None:
         "test that compares the whole scene); such a test puts the caption up "
         "itself, with stage.step(), once it is past that point.",
     )
+
+
+def pytest_sessionstart(session: pytest.Session) -> None:
+    session.config.stash[_REVIEWER].session = session
+
+
+def pytest_collection_modifyitems(
+    config: pytest.Config, items: list[pytest.Item]
+) -> None:
+    """Number the tests in run order, and drop the ones before --start-at.
+
+    The numbering is over everything collected, so it does not shift when a run
+    starts in the middle: test 42 is test 42 whichever way it was reached.
+    """
+    reviewer = config.stash[_REVIEWER]
+    for number, item in enumerate(items, start=1):
+        item.stash[_INDEX] = number
+        marker = item.get_closest_marker("onscreen")
+        test_id = marker.args[0] if marker else item.name
+        summary = marker.args[1] if marker else ""
+        reviewer.entries.append(Entry(number, item.nodeid, test_id, summary))
+    reviewer.total = len(items)
+
+    start = config.getoption("--start-at")
+    if start > 1:
+        skipped, kept = items[: start - 1], items[start - 1:]
+        config.hook.pytest_deselected(items=skipped)
+        items[:] = kept
+
+
+def pytest_runtest_setup(item: pytest.Item) -> None:
+    """Step over the tests a forward jump asked to skip."""
+    reviewer = item.config.stash[_REVIEWER]
+    if reviewer.skip_until is None:
+        return
+    if item.stash.get(_INDEX, 0) < reviewer.skip_until:
+        pytest.skip(f"jumped over, on the way to test {reviewer.skip_until}")
+    reviewer.skip_until = None
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_runtest_logreport(report: pytest.TestReport) -> None:
+    """Remember how each test came out, so the prompt can say so."""
+    if report.when == "call" or (report.when == "setup" and report.outcome != "passed"):
+        _LAST_OUTCOMES[report.nodeid] = report.outcome
 
 
 def pytest_terminal_summary(
@@ -203,6 +427,16 @@ def pytest_terminal_summary(
     out = pathlib.Path(config.getoption("--review-log"))
     out.write_text(reviewer.report(), encoding="utf-8")
     terminalreporter.write_line(f"\nwritten to {out}")
+
+
+def pytest_sessionfinish(session: pytest.Session) -> None:
+    """Leave the notes where a restarted session can pick them up again."""
+    reviewer = session.config.stash.get(_REVIEWER, None)
+    if reviewer is None or reviewer.nav_file is None:
+        return
+    # Only a jump this session's prompt asked for counts. Carrying an older one
+    # over would send the browser back to the same test for ever.
+    reviewer.save({"jump": reviewer.pending_jump})
 
 
 @pytest.fixture(scope="session")
@@ -263,12 +497,13 @@ def stage(
     if not deferred:
         s.show()
     yield s
-    reviewer.at_test(s)
     s.close()
 
 
 @pytest.fixture(autouse=True)
-def scene_reset(conn: Connection, stage: Stage):
+def scene_reset(
+    request: pytest.FixtureRequest, conn: Connection, stage: Stage, reviewer: Reviewer
+):
     """Hand the next test an empty scene, whatever this one left behind.
 
     Tests delete what they create, but a failed assertion skips the rest of the
@@ -278,8 +513,12 @@ def scene_reset(conn: Connection, stage: Stage):
 
     Ordered after ``stage`` so it tears down first: the caption is deleted by
     the clear, and ``Stage.close`` copes with its handle already being gone.
+
+    The per-test pause happens here too, before the clearing: pausing after it
+    would offer a blank screen to study.
     """
     yield
+    reviewer.at_test(stage, request.node.stash.get(_INDEX, 0))
     # Deferred mode first: left on by a test that failed half way through, it
     # would swallow every command below.
     conn.system.set_deferred_mode(False)

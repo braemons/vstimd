@@ -217,6 +217,37 @@ make test-e2e-step PYTEST_ARGS="-k grating"
 uv run pytest tests/e2e/test_e2e.py --pause --review-log today.md
 ```
 
+### Browsing it: moving around the suite
+
+`make test-e2e-browse` is the same prompt with the suite under vim's motions,
+so a test can be gone back to rather than only watched going past:
+
+| key | does |
+| --- | --- |
+| `j` / Enter | next test |
+| `k` | previous test |
+| `5j`, `5k` | five forward, five back |
+| `42G`, `:42`, `42` | go to test 42 |
+| `gg`, `G` | first, last |
+| `r` | replay this test |
+| `/text` | next test whose id or caption matches |
+| `l` | list every test, with its number |
+| `f` | flag this one, with a note |
+| `c` | run on without pausing |
+| `q` | stop here |
+
+A pytest session runs its tests once, in order, so `j` and `5j` are handled
+inside it by skipping ahead — but `k` cannot be: a test that has run is done.
+`tests/e2e/browse.py` therefore owns the loop, restarting pytest at the test
+asked for and carrying the notes across. It also starts a **windowed** server
+(`--windowed 1280x720`, or `--fullscreen`) so this terminal stays visible, and
+reuses one that is already running.
+
+```bash
+make test-e2e-browse
+make test-e2e-browse PYTEST_ARGS="--start-at 42"
+```
+
 Pausing needs a terminal to ask: with stdin closed (CI, a backgrounded `make`)
 the first prompt turns pausing off and the run carries on.
 

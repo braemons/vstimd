@@ -2,7 +2,7 @@ PROTO_SRC  := $(shell find ../../proto -name '*.proto' | sort)
 PROTO_OUT  := vstimd/_proto
 
 .PHONY: build publish proto test test-integration test-e2e test-e2e-review \
-        test-e2e-step test-e2e-null typecheck docs clean
+        test-e2e-step test-e2e-browse test-e2e-null typecheck docs clean
 
 # Extra arguments for the e2e targets, e.g. make test-e2e-step PYTEST_ARGS="-k grating"
 PYTEST_ARGS ?=
@@ -44,6 +44,12 @@ test-e2e-review: proto
 
 test-e2e-step: proto
 	uv run --group dev pytest $(E2E_SUITES) -v --pause=step $(PYTEST_ARGS)
+
+# Browse the suite instead of watching it go by: the same prompt, plus vim keys
+# to move around it — k back, 5j forward five, 42G to a number, / to search.
+# Runs its own windowed server so this terminal stays visible.
+test-e2e-browse: proto
+	uv run --group dev python tests/e2e/browse.py $(PYTEST_ARGS)
 
 test-e2e-null: proto
 	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v $(PYTEST_ARGS)
