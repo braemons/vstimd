@@ -40,7 +40,7 @@ Samba share, or by hand over ssh.
 ### Recommendation
 
 ```
-<asset-dir>/            default: <config-dir>/assets  →  /var/lib/braemons/vstimd/assets
+<asset-dir>/            default: <state-dir>/assets  →  /var/lib/braemons/vstimd/assets
   <project>/
     images/
     meshes/
@@ -48,17 +48,25 @@ Samba share, or by hand over ssh.
     data/
 ```
 
+**`<state-dir>` is the directory systemd's `StateDirectory=braemons/vstimd`
+creates** — `/var/lib/braemons/vstimd` on a packaged rig, `~/.local/braemons/vstimd`
+on a dev run. It is the directory the `--config-dir` flag points at today, but this
+plan avoids calling it "the config dir": with assets in it, it holds more than
+scene-configs, and "config dir" is one word away from the rig-config directory
+`/etc/braemons` (see the two-configs rule in `CLAUDE.md`). See §12.6 on renaming
+the flag.
+
 `--asset-dir <path>` overrides it, resolved by exactly the ladder
 `resolve_config_dir` already uses (`server/src/main.rs:340`): explicit flag →
 `/var/lib/braemons/vstimd/assets` → `~/.local/braemons/vstimd/assets` → `./assets`,
 picking the first writable one via `first_writable_dir`.
 
-### Why under the existing config dir, not `/var/lib/braemons/assets`
+### Why under the state dir, not `/var/lib/braemons/assets`
 
 The obvious alternative — a sibling `assets/` next to `vstimd/`, shared by every
 braemons daemon — costs more than it buys today:
 
-| | `<config-dir>/assets` | `/var/lib/braemons/assets` |
+| | `<state-dir>/assets` | `/var/lib/braemons/assets` |
 |---|---|---|
 | systemd | already writable: `StateDirectory=braemons/vstimd` (`packaging/systemd/vstimd.service:44`) | needs a second `StateDirectory=braemons/assets`, and ownership decisions between services |
 | Samba | already visible: the `vstimd-data` share exports `/var/lib/braemons` (`packaging/samba/vstimd-shares.conf:65`) | also visible — no difference |
@@ -242,7 +250,7 @@ ref. Consequences, all good:
   asset reference
 - identical inline uploads deduplicate by content hash
 - `_scratch` is the one project the server may garbage-collect: on startup, any
-  `_scratch` asset referenced by no config in the config dir and older than N
+  `_scratch` asset referenced by no scene-config and older than N
   days is deleted (default off; a rig-config knob).
 
 ---
@@ -349,5 +357,12 @@ Each phase is a shippable PR; the first three are pure infrastructure and unbloc
    someone asks.
 4. **Per-project quotas** — probably never; a single store-wide warn threshold is
    likely enough for a single-user rig.
-5. **Digest algorithm** — sha256 for familiarity, or blake3 for speed on a
+5. **Rename `--config-dir`?** Once the directory holds assets as well as
+   scene-configs, its name is wrong twice over: it is no longer only configs, and
+   "config" collides with the rig-config. `--state-dir`, with `--config-dir` kept
+   as a silent alias, costs one match arm and a docs pass; the packaged unit
+   (`packaging/systemd/vstimd.service:45`), the rig-config comments and every
+   client doc mention the old spelling, so this is a rename with a long tail. Worth
+   doing *with* this change rather than after it, but it is a separate PR.
+6. **Digest algorithm** — sha256 for familiarity, or blake3 for speed on a
    Jetson? Only matters once assets are large; the field is a string either way.
