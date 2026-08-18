@@ -184,14 +184,37 @@ headless runs pay nothing for it:
 uv run pytest tests/e2e/test_e2e.py --step-delay 2.5   # slower, easier to watch
 ```
 
-To stop and look at something properly, run the suite pausable. `--pause` waits
-for a keypress once per test; `--pause=step` waits at every caption change.
-Answer with Enter to go on, `c` to finish the run without pausing again, or `q`
-to stop the suite there:
+### Reviewing it, one test at a time
+
+To stop and look at something properly, run the suite pausable:
 
 ```bash
-uv run pytest tests/e2e/test_e2e.py --pause
-uv run pytest tests/e2e/test_e2e.py --pause=step -k grating
+make test-e2e-review   # pause once per test
+make test-e2e-step     # pause at every caption change, i.e. step by step
+```
+
+Either way you get a prompt naming the test, what it is for, and what is on
+screen at this instant:
+
+```
+  ────────────────────────────────────────────────────────────────────
+  ⏸  [GRAT-03]  a centred grating whose stripes double in number when the
+                spatial frequency goes from 0.05 to 0.1 cycles/px
+     on screen: 0.1 cycles/px — twice as many, half as wide
+     [Enter] next   [f] flag a problem   [c] run on   [q] quit:
+```
+
+`f` writes the test down as wrong and asks what is wrong with it; the run then
+carries on, so one pass over the suite produces one list at the end instead of a
+scribbled page of ids. Flagged tests are printed in the summary and written to
+`e2e-review.md`, with each note, what the test claims should be visible, and a
+ready-made command to re-run just those tests.
+
+Both targets take `PYTEST_ARGS`, and the underlying options work on any run:
+
+```bash
+make test-e2e-step PYTEST_ARGS="-k grating"
+uv run pytest tests/e2e/test_e2e.py --pause --review-log today.md
 ```
 
 Pausing needs a terminal to ask: with stdin closed (CI, a backgrounded `make`)

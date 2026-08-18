@@ -34,13 +34,19 @@ class Stage:
         test_id: str,
         description: str,
         step_delay: float,
-        pause: Callable[[str, str], None] = lambda where, prompt: None,
+        pause: Callable[["Stage"], None] = lambda stage: None,
+        node_id: str = "",
     ) -> None:
         self.conn = conn
         self.test_id = test_id
+        #: What the test as a whole should show — the marker's description. The
+        #: caption below it changes as the test walks through its states.
+        self.summary = description
         self.description = description
         self.step_delay = step_delay
         self.pause = pause
+        #: pytest's own name for the test, so a flagged one can be re-run.
+        self.node_id = node_id
         self._handle: StimulusHandle | None = None
 
     # ── caption ──────────────────────────────────────────────────────────────
@@ -104,7 +110,7 @@ class Stage:
         """
         if self.step_delay > 0:
             time.sleep(self.step_delay * factor)
-        self.pause("step", self._caption(self.description))
+        self.pause(self)
 
     def close(self) -> None:
         if self._handle is None:

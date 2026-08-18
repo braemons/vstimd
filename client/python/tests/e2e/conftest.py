@@ -1,6 +1,10 @@
 """Shared pytest configuration and fixtures for e2e tests."""
 
+import dataclasses
+import datetime
 import os
+import pathlib
+import sys
 
 import pytest
 import zmq
@@ -32,30 +36,36 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         default="off",
         choices=["off", "test", "step"],
         help="Wait for a keypress while the suite runs, so a frame can be "
-        "studied for as long as it takes: 'test' (the default when the flag is "
-        "given without a value) pauses once per test, 'step' pauses at every "
-        "caption change (default: off)",
+        "studied for as long as it takes and anything wrong with it written "
+        "down: 'test' (the default when the flag is given without a value) "
+        "pauses once per test, 'step' pauses at every caption change "
+        "(default: off)",
+    )
+    parser.addoption(
+        "--review-log",
+        default="e2e-review.md",
+        help="Where to write the notes taken while pausing. Written only if "
+        "something was flagged (default: e2e-review.md)",
     )
 
 
-def pytest_configure(config: pytest.Config) -> None:
-    config.addinivalue_line(
-        "markers",
-        "onscreen(test_id, description, deferred=False): the id an operator "
-        "writes down for this test and the caption it shows while it runs. Set "
-        "deferred=True when the caption would disturb what the test checks (a "
-        "test that compares the whole scene); such a test puts the caption up "
-        "itself, with stage.step(), once it is past that point.",
-    )
+@dataclasses.dataclass
+class Flag:
+    """One test an operator marked as wrong, and what they said about it."""
+
+    test_id: str
+    description: str
+    node_id: str
+    note: str
 
 
-@pytest.fixture(scope="session")
-def server_address(request: pytest.FixtureRequest) -> str:
-    return request.config.getoption("--server")
+class Reviewer:
+    """The keyboard console the on-screen suite is watched through.
 
-
-class Pauser:
-    """Blocks the suite on a keypress, when the run asked to be pausable.
+    At each pause it shows the id and caption of what is on screen and waits.
+    The point of the wait is not only to look: `f` writes the test down as
+    problematic, with a note, and the run carries on — so a whole review pass
+    produces one list at the end instead of a scribbled page of ids.
 
     pytest owns stdin and stdout while a test runs, so the prompt has to
     suspend capturing for as long as it is waiting — otherwise it is neither
@@ -66,33 +76,143 @@ class Pauser:
     def __init__(self, config: pytest.Config) -> None:
         self.config = config
         self.mode = config.getoption("--pause")
+        self.flags: list[Flag] = []
 
-    def __call__(self, where: str, prompt: str) -> None:
-        if self.mode != where:
-            return
+    # ── prompting ────────────────────────────────────────────────────────────
+
+    def _ask(self, prompt: str) -> str | None:
+        """Ask on the real terminal, or return None if there is not one."""
         capture = self.config.pluginmanager.getplugin("capturemanager")
         if capture is not None:
             capture.suspend_global_capture(in_=True)
         try:
-            answer = input(
-                f"\n⏸  {prompt}\n"
-                "   [Enter] continue   [c] carry on without pausing   [q] quit: "
-            ).strip().lower()
+            return input(prompt)
         except (EOFError, OSError):
             self.mode = "off"  # nothing on stdin to ask
-            return
+            return None
         finally:
             if capture is not None:
                 capture.resume_global_capture()
-        if answer == "c":
-            self.mode = "off"
-        elif answer == "q":
-            pytest.exit(f"stopped by request at {prompt}", returncode=0)
+
+    def _say(self, message: str) -> None:
+        """Write to the real terminal, around whatever pytest is capturing."""
+        capture = self.config.pluginmanager.getplugin("capturemanager")
+        if capture is not None:
+            capture.suspend_global_capture(in_=True)
+        try:
+            print(message, file=sys.stderr, flush=True)
+        finally:
+            if capture is not None:
+                capture.resume_global_capture()
+
+    def _prompt(self, stage: Stage, where: str) -> None:
+        if self.mode != where:
+            return
+        # The caption on screen is the state the test is in right now; the
+        # summary is what the test as a whole is for. They differ often enough
+        # that showing only one leaves the operator guessing.
+        on_screen = (
+            f"     on screen: {stage.description}\n"
+            if stage.description != stage.summary
+            else ""
+        )
+        while True:
+            answer = self._ask(
+                f"\n  {'─' * 68}\n"
+                f"  ⏸  [{stage.test_id}]  {stage.summary}\n"
+                f"{on_screen}"
+                f"     [Enter] next   [f] flag a problem   "
+                f"[c] run on   [q] quit: "
+            )
+            if answer is None:
+                return
+            answer = answer.strip().lower()
+            if answer == "f":
+                self._flag(stage)
+                continue  # back to the prompt: the frame is still up
+            if answer == "c":
+                self.mode = "off"
+            elif answer == "q":
+                pytest.exit(f"stopped at [{stage.test_id}] by request", returncode=0)
+            return
+
+    def _flag(self, stage: Stage) -> None:
+        note = self._ask(f"     what is wrong with [{stage.test_id}]? ")
+        if note is None:
+            return
+        self.flags.append(
+            Flag(stage.test_id, stage.summary, stage.node_id, note.strip())
+        )
+        # Straight to the terminal: a print here would land in pytest's capture
+        # buffer and only surface if the test went on to fail.
+        self._say(f"     ✗ flagged [{stage.test_id}]")
+
+    # ── the two pause points ─────────────────────────────────────────────────
+
+    def at_step(self, stage: Stage) -> None:
+        self._prompt(stage, "step")
+
+    def at_test(self, stage: Stage) -> None:
+        self._prompt(stage, "test")
+
+    # ── the report ───────────────────────────────────────────────────────────
+
+    def report(self) -> str:
+        """The flagged tests as markdown, with the command to re-run just them."""
+        when = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+        lines = [f"# vstimd on-screen review — {when}", ""]
+        for flag in self.flags:
+            lines += [
+                f"## [{flag.test_id}] {flag.note or '(no note)'}",
+                "",
+                f"- expected on screen: {flag.description}",
+                f"- test: `{flag.node_id}`",
+                "",
+            ]
+        node_ids = " ".join(f'"{f.node_id}"' for f in self.flags)
+        lines += ["Re-run just these:", "", "```bash", f"uv run pytest {node_ids}", "```", ""]
+        return "\n".join(lines)
+
+
+_REVIEWER = pytest.StashKey[Reviewer]()
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    config.stash[_REVIEWER] = Reviewer(config)
+    config.addinivalue_line(
+        "markers",
+        "onscreen(test_id, description, deferred=False): the id an operator "
+        "writes down for this test and the caption it shows while it runs. Set "
+        "deferred=True when the caption would disturb what the test checks (a "
+        "test that compares the whole scene); such a test puts the caption up "
+        "itself, with stage.step(), once it is past that point.",
+    )
+
+
+def pytest_terminal_summary(
+    terminalreporter: pytest.TerminalReporter, config: pytest.Config
+) -> None:
+    """List what was flagged, and leave it on disk to act on later."""
+    reviewer = config.stash.get(_REVIEWER, None)
+    if reviewer is None or not reviewer.flags:
+        return
+    terminalreporter.write_sep("=", f"on-screen review: {len(reviewer.flags)} flagged")
+    for flag in reviewer.flags:
+        terminalreporter.write_line(f"[{flag.test_id}] {flag.note or '(no note)'}")
+        terminalreporter.write_line(f"    {flag.node_id}")
+    out = pathlib.Path(config.getoption("--review-log"))
+    out.write_text(reviewer.report(), encoding="utf-8")
+    terminalreporter.write_line(f"\nwritten to {out}")
 
 
 @pytest.fixture(scope="session")
-def pauser(request: pytest.FixtureRequest) -> Pauser:
-    return Pauser(request.config)
+def server_address(request: pytest.FixtureRequest) -> str:
+    return request.config.getoption("--server")
+
+
+@pytest.fixture(scope="session")
+def reviewer(request: pytest.FixtureRequest) -> Reviewer:
+    return request.config.stash[_REVIEWER]
 
 
 @pytest.fixture(scope="session")
@@ -115,7 +235,7 @@ def stage(
     request: pytest.FixtureRequest,
     conn: Connection,
     step_delay: float,
-    pauser: Pauser,
+    reviewer: Reviewer,
 ) -> Stage:
     """Caption every test on screen with its id and what should be visible.
 
@@ -132,11 +252,18 @@ def stage(
         test_id, description = request.node.name, doc[0] if doc else ""
         deferred = False
 
-    s = Stage(conn, test_id, description, step_delay, pause=pauser)
+    s = Stage(
+        conn,
+        test_id,
+        description,
+        step_delay,
+        pause=reviewer.at_step,
+        node_id=request.node.nodeid,
+    )
     if not deferred:
         s.show()
     yield s
-    pauser("test", f"[{s.test_id}] {s.description}")
+    reviewer.at_test(s)
     s.close()
 
 
