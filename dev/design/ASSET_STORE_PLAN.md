@@ -1,9 +1,9 @@
 # Projects and the asset store
 
 **Status:** proposal. **Do not start implementing.** Blocked on the in-flight
-refactor series (#129, `refactor/unit-suffixes`, and whatever follows it) landing
-first — Phase 0 renames flags, wire messages and client namespaces across the same
-files, and racing it would produce conflicts nobody wants to resolve twice.
+refactor series finishing — Phase 0 renames flags, wire messages and client
+namespaces across the same files, and racing it would produce conflicts nobody
+wants to resolve twice. #129 has landed; this waits for the rest.
 **Blocks:** #108 (image stimulus), #109 (scriptable movie stimulus), #70 (mesh
 textures).
 **Touches:** every scene-config path, and the not-yet-built event logger
