@@ -103,3 +103,48 @@ fn current_reference_survives_load_and_save_unchanged() {
         "the reference config's stimulus section must survive load+save byte-for-byte"
     );
 }
+
+/// A 3-D body deserializes — `StimulusBody` has a `Mesh3d` arm and serde takes it —
+/// but the 3-D types own no wire value and no query-params arm yet. Before this was
+/// refused, such a file loaded happily and then killed whichever thread next walked
+/// the scene for a client: `ListStimuli`, `QueryStimulus` or the web snapshot, each
+/// reaching an `unimplemented!()` rather than reporting a 2-D type it is not.
+#[test]
+fn reject_a_stimulus_with_no_wire_type() {
+    let reference = std::fs::read_to_string("tests/configs/vstimd_reference_v5.config.json")
+        .expect("reference v5 config must be readable");
+    let mut file: serde_json::Value = serde_json::from_str(&reference).unwrap();
+    file["scene"]["stimuli"] = serde_json::json!({
+        "1": {
+            "id": "00000000-0000-0000-0000-0000000000ff",
+            "name": "a_cube",
+            "stimulus": {
+                "common": { "flags": { "enabled": true, "protected": false }, "opacity": 1.0 },
+                "body": {
+                    "type": "Mesh3d",
+                    "transform": {
+                        "position": [0.0, 0.0, 0.0],
+                        "rotation_euler": [0.0, 0.0, 0.0],
+                        "scale": [1.0, 1.0, 1.0]
+                    },
+                    "material": {
+                        "albedo": [1.0, 1.0, 1.0, 1.0],
+                        "emissive": [0.0, 0.0, 0.0],
+                        "shading": "Unlit"
+                    },
+                    "geometry": { "type": "Cube", "size": [10.0, 10.0, 10.0] },
+                    "texture_path": null
+                }
+            }
+        }
+    });
+
+    let msg = match vstimd::scene_config_file::parse_config_json(&file.to_string()) {
+        Ok(_) => panic!("a config carrying a 3-D stimulus must be refused"),
+        Err(e) => e.to_string(),
+    };
+    assert!(
+        msg.contains("a_cube") && msg.contains("Cube3D"),
+        "the error must name the stimulus and its user-facing type, got: {msg}"
+    );
+}
