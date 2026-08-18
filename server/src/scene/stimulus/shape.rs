@@ -1,4 +1,5 @@
 use super::shape_appearance::ShapeAppearance;
+use super::stimulus_type::StimulusType;
 use super::transform2d::Transform2D;
 use crate::scene::deferred::Deferred;
 
@@ -44,15 +45,23 @@ impl Default for ShapeGeometry {
 }
 
 impl ShapeGeometry {
-    /// The **user-facing** type name, as it appears in the config `"type"` tag,
-    /// in `StimulusType`, and in `WRONG_STIMULUS_TYPE` error messages. Never the
-    /// internal kind name — a client has never heard of "Shape".
-    pub fn type_name(&self) -> &'static str {
+    /// Which user-facing type this geometry is. The many-to-one hop out of the
+    /// renderer's taxonomy: all three arms live in one [`StimulusBody::Shape`].
+    ///
+    /// [`StimulusBody::Shape`]: super::StimulusBody::Shape
+    pub fn stimulus_type(&self) -> StimulusType {
         match self {
-            Self::Rect { .. } => "Rect",
-            Self::Ellipse { .. } => "Ellipse",
-            Self::Circle { .. } => "Circle",
+            Self::Rect { .. } => StimulusType::Rect,
+            Self::Ellipse { .. } => StimulusType::Ellipse,
+            Self::Circle { .. } => StimulusType::Circle,
         }
+    }
+
+    /// The **user-facing** type name, as it appears in the config `"type"` tag and
+    /// in `WRONG_STIMULUS_TYPE` error messages. Never the internal body name — a
+    /// client has never heard of "Shape".
+    pub fn type_name(&self) -> &'static str {
+        self.stimulus_type().type_name()
     }
 
     /// Full extents in px — `None` for a circle, which needs only the one number

@@ -2,7 +2,7 @@
 //! command impl in this module.
 
 use crate::proto;
-use crate::scene::stimulus::Stimulus;
+use crate::scene::stimulus::{Stimulus, StimulusType};
 use uuid::Uuid;
 
 pub(crate) fn ok_ack() -> proto::Response {
@@ -43,10 +43,38 @@ pub(crate) fn ok_handle(h: u32) -> proto::Response {
     proto::Response { handle: h as i32, code: proto::ErrorCode::Ok as i32, ..Default::default() }
 }
 
-pub(crate) fn err_wrong_type(stim: &Stimulus, cmd: &str, expected: &str) -> proto::Response {
+/// A stimulus that is not placed in 2-D space, where the command only makes sense
+/// there. Separate from [`err_wrong_type`] because the requirement is a *dimension*,
+/// not a type: `SetPosition` takes pixels, which mean nothing in world space, and it
+/// is refused by every 3-D type rather than by all but one 2-D one.
+pub(crate) fn err_not_2d(stim: &Stimulus, cmd: &str) -> proto::Response {
     proto::Response {
         code: proto::ErrorCode::WrongStimulusType as i32,
-        error: format!("{} requires a {} stimulus, got {}", cmd, expected, stim.type_name()),
+        error: format!(
+            "{} requires a 2-D stimulus, got {}",
+            cmd,
+            stim.type_name()
+        ),
+        ..Default::default()
+    }
+}
+
+/// `expected` is a [`StimulusType`], not a name: the only spelling of a type a client
+/// may see comes from [`StimulusType::type_name`], so it cannot drift from what a
+/// query reports for the same stimulus.
+pub(crate) fn err_wrong_type(
+    stim: &Stimulus,
+    cmd: &str,
+    expected: StimulusType,
+) -> proto::Response {
+    proto::Response {
+        code: proto::ErrorCode::WrongStimulusType as i32,
+        error: format!(
+            "{} requires a {} stimulus, got {}",
+            cmd,
+            expected.type_name(),
+            stim.type_name()
+        ),
         ..Default::default()
     }
 }

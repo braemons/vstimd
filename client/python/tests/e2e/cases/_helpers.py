@@ -63,3 +63,25 @@ def make_rect(
     if not enabled:
         conn.stimuli.set_enabled(h, False)
     return h
+
+
+def wait_for_anim_run_start(
+    conn: Connection,
+    handle: AnimationHandle,
+    timeout: float = 4.0,
+    poll_interval: float = 0.02,
+) -> AnimationState:
+    """Poll until a triggered animation has left ARMED, i.e. its run began.
+
+    The server consumes a trigger edge on its next frame, so an animation stays
+    ARMED for a moment after the pulse that fires it. Polling straight for the
+    state a REARM animation returns to would match the ARMED it started from and
+    return before the run ever began — the wait has to see it leave first.
+    """
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        state = conn.animations.query(handle).state
+        if state != AnimationState.ARMED:
+            return state
+        time.sleep(poll_interval)
+    return conn.animations.query(handle).state
