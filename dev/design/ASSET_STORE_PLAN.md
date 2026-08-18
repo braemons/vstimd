@@ -27,7 +27,7 @@ Three constraints shape the answer:
   resident GPU resource.
 - **A rig must boot into a scene with no client connected.** Save/load already
   guarantees that (`docs/concepts/saving-loading.md`); an asset reference inside a
-  saved config must not break it.
+  saved scene-config must not break it.
 
 So: assets live **on the device**, are addressed by **name, never by path**
 (exactly like scene-configs), and can be installed by upload over ZMQ, over the
@@ -50,11 +50,11 @@ Samba share, or by hand over ssh.
 
 **`<state-dir>` is the directory systemd's `StateDirectory=braemons/vstimd`
 creates** — `/var/lib/braemons/vstimd` on a packaged rig, `~/.local/braemons/vstimd`
-on a dev run. It is the directory the `--config-dir` flag points at today, but this
-plan avoids calling it "the config dir": with assets in it, it holds more than
-scene-configs, and "config dir" is one word away from the rig-config directory
-`/etc/braemons` (see the two-configs rule in `CLAUDE.md`). See §12.6 on renaming
-the flag.
+on a dev run. Today it holds scene-configs and nothing else, which is why the flag
+naming it is spelled `--config-dir`; assets make that spelling wrong twice over (it
+is no longer only configs, and bare "config" is exactly the word `CLAUDE.md`'s
+two-configs rule forbids). **Phase 0 fixes the vocabulary before anything is built
+on top of it** — see §11.
 
 `--asset-dir <path>` overrides it, resolved by exactly the ladder
 `resolve_config_dir` already uses (`server/src/main.rs:340`): explicit flag →
@@ -118,7 +118,7 @@ Deliberately **not** in v1:
 
 ## 3. The asset reference
 
-One string, the only thing that ever crosses the wire or lands in a config:
+One string, the only thing that ever crosses the wire or lands in a scene-config:
 
 ```
 <project>/<type>/<name...>       e.g.  faces2026/images/id07_neutral.png
@@ -136,7 +136,8 @@ Validation (one function, exhaustively unit-tested, no filesystem access):
 
 Refs are always fully qualified on the wire. "Default project" convenience is a
 *client* feature (`conn.assets.project = "faces2026"`); the server stays dumb.
-That keeps a saved config unambiguous when it is loaded by a rig with no client.
+That keeps a saved scene-config unambiguous when it is loaded by a rig with no
+client.
 
 ---
 
@@ -156,7 +157,7 @@ server/src/assets/
 and `rsync` without the server's knowledge, so there is no sidecar index and no
 manifest to rot. The cache is validated against `(size, mtime)` on every lookup
 and discarded when it disagrees; `sha256` is computed lazily (on first request,
-on config save, on cache miss) and never required for a plain read. This is the
+on scene-config save, on cache miss) and never required for a plain read. This is the
 same rule as "the config format *is* the runtime shape": no second source of
 truth that can disagree with the first.
 
@@ -216,7 +217,7 @@ message DownloadAssetResponse { bytes data = 1; uint64 total_size = 2; string sh
 message DeleteAssetRequest { string ref = 1; bool recursive = 2; }  // recursive: a whole prefix
 ```
 
-Errors get their own codes alongside the existing config ones
+Errors get their own codes alongside the existing scene-config ones
 (`service.proto:46`): `ASSET_NOT_FOUND`, `ASSET_EXISTS` (upload without
 overwrite), `ASSET_INVALID_REF`, `ASSET_TOO_LARGE`, `ASSET_DIGEST_MISMATCH`,
 `ASSET_UNSUPPORTED_TYPE`.
@@ -273,7 +274,7 @@ On load:
 |---|---|
 | asset present, digest matches | normal |
 | asset present, digest differs | load succeeds; **warning event** naming the ref, both digests |
-| asset missing | the stimulus loads **disabled**, in an `unresolved` state, and a warning event names the missing ref. The rest of the config loads normally |
+| asset missing | the stimulus loads **disabled**, in an `unresolved` state, and a warning event names the missing ref. The rest of the scene-config loads normally |
 | `LoadConfigRequest.strict_assets = true` | any missing asset fails the whole load instead |
 
 The default is lenient because the alternative breaks the property that makes
@@ -331,17 +332,45 @@ is retried on `enable` and on an explicit `assets refresh` command, so the fix
 
 ## 11. Phasing
 
-Each phase is a shippable PR; the first three are pure infrastructure and unblock
-#108.
+Each phase is a shippable PR; phases 0–2 are pure infrastructure and unblock #108.
 
 | # | Phase | Depends on |
 |---|---|---|
+| 0 | **Naming pass:** `scene-config` / `rig-config` everywhere, no bare `config` (below) | — |
 | 1 | `AssetRef` + `AssetStore` (parse, scan, stat, read, write, delete) + unit tests. No proto, no GPU | — |
 | 2 | `assets.proto`, `ipc/asset_commands.rs`, dispatcher wiring, error codes, integration tests via `SceneState::handle_request` | 1 |
 | 3 | Python client + CLI + web + overlay panel + docs | 2 |
-| 4 | Config round-trip: `source` serialisation, `unresolved` state, warning events, `strict_assets` | 2 |
+| 4 | Scene-config round-trip: `source` serialisation, `unresolved` state, warning events, `strict_assets` | 2 |
 | 5 | Texture cache + premultiplied upload — lands with #108 | 2 |
 | 6 | Consumers: #108 image stimulus, #70 mesh textures, #109 scripts | 4, 5 |
+
+### Phase 0 — the naming pass
+
+`CLAUDE.md` already rules that the two configs are always named: **rig-config**
+(the rig's TOML in `/etc/braemons`) and **scene-config** (one experiment's JSON in
+the state dir). The code and the CLI only half-follow it, and the asset store is
+about to add a third kind of file to the same directory. Fix the vocabulary first,
+in one mechanical PR, so nothing new is built on the ambiguous spelling:
+
+| Today | Becomes |
+|---|---|
+| `--config-dir` | `--scene-config-dir` (`--config-dir` kept as an undocumented alias) |
+| `--config` | `--scene-config` (ditto) |
+| `--rig-config` | unchanged — already right |
+| `scene_config_file::DEFAULT_CONFIG_DIR` | `DEFAULT_SCENE_CONFIG_DIR` |
+| `main::resolve_config_dir` | `resolve_scene_config_dir` |
+| `SceneState.runtime.config_dir` | `scene_config_dir` |
+| `ipc/config_commands.rs`, the `config` proto messages and the client `config` namespace | unchanged — the client-facing word `config` has always meant the scene-config, and renaming the wire surface is a breaking change with no payoff |
+
+Docs follow: `docs/concepts/saving-loading.md`, `docs/client/*.md`, the rig-config
+comments (`server/config/default-rig-config.toml:84`) and the packaged unit
+(`packaging/systemd/vstimd.service:45`) all say `--config-dir` today.
+
+The one thing Phase 0 does **not** do is move files: scene-configs stay flat at the
+root of the state dir, beside the new `assets/`. Relocating them into a
+`scene-configs/` subdirectory would be tidier and would break every Samba bookmark,
+every deployment script and the SD-image upgrade path for a cosmetic gain. If it
+ever happens, it wants its own issue and a startup migration.
 
 ---
 
@@ -357,12 +386,9 @@ Each phase is a shippable PR; the first three are pure infrastructure and unbloc
    someone asks.
 4. **Per-project quotas** — probably never; a single store-wide warn threshold is
    likely enough for a single-user rig.
-5. **Rename `--config-dir`?** Once the directory holds assets as well as
-   scene-configs, its name is wrong twice over: it is no longer only configs, and
-   "config" collides with the rig-config. `--state-dir`, with `--config-dir` kept
-   as a silent alias, costs one match arm and a docs pass; the packaged unit
-   (`packaging/systemd/vstimd.service:45`), the rig-config comments and every
-   client doc mention the old spelling, so this is a rename with a long tail. Worth
-   doing *with* this change rather than after it, but it is a separate PR.
+5. **Should Phase 0 keep the `--config-dir` alias forever?** Dropping it is a
+   breaking change for anyone with a hand-written unit file; keeping it forever
+   preserves the ambiguous spelling in `--help` output. Suggest: alias accepted,
+   undocumented, warned about in the log, removed at the next major version.
 6. **Digest algorithm** — sha256 for familiarity, or blake3 for speed on a
    Jetson? Only matters once assets are large; the field is a string either way.
