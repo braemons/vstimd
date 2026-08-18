@@ -40,26 +40,33 @@ Samba share, or by hand over ssh.
 ### Recommendation
 
 ```
-<asset-dir>/            default: <state-dir>/assets  →  /var/lib/braemons/vstimd/assets
-  <project>/
-    images/
-    meshes/
-    scripts/
-    data/
+<state-dir>/                     /var/lib/braemons/vstimd  (or ~/.local/braemons/vstimd)
+  scene-configs/                 <name>.config.json
+  assets/                        ← this plan
+    <project>/
+      images/
+      meshes/
+      scripts/
+      data/
 ```
 
 **`<state-dir>` is the directory systemd's `StateDirectory=braemons/vstimd`
 creates** — `/var/lib/braemons/vstimd` on a packaged rig, `~/.local/braemons/vstimd`
-on a dev run. Today it holds scene-configs and nothing else, which is why the flag
-naming it is spelled `--config-dir`; assets make that spelling wrong twice over (it
-is no longer only configs, and bare "config" is exactly the word `CLAUDE.md`'s
-two-configs rule forbids). **Phase 0 fixes the vocabulary before anything is built
-on top of it** — see §11.
+on a dev run. Today it holds scene-configs at its root and nothing else, which is
+why the flag naming it is spelled `--config-dir`; assets make that spelling wrong
+twice over (it is no longer only configs, and bare "config" is exactly the word
+`CLAUDE.md`'s two-configs rule forbids). **Phase 0 fixes the vocabulary and the
+layout before anything is built on top of them** — see §11.
 
-`--asset-dir <path>` overrides it, resolved by exactly the ladder
-`resolve_config_dir` already uses (`server/src/main.rs:340`): explicit flag →
-`/var/lib/braemons/vstimd/assets` → `~/.local/braemons/vstimd/assets` → `./assets`,
-picking the first writable one via `first_writable_dir`.
+Nothing is released beyond `v0.1.0-alpha*`/`beta*` pre-releases, so Phase 0 breaks
+freely: no aliases, no migration shims, no deprecation window.
+
+`--state-dir <path>` names the root; `assets/` and `scene-configs/` are always its
+children, so there is one flag and no way to point them at unrelated places. It is
+resolved by exactly the ladder `resolve_config_dir` uses today
+(`server/src/main.rs:340`): explicit flag → `/var/lib/braemons/vstimd` →
+`~/.local/braemons/vstimd` → `.`, picking the first writable one via
+`first_writable_dir`.
 
 ### Why under the state dir, not `/var/lib/braemons/assets`
 
@@ -105,11 +112,12 @@ collisions (`stim.png` and `stim.obj` can coexist). Project-first also means
 
 Deliberately **not** in v1:
 
-- **`scenes/`** — scene-configs already have their own storage, their own bare-name
-  addressing, demo seeding, the save-on-quit slot and timestamped archives
-  (`server/src/scene_config_file.rs`). Folding them into the asset tree is a
-  migration with no user benefit today. The name is *reserved* so a future
-  unification can take it.
+- **`scenes/`** — scene-configs live in `<state-dir>/scene-configs/`, not in the
+  asset tree. They are addressed by bare name, they are not per-project, and they
+  carry machinery no asset has: demo seeding, the `_last_session` slot, timestamped
+  archives (`server/src/scene_config_file.rs`). The asset store would have to grow
+  all of it back. The name is *reserved* under a project anyway, in case
+  per-project scene-configs ever turn out to be the right model.
 - **`textures/`** — a texture is a PNG. One `images/` type, referenced by both an
   image stimulus and a mesh's `texture` field. Fewer types is the whole point.
 - **`fonts/`** — reserved; revisit if the text stimulus grows user-supplied fonts.
@@ -336,7 +344,7 @@ Each phase is a shippable PR; phases 0–2 are pure infrastructure and unblock #
 
 | # | Phase | Depends on |
 |---|---|---|
-| 0 | **Naming pass:** `scene-config` / `rig-config` everywhere, no bare `config` (below) | — |
+| 0 | **Naming + layout pass:** `scene-config` / `rig-config` everywhere, `--state-dir`, scene-configs into `scene-configs/` (below) | — |
 | 1 | `AssetRef` + `AssetStore` (parse, scan, stat, read, write, delete) + unit tests. No proto, no GPU | — |
 | 2 | `assets.proto`, `ipc/asset_commands.rs`, dispatcher wiring, error codes, integration tests via `SceneState::handle_request` | 1 |
 | 3 | Python client + CLI + web + overlay panel + docs | 2 |
@@ -344,33 +352,62 @@ Each phase is a shippable PR; phases 0–2 are pure infrastructure and unblock #
 | 5 | Texture cache + premultiplied upload — lands with #108 | 2 |
 | 6 | Consumers: #108 image stimulus, #70 mesh textures, #109 scripts | 4, 5 |
 
-### Phase 0 — the naming pass
+### Phase 0 — the naming and layout pass
 
 `CLAUDE.md` already rules that the two configs are always named: **rig-config**
 (the rig's TOML in `/etc/braemons`) and **scene-config** (one experiment's JSON in
-the state dir). The code and the CLI only half-follow it, and the asset store is
-about to add a third kind of file to the same directory. Fix the vocabulary first,
-in one mechanical PR, so nothing new is built on the ambiguous spelling:
+the state dir). The code, the CLI and the wire only half-follow it, and the asset
+store is about to add a third kind of file to the same directory. Fix it first, in
+one mechanical PR, so nothing new is built on the ambiguous spelling.
+
+Nothing beyond `v0.1.0` pre-releases has shipped, so this is a **hard rename**:
+old spellings are removed outright, no aliases, no migration code, no deprecation
+warnings. A stale `--config-dir` in a hand-written unit file fails at startup with
+an unknown-flag error, which is the outcome we want.
+
+**CLI**
 
 | Today | Becomes |
 |---|---|
-| `--config-dir` | `--scene-config-dir` (`--config-dir` kept as an undocumented alias) |
-| `--config` | `--scene-config` (ditto) |
-| `--rig-config` | unchanged — already right |
-| `scene_config_file::DEFAULT_CONFIG_DIR` | `DEFAULT_SCENE_CONFIG_DIR` |
-| `main::resolve_config_dir` | `resolve_scene_config_dir` |
-| `SceneState.runtime.config_dir` | `scene_config_dir` |
-| `ipc/config_commands.rs`, the `config` proto messages and the client `config` namespace | unchanged — the client-facing word `config` has always meant the scene-config, and renaming the wire surface is a breaking change with no payoff |
+| `--config-dir <path>` | `--state-dir <path>` — the root; `scene-configs/` and `assets/` are its children |
+| `--config <name>` | `--scene-config <name>` |
+| `--rig-config <path>` | unchanged — already right |
 
-Docs follow: `docs/concepts/saving-loading.md`, `docs/client/*.md`, the rig-config
-comments (`server/config/default-rig-config.toml:84`) and the packaged unit
-(`packaging/systemd/vstimd.service:45`) all say `--config-dir` today.
+**Server**
 
-The one thing Phase 0 does **not** do is move files: scene-configs stay flat at the
-root of the state dir, beside the new `assets/`. Relocating them into a
-`scene-configs/` subdirectory would be tidier and would break every Samba bookmark,
-every deployment script and the SD-image upgrade path for a cosmetic gain. If it
-ever happens, it wants its own issue and a startup migration.
+| Today | Becomes |
+|---|---|
+| `scene_config_file::DEFAULT_CONFIG_DIR` | `DEFAULT_STATE_DIR` (+ `scene_config_dir()` / `asset_dir()` helpers) |
+| `main::resolve_config_dir` | `resolve_state_dir` |
+| `SceneState.runtime.config_dir` | `state_dir`, with the two subdirectory accessors |
+| `ipc/config_commands.rs` | `ipc/scene_config_commands.rs` |
+
+**Wire and clients** — renamed too, since there is no compatibility to keep and
+half-consistency is what got us here:
+
+| Today | Becomes |
+|---|---|
+| `ListConfigsRequest`, `LoadConfigRequest`, `UploadConfigRequest`, `RetrieveConfigRequest` | `ListSceneConfigs…`, `LoadSceneConfig…`, `UploadSceneConfig…`, `RetrieveSceneConfig…` |
+| `conn.config.*` (Python) | `conn.scene_config.*` |
+| `vstimd-client config list\|save\|load\|get\|upload` | `vstimd-client scene-config …` |
+| web `src/config.ts` | `src/sceneConfig.ts` |
+
+**Layout** — scene-configs move off the root of the state dir into
+`scene-configs/`, which also retires the `vstimd_` filename prefix: the prefix only
+ever existed to keep them distinguishable in a shared directory, and a dedicated
+one does that better.
+
+```
+vstimd_center_target.config.json  →  scene-configs/center_target.config.json
+```
+
+`config_path()` (`scene_config_file.rs:26`) is the single place that layout is
+defined, so this is a small change there plus the demo seeding, the archive
+counter, the `_last_session` slot and the tests. Docs and packaging follow:
+`docs/concepts/saving-loading.md`, `docs/getting-started/demos.md`,
+`docs/client/*.md`, `docs/operations/{appliance-setup,raspberry-pi-image,deployment}.md`,
+the rig-config comments (`server/config/default-rig-config.toml:84`), the packaged
+unit (`packaging/systemd/vstimd.service:45`) and the Samba share docs.
 
 ---
 
@@ -386,9 +423,5 @@ ever happens, it wants its own issue and a startup migration.
    someone asks.
 4. **Per-project quotas** — probably never; a single store-wide warn threshold is
    likely enough for a single-user rig.
-5. **Should Phase 0 keep the `--config-dir` alias forever?** Dropping it is a
-   breaking change for anyone with a hand-written unit file; keeping it forever
-   preserves the ambiguous spelling in `--help` output. Suggest: alias accepted,
-   undocumented, warned about in the log, removed at the next major version.
-6. **Digest algorithm** — sha256 for familiarity, or blake3 for speed on a
+5. **Digest algorithm** — sha256 for familiarity, or blake3 for speed on a
    Jetson? Only matters once assets are large; the field is a string either way.
