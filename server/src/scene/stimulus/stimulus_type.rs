@@ -14,9 +14,11 @@
 /// 3-D types out of the one `Mesh3d`. This is the taxonomy the *user* asked in; the
 /// body is the one the renderer works in.
 ///
-/// Not every arm of the wire enum appears here. `Bitmap`, `Shader` and `Particle`
-/// have proto values but no scene representation, so they are not constructible and
-/// have no business in a type the scene hands out.
+/// Not every arm of the wire enum appears here. `Bitmap`, `Shader`, `Particle` and
+/// `Polygon` have proto values but no scene representation — `CreatePolygon` is
+/// refused in `ipc/dispatch` — so they are not constructible and have no business in
+/// a type the scene hands out. The traffic runs the other way too: the 3-D types are
+/// here and own no wire value yet, which `ipc/convert` refuses rather than guesses.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StimulusType {
     // ── 2-D ──
