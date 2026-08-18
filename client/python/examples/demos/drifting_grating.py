@@ -11,7 +11,7 @@ Usage
 
 Reproduces the shipped `demo_drifting_grating` config: one full-field sinusoidal
 grating that drifts on its own, with no animation and no trigger — the motion
-comes from the grating's own `drift_speed`, advanced by the render thread once
+comes from the grating's own `drift_speed_hz`, advanced by the render thread once
 per frame.
 
 See docs/tutorials/drifting-grating.md for the walkthrough.
@@ -32,7 +32,7 @@ EXPLANATION = (
     "Full-field sinusoidal grating: 0.01 cycles/px (100 px per cycle),\n"
     "vertical stripes, drifting at 4 cycles/s perpendicular to the stripes.\n"
     "Runs on load — no trigger. Tearing or stutter here means a frame-timing problem.\n"
-    "Edit sf / drift_speed / angle live, then save it under your own name."
+    "Edit sf_cycles_per_px / drift_speed_hz / rotation live, then save it under your own name."
 )
 
 
@@ -49,18 +49,18 @@ def main() -> None:
 
         # ── The grating ───────────────────────────────────────────────────────
         # 2400 x 1400 px overfills a 1920 x 1080 frame, which is what makes it
-        # full-field: no edge of the patch is ever on screen. sf is in
-        # cycles per pixel, so 0.01 is one cycle per 100 px; drift_speed is in
+        # full-field: no edge of the patch is ever on screen. sf_cycles_per_px is in
+        # cycles per pixel, so 0.01 is one cycle per 100 px; drift_speed_hz is in
         # cycles per second and is advanced by the render thread, not by us —
         # that is what keeps the motion frame-accurate with no client attached.
         conn.stimuli.grating.create_grating(
-            position=Vec2(0, 0),
-            rotation=0.0,  # vertical stripes
+            position_px=Vec2(0, 0),
+            rotation_deg=0.0,  # vertical stripes
             name="full_field_grating",
             params=GratingParams(
-                width=2400, height=1400, sf=0.01, contrast=1.0,
+                width_px=2400, height_px=1400, sf_cycles_per_px=0.01, contrast=1.0,
                 waveform=GratingTexture.SIN, mask=GratingMask.NONE,
-                drift_speed=4.0,  # cycles/s, perpendicular to the stripes
+                drift_speed_hz=4.0,  # cycles/s, perpendicular to the stripes
             ),
         )
 

@@ -25,11 +25,11 @@ export interface StimulusView {
   /** Server handle (map key) — addresses mutations like setPosition. */
   handle: StimulusHandle;
   type: StimulusType;
-  pos: Vec2;
-  /** Bounding-box size in stimulus-space pixels (full width/height). */
-  size: { width: number; height: number };
+  posPx: Vec2;
+  /** Bounding-box size in stimulus-space pixels (full widthPx/heightPx). */
+  size: { widthPx: number; heightPx: number };
   /** Orientation in degrees CCW. */
-  orientation: number;
+  rotationDeg: number;
   opacity: number;
   fillColor?: Color;
   enabled: boolean;
@@ -97,22 +97,22 @@ function fillColorOf(s: QueryStimulusResponse): Color | undefined {
 }
 
 /** Bounding-box size in stimulus-space pixels from the shape params. */
-function sizeOf(s: QueryStimulusResponse): { width: number; height: number } {
+function sizeOf(s: QueryStimulusResponse): { widthPx: number; heightPx: number } {
   const shape = s.params?.shape;
   switch (shape?.case) {
     case "rect":
     case "ellipse":
     case "grating":
-      return { width: shape.value.width, height: shape.value.height };
+      return { widthPx: shape.value.widthPx, heightPx: shape.value.heightPx };
     case "circle":
-      return { width: shape.value.diameter, height: shape.value.diameter };
+      return { widthPx: shape.value.diameterPx, heightPx: shape.value.diameterPx };
     case "text":
       return {
-        width: shape.value.boxSize?.x ?? 0,
-        height: shape.value.boxSize?.y ?? 0,
+        widthPx: shape.value.boxSizePx?.x ?? 0,
+        heightPx: shape.value.boxSizePx?.y ?? 0,
       };
     default:
-      return { width: 20, height: 20 };
+      return { widthPx: 20, heightPx: 20 };
   }
 }
 
@@ -127,12 +127,12 @@ export function toSceneSnapshot(p: ProtoSnapshot): SceneSnapshot {
       // Placement is a oneof, per dimension. Only 2-D stimuli exist today; a
       // 3-D one would report a transform this map cannot draw, so it falls back
       // to the origin rather than inventing coordinates.
-      pos: {
-        x: s.placement.case === "transform2d" ? (s.placement.value.pos?.x ?? 0) : 0,
-        y: s.placement.case === "transform2d" ? (s.placement.value.pos?.y ?? 0) : 0,
+      posPx: {
+        x: s.placement.case === "transform2d" ? (s.placement.value.posPx?.x ?? 0) : 0,
+        y: s.placement.case === "transform2d" ? (s.placement.value.posPx?.y ?? 0) : 0,
       },
       size: sizeOf(s),
-      orientation: s.placement.case === "transform2d" ? s.placement.value.rotationDeg : 0,
+      rotationDeg: s.placement.case === "transform2d" ? s.placement.value.rotationDeg : 0,
       opacity: s.opacity,
       fillColor: fillColorOf(s),
       enabled: s.enabled,

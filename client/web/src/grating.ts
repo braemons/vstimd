@@ -28,24 +28,24 @@ export class GratingClient {
   constructor(private readonly send: Send) {}
 
   async create(opts: {
-    pos?: Vec2;
-    width?: number;
-    height?: number;
-    sf?: number;
-    phase?: number;
+    posPx?: Vec2;
+    widthPx?: number;
+    heightPx?: number;
+    sfCyclesPerPx?: number;
+    phaseCycles?: number;
     angle?: number;
     contrast?: number;
     foreColor?: Color;
     backColor?: Color;
     waveform?: Waveform;
     mask?: GratingMask;
-    driftSpeed?: number;
+    driftSpeedHz?: number;
     name?: string;
   } = {}): Promise<StimulusHandle> {
     const {
-      pos = { x: 0, y: 0 }, width = 200, height = 200, sf = 0.05, phase = 0,
+      posPx = { x: 0, y: 0 }, widthPx = 200, heightPx = 200, sfCyclesPerPx = 0.05, phaseCycles = 0,
       angle = 0, contrast = 1, foreColor, backColor,
-      waveform = "sin", mask = "none", driftSpeed = 0, name = "",
+      waveform = "sin", mask = "none", driftSpeedHz = 0, name = "",
     } = opts;
     const resp = await this.send(
       create(RequestSchema, {
@@ -54,11 +54,11 @@ export class GratingClient {
           case: "createGrating",
           value: {
             identity: { name },
-            // The rotation is the stripe orientation, not the patch's.
-            placement: { pos, rotationDeg: angle },
+            // The rotation is the stripe rotationDeg, not the patch's.
+            placement: { posPx, rotationDeg: angle },
             params: {
-              width, height, sf, phase, contrast, foreColor, backColor,
-              waveform: WAVEFORM[waveform], mask: MASK[mask], driftSpeed,
+              widthPx, heightPx, sfCyclesPerPx, phaseCycles, contrast, foreColor, backColor,
+              waveform: WAVEFORM[waveform], mask: MASK[mask], driftSpeedHz,
             },
           },
         },
@@ -67,10 +67,10 @@ export class GratingClient {
     return resp.handle;
   }
 
-  setSf(h: StimulusHandle, sf: number) { return this.cmd(h, { case: "setGratingSf", value: { sf } }); }
+  setSf(h: StimulusHandle, sfCyclesPerPx: number) { return this.cmd(h, { case: "setGratingSf", value: { sfCyclesPerPx } }); }
   setContrast(h: StimulusHandle, contrast: number) { return this.cmd(h, { case: "setGratingContrast", value: { contrast } }); }
-  setPhase(h: StimulusHandle, phase: number) { return this.cmd(h, { case: "setGratingPhase", value: { phase } }); }
-  setDriftSpeed(h: StimulusHandle, speed: number) { return this.cmd(h, { case: "setGratingDriftSpeed", value: { speed } }); }
+  setPhase(h: StimulusHandle, phaseCycles: number) { return this.cmd(h, { case: "setGratingPhase", value: { phaseCycles } }); }
+  setDriftSpeed(h: StimulusHandle, speedHz: number) { return this.cmd(h, { case: "setGratingDriftSpeed", value: { speedHz } }); }
   // Opacity is shared: use `conn.stimuli.setAlpha(handle, opacity)`.
   setWaveform(h: StimulusHandle, w: Waveform) { return this.cmd(h, { case: "setGratingWaveform", value: { waveform: WAVEFORM[w] } }); }
   setMask(h: StimulusHandle, m: GratingMask) { return this.cmd(h, { case: "setGratingMask", value: { mask: MASK[m] } }); }

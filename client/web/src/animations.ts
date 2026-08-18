@@ -297,36 +297,36 @@ export class AnimationsClient {
   /** Move a stimulus through one position per frame. `x`/`y` must be equal length. */
   moveAlongPath2d(
     stimuli: Stimuli,
-    x: number[],
-    y: number[],
+    xPx: number[],
+    yPx: number[],
     opts: AnimationOpts = {},
   ): Promise<AnimationHandle> {
-    if (x.length !== y.length) throw new Error("x and y must have equal length");
-    return this.create(stimuli, opts, { case: "moveAlongPath2d", value: { x, y } });
+    if (xPx.length !== yPx.length) throw new Error("xPx and yPx must have equal length");
+    return this.create(stimuli, opts, { case: "moveAlongPath2d", value: { xPx, yPx } });
   }
 
   /** Move a stimulus along piecewise-linear waypoints at constant speed. */
   moveAlongSegments2d(
     stimuli: Stimuli,
-    x: number[],
-    y: number[],
+    xPx: number[],
+    yPx: number[],
     speedPxPerSec: number,
     opts: AnimationOpts = {},
   ): Promise<AnimationHandle> {
-    if (x.length !== y.length) throw new Error("x and y must have equal length");
-    if (x.length < 2) throw new Error("at least 2 waypoints required");
-    return this.create(stimuli, opts, { case: "moveAlongSegments2d", value: { x, y, speedPxPerSec } });
+    if (xPx.length !== yPx.length) throw new Error("xPx and yPx must have equal length");
+    if (xPx.length < 2) throw new Error("at least 2 waypoints required");
+    return this.create(stimuli, opts, { case: "moveAlongSegments2d", value: { xPx, yPx, speedPxPerSec } });
   }
 
   /** Read stimulus position from a POSIX shared-memory float array each frame. */
   externalPosition2d(
     stimuli: Stimuli,
     shmName: string,
-    opts: { xOffset?: number; yOffset?: number } & AnimationOpts = {},
+    opts: { xOffsetPx?: number; yOffsetPx?: number } & AnimationOpts = {},
   ): Promise<AnimationHandle> {
     return this.create(stimuli, opts, {
       case: "externalPosition2d",
-      value: { shmName, xOffset: opts.xOffset ?? 0, yOffset: opts.yOffset ?? 0 },
+      value: { shmName, xOffsetPx: opts.xOffsetPx ?? 0, yOffsetPx: opts.yOffsetPx ?? 0 },
     });
   }
 

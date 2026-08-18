@@ -31,10 +31,10 @@ def test_create_grating_default(win: visual.Window, step_delay: float, request: 
 
 def test_create_grating_sqr_circle_mask(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
-    lbl = _label(win, tid, "sqr, circle mask, 30°, sf=0.03")
+    lbl = _label(win, tid, "sqr, circle mask, 30°, sf_cycles_per_px=0.03")
     grat = visual.GratingStim(
         win, tex="sqr", mask="circle", size=(300, 300),
-        sf=0.03, phase=0.1, ori=30.0, color="white", contrast=0.75, autoDraw=True,
+        sf_cycles_per_px=0.03, phase_cycles=0.1, ori=30.0, color="white", contrast=0.75, autoDraw=True,
     )
 
     info = win._conn.stimuli.query(grat._handle)
@@ -42,8 +42,8 @@ def test_create_grating_sqr_circle_mask(win: visual.Window, step_delay: float, r
     assert isinstance(info.params, GratingParams)
     assert info.params.waveform == GratingTexture.SQR
     assert info.params.mask == GratingMask.CIRCLE
-    assert info.params.sf == pytest.approx(0.03, rel=1e-2)
-    assert info.params.phase == pytest.approx(0.1, abs=0.01)
+    assert info.params.sf_cycles_per_px == pytest.approx(0.03, rel=1e-2)
+    assert info.params.phase_cycles == pytest.approx(0.1, abs=0.01)
     assert info.params.contrast == pytest.approx(0.75, abs=0.01)
 
     win.flip()
@@ -54,22 +54,22 @@ def test_create_grating_sqr_circle_mask(win: visual.Window, step_delay: float, r
 
 def test_grating_mutate_sf_phase_contrast(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
-    lbl = _label(win, tid, "sin sf=0.05")
-    grat = visual.GratingStim(win, tex="sin", size=200, sf=0.05, autoDraw=True)
+    lbl = _label(win, tid, "sin sf_cycles_per_px=0.05")
+    grat = visual.GratingStim(win, tex="sin", size=200, sf_cycles_per_px=0.05, autoDraw=True)
     win.flip()
     time.sleep(step_delay)
 
-    _update_label(win, lbl, tid, "sf=0.1, phase=0.5, contrast=0.6")
-    grat.sf = 0.1
-    grat.phase = 0.5
+    _update_label(win, lbl, tid, "sf_cycles_per_px=0.1, phase_cycles=0.5, contrast=0.6")
+    grat.sf_cycles_per_px = 0.1
+    grat.phase_cycles = 0.5
     grat.contrast = 0.6
     win.flip()
     time.sleep(step_delay)
 
     info = win._conn.stimuli.query(grat._handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.sf == pytest.approx(0.1, rel=1e-2)
-    assert info.params.phase == pytest.approx(0.5, abs=0.01)
+    assert info.params.sf_cycles_per_px == pytest.approx(0.1, rel=1e-2)
+    assert info.params.phase_cycles == pytest.approx(0.5, abs=0.01)
     assert info.params.contrast == pytest.approx(0.6, abs=0.01)
 
     grat.autoDraw = False
@@ -79,24 +79,24 @@ def test_grating_mutate_sf_phase_contrast(win: visual.Window, step_delay: float,
 def test_grating_drift_extension(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
     tid = request.node.name
     lbl = _label(win, tid, "coupled, speed=1.5")
-    grat = visual.GratingStim(win, tex="sin", size=200, drift_speed=1.5, autoDraw=True)
+    grat = visual.GratingStim(win, tex="sin", size=200, drift_speed_hz=1.5, autoDraw=True)
     win.flip()
     time.sleep(step_delay * 3)
 
     info = win._conn.stimuli.query(grat._handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.drift_speed == pytest.approx(1.5, abs=0.01)
+    assert info.params.drift_speed_hz == pytest.approx(1.5, abs=0.01)
     assert info.params.drift_coupled is True
 
     _update_label(win, lbl, tid, "decoupled, angle=45°")
     grat.drift_decoupled = True
-    grat.drift_angle = 45.0
+    grat.drift_angle_deg = 45.0
     win.flip()
     time.sleep(step_delay * 3)
     info = win._conn.stimuli.query(grat._handle)
     assert isinstance(info.params, GratingParams)
     assert info.params.drift_coupled is False
-    assert info.params.drift_angle == pytest.approx(45.0, abs=0.1)
+    assert info.params.drift_angle_deg == pytest.approx(45.0, abs=0.1)
 
     grat.autoDraw = False
     win._conn.stimuli.delete(lbl)

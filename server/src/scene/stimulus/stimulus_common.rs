@@ -15,7 +15,7 @@ pub(crate) fn opaque() -> Deferred<f32> {
 /// stimulus kind does not touch this struct.
 ///
 /// **`transform` is deliberately absent.** A position, an orientation and a
-/// scale in world space cannot be a `Vec2` and one angle, so placement lives on
+/// scale in world space cannot be a `Vec2` and one angle_deg, so placement lives on
 /// the kind — `Transform2D` for the 2-D kinds, [`Transform3D`] for the 3-D ones
 /// — and is reached through [`Stimulus::placement`](super::Stimulus::placement).
 ///

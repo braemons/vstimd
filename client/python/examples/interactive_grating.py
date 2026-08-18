@@ -185,25 +185,25 @@ def run(address: str) -> None:
         win,
         tex=GratingTexture.SIN,
         mask=GratingMask.NONE,
-        pos=(0, 0),
+        pos_px=(0, 0),
         size=400,
-        sf=0.05,
+        sf_cycles_per_px=0.05,
         ori=0.0,
-        phase=0.0,
+        phase_cycles=0.0,
         contrast=1.0,
         opacity=1.0,
-        drift_speed=0.0,
+        drift_speed_hz=0.0,
         autoDraw=True,
     )
 
     params: list[Param] = [
-        Param("sf        (cyc/px)", 0.05, 0.005, 0.001,  0.50, ".4f"),
+        Param("sf_cycles_per_px        (cyc/px)", 0.05, 0.005, 0.001,  0.50, ".4f"),
         Param("ori       (deg)",    0.0,  5.0,  -180.0, 180.0, ".1f"),
-        Param("phase     (0..1)",   0.0,  0.05,   0.0,   1.0,  ".3f"),
+        Param("phase_cycles     (0..1)",   0.0,  0.05,   0.0,   1.0,  ".3f"),
         Param("contrast  (0..1)",   1.0,  0.05,   0.0,   1.0,  ".3f"),
         Param("opacity   (0..1)",   1.0,  0.05,   0.0,   1.0,  ".3f"),
-        Param("pos X     (px)",     0.0, 20.0, -960.0,  960.0, ".0f"),
-        Param("pos Y     (px)",     0.0, 20.0, -540.0,  540.0, ".0f"),
+        Param("pos_px X     (px)",     0.0, 20.0, -960.0,  960.0, ".0f"),
+        Param("pos_px Y     (px)",     0.0, 20.0, -540.0,  540.0, ".0f"),
         Param("drift spd (cyc/s)",  0.0,  0.5,  -20.0,  20.0,  ".2f"),
         Param("drift ang (deg)",    0.0,  5.0, -180.0, 180.0, ".1f"),
     ]
@@ -217,23 +217,23 @@ def run(address: str) -> None:
     def apply(idx: int) -> None:
         p = params[idx]
         tag = p.label.split()[0]
-        if tag == "sf":
-            grating.sf = p.value
+        if tag == "sf_cycles_per_px":
+            grating.sf_cycles_per_px = p.value
         elif tag == "ori":
             grating.ori = p.value
-        elif tag == "phase":
-            grating.phase = p.value
+        elif tag == "phase_cycles":
+            grating.phase_cycles = p.value
         elif tag == "contrast":
             grating.contrast = p.value
         elif tag == "opacity":
             grating.opacity = p.value
-        elif tag == "pos":
-            grating.pos = (params[5].value, params[6].value)
+        elif tag == "pos_px":
+            grating.pos_px = (params[5].value, params[6].value)
         elif tag == "drift":
             if "spd" in p.label:
-                grating.drift_speed = p.value
+                grating.drift_speed_hz = p.value
             else:
-                grating.drift_angle = p.value
+                grating.drift_angle_deg = p.value
 
     _render(address, params, tex_param, mask_param, sel, visible)
 
@@ -263,12 +263,12 @@ def run(address: str) -> None:
                 visible = not visible
                 grating.autoDraw = visible
             elif key in ("d", "D"):
-                if grating.drift_speed == 0.0:
+                if grating.drift_speed_hz == 0.0:
                     params[7].value = 2.0
-                    grating.drift_speed = 2.0
+                    grating.drift_speed_hz = 2.0
                 else:
                     params[7].value = 0.0
-                    grating.drift_speed = 0.0
+                    grating.drift_speed_hz = 0.0
 
             _render(address, params, tex_param, mask_param, sel, visible)
 

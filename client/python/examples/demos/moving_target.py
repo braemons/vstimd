@@ -52,10 +52,10 @@ def main() -> None:
         # Created at the start of the sweep, so the scene looks right even
         # before the animation runs.
         target = conn.stimuli.shapes.create_circle(
-            position=Vec2(-800, 0),
+            position_px=Vec2(-800, 0),
             name="target",
             params=CircleParams(
-                diameter=60,
+                diameter_px=60,
                 appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
             ),
         )
@@ -73,8 +73,8 @@ def main() -> None:
         #                                of each sweep, right after the vblank
         sweep = conn.animations.create_move_along_segments_2d(
             target,
-            x=[-800.0, 800.0],
-            y=[0.0, 0.0],
+            x_px=[-800.0, 800.0],
+            y_px=[0.0, 0.0],
             speed_px_per_sec=600.0,
             name="sweep_left_to_right",
             final_action_mask=FinalAction.RESTART | FinalAction.FINAL_ACTION_TRIGGER_LINE,

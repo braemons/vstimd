@@ -107,7 +107,7 @@ pub(super) fn shape_appearance_to_proto(a: &ShapeAppearance) -> proto::ShapeAppe
     proto::ShapeAppearance {
         fill_color: Some(a.fill_color.into()),
         outline_color: Some(a.outline_color.into()),
-        outline_width: a.stroke_width,
+        outline_width_px: a.stroke_width_px,
         draw_mode: draw_mode_to_proto(a.draw_mode),
     }
 }
@@ -119,14 +119,14 @@ pub(super) fn color_or_default(c: Option<proto::Color>, default: Color) -> Color
 /// Proto → shape fill/outline state, for the `Create*` commands.
 ///
 /// `appearance` absent means the scene defaults throughout: fill from
-/// `default_fill`, outline from `default_outline`, stroke width and draw mode
+/// `default_fill`, outline from `default_outline`, stroke width_px and draw mode
 /// from [`ShapeAppearance::default`].
 ///
 /// `appearance` present overrides field by field, each with the same fallback,
 /// so a client may set only `draw_mode` and inherit the rest. Zero means unset
-/// for `outline_width`, matching the convention the create commands already use
-/// for `width`/`height`/`diameter` — and a 0-width outline draws nothing anyway,
-/// so `draw_mode` is how you turn an outline off, not width.
+/// for `outline_width_px`, matching the convention the create commands already use
+/// for `width_px`/`height_px`/`diameter_px` — and a 0-width_px outline draws nothing anyway,
+/// so `draw_mode` is how you turn an outline off, not width_px.
 pub(super) fn shape_appearance_from_proto(
     appearance: Option<proto::ShapeAppearance>,
     default_fill: Color,
@@ -143,25 +143,25 @@ pub(super) fn shape_appearance_from_proto(
     Ok(ShapeAppearance {
         fill_color: color_or_default(a.fill_color, base.fill_color),
         outline_color: color_or_default(a.outline_color, base.outline_color),
-        stroke_width: if a.outline_width == 0.0 {
-            base.stroke_width
+        stroke_width_px: if a.outline_width_px == 0.0 {
+            base.stroke_width_px
         } else {
-            a.outline_width
+            a.outline_width_px
         },
         draw_mode: draw_mode_from_proto(a.draw_mode)?,
     })
 }
 
-/// A create request's `placement` → the scene's `(pos, angle)` pair.
+/// A create request's `placement` → the scene's `(pos_px, angle_deg)` pair.
 ///
-/// Absent, or absent `pos`, means the screen centre at 0° — the same default the
-/// bare `center`/`angle` fields gave before placement was a message.
+/// Absent, or absent `pos_px`, means the screen centre at 0° — the same default the
+/// bare `center`/`angle_deg` fields gave before placement was a message.
 pub(super) fn placement_from_proto(placement: Option<proto::Transform2D>) -> ([f32; 2], f32) {
     let Some(t) = placement else {
         return ([0.0, 0.0], 0.0);
     };
-    let pos = t.pos.unwrap_or_default();
-    ([pos.x, pos.y], t.rotation_deg)
+    let pos_px = t.pos_px.unwrap_or_default();
+    ([pos_px.x, pos_px.y], t.rotation_deg)
 }
 
 /// A create request's `identity` → the scene's, minting the id.

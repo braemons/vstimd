@@ -15,7 +15,7 @@ from ._helpers import update_label as _update_label
 
 
 def test_set_draw_mode_outlined(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_rect(params=RectParams(width=100, height=100))
+    handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=100))
     conn.stimuli.shapes.set_draw_mode(handle, ShapeDrawMode.OUTLINED)
     info = conn.stimuli.query(handle)
     assert info.draw_mode == ShapeDrawMode.OUTLINED
@@ -23,7 +23,7 @@ def test_set_draw_mode_outlined(conn: Connection) -> None:
 
 
 def test_set_draw_mode_filled_and_outlined(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_circle(params=CircleParams(diameter=100))
+    handle = conn.stimuli.shapes.create_circle(params=CircleParams(diameter_px=100))
     conn.stimuli.shapes.set_draw_mode(handle, ShapeDrawMode.FILLED_AND_OUTLINED)
     info = conn.stimuli.query(handle)
     assert info.draw_mode == ShapeDrawMode.FILLED_AND_OUTLINED
@@ -31,7 +31,7 @@ def test_set_draw_mode_filled_and_outlined(conn: Connection) -> None:
 
 
 def test_set_outline_color_roundtrip(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_rect(params=RectParams(width=100, height=80))
+    handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=80))
     conn.stimuli.shapes.set_outline_color(handle, Color(1.0, 0.5, 0.0, 0.8))
     info = conn.stimuli.query(handle)
     assert info.outline_color.r == pytest.approx(1.0, abs=0.01)
@@ -42,18 +42,18 @@ def test_set_outline_color_roundtrip(conn: Connection) -> None:
 
 
 def test_set_outline_width_roundtrip(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_ellipse(params=EllipseParams(width=120, height=80))
+    handle = conn.stimuli.shapes.create_ellipse(params=EllipseParams(width_px=120, height_px=80))
     conn.stimuli.shapes.set_outline_width(handle, 6.0)
     info = conn.stimuli.query(handle)
-    assert info.outline_width == pytest.approx(6.0, abs=0.1)
+    assert info.outline_width_px == pytest.approx(6.0, abs=0.1)
     conn.stimuli.delete(handle)
 
 
 def test_draw_mode_default_is_filled(conn: Connection) -> None:
     for h in [
-        conn.stimuli.shapes.create_rect(params=RectParams(width=100, height=100)),
-        conn.stimuli.shapes.create_circle(params=CircleParams(diameter=100)),
-        conn.stimuli.shapes.create_ellipse(params=EllipseParams(width=100, height=60)),
+        conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=100)),
+        conn.stimuli.shapes.create_circle(params=CircleParams(diameter_px=100)),
+        conn.stimuli.shapes.create_ellipse(params=EllipseParams(width_px=100, height_px=60)),
     ]:
         info = conn.stimuli.query(h)
         assert info.draw_mode == ShapeDrawMode.FILLED
@@ -61,7 +61,7 @@ def test_draw_mode_default_is_filled(conn: Connection) -> None:
 
 
 def test_draw_mode_cycle(conn: Connection) -> None:
-    handle = conn.stimuli.shapes.create_rect(params=RectParams(width=100, height=100))
+    handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=100))
     for mode in (
         ShapeDrawMode.OUTLINED,
         ShapeDrawMode.FILLED_AND_OUTLINED,
@@ -90,25 +90,25 @@ def test_outline_visual(
     for mode, description in ROWS:
         _update_label(conn, lbl, tid, description)
         rect = conn.stimuli.shapes.create_rect(
-            position=Vec2(-200, 0),
+            position_px=Vec2(-200, 0),
             params=RectParams(
-                width=180,
-                height=120,
+                width_px=180,
+                height_px=120,
                 appearance=ShapeAppearance(fill_color=Color(0.2, 0.5, 0.9)),
             ),
         )
         circ = conn.stimuli.shapes.create_circle(
-            position=Vec2(0, 0),
+            position_px=Vec2(0, 0),
             params=CircleParams(
-                diameter=140,
+                diameter_px=140,
                 appearance=ShapeAppearance(fill_color=Color(0.9, 0.4, 0.2)),
             ),
         )
         ell = conn.stimuli.shapes.create_ellipse(
-            position=Vec2(200, 0),
+            position_px=Vec2(200, 0),
             params=EllipseParams(
-                width=200,
-                height=100,
+                width_px=200,
+                height_px=100,
                 appearance=ShapeAppearance(fill_color=Color(0.3, 0.8, 0.3)),
             ),
         )
@@ -129,8 +129,8 @@ def test_outline_visual(
 def test_outline_independent_of_fill_color(conn: Connection) -> None:
     handle = conn.stimuli.shapes.create_rect(
         params=RectParams(
-            width=100,
-            height=100,
+            width_px=100,
+            height_px=100,
             appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0)),
         ),
     )

@@ -50,13 +50,13 @@ message CreateGratingRequest {
 // Stimulus command: set the phase of a Grating stimulus.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
 message SetGratingPhaseRequest {
-  float phase = 1;  // [0, 1]; wraps automatically
+  float phase_cycles = 1;  // [0, 1]; wraps automatically
 }
 
 // Stimulus command: set the spatial frequency of a Grating stimulus.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
 message SetGratingSfRequest {
-  float sf = 1;  // cycles/pixel
+  float sf_cycles_per_px = 1;
 }
 
 // Stimulus command: set the contrast of a Grating stimulus.
@@ -80,7 +80,7 @@ message SetGratingMaskRequest {
 // Stimulus command: set the drift speed of a Grating stimulus.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
 message SetGratingDriftSpeedRequest {
-  float speed = 1;  // cycles/second; negative reverses direction
+  float speed_hz = 1;  // cycles/second; negative reverses direction
 }
 
 // Stimulus command: decouple drift direction from stripe orientation.
@@ -94,7 +94,7 @@ message SetGratingDriftDecoupledRequest {
 // Has no effect when drift_coupled is true.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Grating.
 message SetGratingDriftAngleRequest {
-  float angle_deg = 1;  // degrees CCW
+  float drift_angle_deg = 1;  // CCW
 }
 
 // Stimulus command: set the peak (foreground) colour of a Grating stimulus.
@@ -120,17 +120,17 @@ message SetGratingBackColorRequest {
 // No `angle`: the stripe orientation is the stimulus rotation, and travels in
 // the placement — see CreateGratingRequest.placement.
 message GratingParams {
-  float        width           = 1;  // full width in pixels  (0 → default 200)
-  float        height          = 2;  // full height in pixels (0 → default 200)
-  float        sf              = 3;  // spatial frequency in cycles/pixel (0 → default 0.05)
-  float        phase           = 4;  // static phase offset [0, 1] (default 0)
-  float        contrast        = 5;  // contrast in [0, 1] (0 → default 1)
-  WaveformType waveform        = 6;
-  MaskType     mask            = 7;
-  float        mask_param      = 8;
-  float        drift_speed     = 9;
-  bool         drift_decoupled = 10;
-  float        drift_angle     = 11;
+  float        width_px          = 1;  // full width  (0 → default 200)
+  float        height_px         = 2;  // full height (0 → default 200)
+  float        sf_cycles_per_px  = 3;  // spatial frequency (0 → default 0.05)
+  float        phase_cycles      = 4;  // static phase offset [0, 1] (default 0)
+  float        contrast          = 5;  // contrast in [0, 1] (0 → default 1)
+  WaveformType waveform          = 6;
+  MaskType     mask              = 7;
+  float        mask_param        = 8;
+  float        drift_speed_hz    = 9;  // cycles/second; negative reverses
+  bool         drift_decoupled   = 10;
+  float        drift_angle_deg   = 11; // CCW; used only when decoupled
   Color        fore_color      = 12; // peak colour (carrier = +1)
   Color        back_color      = 13; // trough colour (carrier = −1)
   // 14 was `opacity`: read it from QueryStimulusResponse.opacity instead.

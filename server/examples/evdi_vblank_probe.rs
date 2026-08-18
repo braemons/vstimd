@@ -20,8 +20,8 @@ fn main() {
 
     let conn = card.get_connector(node.connector, false).unwrap();
     let mode = *conn.modes().first().expect("no modes");
-    let (width, height) = mode.size();
-    println!("mode {:?} {}x{} vrefresh={}", mode.name(), width, height, mode.vrefresh());
+    let (width_px, height_px) = mode.size();
+    println!("mode {:?} {}x{} vrefresh={}", mode.name(), width_px, height_px, mode.vrefresh());
 
     let res = card.resource_handles().unwrap();
     let crtc_pipe_and_handle = conn
@@ -43,7 +43,7 @@ fn main() {
 
     // Establish the mode first — wait_vblank / page_flip need an active CRTC.
     let mut dumb = card
-        .create_dumb_buffer((width as u32, height as u32), DrmFourcc::Xrgb8888, 32)
+        .create_dumb_buffer((width_px as u32, height_px as u32), DrmFourcc::Xrgb8888, 32)
         .unwrap();
     {
         let mut map = card.map_dumb_buffer(&mut dumb).unwrap();
@@ -79,7 +79,7 @@ fn main() {
     // completion event actually arrives on the fd.
     println!("\n--- page_flip + event ---");
     let mut dumb2 = card
-        .create_dumb_buffer((width as u32, height as u32), DrmFourcc::Xrgb8888, 32)
+        .create_dumb_buffer((width_px as u32, height_px as u32), DrmFourcc::Xrgb8888, 32)
         .unwrap();
     {
         let mut map = card.map_dumb_buffer(&mut dumb2).unwrap();

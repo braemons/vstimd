@@ -17,25 +17,25 @@ fn load_current_reference() {
     let rect_entry = scene.stimuli.values().find(|e| e.name() == "ref_rect").expect("ref_rect must exist");
     assert_eq!(rect_entry.stimulus.type_name(), "Rect");
     let r = rect_entry.stimulus.shape().expect("ref_rect must be a shape");
-    assert_eq!(r.transform.live.pos, [100.0, -50.0]);
-    assert!((r.transform.live.angle - 30.0).abs() < 1e-4);
+    assert_eq!(r.transform.live.pos_px, [100.0, -50.0]);
+    assert!((r.transform.live.angle_deg - 30.0).abs() < 1e-4);
     assert!((r.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
     assert!(rect_entry.stimulus.flags().enabled);
     // The format stores full extents — the same numbers CreateRect/SetRectSize take.
     assert!(matches!(
         r.geometry.live,
-        ShapeGeometry::Rect { size } if size == [400.0, 160.0]
+        ShapeGeometry::Rect { size_px } if size_px == [400.0, 160.0]
     ));
 
     // Stimulus 2: circle
     let circle_entry = scene.stimuli.values().find(|e| e.name() == "ref_circle").expect("ref_circle must exist");
     assert_eq!(circle_entry.stimulus.type_name(), "Circle");
     let c = circle_entry.stimulus.shape().expect("ref_circle must be a shape");
-    assert_eq!(c.transform.live.pos, [-300.0, 200.0]);
+    assert_eq!(c.transform.live.pos_px, [-300.0, 200.0]);
     // A full extent, like every other geometry: 100 px across, not a 100 px radius.
     assert!(matches!(
         c.geometry.live,
-        ShapeGeometry::Circle { diameter } if (diameter - 100.0).abs() < 1e-4
+        ShapeGeometry::Circle { diameter_px } if (diameter_px - 100.0).abs() < 1e-4
     ));
     assert!(!circle_entry.stimulus.flags().enabled);
 
@@ -43,7 +43,7 @@ fn load_current_reference() {
     let grating_entry = scene.stimuli.values().find(|e| e.name() == "ref_grating").expect("ref_grating must exist");
     assert_eq!(grating_entry.stimulus.type_name(), "Grating");
     let g = grating_entry.stimulus.grating().expect("ref_grating must be a grating");
-    assert_eq!(g.size.live, [300.0, 300.0]);
+    assert_eq!(g.size_px.live, [300.0, 300.0]);
 
     // I/O: VTL names
     assert_eq!(sections.vtl.names.len(), 2);
@@ -58,8 +58,8 @@ fn load_current_reference() {
 /// Older on-disk formats are rejected rather than silently mis-parsed. This
 /// matters most where a field kept its name but changed meaning: a v2 file loaded
 /// as v3 would draw every rect, ellipse and grating at half its intended size
-/// (half-extents → full width/height), and a v4 file loaded as v5 would read a
-/// circle's `radius` as nothing at all now that the field is `diameter`.
+/// (half-extents → full width_px/height_px), and a v4 file loaded as v5 would read a
+/// circle's `radius` as nothing at all now that the field is `diameter_px`.
 #[test]
 fn reject_older_references() {
     for (version, path) in [
@@ -123,8 +123,8 @@ fn reject_a_stimulus_with_no_wire_type() {
                 "body": {
                     "type": "Mesh3d",
                     "transform": {
-                        "position": [0.0, 0.0, 0.0],
-                        "rotation_euler": [0.0, 0.0, 0.0],
+                        "position_cm": [0.0, 0.0, 0.0],
+                        "rotation_euler_deg": [0.0, 0.0, 0.0],
                         "scale": [1.0, 1.0, 1.0]
                     },
                     "material": {
@@ -132,7 +132,7 @@ fn reject_a_stimulus_with_no_wire_type() {
                         "emissive": [0.0, 0.0, 0.0],
                         "shading": "Unlit"
                     },
-                    "geometry": { "type": "Cube", "size": [10.0, 10.0, 10.0] },
+                    "geometry": { "type": "Cube", "size_cm": [10.0, 10.0, 10.0] },
                     "texture_path": null
                 }
             }

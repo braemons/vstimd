@@ -48,9 +48,9 @@ export function VtlPanel({ conn, snapshot }: Props) {
       <h3>Trigger Lines</h3>
       {banks.length === 0 && <p style={{ color: "#666", fontSize: 13 }}>No VTL banks.</p>}
       {banks.map((g) => {
-        const width = g.bits.length || 64;
-        // MSB-first (bit width-1 … 0), grouped into bytes of 8.
-        const idxs = Array.from({ length: width }, (_, i) => width - 1 - i);
+        const widthPx = g.bits.length || 64;
+        // MSB-first (bit widthPx-1 … 0), grouped into bytes of 8.
+        const idxs = Array.from({ length: widthPx }, (_, i) => widthPx - 1 - i);
         return (
           <div key={`${g.kind}:${g.bank}`} style={{ marginBottom: 8 }}>
             <div style={{ fontSize: 12, color: "#888", marginBottom: 2 }}>

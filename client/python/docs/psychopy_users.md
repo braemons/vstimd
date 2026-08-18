@@ -52,7 +52,7 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 | psychopy | vstimd | Notes |
 |---|---|---|
 | `from psychopy import visual` | `from vstimd.psychopy import visual` | direct swap |
-| `Window(size=...)` | `Window(address='tcp://host:port')` | `size` is ignored — queried from server |
+| `Window(size_px=...)` | `Window(address='tcp://host:port')` | `size` is ignored — queried from server |
 | `Circle(win, ...)` | identical | ✓ |
 | `Rect(win, ...)` | identical | ✓ |
 | `GratingStim(win, ...)` | identical | ✓ |
@@ -60,7 +60,7 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 | `Line(win, ...)` | not in v0.1 | raises `AttributeError` |
 | `ShapeStim(win, ...)` | not in v0.1 | raises `AttributeError` |
 | `TextStim` | not in v0.1 | raises `AttributeError` |
-| `TextBox2(win, ...)` | identical | ✓ text, color, pos, opacity, autoDraw, languageStyle |
+| `TextBox2(win, ...)` | identical | ✓ text, color, pos_px, opacity, autoDraw, languageStyle |
 | `ImageStim` | not in v0.1 | raises `AttributeError` |
 | `win.flip()` | identical | sends batch to server |
 | `stim.draw()` | identical | one-shot per frame |
@@ -69,7 +69,7 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 
 ### No-op stubs
 
-- `monitor=` on Window is accepted for future deg/cm units but ignored if units are `pix`/`norm`/`height`
+- `monitor=` on Window is accepted for future deg/cm units but ignored if units are `pix`/`norm`/`height_px`
 - `autoLog=` is accepted but logging is not wired up yet
 - `contrast=` is accepted but not forwarded to the server yet
 
@@ -86,7 +86,7 @@ next render frame.
 ```python
 win = visual.Window(deferred=True)   # default
 circle = visual.Circle(win, radius=50)
-circle.pos = (100, 0)   # queued on server
+circle.pos_px = (100, 0)   # queued on server
 circle.opacity = 0.8    # queued on server
 win.flip()              # ← server applies all queued commands before next vsync
 ```
@@ -99,7 +99,7 @@ experiments.
 
 ```python
 win = visual.Window(deferred=False)
-circle.pos = (100, 0)   # sent immediately
+circle.pos_px = (100, 0)   # sent immediately
 ```
 
 ---
@@ -109,13 +109,13 @@ circle.pos = (100, 0)   # sent immediately
 All coordinates are converted to pixels before being sent to the server.
 The server's origin is the window centre (matches PsychoPy default).
 
-Supported units: `pix` (default), `norm`, `height`.
+Supported units: `pix` (default), `norm`, `height_px`.
 
 `deg` and `cm` require a PsychoPy `Monitor` object:
 
 ```python
 from psychopy.monitors import Monitor
-mon = Monitor('testMonitor', width=52.0, distance=57.0)
+mon = Monitor('testMonitor', width_px=52.0, distance=57.0)
 win = visual.Window(monitor=mon, units='deg')
 circle = visual.Circle(win, radius=2.0, units='deg')
 ```

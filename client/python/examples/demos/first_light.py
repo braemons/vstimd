@@ -56,23 +56,23 @@ def main() -> None:
 
         # ── Title ─────────────────────────────────────────────────────────────
         _ = conn.stimuli.text.create_text(
-            position=Vec2(0, 220),
+            position_px=Vec2(0, 220),
             name="title",
             params=TextParams(
                 text="vstimd — first light",
-                letter_height=80,
+                letter_height_px=80,
                 text_color=Color(1.0, 1.0, 1.0),
-                box_size=Vec2(1600, 120),
+                box_size_px=Vec2(1600, 120),
             ),
         )
 
         # ── Centre dot ────────────────────────────────────────────────────────
         # Slightly above centre so it does not collide with the title's descenders.
         _ = conn.stimuli.shapes.create_circle(
-            position=Vec2(0, 60),
+            position_px=Vec2(0, 60),
             name="fixation_dot",
             params=CircleParams(
-                diameter=16,
+                diameter_px=16,
                 appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
             ),
         )
@@ -80,9 +80,9 @@ def main() -> None:
         # ── Corner squares ────────────────────────────────────────────────────
         for name, x, y in CORNERS:
             _ = conn.stimuli.shapes.create_rect(
-                position=Vec2(x, y),
+                position_px=Vec2(x, y),
                 name=name,
-                params=RectParams(width=80, height=80),
+                params=RectParams(width_px=80, height_px=80),
             )
 
         _ = add_explanation(conn, EXPLANATION)

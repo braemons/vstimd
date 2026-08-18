@@ -33,8 +33,8 @@ fn main() {
     );
 
     let pitch = out.pitch();
-    let (width, height) = (out.width as usize, out.height as usize);
-    let mut frame = vec![0u8; pitch * height];
+    let (width_px, height_px) = (out.width as usize, out.height as usize);
+    let mut frame = vec![0u8; pitch * height_px];
 
     let frame_count = hold_secs * fps;
     let frame_dur = std::time::Duration::from_millis(1000 / fps.max(1));
@@ -44,9 +44,9 @@ fn main() {
         // Scrolling vertical color bars, ~64px wide, offset by frame index
         // — moving content makes it obvious each `present()` actually
         // reached the screen rather than the first frame just sticking.
-        let shift = (i as usize * 8) % width.max(1);
-        for y in 0..height {
-            for x in 0..width {
+        let shift = (i as usize * 8) % width_px.max(1);
+        for y in 0..height_px {
+            for x in 0..width_px {
                 let band = ((x + shift) / 64) % 3;
                 let (b, g, r) = match band {
                     0 => (255u8, 0u8, 0u8),

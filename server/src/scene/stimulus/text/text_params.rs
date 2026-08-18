@@ -1,4 +1,4 @@
-/// How the text box is anchored relative to `pos`.
+/// How the text box is anchored relative to `pos_px`.
 #[derive(Clone, Copy, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Anchor {
     #[default]

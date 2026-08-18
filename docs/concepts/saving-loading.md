@@ -51,10 +51,10 @@ Windows or macOS machine like any other files.
 with Connection("tcp://stimulus-pc:5555") as conn:
     # Build a scene however you like…
     conn.stimuli.shapes.create_rect(
-        position=Vec2(0, 0),
+        position_px=Vec2(0, 0),
         params=RectParams(
-            width=200,
-            height=100,
+            width_px=200,
+            height_px=100,
             appearance=ShapeAppearance(fill_color=Color(1, 0, 0)),
         ),
     )

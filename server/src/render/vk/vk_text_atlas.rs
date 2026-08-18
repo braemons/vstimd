@@ -174,7 +174,7 @@ impl GlyphAtlas {
     /// Upload `cpu_pixels` to the GPU image when dirty.
     ///
     /// Uses a one-time command buffer submission so it can be called outside the
-    /// main frame loop (e.g., during the tessellation phase before recording draw
+    /// main frame loop (e.g., during the tessellation phase_cycles before recording draw
     /// commands).  No-op when the atlas has not changed since the last call.
     pub fn flush(&mut self, device: &ash::Device, queue: vk::Queue, command_pool: vk::CommandPool) {
         if !self.dirty {

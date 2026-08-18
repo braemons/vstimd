@@ -30,15 +30,15 @@ class TextClient:
         self,
         *,
         name: str = "",
-        position: Vec2 = Vec2(0.0, 0.0),
-        rotation: float = 0.0,
+        position_px: Vec2 = Vec2(0.0, 0.0),
+        rotation_deg: float = 0.0,
         params: TextParams | None = None,
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_text=text_pb2.CreateTextRequest(
                 identity=StimulusIdentity(name=name).to_proto(),
-                placement=Transform2D(pos=position.to_proto(), rotation_deg=rotation),
+                placement=Transform2D(pos_px=position_px.to_proto(), rotation_deg=rotation_deg),
                 params=(params or TextParams()).to_proto(),
             ),
         )

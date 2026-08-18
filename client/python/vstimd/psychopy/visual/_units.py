@@ -43,7 +43,7 @@ def to_pixels(
         px, py = x, y
     elif units == "norm":
         px, py = x * w / 2.0, y * h / 2.0
-    elif units == "height":
+    elif units == "height_px":
         px, py = x * h, y * h
     elif units in ("deg", "cm"):
         if monitor is None:

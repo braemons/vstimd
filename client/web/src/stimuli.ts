@@ -27,13 +27,13 @@ export class ShapesClient {
   constructor(private readonly send: Send) {}
 
   async createRect(opts: {
-    pos?: Vec2;
-    width?: number;
-    height?: number;
+    posPx?: Vec2;
+    widthPx?: number;
+    heightPx?: number;
     color?: Color;
     name?: string;
   } = {}): Promise<StimulusHandle> {
-    const { pos = ORIGIN, width = 100, height = 100, color = WHITE, name = "" } = opts;
+    const { posPx = ORIGIN, widthPx = 100, heightPx = 100, color = WHITE, name = "" } = opts;
     const resp = await this.send(
       create(RequestSchema, {
         target: { case: "system", value: {} },
@@ -41,8 +41,8 @@ export class ShapesClient {
           case: "createRect",
           value: {
             identity: { name },
-            placement: { pos },
-            params: { width, height, appearance: { fillColor: color } },
+            placement: { posPx },
+            params: { widthPx, heightPx, appearance: { fillColor: color } },
           },
         },
       }),
@@ -51,13 +51,13 @@ export class ShapesClient {
   }
 
   async createCircle(opts: {
-    pos?: Vec2;
-    /** Full extent across, like every other shape's width/height. */
-    diameter?: number;
+    posPx?: Vec2;
+    /** Full extent across, like every other shape's widthPx/heightPx. */
+    diameterPx?: number;
     color?: Color;
     name?: string;
   } = {}): Promise<StimulusHandle> {
-    const { pos = ORIGIN, diameter = 100, color = WHITE, name = "" } = opts;
+    const { posPx = ORIGIN, diameterPx = 100, color = WHITE, name = "" } = opts;
     const resp = await this.send(
       create(RequestSchema, {
         target: { case: "system", value: {} },
@@ -65,8 +65,8 @@ export class ShapesClient {
           case: "createCircle",
           value: {
             identity: { name },
-            placement: { pos },
-            params: { diameter, appearance: { fillColor: color } },
+            placement: { posPx },
+            params: { diameterPx, appearance: { fillColor: color } },
           },
         },
       }),
@@ -75,13 +75,13 @@ export class ShapesClient {
   }
 
   async createEllipse(opts: {
-    pos?: Vec2;
-    width?: number;
-    height?: number;
+    posPx?: Vec2;
+    widthPx?: number;
+    heightPx?: number;
     color?: Color;
     name?: string;
   } = {}): Promise<StimulusHandle> {
-    const { pos = ORIGIN, width = 100, height = 100, color = WHITE, name = "" } = opts;
+    const { posPx = ORIGIN, widthPx = 100, heightPx = 100, color = WHITE, name = "" } = opts;
     const resp = await this.send(
       create(RequestSchema, {
         target: { case: "system", value: {} },
@@ -89,8 +89,8 @@ export class ShapesClient {
           case: "createEllipse",
           value: {
             identity: { name },
-            placement: { pos },
-            params: { width, height, appearance: { fillColor: color } },
+            placement: { posPx },
+            params: { widthPx, heightPx, appearance: { fillColor: color } },
           },
         },
       }),
@@ -121,11 +121,11 @@ export class StimuliClient {
   }
 
   /** Move a stimulus. The hot path for receptive-field mapping. */
-  async setPosition(handle: StimulusHandle, pos: Vec2): Promise<void> {
+  async setPosition(handle: StimulusHandle, posPx: Vec2): Promise<void> {
     await this.send(
       create(RequestSchema, {
         target: { case: "stimulus", value: handle },
-        body: { case: "setPosition", value: { x: pos.x, y: pos.y } },
+        body: { case: "setPosition", value: { xPx: posPx.x, yPx: posPx.y } },
       }),
     );
   }
@@ -140,20 +140,20 @@ export class StimuliClient {
   }
 
   /** Rotate a stimulus (degrees CCW). */
-  async setOrientation(handle: StimulusHandle, angleDeg: number): Promise<void> {
-    await this.stimulusCmd(handle, { case: "setOrientation", value: { angleDeg } });
+  async setRotation(handle: StimulusHandle, rotationDeg: number): Promise<void> {
+    await this.stimulusCmd(handle, { case: "setRotation", value: { rotationDeg } });
   }
 
-  async setRectSize(handle: StimulusHandle, width: number, height: number): Promise<void> {
-    await this.stimulusCmd(handle, { case: "setRectSize", value: { width, height } });
+  async setRectSize(handle: StimulusHandle, widthPx: number, heightPx: number): Promise<void> {
+    await this.stimulusCmd(handle, { case: "setRectSize", value: { widthPx, heightPx } });
   }
 
-  async setCircleDiameter(handle: StimulusHandle, diameter: number): Promise<void> {
-    await this.stimulusCmd(handle, { case: "setCircleDiameter", value: { diameter } });
+  async setCircleDiameter(handle: StimulusHandle, diameterPx: number): Promise<void> {
+    await this.stimulusCmd(handle, { case: "setCircleDiameter", value: { diameterPx } });
   }
 
-  async setEllipseSize(handle: StimulusHandle, width: number, height: number): Promise<void> {
-    await this.stimulusCmd(handle, { case: "setEllipseSize", value: { width, height } });
+  async setEllipseSize(handle: StimulusHandle, widthPx: number, heightPx: number): Promise<void> {
+    await this.stimulusCmd(handle, { case: "setEllipseSize", value: { widthPx, heightPx } });
   }
 
   async setFillColor(handle: StimulusHandle, color: Color): Promise<void> {
@@ -179,9 +179,9 @@ export class StimuliClient {
     await this.stimulusCmd(handle, { case: "setOutlineColor", value: { color } });
   }
 
-  /** Outline stroke width in pixels. */
-  async setOutlineWidth(handle: StimulusHandle, lineWidth: number): Promise<void> {
-    await this.stimulusCmd(handle, { case: "setOutlineWidth", value: { lineWidth } });
+  /** Outline stroke widthPx in pixels. */
+  async setOutlineWidth(handle: StimulusHandle, lineWidthPx: number): Promise<void> {
+    await this.stimulusCmd(handle, { case: "setOutlineWidth", value: { lineWidthPx } });
   }
 
   /** Move this stimulus to the top of the draw order (drawn last = in front). */

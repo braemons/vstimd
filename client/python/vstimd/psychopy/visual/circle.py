@@ -59,9 +59,9 @@ class Circle:
         # PsychoPy's Circle is specified by radius; vstimd sizes every shape by
         # its full extent, so the conversion happens here at the boundary.
         self._handle: StimulusHandle = win._conn.stimuli.shapes.create_circle(
-            position=StimulusVec2(px, py),
+            position_px=StimulusVec2(px, py),
             params=CircleParams(
-                diameter=self._scalar_px(self._radius) * 2.0,
+                diameter_px=self._scalar_px(self._radius) * 2.0,
                 appearance=ShapeAppearance(
                     fill_color=to_color(fillColor, colorSpace, 1.0)
                     or StimulusColor(0.0, 0.0, 0.0, 0.0),
@@ -142,7 +142,7 @@ class Circle:
     @ori.setter
     def ori(self, value: float) -> None:
         self._ori = float(value)
-        self._win._dispatch(self._win._conn.stimuli.set_orientation, self._handle, self._ori)
+        self._win._dispatch(self._win._conn.stimuli.set_rotation, self._handle, self._ori)
 
     def setOri(self, value: float, operation: str = "", log: bool | None = None) -> None:
         self.ori = value

@@ -24,16 +24,16 @@ message CreateRectRequest {
 // Stimulus command: resize a Rect stimulus.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Rect.
 message SetRectSizeRequest {
-  float width = 1;
-  float height = 2;
+  float width_px = 1;
+  float height_px = 2;
 }
 
 // Rect geometry and appearance. Used by both CreateRectRequest and
 // QueryStimulusResponse.params, so the zero-means-default convention below is
 // what a create reads and what a query reports.
 message RectParams {
-  float width = 1;  // full width in pixels  (0 → default 100)
-  float height = 2; // full height in pixels (0 → default 100)
+  float width_px = 1;  // full width  (0 → default 100)
+  float height_px = 2; // full height (0 → default 100)
   // Full fill/outline/draw-mode state. Absent → fill from the scene
   // default_fill and outline from the scene default_outline. Present → each of
   // its own fields falls back the same way when unset, so a client may set only

@@ -29,8 +29,8 @@ from .vec import Vec2
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
 
 
-def _placement(position: Vec2, rotation: float) -> Transform2D:
-    return Transform2D(pos=position.to_proto(), rotation_deg=rotation)
+def _placement(position_px: Vec2, rotation_deg: float) -> Transform2D:
+    return Transform2D(pos_px=position_px.to_proto(), rotation_deg=rotation_deg)
 
 
 class ShapesClient:
@@ -50,15 +50,15 @@ class ShapesClient:
         self,
         *,
         name: str = "",
-        position: Vec2 = Vec2(0.0, 0.0),
-        rotation: float = 0.0,
+        position_px: Vec2 = Vec2(0.0, 0.0),
+        rotation_deg: float = 0.0,
         params: RectParams | None = None,
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_rect=rect_pb2.CreateRectRequest(
                 identity=StimulusIdentity(name=name).to_proto(),
-                placement=_placement(position, rotation),
+                placement=_placement(position_px, rotation_deg),
                 params=(params or RectParams()).to_proto(),
             ),
         )
@@ -68,15 +68,15 @@ class ShapesClient:
         self,
         *,
         name: str = "",
-        position: Vec2 = Vec2(0.0, 0.0),
-        rotation: float = 0.0,
+        position_px: Vec2 = Vec2(0.0, 0.0),
+        rotation_deg: float = 0.0,
         params: CircleParams | None = None,
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_circle=circle_pb2.CreateCircleRequest(
                 identity=StimulusIdentity(name=name).to_proto(),
-                placement=_placement(position, rotation),
+                placement=_placement(position_px, rotation_deg),
                 params=(params or CircleParams()).to_proto(),
             ),
         )
@@ -86,15 +86,15 @@ class ShapesClient:
         self,
         *,
         name: str = "",
-        position: Vec2 = Vec2(0.0, 0.0),
-        rotation: float = 0.0,
+        position_px: Vec2 = Vec2(0.0, 0.0),
+        rotation_deg: float = 0.0,
         params: EllipseParams | None = None,
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_ellipse=ellipse_pb2.CreateEllipseRequest(
                 identity=StimulusIdentity(name=name).to_proto(),
-                placement=_placement(position, rotation),
+                placement=_placement(position_px, rotation_deg),
                 params=(params or EllipseParams()).to_proto(),
             ),
         )
@@ -104,15 +104,15 @@ class ShapesClient:
         self,
         *,
         name: str = "",
-        position: Vec2 = Vec2(0.0, 0.0),
-        rotation: float = 0.0,
+        position_px: Vec2 = Vec2(0.0, 0.0),
+        rotation_deg: float = 0.0,
         params: PolygonParams | None = None,
     ) -> StimulusHandle:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_polygon=polygon_pb2.CreatePolygonRequest(
                 identity=StimulusIdentity(name=name).to_proto(),
-                placement=_placement(position, rotation),
+                placement=_placement(position_px, rotation_deg),
                 params=(params or PolygonParams()).to_proto(),
             ),
         )
@@ -121,43 +121,43 @@ class ShapesClient:
     # ── Geometry setters ──────────────────────────────────────────────────────
 
     def set_rect_size(
-        self, handle: StimulusHandle, width: float, height: float
+        self, handle: StimulusHandle, width_px: float, height_px: float
     ) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
-                set_rect_size=rect_pb2.SetRectSizeRequest(width=width, height=height),
+                set_rect_size=rect_pb2.SetRectSizeRequest(width_px=width_px, height_px=height_px),
             )
         ))
 
-    def set_circle_diameter(self, handle: StimulusHandle, diameter: float) -> ServerResponse:
+    def set_circle_diameter(self, handle: StimulusHandle, diameter_px: float) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
-                set_circle_diameter=circle_pb2.SetCircleDiameterRequest(diameter=diameter),
+                set_circle_diameter=circle_pb2.SetCircleDiameterRequest(diameter_px=diameter_px),
             )
         ))
 
     def set_ellipse_size(
-        self, handle: StimulusHandle, width: float, height: float
+        self, handle: StimulusHandle, width_px: float, height_px: float
     ) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_ellipse_size=ellipse_pb2.SetEllipseSizeRequest(
-                    width=width, height=height
+                    width_px=width_px, height_px=height_px
                 ),
             )
         ))
 
     def set_polygon_vertices(
-        self, handle: StimulusHandle, vertices: list[Vec2]
+        self, handle: StimulusHandle, vertices_px: list[Vec2]
     ) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_polygon_vertices=polygon_pb2.SetPolygonVerticesRequest(
-                    vertices=[v.to_proto() for v in vertices],
+                    vertices_px=[v.to_proto() for v in vertices_px],
                 ),
             )
         ))
@@ -184,12 +184,12 @@ class ShapesClient:
             )
         ))
 
-    def set_outline_width(self, handle: StimulusHandle, line_width: float) -> ServerResponse:
+    def set_outline_width(self, handle: StimulusHandle, line_width_px: float) -> ServerResponse:
         return ServerResponse._from_proto(self._send(
             service_pb2.Request(
                 stimulus=handle,
                 set_outline_width=shapes_pb2.SetOutlineWidthRequest(
-                    line_width=line_width
+                    line_width_px=line_width_px
                 ),
             )
         ))

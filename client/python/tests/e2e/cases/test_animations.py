@@ -359,12 +359,12 @@ def test_anim_flicker_indefinite_then_disarm(
 def test_anim_flicker_off_phase_start(
     conn: Connection, request: pytest.FixtureRequest, step_delay: float
 ) -> None:
-    """Flicker with start_on_phase=False begins in the off-phase (stimulus hidden first)."""
+    """Flicker with start_on_phase=False begins in the off-phase_cycles (stimulus hidden first)."""
     tid = request.node.name
-    lbl = _label(conn, tid, "flicker starts in OFF phase")
+    lbl = _label(conn, tid, "flicker starts in OFF phase_cycles")
     s = _make_rect(conn, x=0, y=100)
 
-    # 30 on / 120 off (2 s at 60 fps); starts in off-phase → ample window to observe hidden state
+    # 30 on / 120 off (2 s at 60 fps); starts in off-phase_cycles → ample window to observe hidden state
     a = conn.animations.create_flicker(
         s, on_frames=30, off_frames=120, total_frames=150, start_on_phase=False
     )
@@ -374,20 +374,20 @@ def test_anim_flicker_off_phase_start(
     time.sleep(0.05)
     info = conn.stimuli.query(s)
     assert info.anim_enabled is False, (
-        "stimulus should start in off-phase (anim_enabled=False)"
+        "stimulus should start in off-phase_cycles (anim_enabled=False)"
     )
 
-    _update_label(conn, lbl, tid, "off-phase (rect hidden)")
+    _update_label(conn, lbl, tid, "off-phase_cycles (rect hidden)")
     time.sleep(step_delay * 0.5)
 
-    # after the off-phase (120 frames / 60 fps = 2 s) it should flip to on
+    # after the off-phase_cycles (120 frames / 60 fps = 2 s) it should flip to on
     time.sleep(2.1)
     info = conn.stimuli.query(s)
     assert info.anim_enabled is True, (
-        "stimulus should be in on-phase after off-phase ends"
+        "stimulus should be in on-phase_cycles after off-phase_cycles ends"
     )
 
-    _update_label(conn, lbl, tid, "on-phase (rect visible)")
+    _update_label(conn, lbl, tid, "on-phase_cycles (rect visible)")
     time.sleep(step_delay)
 
     _wait_for_state(conn, a, AnimationState.DONE, timeout=4.0)
@@ -581,10 +581,10 @@ def test_anim_move_along_path_2d(
     tid = request.node.name
     lbl = _label(conn, tid, "rect swept left-to-right via path")
     s = conn.stimuli.shapes.create_rect(
-        position=Vec2(-200, 0),
+        position_px=Vec2(-200, 0),
         params=RectParams(
-            width=60,
-            height=60,
+            width_px=60,
+            height_px=60,
             appearance=ShapeAppearance(fill_color=Color(0.2, 0.8, 0.2)),
         ),
     )
@@ -592,7 +592,7 @@ def test_anim_move_along_path_2d(
     xs = [x * 10.0 - 200.0 for x in range(41)]  # -200 → 200 in 41 steps
     ys = [0.0] * 41
     a = conn.animations.create_move_along_path_2d(
-        s, x=xs, y=ys, final_action_mask=FinalAction.DISABLE
+        s, x_px=xs, y_px=ys, final_action_mask=FinalAction.DISABLE
     )
     conn.animations.arm(a)
 
@@ -600,8 +600,8 @@ def test_anim_move_along_path_2d(
     # Wait for a few frames then confirm position has moved from the start.
     time.sleep(0.1)
     mid_info = conn.stimuli.query(s)
-    assert mid_info.pos.x > -200.0, (
-        f"position should have advanced from start, got x={mid_info.pos.x}"
+    assert mid_info.pos_px.x > -200.0, (
+        f"position should have advanced from start, got x={mid_info.pos_px.x}"
     )
 
     time.sleep(step_delay * 2)
@@ -613,10 +613,10 @@ def test_anim_move_along_path_2d(
 
     # After completion the final position should be the last waypoint.
     end_info = conn.stimuli.query(s)
-    assert abs(end_info.pos.x - 200.0) < 1.0, (
-        f"expected final x≈200, got {end_info.pos.x}"
+    assert abs(end_info.pos_px.x - 200.0) < 1.0, (
+        f"expected final x≈200, got {end_info.pos_px.x}"
     )
-    assert abs(end_info.pos.y) < 1.0, f"expected final y≈0, got {end_info.pos.y}"
+    assert abs(end_info.pos_px.y) < 1.0, f"expected final y≈0, got {end_info.pos_px.y}"
 
     conn.animations.delete(a)
     conn.stimuli.delete(s)
@@ -630,10 +630,10 @@ def test_anim_move_along_segments_2d(
     tid = request.node.name
     lbl = _label(conn, tid, "rect moving along triangle at 400 px/s")
     s = conn.stimuli.shapes.create_rect(
-        position=Vec2(-200, -100),
+        position_px=Vec2(-200, -100),
         params=RectParams(
-            width=50,
-            height=50,
+            width_px=50,
+            height_px=50,
             appearance=ShapeAppearance(fill_color=Color(0.2, 0.4, 1.0)),
         ),
     )
@@ -642,8 +642,8 @@ def test_anim_move_along_segments_2d(
     ys = [-100.0, -100.0, 100.0, -100.0]
     a = conn.animations.create_move_along_segments_2d(
         s,
-        x=xs,
-        y=ys,
+        x_px=xs,
+        y_px=ys,
         speed_px_per_sec=400.0,
         final_action_mask=FinalAction.DISABLE,
     )
@@ -653,8 +653,8 @@ def test_anim_move_along_segments_2d(
     # Wait a short time and confirm the stimulus has left the starting position.
     time.sleep(0.15)
     mid_info = conn.stimuli.query(s)
-    assert mid_info.pos.x > -200.0, (
-        f"position should have moved from start, got x={mid_info.pos.x}"
+    assert mid_info.pos_px.x > -200.0, (
+        f"position should have moved from start, got x={mid_info.pos_px.x}"
     )
 
     time.sleep(step_delay * 3)
@@ -666,11 +666,11 @@ def test_anim_move_along_segments_2d(
 
     # After completion the final position should be the last waypoint.
     end_info = conn.stimuli.query(s)
-    assert abs(end_info.pos.x - (-200.0)) < 2.0, (
-        f"expected final x≈-200, got {end_info.pos.x}"
+    assert abs(end_info.pos_px.x - (-200.0)) < 2.0, (
+        f"expected final x≈-200, got {end_info.pos_px.x}"
     )
-    assert abs(end_info.pos.y - (-100.0)) < 2.0, (
-        f"expected final y≈-100, got {end_info.pos.y}"
+    assert abs(end_info.pos_px.y - (-100.0)) < 2.0, (
+        f"expected final y≈-100, got {end_info.pos_px.y}"
     )
 
     conn.animations.delete(a)
@@ -794,8 +794,8 @@ def test_anim_flash_with_grating(
     tid = request.node.name
     lbl = _label(conn, tid, "grating enabled by flash")
     g = conn.stimuli.grating.create_grating(
-        position=Vec2(0, 0),
-        params=GratingParams(width=200, height=200, sf=0.04, contrast=0.9),
+        position_px=Vec2(0, 0),
+        params=GratingParams(width_px=200, height_px=200, sf_cycles_per_px=0.04, contrast=0.9),
     )
     conn.stimuli.set_enabled(g, False)
 
@@ -905,10 +905,10 @@ def test_anim_moving_bar_rf_mapping(
 
     # Narrow vertical bar, initially disabled (will be enabled by start_action).
     bar = conn.stimuli.shapes.create_rect(
-        position=Vec2(-400, 0),
+        position_px=Vec2(-400, 0),
         params=RectParams(
-            width=20,
-            height=400,
+            width_px=20,
+            height_px=400,
             appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
         ),
     )
@@ -918,8 +918,8 @@ def test_anim_moving_bar_rf_mapping(
     # Sweep from x=-400 to x=400 at 400 px/s ≈ 2 seconds.
     a = conn.animations.create_move_along_segments_2d(
         bar,
-        x=[-400.0, 400.0],
-        y=[0.0, 0.0],
+        x_px=[-400.0, 400.0],
+        y_px=[0.0, 0.0],
         speed_px_per_sec=400.0,
         name="rf_bar",
         start_action_mask=StartAction.ENABLE,
@@ -933,7 +933,7 @@ def test_anim_moving_bar_rf_mapping(
     assert info.enabled is True, (
         "bar should be enabled by start_action at animation start"
     )
-    assert info.pos.x > -400.0, f"bar should have started moving, got x={info.pos.x}"
+    assert info.pos_px.x > -400.0, f"bar should have started moving, got x={info.pos_px.x}"
 
     _update_label(conn, lbl, tid, "bar sweeping left→right")
     time.sleep(step_delay * 2)
@@ -945,8 +945,8 @@ def test_anim_moving_bar_rf_mapping(
 
     # At completion: final position near end waypoint, and stimulus disabled.
     end = conn.stimuli.query(bar)
-    assert abs(end.pos.x - 400.0) < 5.0, (
-        f"expected bar at x≈400 after sweep, got {end.pos.x}"
+    assert abs(end.pos_px.x - 400.0) < 5.0, (
+        f"expected bar at x≈400 after sweep, got {end.pos_px.x}"
     )
     assert end.enabled is False, (
         "bar should be disabled by FinalAction.DISABLE after sweep"

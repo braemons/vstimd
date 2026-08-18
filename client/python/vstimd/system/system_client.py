@@ -22,7 +22,7 @@ class SystemClient:
 
         with Connection() as conn:
             info = conn.system.query_server_info()
-            print(info.width, info.height, info.frame_rate)
+            print(info.width_px, info.height_px, info.frame_rate_hz)
             conn.system.set_background(0.0, 0.0, 0.0)
     """
 
@@ -42,9 +42,9 @@ class SystemClient:
         v = info.version
         bg = info.background_color
         return ServerInfo(
-            width=info.width,
-            height=info.height,
-            frame_rate=info.frame_rate,
+            width_px=info.width_px,
+            height_px=info.height_px,
+            frame_rate_hz=info.frame_rate_hz,
             version=ServerVersion(v.major, v.minor, v.patch),
             background_color=Color(r=bg.r, g=bg.g, b=bg.b, a=bg.a),
         )

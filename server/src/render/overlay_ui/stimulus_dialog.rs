@@ -29,8 +29,8 @@ pub struct StimulusDialog {
     focus_first: bool,
     stimulus_type: StimulusDialogType,
     name: String,
-    pos: [f32; 2],
-    angle: f32,
+    pos_px: [f32; 2],
+    angle_deg: f32,
     /// Full width/height in px (halved on build).
     rect_size: [f32; 2],
     circle_diameter: f32,
@@ -52,8 +52,8 @@ impl Default for StimulusDialog {
             focus_first: false,
             stimulus_type: StimulusDialogType::Rect,
             name: String::new(),
-            pos: [0.0, 0.0],
-            angle: 0.0,
+            pos_px: [0.0, 0.0],
+            angle_deg: 0.0,
             rect_size: [120.0, 80.0],
             circle_diameter: 160.0,
             ellipse_size: [160.0, 100.0],
@@ -85,24 +85,24 @@ impl StimulusDialog {
             ..Default::default()
         };
         let shape = |geometry| {
-            Stimulus::from(Shape::new(self.pos, self.angle, appearance, geometry))
+            Stimulus::from(Shape::new(self.pos_px, self.angle_deg, appearance, geometry))
         };
         let stimulus = match self.stimulus_type {
-            StimulusDialogType::Rect => shape(ShapeGeometry::Rect { size: self.rect_size }),
+            StimulusDialogType::Rect => shape(ShapeGeometry::Rect { size_px: self.rect_size }),
             StimulusDialogType::Circle => shape(ShapeGeometry::Circle {
-                diameter: self.circle_diameter,
+                diameter_px: self.circle_diameter,
             }),
             StimulusDialogType::Ellipse => shape(ShapeGeometry::Ellipse {
-                size: self.ellipse_size,
+                size_px: self.ellipse_size,
             }),
             StimulusDialogType::Grating => Stimulus::from(Grating::new(
-                self.pos,
-                self.angle,
+                self.pos_px,
+                self.angle_deg,
                 self.grating_size,
                 GratingParams {
-                    sf: self.grating_sf,
+                    sf_cycles_per_px: self.grating_sf,
                     contrast: self.grating_contrast,
-                    drift_speed: self.grating_drift,
+                    drift_speed_hz: self.grating_drift,
                     waveform: self.grating_waveform,
                     ..Default::default()
                 },
@@ -143,14 +143,14 @@ impl StimulusDialog {
                     .show(ui, |ui| {
                         ui.label("Position x,y");
                         ui.horizontal(|ui| {
-                            ui.add(egui::DragValue::new(&mut self.pos[0]).speed(1.0));
-                            ui.add(egui::DragValue::new(&mut self.pos[1]).speed(1.0));
+                            ui.add(egui::DragValue::new(&mut self.pos_px[0]).speed(1.0));
+                            ui.add(egui::DragValue::new(&mut self.pos_px[1]).speed(1.0));
                         });
                         ui.end_row();
 
                         if self.stimulus_type != StimulusDialogType::Circle {
                             ui.label("Angle°");
-                            ui.add(egui::DragValue::new(&mut self.angle).speed(1.0));
+                            ui.add(egui::DragValue::new(&mut self.angle_deg).speed(1.0));
                             ui.end_row();
                         }
 

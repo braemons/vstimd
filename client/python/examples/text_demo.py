@@ -7,13 +7,13 @@ from vstimd.stimuli import TextParams
 with Connection() as conn:
     # White "Hello vstimd" centred on screen
     h = conn.stimuli.text.create_text(
-        position=Vec2(0, 50),
+        position_px=Vec2(0, 50),
         name="demo_text",
         params=TextParams(
             text="Hello vstimd",
-            letter_height=64,
+            letter_height_px=64,
             text_color=Color(1.0, 1.0, 1.0),
-            box_size=Vec2(600, 120),
+            box_size_px=Vec2(600, 120),
         ),
     )
     print(f"created text handle: {h}")

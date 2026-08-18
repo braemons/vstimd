@@ -39,16 +39,16 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                         let type_name = stim.type_name();
                         // 3-D stimuli have no pixel position to show; the panel
                         // is a 2-D scene table for now.
-                        let pos = stim.transform2d().map(|t| t.live.pos);
+                        let pos_px = stim.transform2d().map(|t| t.live.pos_px);
                         let wh = |[w, h]: [f32; 2]| format!("{}×{}", w as i32, h as i32);
                         let size_label = match &stim.body {
-                            StimulusBody::Grating(s) => wh(s.size.live),
-                            StimulusBody::Text(s) => wh(s.box_size.live),
+                            StimulusBody::Grating(s) => wh(s.size_px.live),
+                            StimulusBody::Text(s) => wh(s.box_size_px.live),
                             StimulusBody::Shape(s) => match s.geometry.live {
-                                ShapeGeometry::Rect { size }
-                                | ShapeGeometry::Ellipse { size } => wh(size),
-                                ShapeGeometry::Circle { diameter } => {
-                                    format!("d={}", diameter as i32)
+                                ShapeGeometry::Rect { size_px }
+                                | ShapeGeometry::Ellipse { size_px } => wh(size_px),
+                                ShapeGeometry::Circle { diameter_px } => {
+                                    format!("d={}", diameter_px as i32)
                                 }
                             },
                             StimulusBody::Mesh3d(_) => "3-D".to_string(),
@@ -67,7 +67,7 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                             } else { egui::Color32::WHITE }
                         )).on_hover_text(&uuid_str);
                         ui.label(
-                            egui::RichText::new(match pos {
+                            egui::RichText::new(match pos_px {
                                 Some(p) => format!("{:>6.0},{:>6.0}", p[0], p[1]),
                                 None => "     —,     —".to_string(),
                             })

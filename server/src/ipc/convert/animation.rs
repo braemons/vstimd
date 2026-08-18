@@ -56,26 +56,26 @@ pub(crate) fn animation_body_to_proto(anim: &Animation) -> proto::create_animati
             total_frames: *total_frames,
             start_on_phase: *start_on_phase,
         }),
-        Animation::MoveAlongPath2D { coords } => PBody::MoveAlongPath2d(proto::MoveAlongPath2D {
-            x: coords.iter().map(|c| c[0]).collect(),
-            y: coords.iter().map(|c| c[1]).collect(),
+        Animation::MoveAlongPath2D { coords_px } => PBody::MoveAlongPath2d(proto::MoveAlongPath2D {
+            x_px: coords_px.iter().map(|c| c[0]).collect(),
+            y_px: coords_px.iter().map(|c| c[1]).collect(),
         }),
         Animation::MoveAlongSegments2D {
-            waypoints,
+            waypoints_px,
             speed_px_per_sec,
         } => PBody::MoveAlongSegments2d(proto::MoveAlongSegments2D {
-            x: waypoints.iter().map(|w| w[0]).collect(),
-            y: waypoints.iter().map(|w| w[1]).collect(),
+            x_px: waypoints_px.iter().map(|w| w[0]).collect(),
+            y_px: waypoints_px.iter().map(|w| w[1]).collect(),
             speed_px_per_sec: *speed_px_per_sec,
         }),
         Animation::ExternalPosition2D {
             shm_name,
-            x_offset,
-            y_offset,
+            x_offset_px,
+            y_offset_px,
         } => PBody::ExternalPosition2d(proto::ExternalPosition2D {
             shm_name: shm_name.clone(),
-            x_offset: *x_offset,
-            y_offset: *y_offset,
+            x_offset_px: *x_offset_px,
+            y_offset_px: *y_offset_px,
         }),
     }
 }
@@ -127,31 +127,31 @@ pub(crate) fn animation_from_proto(
             start_on_phase: c.start_on_phase,
         }),
         Some(PBody::MoveAlongPath2d(c)) => {
-            if c.x.len() != c.y.len() {
+            if c.x_px.len() != c.y_px.len() {
                 return Err(Box::new(err(
                     proto::ErrorCode::InvalidArgument,
                     "MoveAlongPath2D: x and y must have equal length",
                 )));
             }
             Ok(Animation::MoveAlongPath2D {
-                coords: c.x.iter().zip(c.y.iter()).map(|(&x, &y)| [x, y]).collect(),
+                coords_px: c.x_px.iter().zip(c.y_px.iter()).map(|(&x, &y)| [x, y]).collect(),
             })
         }
         Some(PBody::MoveAlongSegments2d(c)) => {
-            if c.x.len() != c.y.len() {
+            if c.x_px.len() != c.y_px.len() {
                 return Err(Box::new(err(
                     proto::ErrorCode::InvalidArgument,
                     "MoveAlongSegments2D: x and y must have equal length",
                 )));
             }
-            if c.x.len() < 2 {
+            if c.x_px.len() < 2 {
                 return Err(Box::new(err(
                     proto::ErrorCode::InvalidArgument,
-                    "MoveAlongSegments2D: at least 2 waypoints required",
+                    "MoveAlongSegments2D: at least 2 waypoints_px required",
                 )));
             }
             Ok(Animation::MoveAlongSegments2D {
-                waypoints: c.x.iter().zip(c.y.iter()).map(|(&x, &y)| [x, y]).collect(),
+                waypoints_px: c.x_px.iter().zip(c.y_px.iter()).map(|(&x, &y)| [x, y]).collect(),
                 speed_px_per_sec: c.speed_px_per_sec,
             })
         }

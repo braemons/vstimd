@@ -19,7 +19,7 @@ def test_create_circle(win: visual.Window, step_delay: float, request: pytest.Fi
     assert info.stimulus_type == StimulusType.CIRCLE
     assert isinstance(info.params, CircleParams)
     # visual.Circle takes a radius; the server reports the full extent.
-    assert info.params.diameter == pytest.approx(100.0, abs=0.5)
+    assert info.params.diameter_px == pytest.approx(100.0, abs=0.5)
     assert info.fill_color.r == pytest.approx(0.0, abs=0.01)
     assert info.fill_color.g == pytest.approx(0.0, abs=0.01)
     assert info.fill_color.b == pytest.approx(1.0, abs=0.01)
@@ -39,14 +39,14 @@ def test_circle_sizes(win: visual.Window, step_delay: float, request: pytest.Fix
 
     _update_label(win, lbl, tid, "green r=50 top-left")
     circle.radius = 50
-    circle.pos = (-200, 150)
+    circle.pos_px = (-200, 150)
     circle.fillColor = "green"
     win.flip()
     time.sleep(step_delay)
 
     _update_label(win, lbl, tid, "yellow r=100 bottom-right")
     circle.radius = 100
-    circle.pos = (200, -150)
+    circle.pos_px = (200, -150)
     circle.fillColor = "yellow"
     win.flip()
     time.sleep(step_delay)

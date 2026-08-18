@@ -12,26 +12,39 @@ versioned independently of the vstimd server.
 The API-consistency pass before the first release. No aliases are kept: the
 server and the client move together, and nothing has shipped yet.
 
-- **Circles take a diameter.** `CircleParams.diameter` replaces `radius`, and
+- **Quantities carry their unit in the name.** Every field, argument and config
+  key that has a unit now says which: `width_px`, `height_px`, `diameter_px`,
+  `pos_px`, `position_px`, `box_size_px`, `letter_height_px`, `outline_width_px`,
+  `vertices_px`, `x_px`/`y_px` on the path animations, `sf_cycles_per_px`,
+  `phase_cycles`, `drift_speed_hz`, `drift_angle_deg`, `rotation_deg`,
+  `frame_rate_hz`. Dimensionless ones (`contrast`, `opacity`, `mask_param`,
+  `*_frames`) are unchanged, and so are PsychoPy's own argument names in
+  `vstimd.psychopy` — that shim mirrors PsychoPy, not this API. The pressure for
+  this is 3-D: `size` in centimetres is about to sit next to `size` in pixels in
+  one config file, and a reader cannot tell them apart by looking.
+- **One word for rotation.** The same angle was `rotation`, `orientation` and
+  `angle` depending on where you touched it. It is `rotation_deg` everywhere, and
+  `set_orientation` is now `set_rotation`. `visual.*` keeps PsychoPy's `ori`.
+- **Circles take a diameter.** `CircleParams.diameter_px` replaces `radius`, and
   `set_circle_radius` becomes `set_circle_diameter`. Every other stimulus is sized
   by its full extent, so a circle sized by half of one was the odd one out — a
   number in a config or a command now follows the same convention whatever the
   type. `visual.Circle(radius=...)` keeps PsychoPy's own contract and converts at
-  the boundary. Saved configs record `"diameter"`; the config format is 4 → 5, and
+  the boundary. Saved configs record `"diameter_px"`; the config format is 4 → 5, and
   a v4 file is rejected rather than read with a missing field.
 - **`create_*` takes identity, placement and params.** Every creator now has the
-  same three arguments the wire does: `name`, `position`/`rotation`, and one
-  `params` object — `create_rect(position=Vec2(-200, 0),
-  params=RectParams(width=300, height=200))`. The flat keyword lists are gone.
+  same three arguments the wire does: `name`, `position`/`rotation_deg`, and one
+  `params` object — `create_rect(position_px=Vec2(-200, 0),
+  params=RectParams(width_px=300, height_px=200))`. The flat keyword lists are gone.
   The params object is the very type `query()` reports back, so a stimulus can be
   read and re-created without translating field by field, and a shape's colours
   travel in `RectParams.appearance` rather than a `color=` argument.
-  `create_text` takes `TextParams` (with `box_size` as one `Vec2` instead of
+  `create_text` takes `TextParams` (with `box_size_px` as one `Vec2` instead of
   `box_width`/`box_height`, and `color` renamed `text_color`); `create_grating`
   takes `GratingParams`, whose `fore_color`/`back_color` are now `Color` rather
   than 4-tuples, and whose `drift_decoupled` flag is inverted to `drift_coupled`.
-  A grating's stripe orientation is the placement's `rotation`, not a params
-  field, because it is the same property `set_orientation` sets.
+  A grating's stripe orientation is the placement's `rotation_deg`, not a params
+  field, because it is the same property `set_rotation` sets.
 - **`ShapeAppearance` colours default to "inherit".** `fill_color` and
   `outline_color` are `None` by default, which leaves the field off the wire so
   the server applies the scene's `default_fill` / `default_outline`. Passing a
@@ -41,7 +54,7 @@ server and the client move together, and nothing has shipped yet.
   `StimulusInfo.id`. Nothing used the argument, and loading a saved config never
   replayed a create in the first place.
 - **Sizes are full extents everywhere.** The command API always took full
-  `width`/`height`; the saved config JSON stored half-extents (`size` for rects
+  `width_px`/`height_px`; the saved config JSON stored half-extents (`size` for rects
   and gratings, `radii` for ellipses). Config now records the same numbers the
   commands take, so a config can be read straight off as the arguments to pass.
   Config format 2 → 3; a v2 file is rejected rather than silently loaded at half
@@ -59,11 +72,11 @@ server and the client move together, and nothing has shipped yet.
   are gone — use `set_alpha`. The PsychoPy shims send it as its own command, so
   `fillColor`'s alpha and `opacity` are independent.
 - **`query()` reports honest fields.** `StimulusInfo.fill_color`,
-  `outline_color`, `outline_width` and `draw_mode` were synthesised per type — a
+  `outline_color`, `outline_width_px` and `draw_mode` were synthesised per type — a
   grating reported its fore colour as "fill" with an outline width of 0 that
   meant nothing. They are now properties reading the shape's own
   `params.appearance`, and `None` for gratings and text, which have no such
-  thing. `pos` and `orientation` come from the 2-D placement and are typed
+  thing. `pos_px` and `rotation_deg` come from the 2-D placement and are typed
   optional, ready for stimuli placed in 3-D space.
 - **Animations name what they drive.** `CreateAnimationRequest.stimuli` becomes
   a `target` oneof on the wire. The Python signatures are unchanged — you still
@@ -76,16 +89,16 @@ server and the client move together, and nothing has shipped yet.
   being accepted. The server never opens the shared-memory segment, so an accepted
   animation armed, ran forever, reported success and never moved anything
   ([#84](https://github.com/braemons/vstimd/issues/84)).
-- **`query_server_info().frame_rate` is the display's nominal refresh rate**, not a
+- **`query_server_info().frame_rate_hz` is the display's nominal refresh rate**, not a
   rolling measurement. It is the rate `duration_ms` is converted against, so the
   same script now yields the same frame counts on every run; the measurement moved
-  to `measured_frame_rate` for monitoring
+  to `measured_frame_rate_hz` for monitoring
   ([#120](https://github.com/braemons/vstimd/issues/120)).
 
 - **Text field names agree across the three places they appear.**
-  `CreateTextRequest.size` → `box_size` (matching the config field and the
+  `CreateTextRequest.size` → `box_size_px` (matching the config field and the
   `box_width`/`box_height` arguments), and its `color` → `text_color` (matching
-  what a query already called it). `TextParams.size` → `TextParams.box_size`.
+  what a query already called it). `TextParams.size` → `TextParams.box_size_px`.
 
 ## [0.1.0rc3] — 2026-08-13
 

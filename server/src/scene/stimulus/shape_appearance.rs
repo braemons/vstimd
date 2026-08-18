@@ -13,7 +13,7 @@ pub enum DrawMode {
 pub struct ShapeAppearance {
     pub fill_color: Color,
     pub outline_color: Color,
-    pub stroke_width: f32,
+    pub stroke_width_px: f32,
     pub draw_mode: DrawMode,
 }
 
@@ -22,7 +22,7 @@ impl Default for ShapeAppearance {
         Self {
             fill_color: Color::WHITE,
             outline_color: Color::BLACK,
-            stroke_width: 2.0,
+            stroke_width_px: 2.0,
             draw_mode: DrawMode::Fill,
         }
     }

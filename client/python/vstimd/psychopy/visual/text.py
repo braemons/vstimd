@@ -85,7 +85,7 @@ class TextBox2:
         self._anchor = anchor
         self._auto_draw = False
 
-        # Letter height: PsychoPy default is ~32 px (in pix units).
+        # Letter height_px: PsychoPy default is ~32 px (in pix units).
         # When units are not pix, convert via the scalar path.
         if letterHeight is None:
             self._letter_height_px = 32.0
@@ -111,17 +111,17 @@ class TextBox2:
         lang = self._LANGUAGE_STYLE_MAP.get(languageStyle.lower(), LanguageStyle.LTR)
 
         self._handle: StimulusHandle = win._conn.stimuli.text.create_text(
-            position=StimulusVec2(px, py),
+            position_px=StimulusVec2(px, py),
             name=name or "",
             params=TextParams(
                 text=text,
-                letter_height=self._letter_height_px,
+                letter_height_px=self._letter_height_px,
                 font=font,
                 anchor=anchor,
                 text_color=to_color(color, colorSpace, 1.0) or StimulusColor(1.0, 1.0, 1.0, 1.0),
                 fill_color=to_color(fillColor, fillColorSpace, 1.0) or StimulusColor(0.0, 0.0, 0.0, 0.0),
                 language_style=lang,
-                box_size=StimulusVec2(self._box_w, self._box_h),
+                box_size_px=StimulusVec2(self._box_w, self._box_h),
             ),
         )
         if self._opacity != 1.0:

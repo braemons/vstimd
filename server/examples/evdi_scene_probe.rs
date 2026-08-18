@@ -25,12 +25,12 @@ fn create_rect(scene: &mut SceneState, x: f32, y: f32, w: f32, h: f32, color: pr
             target: Some(sys()),
             body: Some(request::Body::CreateRect(proto::CreateRectRequest {
                                                      placement: Some(proto::Transform2D {
-                                                         pos: Some(proto::Vec2 { x, y }),
+                                                         pos_px: Some(proto::Vec2 { x, y }),
                                                          rotation_deg: 0.0,
                                                      }),
                                                      params: Some(proto::RectParams {
-                                                         width: w,
-                                                         height: h,
+                                                         width_px: w,
+                                                         height_px: h,
                                                          appearance: Some(proto::ShapeAppearance { fill_color: Some(color), ..Default::default() }),
                                                          ..Default::default()
                                                      }),

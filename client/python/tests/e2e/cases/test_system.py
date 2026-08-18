@@ -10,9 +10,9 @@ from vstimd.stimuli.stimuli_models import Vec2
 
 def test_query_server_info(conn: Connection) -> None:
     info = conn.system.query_server_info()
-    assert info.width >= 0
-    assert info.height >= 0
-    assert info.frame_rate > 0.0
+    assert info.width_px >= 0
+    assert info.height_px >= 0
+    assert info.frame_rate_hz > 0.0
     assert info.version.major >= 0
 
 
@@ -129,7 +129,7 @@ def test_wait_ready_constructor_flag(server_address: str) -> None:
     """Connection(wait_ready=True) connects and becomes ready without extra calls."""
     with Connection(server_address, wait_ready=True, ready_timeout_s=5.0) as c:
         info = c.system.query_server_info()
-        assert info.frame_rate > 0.0
+        assert info.frame_rate_hz > 0.0
 
 
 def test_wait_until_ready_timeout() -> None:
@@ -140,11 +140,11 @@ def test_wait_until_ready_timeout() -> None:
 
 
 def test_set_deferred_mode(conn: Connection) -> None:
-    h = conn.stimuli.shapes.create_rect(position=Vec2(0, 0))
+    h = conn.stimuli.shapes.create_rect(position_px=Vec2(0, 0))
     conn.system.set_deferred_mode(True)
     conn.stimuli.set_position(h, Vec2(100, 50))
     conn.system.set_deferred_mode(False)
     conn.system.wait_for_frames(1)
     info = conn.stimuli.query(h)
-    assert info.pos.x == pytest.approx(100.0, abs=0.5)
+    assert info.pos_px.x == pytest.approx(100.0, abs=0.5)
     conn.stimuli.delete(h)

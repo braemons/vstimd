@@ -37,16 +37,16 @@ impl SceneState {
 
     pub(super) fn cmd_create_text(&mut self, cmd: proto::CreateTextRequest) -> proto::Response {
         let params = cmd.params.unwrap_or_default();
-        let (pos, angle) = placement_from_proto(cmd.placement);
-        let requested = params.box_size.unwrap_or_default();
-        let box_size = [
+        let (pos_px, angle_deg) = placement_from_proto(cmd.placement);
+        let requested = params.box_size_px.unwrap_or_default();
+        let box_size_px = [
             if requested.x == 0.0 { 200.0 } else { requested.x },
             if requested.y == 0.0 { 100.0 } else { requested.y },
         ];
-        let letter_height_px = if params.letter_height == 0.0 {
+        let letter_height_px = if params.letter_height_px == 0.0 {
             32.0
         } else {
-            params.letter_height
+            params.letter_height_px
         };
         let anchor = anchor_from_str(&params.anchor);
         let language_style = language_style_from_proto(params.language_style);
@@ -59,9 +59,9 @@ impl SceneState {
             StimulusSceneEntry::new(
                 identity,
                 Stimulus::from(Text::new(
-                    pos,
-                    angle,
-                    box_size,
+                    pos_px,
+                    angle_deg,
+                    box_size_px,
                     params.text,
                     params.font,
                     letter_height_px,

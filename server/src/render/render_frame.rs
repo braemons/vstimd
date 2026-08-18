@@ -171,8 +171,8 @@ pub fn render_frame(
         sc.runtime.frame_count += 1;
         let _ = sc.runtime.frame_notifier.send(sc.runtime.frame_count);
         sc.runtime.screen_size = Some(screen_size);
-        sc.runtime.frame_rate = fps;
-        sc.runtime.nominal_frame_rate = nominal_fps;
+        sc.runtime.frame_rate_hz = fps;
+        sc.runtime.nominal_frame_rate_hz = nominal_fps;
         if sc.runtime.last_uploaded_size != screen_size {
             sc.runtime.last_uploaded_size = screen_size;
             for entry in sc.stimuli.values_mut() {
@@ -200,8 +200,8 @@ pub fn render_frame(
             let mut clear_dirty = false;
             match &mut entry.stimulus.body {
                 StimulusBody::Grating(s) => {
-                    if visible && s.params.live.drift_speed != 0.0 {
-                        s.phase_accum += grating_phase_inc(s, nominal_fps);
+                    if visible && s.params.live.drift_speed_hz != 0.0 {
+                        s.phase_accum_cycles += grating_phase_inc(s, nominal_fps);
                     }
                 }
 

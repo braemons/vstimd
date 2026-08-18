@@ -89,13 +89,13 @@ def main() -> None:
         done_45, done_135 = VtlHandle.output(0, 35), VtlHandle.output(0, 32)
 
         # ── 2. The two gratings ───────────────────────────────────────────────
-        # Identical apart from orientation, so a difference in the response is a
-        # difference in orientation tuning and nothing else. Both start hidden —
+        # Identical apart from rotation_deg, so a difference in the response is a
+        # difference in rotation_deg tuning and nothing else. Both start hidden —
         # the animation owns their visibility from here on.
         gratings = {}
         for label, angle in (("45deg", 45.0), ("135deg", 135.0)):
-            handle = conn.stimuli.grating.create_grating(position=Vec2(0, 0), rotation=angle, # fringe proportion: soft-edged patch
-                name=f"grating_{label}", params=GratingParams(width=600, height=600, sf=0.02, contrast=1.0, waveform=GratingTexture.SIN, mask=GratingMask.RAISED_COS, mask_param=0.2))
+            handle = conn.stimuli.grating.create_grating(position_px=Vec2(0, 0), rotation_deg=angle, # fringe proportion: soft-edged patch
+                name=f"grating_{label}", params=GratingParams(width_px=600, height_px=600, sf_cycles_per_px=0.02, contrast=1.0, waveform=GratingTexture.SIN, mask=GratingMask.RAISED_COS, mask_param=0.2))
             conn.stimuli.set_enabled(handle, False)
             gratings[label] = handle
 
@@ -103,10 +103,10 @@ def main() -> None:
         # Black core, white ring, so it reads against both the grey background
         # and the grating that appears behind it.
         dot = conn.stimuli.shapes.create_circle(
-            position=Vec2(0, 0),
+            position_px=Vec2(0, 0),
             name="fixation_dot",
             params=CircleParams(
-                diameter=12,
+                diameter_px=12,
                 appearance=ShapeAppearance(fill_color=Color(0.0, 0.0, 0.0), outline_color=Color(1.0, 1.0, 1.0)),
             ),
         )

@@ -40,11 +40,11 @@
           "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 100.0,
                 -50.0
               ],
-              "angle": 30.0
+              "angle_deg": 30.0
             },
             "appearance": {
               "fill_color": [
@@ -59,12 +59,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Rect",
-              "size": [
+              "size_px": [
                 400.0,
                 160.0
               ]
@@ -86,11 +86,11 @@
           "body": {
             "type": "Shape",
             "transform": {
-              "pos": [
+              "pos_px": [
                 -300.0,
                 200.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
             "appearance": {
               "fill_color": [
@@ -105,12 +105,12 @@
                 0.0,
                 1.0
               ],
-              "stroke_width": 2.0,
+              "stroke_width_px": 2.0,
               "draw_mode": "Fill"
             },
             "geometry": {
               "type": "Circle",
-              "diameter": 100.0
+              "diameter_px": 100.0
             }
           }
         }
@@ -129,26 +129,26 @@
           "body": {
             "type": "Grating",
             "transform": {
-              "pos": [
+              "pos_px": [
                 0.0,
                 0.0
               ],
-              "angle": 0.0
+              "angle_deg": 0.0
             },
-            "size": [
+            "size_px": [
               300.0,
               300.0
             ],
             "params": {
-              "sf": 0.05,
-              "phase": 0.0,
+              "sf_cycles_per_px": 0.05,
+              "phase_cycles": 0.0,
               "contrast": 1.0,
               "waveform": "Sin",
               "mask": "None",
               "mask_param": 0.0,
-              "drift_speed": 2.0,
+              "drift_speed_hz": 2.0,
               "drift_coupled": true,
-              "drift_angle": 0.0,
+              "drift_angle_deg": 0.0,
               "fore_color": [
                 1.0,
                 1.0,
