@@ -86,8 +86,8 @@ fn tessellate_shape(
                 Winding::Positive,
             );
         }
-        ShapeGeometry::Circle { radius } => {
-            builder.add_circle(point(0.0, 0.0), radius, Winding::Positive);
+        ShapeGeometry::Circle { diameter } => {
+            builder.add_circle(point(0.0, 0.0), diameter / 2.0, Winding::Positive);
         }
     }
     let path = builder.build();

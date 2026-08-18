@@ -39,7 +39,11 @@ export class ShapesClient {
         target: { case: "system", value: {} },
         body: {
           case: "createRect",
-          value: { center: pos, width, height, fillColor: color, name },
+          value: {
+            identity: { name },
+            placement: { pos },
+            params: { width, height, appearance: { fillColor: color } },
+          },
         },
       }),
     );
@@ -48,17 +52,22 @@ export class ShapesClient {
 
   async createCircle(opts: {
     pos?: Vec2;
-    radius?: number;
+    /** Full extent across, like every other shape's width/height. */
+    diameter?: number;
     color?: Color;
     name?: string;
   } = {}): Promise<StimulusHandle> {
-    const { pos = ORIGIN, radius = 50, color = WHITE, name = "" } = opts;
+    const { pos = ORIGIN, diameter = 100, color = WHITE, name = "" } = opts;
     const resp = await this.send(
       create(RequestSchema, {
         target: { case: "system", value: {} },
         body: {
           case: "createCircle",
-          value: { center: pos, radius, fillColor: color, name },
+          value: {
+            identity: { name },
+            placement: { pos },
+            params: { diameter, appearance: { fillColor: color } },
+          },
         },
       }),
     );
@@ -78,7 +87,11 @@ export class ShapesClient {
         target: { case: "system", value: {} },
         body: {
           case: "createEllipse",
-          value: { center: pos, width, height, fillColor: color, name },
+          value: {
+            identity: { name },
+            placement: { pos },
+            params: { width, height, appearance: { fillColor: color } },
+          },
         },
       }),
     );
@@ -135,8 +148,8 @@ export class StimuliClient {
     await this.stimulusCmd(handle, { case: "setRectSize", value: { width, height } });
   }
 
-  async setCircleRadius(handle: StimulusHandle, radius: number): Promise<void> {
-    await this.stimulusCmd(handle, { case: "setCircleRadius", value: { radius } });
+  async setCircleDiameter(handle: StimulusHandle, diameter: number): Promise<void> {
+    await this.stimulusCmd(handle, { case: "setCircleDiameter", value: { diameter } });
   }
 
   async setEllipseSize(handle: StimulusHandle, width: number, height: number): Promise<void> {

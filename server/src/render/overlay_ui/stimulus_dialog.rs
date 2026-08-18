@@ -6,12 +6,10 @@
 //! All inputs are `DragValue`/`TextEdit` widgets reachable by Tab, so the dialog
 //! is fully usable without a mouse (the DRM rig has no pointer).
 
-use uuid::Uuid;
-
 use crate::Color;
 use crate::scene::{
-    Grating, GratingParams, Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusSceneEntry,
-    Waveform,
+    Grating, GratingParams, Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusIdentity,
+    StimulusSceneEntry, Waveform,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -32,7 +30,7 @@ pub struct StimulusDialog {
     angle: f32,
     /// Full width/height in px (halved on build).
     rect_size: [f32; 2],
-    circle_radius: f32,
+    circle_diameter: f32,
     /// Full diameters in px (halved on build).
     ellipse_size: [f32; 2],
     grating_size: [f32; 2],
@@ -54,7 +52,7 @@ impl Default for StimulusDialog {
             pos: [0.0, 0.0],
             angle: 0.0,
             rect_size: [120.0, 80.0],
-            circle_radius: 80.0,
+            circle_diameter: 160.0,
             ellipse_size: [160.0, 100.0],
             grating_size: [200.0, 200.0],
             fill: [0.0, 0.8, 0.8, 1.0],
@@ -89,7 +87,7 @@ impl StimulusDialog {
         let stimulus = match self.kind {
             StimulusDialogKind::Rect => shape(ShapeGeometry::Rect { size: self.rect_size }),
             StimulusDialogKind::Circle => shape(ShapeGeometry::Circle {
-                radius: self.circle_radius,
+                diameter: self.circle_diameter,
             }),
             StimulusDialogKind::Ellipse => shape(ShapeGeometry::Ellipse {
                 size: self.ellipse_size,
@@ -108,7 +106,7 @@ impl StimulusDialog {
             )),
         };
         let name = (!self.name.trim().is_empty()).then(|| self.name.trim().to_string());
-        StimulusSceneEntry::new(Uuid::new_v4(), name, stimulus)
+        StimulusSceneEntry::new(StimulusIdentity::new(name), stimulus)
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {
@@ -171,9 +169,9 @@ impl StimulusDialog {
                                 ui.end_row();
                             }
                             StimulusDialogKind::Circle => {
-                                ui.label("Radius");
+                                ui.label("Diameter");
                                 ui.add(
-                                    egui::DragValue::new(&mut self.circle_radius)
+                                    egui::DragValue::new(&mut self.circle_diameter)
                                         .speed(1.0)
                                         .range(1.0..=4096.0),
                                 );

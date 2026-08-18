@@ -30,13 +30,11 @@ each method call maps directly to a server command.
 
 ```python
 from vstimd import Connection
-from vstimd.stimuli import Vec2, Color
+from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
 with Connection() as conn:
-    h = conn.stimuli.shapes.create_rect(
-        pos=Vec2(-200, 0), width=300, height=200,
-        color=Color(1.0, 0.0, 0.0),
-    )
+    h = conn.stimuli.shapes.create_rect(position=Vec2(-200, 0), params=RectParams(width=300, height=200,
+                          appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0))))
     conn.stimuli.set_enabled(h, False)
     conn.stimuli.delete(h)
 ```

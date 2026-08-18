@@ -109,7 +109,7 @@ export function CoupleVisibilityDialog({ conn, snapshot, defaultName, onClose }:
                   checked={selected.includes(s.handle)}
                   onChange={(e) => toggleStimulus(s.handle, e.target.checked)}
                 />
-                {s.name || <em>—</em>} <span style={{ color: "#888" }}>({s.kind})</span>
+                {s.name || <em>—</em>} <span style={{ color: "#888" }}>({s.type})</span>
               </label>
             ))}
           </div>

@@ -135,12 +135,12 @@ def test_grating_two_color_create(win: visual.Window, step_delay: float, request
 
     info = win._conn.stimuli.query(grat._handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
-    assert info.params.fore_color[2] == pytest.approx(0.0, abs=0.01)
-    assert info.params.fore_color[3] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[0] == pytest.approx(0.0, abs=0.01)
-    assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[3] == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.r == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.b == pytest.approx(0.0, abs=0.01)
+    assert info.params.fore_color.a == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.r == pytest.approx(0.0, abs=0.01)
+    assert info.params.back_color.b == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.a == pytest.approx(1.0, abs=0.01)
 
     grat.autoDraw = False
     win._conn.stimuli.delete(lbl)
@@ -165,8 +165,8 @@ def test_grating_color_setters(win: visual.Window, step_delay: float, request: p
     time.sleep(step_delay)
     info = win._conn.stimuli.query(grat._handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
-    assert info.params.fore_color[1] == pytest.approx(0.0, abs=0.01)
+    assert info.params.fore_color.r == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.g == pytest.approx(0.0, abs=0.01)
 
     _update_label(win, lbl, tid, "backColor blue")
     grat.backColor = (0.0, 0.0, 1.0)
@@ -174,7 +174,7 @@ def test_grating_color_setters(win: visual.Window, step_delay: float, request: p
     time.sleep(step_delay)
     info = win._conn.stimuli.query(grat._handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.b == pytest.approx(1.0, abs=0.01)
 
     _update_label(win, lbl, tid, "opacity=0.5")
     grat.opacity = 0.5
@@ -185,8 +185,8 @@ def test_grating_color_setters(win: visual.Window, step_delay: float, request: p
     # Opacity is the shared per-stimulus property; the carrier colours keep
     # their own alphas underneath it.
     assert info.opacity == pytest.approx(0.5, abs=0.01)
-    assert info.params.fore_color[3] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[3] == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.a == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.a == pytest.approx(1.0, abs=0.01)
 
     grat.autoDraw = False
     win._conn.stimuli.delete(lbl)

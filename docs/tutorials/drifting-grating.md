@@ -31,15 +31,17 @@ from vstimd.stimuli.grating_models import GratingMask, GratingTexture
 from vstimd.stimuli.stimuli_models import Vec2
 
 conn.stimuli.grating.create_grating(
-    pos=Vec2(0, 0),
-    width=2400, height=1400,
-    sf=0.01,
-    angle=0.0,                      # vertical stripes
-    contrast=1.0,
-    waveform=GratingTexture.SIN,
-    mask=GratingMask.NONE,
-    drift_speed=4.0,                # cycles/s
+    position=Vec2(0, 0),
+    rotation=0.0,                   # vertical stripes
     name="full_field_grating",
+    params=GratingParams(
+        width=2400, height=1400,
+        sf=0.01,
+        contrast=1.0,
+        waveform=GratingTexture.SIN,
+        mask=GratingMask.NONE,
+        drift_speed=4.0,            # cycles/s
+    ),
 )
 ```
 
@@ -49,7 +51,7 @@ Parameter by parameter:
 |---|---|---|
 | `width`/`height` | 2400 × 1400 | Full size in px. Deliberately larger than a 1920 × 1080 frame, so no edge of the patch is ever on screen — that is what "full field" means. |
 | `sf` | 0.01 | Spatial frequency in **cycles per pixel**: one cycle per 100 px. Not cycles per degree — vstimd does not know your viewing distance. |
-| `angle` | 0° | Orientation of the grating. 0° gives vertical stripes. |
+| `rotation` | 0° | Orientation of the grating. 0° gives vertical stripes. Placement, not params — the same property `set_orientation` sets. |
 | `waveform` | `SIN` | Also `SQR`, `SAW`, `TRI`. |
 | `mask` | `NONE` | No aperture — see [Gratings, triggers & a saved config](gratings-triggers-config.md) for a masked patch. |
 | `drift_speed` | 4.0 | **Cycles per second**, drifting perpendicular to the stripes. |

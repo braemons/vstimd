@@ -69,6 +69,8 @@ the other leaves half a scene. The VTL name map is I/O config rather than scene
 content and survives, so the names go separately:
 
 ```python
+
+
 def clean_slate(conn):
     conn.system.clear_all()
     for line in conn.vtl.list_lines():
@@ -85,15 +87,19 @@ of the frame, so a rig with no client attached still says what it is doing. It
 is an ordinary text stimulus:
 
 ```python
+
+
 def add_explanation(conn, text):
     return conn.stimuli.text.create_text(
-        text=text,
-        pos=Vec2(0, -340),
-        box_width=1500, box_height=320,
-        letter_height=24,
-        color=Color(0.9, 0.9, 0.9),
-        fill_color=Color(0.0, 0.0, 0.0, 0.65),
+        position=Vec2(0, -340),
         name="explanation",
+        params=TextParams(
+            text=text,
+            letter_height=24,
+            text_color=Color(0.9, 0.9, 0.9),
+            fill_color=Color(0.0, 0.0, 0.0, 0.65),
+            box_size=Vec2(1500, 320),
+        ),
     )
 ```
 
@@ -105,10 +111,11 @@ months later.
 ## Two things worth knowing before you start
 
 !!! note "Sizes are full sizes everywhere"
-    `create_rect(width=80, height=80)` makes an 80 × 80 px square, and the
+    `RectParams(width=80, height=80)` makes an 80 × 80 px square, and the
     saved JSON records `"size": [80.0, 80.0]`. Gratings and ellipses store
     `size` the same way, so a demo config can be read straight off as the
-    arguments to pass. (Circles use `radius`, in both places.)
+    arguments to pass. Circles are no exception: they take a `diameter`, not a
+    radius, so every stimulus is sized the same way.
 
 !!! note "The photodiode patch has no command yet"
     `demo_photodiode_flicker` and `demo_gratings_triggered` switch on the

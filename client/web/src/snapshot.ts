@@ -7,14 +7,15 @@
 
 import type { SceneSnapshot as ProtoSnapshot } from "./_proto/vstimd/v1/snapshot_pb.js";
 import type { QueryStimulusResponse } from "./_proto/vstimd/v1/stimuli/query_pb.js";
-import { StimulusType } from "./_proto/vstimd/v1/stimuli/stimulus_type_pb.js";
+// Aliased: the client's own user-facing name for this taxonomy is StimulusType.
+import { StimulusType as ProtoStimulusType } from "./_proto/vstimd/v1/stimuli/stimulus_type_pb.js";
 import {
   VirtualTriggerLineKind,
   type VirtualTriggerLineInfo,
 } from "./_proto/vstimd/v1/vtl_pb.js";
 import { toServerInfo, type ServerInfo } from "./system.js";
 import type { VtlKind } from "./vtl.js";
-import type { Color, StimulusHandle, StimulusKind, Vec2 } from "./types.js";
+import type { Color, StimulusHandle, StimulusType, Vec2 } from "./types.js";
 
 export interface StimulusView {
   /** Stable UUID assigned at creation. */
@@ -23,7 +24,7 @@ export interface StimulusView {
   name: string;
   /** Server handle (map key) — addresses mutations like setPosition. */
   handle: StimulusHandle;
-  kind: StimulusKind;
+  type: StimulusType;
   pos: Vec2;
   /** Bounding-box size in stimulus-space pixels (full width/height). */
   size: { width: number; height: number };
@@ -64,14 +65,14 @@ export interface SceneSnapshot {
   serverTimeNs: bigint;
 }
 
-function kindOf(t: StimulusType): StimulusKind {
+function typeOf(t: ProtoStimulusType): StimulusType {
   switch (t) {
-    case StimulusType.RECT: return "rect";
-    case StimulusType.CIRCLE: return "circle";
-    case StimulusType.ELLIPSE: return "ellipse";
-    case StimulusType.GRATING: return "grating";
-    case StimulusType.TEXT: return "text";
-    case StimulusType.POLYGON: return "polygon";
+    case ProtoStimulusType.RECT: return "rect";
+    case ProtoStimulusType.CIRCLE: return "circle";
+    case ProtoStimulusType.ELLIPSE: return "ellipse";
+    case ProtoStimulusType.GRATING: return "grating";
+    case ProtoStimulusType.TEXT: return "text";
+    case ProtoStimulusType.POLYGON: return "polygon";
     default: return "unknown";
   }
 }
@@ -104,7 +105,7 @@ function sizeOf(s: QueryStimulusResponse): { width: number; height: number } {
     case "grating":
       return { width: shape.value.width, height: shape.value.height };
     case "circle":
-      return { width: shape.value.radius * 2, height: shape.value.radius * 2 };
+      return { width: shape.value.diameter, height: shape.value.diameter };
     case "text":
       return {
         width: shape.value.boxSize?.x ?? 0,
@@ -122,7 +123,7 @@ export function toSceneSnapshot(p: ProtoSnapshot): SceneSnapshot {
       id: s.id,
       name: s.name,
       handle: s.handle,
-      kind: kindOf(s.stimulusType),
+      type: typeOf(s.stimulusType),
       // Placement is a oneof, per dimension. Only 2-D stimuli exist today; a
       // 3-D one would report a transform this map cannot draw, so it falls back
       // to the origin rather than inventing coordinates.

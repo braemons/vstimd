@@ -24,6 +24,7 @@ from _common import add_explanation, clean_slate, demo_parser
 
 from vstimd import Connection, StartAction
 from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd.stimuli import RectParams, ShapeAppearance
 
 EXPLANATION = (
     "demo_photodiode_flicker — frame timing\n"
@@ -47,9 +48,12 @@ def main() -> None:
         # Big and white: you want to be able to see the flicker from across the
         # room, and a photometer wants a lot of it.
         patch = conn.stimuli.shapes.create_rect(
-            pos=Vec2(0, 100), width=1400, height=600,
-            color=Color(1.0, 1.0, 1.0),
+            position=Vec2(0, 100),
             name="flicker_patch",
+            params=RectParams(
+                width=1400, height=600,
+                appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
+            ),
         )
 
         add_explanation(conn, EXPLANATION)

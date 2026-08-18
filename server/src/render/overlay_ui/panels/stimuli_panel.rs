@@ -47,20 +47,20 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                             StimulusKind::Shape(s) => match s.geometry.live {
                                 ShapeGeometry::Rect { size }
                                 | ShapeGeometry::Ellipse { size } => wh(size),
-                                ShapeGeometry::Circle { radius } => {
-                                    format!("r={}", radius as i32)
+                                ShapeGeometry::Circle { diameter } => {
+                                    format!("d={}", diameter as i32)
                                 }
                             },
                             StimulusKind::Mesh3d(_) => "3-D".to_string(),
                         };
-                        let name_label = entry.name.as_deref().unwrap_or("");
-                        let uuid_str = entry.id.to_string();
+                        let name_label = entry.name().to_string();
+                        let uuid_str = entry.id().to_string();
                         let flags = entry.stimulus.flags_mut();
                         ui.checkbox(&mut flags.enabled, "");
                         ui.label(format!("#{h} {type_name}"));
                         let disp = if name_label.is_empty() {
                             &uuid_str[..8]
-                        } else { name_label };
+                        } else { name_label.as_str() };
                         ui.label(egui::RichText::new(disp).color(
                             if name_label.is_empty() {
                                 egui::Color32::DARK_GRAY

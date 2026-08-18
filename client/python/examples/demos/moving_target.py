@@ -24,6 +24,7 @@ from _common import add_explanation, clean_slate, demo_parser
 
 from vstimd import Connection, FinalAction, VtlHandle, VtlKind
 from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd.stimuli import CircleParams, ShapeAppearance
 
 EXPLANATION = (
     "demo_moving_target — motion plus an output pulse\n"
@@ -51,9 +52,12 @@ def main() -> None:
         # Created at the start of the sweep, so the scene looks right even
         # before the animation runs.
         target = conn.stimuli.shapes.create_circle(
-            pos=Vec2(-800, 0), radius=30,
-            color=Color(1.0, 1.0, 1.0),
+            position=Vec2(-800, 0),
             name="target",
+            params=CircleParams(
+                diameter=60,
+                appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
+            ),
         )
 
         add_explanation(conn, EXPLANATION)

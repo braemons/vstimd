@@ -121,10 +121,13 @@ fn create_a_rect(port: u16) {
         let req = proto::Request {
             target: Some(request::Target::System(proto::SystemTarget {})),
             body: Some(request::Body::CreateRect(proto::CreateRectRequest {
-                width: 200.0,
-                height: 100.0,
-                ..Default::default()
-            })),
+                                                     params: Some(proto::RectParams {
+                                                         width: 200.0,
+                                                         height: 100.0,
+                                                         ..Default::default()
+                                                     }),
+                                                     ..Default::default()
+                                                 })),
         };
         client.send(req.encode_to_vec().into()).await.unwrap();
         let msg = tokio::time::timeout(Duration::from_secs(5), client.recv())

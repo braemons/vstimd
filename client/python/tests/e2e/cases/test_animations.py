@@ -11,6 +11,7 @@ import pytest
 
 from vstimd import Connection, NotSupportedError
 from vstimd.animations import AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
+from vstimd.stimuli import GratingParams, RectParams, ShapeAppearance
 from vstimd.stimuli.stimuli_models import Color, Vec2
 from vstimd.vtl import VtlKind, VtlHandle
 
@@ -24,6 +25,7 @@ from ._helpers import (
     update_label as _update_label,
 )
 from ._helpers import (
+
     wait_for_anim_state as _wait_for_state,
 )
 
@@ -577,7 +579,12 @@ def test_anim_move_along_path_2d(
     tid = request.node.name
     lbl = _label(conn, tid, "rect swept left-to-right via path")
     s = conn.stimuli.shapes.create_rect(
-        pos=Vec2(-200, 0), width=60, height=60, color=Color(0.2, 0.8, 0.2)
+        position=Vec2(-200, 0),
+        params=RectParams(
+            width=60,
+            height=60,
+            appearance=ShapeAppearance(fill_color=Color(0.2, 0.8, 0.2)),
+        ),
     )
 
     xs = [x * 10.0 - 200.0 for x in range(41)]  # -200 → 200 in 41 steps
@@ -621,7 +628,12 @@ def test_anim_move_along_segments_2d(
     tid = request.node.name
     lbl = _label(conn, tid, "rect moving along triangle at 400 px/s")
     s = conn.stimuli.shapes.create_rect(
-        pos=Vec2(-200, -100), width=50, height=50, color=Color(0.2, 0.4, 1.0)
+        position=Vec2(-200, -100),
+        params=RectParams(
+            width=50,
+            height=50,
+            appearance=ShapeAppearance(fill_color=Color(0.2, 0.4, 1.0)),
+        ),
     )
 
     xs = [-200.0, 200.0, 0.0, -200.0]
@@ -780,7 +792,8 @@ def test_anim_flash_with_grating(
     tid = request.node.name
     lbl = _label(conn, tid, "grating enabled by flash")
     g = conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0), width=200, height=200, sf=0.04, contrast=0.9
+        position=Vec2(0, 0),
+        params=GratingParams(width=200, height=200, sf=0.04, contrast=0.9),
     )
     conn.stimuli.set_enabled(g, False)
 
@@ -890,10 +903,12 @@ def test_anim_moving_bar_rf_mapping(
 
     # Narrow vertical bar, initially disabled (will be enabled by start_action).
     bar = conn.stimuli.shapes.create_rect(
-        pos=Vec2(-400, 0),
-        width=20,
-        height=400,
-        color=Color(1.0, 1.0, 1.0),
+        position=Vec2(-400, 0),
+        params=RectParams(
+            width=20,
+            height=400,
+            appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
+        ),
     )
     conn.stimuli.set_enabled(bar, False)
     assert not conn.stimuli.query(bar).enabled, "bar should be disabled after creation"

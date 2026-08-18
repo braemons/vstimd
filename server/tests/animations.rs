@@ -1,4 +1,3 @@
-use uuid::Uuid;
 /// Integration tests for the animation system.
 ///
 /// Tests use the internal domain model directly — no proto, no ZMQ, no GPU.
@@ -14,7 +13,7 @@ use vstimd::scene::{
     SceneState,
     animation::{AnimState, Animation, AnimationEntry, CancelAction, FinalAction, StartAction},
     stimulus::{
-        Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusSceneEntry,
+        Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusIdentity, StimulusSceneEntry,
     },
 };
 use vstimd::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs, VtlPolarity};
@@ -72,8 +71,7 @@ fn advance_channels(
 /// Create a rect stimulus and return its handle.  Starts with `enabled=true`.
 fn create_rect(scene: &mut SceneState) -> u32 {
     scene.add_stimulus(StimulusSceneEntry::new(
-        Uuid::new_v4(),
-        None,
+        StimulusIdentity::new(None),
         Stimulus::from(Shape::new(
             [0.0, 0.0],
             0.0,

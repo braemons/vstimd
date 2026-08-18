@@ -1,10 +1,10 @@
 use std::sync::{Arc, RwLock};
 
 use crate::scene::{
-    GratingParams, Grating, SceneState, Stimulus, StimulusSceneEntry, Waveform, GratingMask
+    GratingParams, Grating, SceneState, Stimulus, StimulusIdentity, StimulusSceneEntry,
+    Waveform, GratingMask
 };
 use crate::timing::FrameStats;
-use uuid::Uuid;
 
 pub struct BenchmarkResult {
     pub grating_count: usize,
@@ -74,8 +74,7 @@ impl BenchmarkState {
                     sc.stimuli.insert(
                         h,
                         StimulusSceneEntry::new(
-                            Uuid::new_v4(),
-                            None,
+                            StimulusIdentity::new(None),
                             Stimulus::from(Grating::new(
                                 [cx, cy],
                                 angle,

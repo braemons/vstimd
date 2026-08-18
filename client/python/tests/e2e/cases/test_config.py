@@ -11,6 +11,7 @@ from vstimd import (
     ConfigNotFoundError,
     Connection,
 )
+from vstimd.stimuli import RectParams
 
 
 def test_retrieve_returns_valid_json(conn: Connection) -> None:
@@ -18,7 +19,7 @@ def test_retrieve_returns_valid_json(conn: Connection) -> None:
     raw = conn.config.retrieve()
     assert isinstance(raw, str) and len(raw) > 0
     data = json.loads(raw)
-    assert data["version"] == 4
+    assert data["version"] == 5
     assert "scene" in data
     assert "io" in data
 
@@ -49,7 +50,10 @@ def test_save_convenience(conn: Connection) -> None:
 def test_upload_and_load_roundtrip(conn: Connection) -> None:
     """A config saved via upload() is restored correctly via load()."""
     # Create a rect, save config, delete everything, load back.
-    h = conn.stimuli.shapes.create_rect(width=50, height=50, name="cfg_roundtrip_rect")
+    h = conn.stimuli.shapes.create_rect(
+        name="cfg_roundtrip_rect",
+        params=RectParams(width=50, height=50),
+    )
     conn.config.save("e2e_test_roundtrip", overwrite=True)
     conn.system.clear_all()
 

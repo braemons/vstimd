@@ -28,7 +28,7 @@ export function StimuliPanel({ conn, snapshot }: Props) {
   async function addCircle() {
     await conn?.stimuli.shapes.createCircle({
       pos: { x: 0, y: 0 },
-      radius: 50,
+      diameter: 100,
       color: rgb(0.2, 0.6, 0.9),
       name: `circle ${stimuli.length + 1}`,
     });
@@ -66,7 +66,7 @@ export function StimuliPanel({ conn, snapshot }: Props) {
                 />
               </td>
               <td>{s.name || <em>—</em>}</td>
-              <td>{s.kind}</td>
+              <td>{s.type}</td>
               <td style={{ fontFamily: "monospace", whiteSpace: "pre" }}>
                 {String(Math.round(s.pos.x)).padStart(6)},{String(Math.round(s.pos.y)).padStart(6)}
               </td>

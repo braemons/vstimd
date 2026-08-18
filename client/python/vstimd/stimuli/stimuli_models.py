@@ -90,7 +90,7 @@ class StimulusInfo:
             )
         elif shape_which == "circle":
             params = CircleParams(
-                radius=proto.params.circle.radius,
+                diameter=proto.params.circle.diameter,
                 appearance=_appearance_or_default(proto.params.circle),
             )
         elif shape_which == "ellipse":

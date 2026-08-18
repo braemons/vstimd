@@ -18,7 +18,8 @@ def test_create_circle(win: visual.Window, step_delay: float, request: pytest.Fi
     info = win._conn.stimuli.query(circle._handle)
     assert info.stimulus_type == StimulusType.CIRCLE
     assert isinstance(info.params, CircleParams)
-    assert info.params.radius == pytest.approx(50.0, abs=0.5)
+    # visual.Circle takes a radius; the server reports the full extent.
+    assert info.params.diameter == pytest.approx(100.0, abs=0.5)
     assert info.fill_color.r == pytest.approx(0.0, abs=0.01)
     assert info.fill_color.g == pytest.approx(0.0, abs=0.01)
     assert info.fill_color.b == pytest.approx(1.0, abs=0.01)

@@ -14,9 +14,13 @@ setting that is not a stimulus.
 
 ```python
 patch = conn.stimuli.shapes.create_rect(
-    pos=Vec2(0, 100), width=1400, height=600,
-    color=Color(1.0, 1.0, 1.0),
+    position=Vec2(0, 100),
     name="flicker_patch",
+    params=RectParams(
+        width=1400,
+        height=600,
+        appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
+    ),
 )
 ```
 

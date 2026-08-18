@@ -1,10 +1,26 @@
-//! Small proto <-> scene conversions shared across the command groups.
+//! Every proto <-> scene conversion, in one place.
+//!
+//! Nothing under `scene/` speaks protobuf: the scene owns runtime state and the
+//! wire format is this module's problem alone. So the per-stimulus conversions
+//! live here next to the shared ones, one submodule per stimulus kind, mirroring
+//! the `*_commands.rs` split of the dispatcher that consumes them.
+//!
+//! This module holds what every kind needs — draw modes, colours, the identity
+//! and placement every `Create*` request carries — and the shape appearance,
+//! which three of the geometry kinds share.
 
-use super::response::err;
+mod grating;
+mod text;
+
+pub(super) use grating::{
+    grating_params_from_proto, grating_query_params, proto_to_mask, proto_to_waveform,
+};
+pub(super) use text::{anchor_from_str, proto_to_language_style, text_query_params,
+    text_render_params_from_proto};
+
 use crate::Color;
 use crate::proto;
-use crate::scene::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance};
-use uuid::Uuid;
+use crate::scene::stimulus::{DrawMode as SceneDrawMode, ShapeAppearance, StimulusIdentity};
 
 pub(super) fn proto_draw_mode_to_scene(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
     match proto::ShapeDrawMode::try_from(mode).unwrap_or(proto::ShapeDrawMode::Unspecified) {
@@ -33,29 +49,28 @@ pub(super) fn shape_appearance_to_proto(a: &ShapeAppearance) -> proto::ShapeAppe
     }
 }
 
-pub(super) fn color_or_default(c: Option<proto::Color>, default: Color) -> Color {
+fn color_or_default(c: Option<proto::Color>, default: Color) -> Color {
     c.map(|c| c.into()).unwrap_or(default)
 }
 
 /// Proto → shape fill/outline state, for the `Create*` commands.
 ///
-/// `appearance` absent reproduces the behaviour from before the field existed:
-/// fill from `fill_color` (already resolved against the scene default by the
-/// caller), outline from the scene's `default_outline`, stroke width and draw
-/// mode from [`ShapeAppearance::default`].
+/// `appearance` absent means the scene defaults throughout: fill from
+/// `default_fill`, outline from `default_outline`, stroke width and draw mode
+/// from [`ShapeAppearance::default`].
 ///
 /// `appearance` present overrides field by field, each with the same fallback,
 /// so a client may set only `draw_mode` and inherit the rest. Zero means unset
 /// for `outline_width`, matching the convention the create commands already use
-/// for `width`/`height`/`radius` — and a 0-width outline draws nothing anyway,
+/// for `width`/`height`/`diameter` — and a 0-width outline draws nothing anyway,
 /// so `draw_mode` is how you turn an outline off, not width.
 pub(super) fn shape_appearance_from_proto(
     appearance: Option<proto::ShapeAppearance>,
-    fill: Color,
+    default_fill: Color,
     default_outline: Color,
 ) -> Result<ShapeAppearance, Box<proto::Response>> {
     let base = ShapeAppearance {
-        fill_color: fill,
+        fill_color: default_fill,
         outline_color: default_outline,
         ..Default::default()
     };
@@ -74,16 +89,24 @@ pub(super) fn shape_appearance_from_proto(
     })
 }
 
-pub(super) fn parse_or_new_uuid(s: &str) -> Result<Uuid, Box<proto::Response>> {
-    if s.is_empty() {
-        return Ok(Uuid::new_v4());
-    }
-    Uuid::parse_str(s).map_err(|_| {
-        Box::new(err(
-            proto::ErrorCode::InvalidArgument,
-            "id must be a valid UUID string",
-        ))
-    })
+/// A create request's `placement` → the scene's `(pos, angle)` pair.
+///
+/// Absent, or absent `pos`, means the screen centre at 0° — the same default the
+/// bare `center`/`angle` fields gave before placement was a message.
+pub(super) fn placement_to_scene(placement: Option<proto::Transform2D>) -> ([f32; 2], f32) {
+    let Some(t) = placement else {
+        return ([0.0, 0.0], 0.0);
+    };
+    let pos = t.pos.unwrap_or_default();
+    ([pos.x, pos.y], t.rotation_deg)
+}
+
+/// A create request's `identity` → the scene's, minting the id.
+///
+/// The server assigns every stimulus id: `proto::StimulusIdentity` carries only a
+/// name, so this is where a stimulus acquires the UUID the response echoes back.
+pub(super) fn scene_identity(identity: Option<proto::StimulusIdentity>) -> StimulusIdentity {
+    StimulusIdentity::new(identity.and_then(|i| nonempty(i.name)))
 }
 
 pub(super) fn nonempty(s: String) -> Option<String> {

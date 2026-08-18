@@ -10,14 +10,33 @@ use crate::vtl_state::VtlState;
 
 // ── Request summary for the command log ───────────────────────────────────────
 
+/// Centre out of a create request's placement, defaulting to the origin the way
+/// the create commands themselves do.
+fn placement_pos(placement: Option<&proto::Transform2D>) -> (f32, f32) {
+    let pos = placement.and_then(|t| t.pos.as_ref());
+    (pos.map_or(0.0, |p| p.x), pos.map_or(0.0, |p| p.y))
+}
+
 fn command_summary(req: &proto::Request) -> String {
     match &req.body {
         Some(request::Body::CreateRect(c)) => {
-            format!("CreateRect {:.0}×{:.0}", c.width, c.height)
+            let p = c.params.as_ref();
+            format!(
+                "CreateRect {:.0}×{:.0}",
+                p.map_or(0.0, |p| p.width),
+                p.map_or(0.0, |p| p.height),
+            )
         }
-        Some(request::Body::CreateCircle(c)) => format!("CreateCircle r={:.0}", c.radius),
+        Some(request::Body::CreateCircle(c)) => {
+            format!("CreateCircle d={:.0}", c.params.as_ref().map_or(0.0, |p| p.diameter))
+        }
         Some(request::Body::CreateEllipse(c)) => {
-            format!("CreateEllipse {:.0}×{:.0}", c.width, c.height)
+            let p = c.params.as_ref();
+            format!(
+                "CreateEllipse {:.0}×{:.0}",
+                p.map_or(0.0, |p| p.width),
+                p.map_or(0.0, |p| p.height),
+            )
         }
         Some(request::Body::SetEnabled(c)) => {
             format!("SetEnabled({})", if c.enabled { "on" } else { "off" })
@@ -30,7 +49,9 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::SetRectSize(c)) => {
             format!("SetRectSize {:.0}×{:.0}", c.width, c.height)
         }
-        Some(request::Body::SetCircleRadius(c)) => format!("SetCircleRadius({:.0})", c.radius),
+        Some(request::Body::SetCircleDiameter(c)) => {
+            format!("SetCircleDiameter({:.0})", c.diameter)
+        }
         Some(request::Body::SetEllipseSize(c)) => {
             format!("SetEllipseSize {:.0}×{:.0}", c.width, c.height)
         }
@@ -54,23 +75,20 @@ fn command_summary(req: &proto::Request) -> String {
             format!("SetAllEnabled({})", if c.enabled { "on" } else { "off" })
         }
         Some(request::Body::CreateGrating(c)) => {
-            let center = c.center.as_ref();
+            let p = c.params.as_ref();
+            let (x, y) = placement_pos(c.placement.as_ref());
             format!(
-                "CreateGrating {:.0}×{:.0} sf={:.4} pos=({:.1},{:.1})",
-                c.width,
-                c.height,
-                c.sf,
-                center.map_or(0.0, |v| v.x),
-                center.map_or(0.0, |v| v.y),
+                "CreateGrating {:.0}×{:.0} sf={:.4} pos=({x:.1},{y:.1})",
+                p.map_or(0.0, |p| p.width),
+                p.map_or(0.0, |p| p.height),
+                p.map_or(0.0, |p| p.sf),
             )
         }
         Some(request::Body::CreateText(c)) => {
-            let pos = c.pos.as_ref();
+            let (x, y) = placement_pos(c.placement.as_ref());
             format!(
-                "CreateText {:?} pos=({:.1},{:.1})",
-                c.text,
-                pos.map_or(0.0, |v| v.x),
-                pos.map_or(0.0, |v| v.y),
+                "CreateText {:?} pos=({x:.1},{y:.1})",
+                c.params.as_ref().map_or("", |p| p.text.as_str()),
             )
         }
         Some(request::Body::SetText(c)) => format!("SetText({:?})", c.text),
@@ -299,7 +317,7 @@ impl SceneState {
             request::Body::SetFillColor(cmd) => self.cmd_set_fill_color(handle, cmd),
             request::Body::SetAlpha(cmd) => self.cmd_set_alpha(handle, cmd),
             request::Body::SetRectSize(cmd) => self.cmd_set_rect_size(handle, cmd),
-            request::Body::SetCircleRadius(cmd) => self.cmd_set_circle_radius(handle, cmd),
+            request::Body::SetCircleDiameter(cmd) => self.cmd_set_circle_diameter(handle, cmd),
             request::Body::SetEllipseSize(cmd) => self.cmd_set_ellipse_size(handle, cmd),
             request::Body::SetDrawMode(cmd) => self.cmd_set_draw_mode(handle, cmd),
             request::Body::SetOutlineColor(cmd) => self.cmd_set_outline_color(handle, cmd),

@@ -12,7 +12,7 @@ use crate::scene::deferred::Deferred;
 /// impls and a `shape_arm!` macro to paper over the sameness.
 ///
 /// The user-facing taxonomy stays finer than this: the wire still has
-/// `CreateRect` / `SetCircleRadius` / `StimulusType::Rect`, and that mapping
+/// `CreateRect` / `SetCircleDiameter` / `StimulusType::Rect`, and that mapping
 /// lives in `ipc/` — an internal kind name never reaches a client.
 ///
 /// No runtime state, so no config/runtime split (unlike
@@ -34,7 +34,7 @@ pub struct Shape {
 pub enum ShapeGeometry {
     Rect { size: [f32; 2] },
     Ellipse { size: [f32; 2] },
-    Circle { radius: f32 },
+    Circle { diameter: f32 },
 }
 
 impl Default for ShapeGeometry {
@@ -55,10 +55,8 @@ impl ShapeGeometry {
         }
     }
 
-    /// Full extents in px — `None` for a circle, which carries a
-    /// [`radius`](Self::radius) instead. The asymmetry is the wire's:
-    /// `CreateCircle`/`SetCircleRadius` take a radius where the other two take
-    /// width and height.
+    /// Full extents in px — `None` for a circle, which needs only the one number
+    /// [`diameter`](Self::diameter) carries.
     pub fn size(&self) -> Option<[f32; 2]> {
         match *self {
             Self::Rect { size } | Self::Ellipse { size } => Some(size),
@@ -66,10 +64,11 @@ impl ShapeGeometry {
         }
     }
 
-    /// Radius in px — `None` for rect and ellipse.
-    pub fn radius(&self) -> Option<f32> {
+    /// Diameter in px — `None` for rect and ellipse. A full extent like the
+    /// others, so every geometry here is sized by the same convention.
+    pub fn diameter(&self) -> Option<f32> {
         match *self {
-            Self::Circle { radius } => Some(radius),
+            Self::Circle { diameter } => Some(diameter),
             Self::Rect { .. } | Self::Ellipse { .. } => None,
         }
     }

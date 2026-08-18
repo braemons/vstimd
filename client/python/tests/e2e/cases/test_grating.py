@@ -13,9 +13,18 @@ from ._helpers import label as _label, update_label as _update_label
 
 def test_create_grating(conn: Connection) -> None:
     handle = conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0), width=200, height=200, sf=0.05, phase=0.25, angle=45.0,
-        contrast=0.8, fore_color=Color(0.0, 1.0, 0.0),
-        waveform=GratingTexture.SQR, mask=GratingMask.CIRCLE,
+        position=Vec2(0, 0),
+        rotation=45.0,
+        params=GratingParams(
+            width=200,
+            height=200,
+            sf=0.05,
+            phase=0.25,
+            contrast=0.8,
+            fore_color=Color(0.0, 1.0, 0.0),
+            waveform=GratingTexture.SQR,
+            mask=GratingMask.CIRCLE,
+        ),
     )
     assert handle > 0
 
@@ -34,7 +43,7 @@ def test_create_grating(conn: Connection) -> None:
 
 
 def test_grating_mutate_phase(conn: Connection) -> None:
-    handle = conn.stimuli.grating.create_grating(sf=0.05)
+    handle = conn.stimuli.grating.create_grating(params=GratingParams(sf=0.05))
     conn.stimuli.grating.set_phase(handle, 0.5)
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
@@ -43,7 +52,7 @@ def test_grating_mutate_phase(conn: Connection) -> None:
 
 
 def test_grating_mutate_sf(conn: Connection) -> None:
-    handle = conn.stimuli.grating.create_grating(sf=0.05)
+    handle = conn.stimuli.grating.create_grating(params=GratingParams(sf=0.05))
     conn.stimuli.grating.set_sf(handle, 0.1)
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
@@ -52,7 +61,7 @@ def test_grating_mutate_sf(conn: Connection) -> None:
 
 
 def test_grating_mutate_contrast(conn: Connection) -> None:
-    handle = conn.stimuli.grating.create_grating(sf=0.05)
+    handle = conn.stimuli.grating.create_grating(params=GratingParams(sf=0.05))
     conn.stimuli.grating.set_contrast(handle, 0.5)
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
@@ -61,7 +70,9 @@ def test_grating_mutate_contrast(conn: Connection) -> None:
 
 
 def test_grating_mutate_waveform(conn: Connection) -> None:
-    handle = conn.stimuli.grating.create_grating(waveform=GratingTexture.SIN)
+    handle = conn.stimuli.grating.create_grating(
+        params=GratingParams(waveform=GratingTexture.SIN),
+    )
     conn.stimuli.grating.set_waveform(handle, GratingTexture.SAW)
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
@@ -70,7 +81,7 @@ def test_grating_mutate_waveform(conn: Connection) -> None:
 
 
 def test_grating_set_mask(conn: Connection) -> None:
-    handle = conn.stimuli.grating.create_grating(mask=GratingMask.NONE)
+    handle = conn.stimuli.grating.create_grating(params=GratingParams(mask=GratingMask.NONE))
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
     assert info.params.mask == GratingMask.NONE
@@ -83,7 +94,7 @@ def test_grating_set_mask(conn: Connection) -> None:
 
 
 def test_grating_drift_speed(conn: Connection) -> None:
-    handle = conn.stimuli.grating.create_grating(sf=0.05, drift_speed=2.0)
+    handle = conn.stimuli.grating.create_grating(params=GratingParams(sf=0.05, drift_speed=2.0))
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
     assert info.params.drift_speed == pytest.approx(2.0, abs=0.01)
@@ -97,7 +108,9 @@ def test_grating_drift_speed(conn: Connection) -> None:
 
 
 def test_grating_drift_decoupled(conn: Connection) -> None:
-    handle = conn.stimuli.grating.create_grating(sf=0.05, drift_decoupled=True, drift_angle=90.0)
+    handle = conn.stimuli.grating.create_grating(
+        params=GratingParams(sf=0.05, drift_coupled=False, drift_angle=90.0),
+    )
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
     assert info.params.drift_coupled is False
@@ -124,7 +137,8 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
         ("spatial frequency", [{"sf": sf} for sf in [0.01, 0.03, 0.05, 0.07, 0.10]]),
         ("contrast",          [{"contrast": c} for c in [0.2, 0.4, 0.6, 0.8, 1.0]]),
         ("phase",             [{"phase": p} for p in [0.0, 0.25, 0.5, 0.75, 1.0]]),
-        ("orientation",       [{"angle": a} for a in [0.0, 45.0, 90.0, 135.0, 180.0]]),
+        # `rotation` is the placement's, not a params field — see the split below.
+        ("orientation",       [{"rotation": a} for a in [0.0, 45.0, 90.0, 135.0, 180.0]]),
         ("waveform",          [{"waveform": w} for w in [
             GratingTexture.SIN, GratingTexture.SQR,
             GratingTexture.SAW, GratingTexture.TRI,
@@ -147,12 +161,17 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
 
         for x, overrides in zip(xs, patches):
             base: dict = dict(
-                pos=Vec2(x, 0), width=PATCH_W, height=PATCH_H,
-                sf=_SF, phase=0.0, angle=0.0,
+                width=PATCH_W, height=PATCH_H,
+                sf=_SF, phase=0.0,
                 contrast=1.0, waveform=_WAVEFORM, mask=_MASK,
             )
             base.update(overrides)
-            h = conn.stimuli.grating.create_grating(**base)
+            # One row varies the placement's rotation rather than a params field,
+            # so it is split back out before the params object is built.
+            rotation = base.pop("rotation", 0.0)
+            h = conn.stimuli.grating.create_grating(
+                position=Vec2(x, 0), rotation=rotation, params=GratingParams(**base),
+            )
             assert h > 0
             handles.append(h)
 
@@ -162,14 +181,18 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
             conn.stimuli.delete(h)
 
     # Assertions via fresh single-grating queries.
-    h_sf = conn.stimuli.grating.create_grating(pos=Vec2(0, 0), width=PATCH_W, height=PATCH_H, sf=0.05)
+    h_sf = conn.stimuli.grating.create_grating(
+        position=Vec2(0, 0),
+        params=GratingParams(width=PATCH_W, height=PATCH_H, sf=0.05),
+    )
     info = conn.stimuli.query(h_sf)
     assert isinstance(info.params, GratingParams)
     assert info.params.sf == pytest.approx(0.05, rel=1e-3)
     conn.stimuli.delete(h_sf)
 
     h_wf = conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0), width=PATCH_W, height=PATCH_H, waveform=GratingTexture.SQR
+        position=Vec2(0, 0),
+        params=GratingParams(width=PATCH_W, height=PATCH_H, waveform=GratingTexture.SQR),
     )
     info = conn.stimuli.query(h_wf)
     assert isinstance(info.params, GratingParams)
@@ -178,7 +201,8 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
 
     # Drift animation.
     drift_handle = conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0), width=300, height=300, sf=0.05, contrast=1.0,
+        position=Vec2(0, 0),
+        params=GratingParams(width=300, height=300, sf=0.05, contrast=1.0),
     )
     assert drift_handle > 0
 
@@ -215,23 +239,27 @@ def test_grating_visual(conn: Connection, step_delay: float, request: pytest.Fix
 
 def test_grating_two_color_create(conn: Connection) -> None:
     handle = conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0), width=200, height=200,
-        fore_color=Color(1.0, 0.0, 0.0),
-        back_color=Color(0.0, 0.0, 1.0),
+        position=Vec2(0, 0),
+        params=GratingParams(
+            width=200,
+            height=200,
+            fore_color=Color(1.0, 0.0, 0.0),
+            back_color=Color(0.0, 0.0, 1.0),
+        ),
     )
     assert handle > 0
 
     info = conn.stimuli.query(handle)
     assert info.stimulus_type == StimulusType.GRATING
     assert isinstance(info.params, GratingParams)
-    assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
-    assert info.params.fore_color[1] == pytest.approx(0.0, abs=0.01)
-    assert info.params.fore_color[2] == pytest.approx(0.0, abs=0.01)
-    assert info.params.fore_color[3] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[0] == pytest.approx(0.0, abs=0.01)
-    assert info.params.back_color[1] == pytest.approx(0.0, abs=0.01)
-    assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[3] == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.r == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.g == pytest.approx(0.0, abs=0.01)
+    assert info.params.fore_color.b == pytest.approx(0.0, abs=0.01)
+    assert info.params.fore_color.a == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.r == pytest.approx(0.0, abs=0.01)
+    assert info.params.back_color.g == pytest.approx(0.0, abs=0.01)
+    assert info.params.back_color.b == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.a == pytest.approx(1.0, abs=0.01)
     conn.stimuli.delete(handle)
 
 
@@ -240,10 +268,10 @@ def test_grating_mutate_fore_color(conn: Connection) -> None:
     conn.stimuli.grating.set_fore_color(handle, Color(0.5, 0.25, 0.0, 0.7))
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.fore_color[0] == pytest.approx(0.5, abs=0.01)
-    assert info.params.fore_color[1] == pytest.approx(0.25, abs=0.01)
-    assert info.params.fore_color[2] == pytest.approx(0.0, abs=0.01)
-    assert info.params.fore_color[3] == pytest.approx(0.7, abs=0.01)
+    assert info.params.fore_color.r == pytest.approx(0.5, abs=0.01)
+    assert info.params.fore_color.g == pytest.approx(0.25, abs=0.01)
+    assert info.params.fore_color.b == pytest.approx(0.0, abs=0.01)
+    assert info.params.fore_color.a == pytest.approx(0.7, abs=0.01)
     conn.stimuli.delete(handle)
 
 
@@ -252,10 +280,10 @@ def test_grating_mutate_back_color(conn: Connection) -> None:
     conn.stimuli.grating.set_back_color(handle, Color(0.1, 0.2, 0.3, 0.4))
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.back_color[0] == pytest.approx(0.1, abs=0.01)
-    assert info.params.back_color[1] == pytest.approx(0.2, abs=0.01)
-    assert info.params.back_color[2] == pytest.approx(0.3, abs=0.01)
-    assert info.params.back_color[3] == pytest.approx(0.4, abs=0.01)
+    assert info.params.back_color.r == pytest.approx(0.1, abs=0.01)
+    assert info.params.back_color.g == pytest.approx(0.2, abs=0.01)
+    assert info.params.back_color.b == pytest.approx(0.3, abs=0.01)
+    assert info.params.back_color.a == pytest.approx(0.4, abs=0.01)
     conn.stimuli.delete(handle)
 
 
@@ -269,44 +297,46 @@ def test_grating_mutate_opacity(conn: Connection) -> None:
 
 def test_grating_fore_back_color_independent(conn: Connection) -> None:
     handle = conn.stimuli.grating.create_grating(
-        fore_color=Color(1.0, 0.0, 0.0), back_color=Color(0.0, 1.0, 0.0)
+        params=GratingParams(fore_color=Color(1.0, 0.0, 0.0), back_color=Color(0.0, 1.0, 0.0)),
     )
     conn.stimuli.grating.set_fore_color(handle, Color(0.0, 0.0, 1.0))
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.fore_color[2] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[1] == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.b == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.g == pytest.approx(1.0, abs=0.01)
 
     conn.stimuli.grating.set_back_color(handle, Color(1.0, 1.0, 0.0))
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.fore_color[2] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[0] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[1] == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.b == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.r == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.g == pytest.approx(1.0, abs=0.01)
     conn.stimuli.delete(handle)
 
 
 def test_grating_per_color_alpha(conn: Connection) -> None:
     handle = conn.stimuli.grating.create_grating(
-        fore_color=Color(1.0, 0.0, 0.0, 0.5),
-        back_color=Color(0.0, 0.0, 1.0, 0.0),
+        params=GratingParams(
+            fore_color=Color(1.0, 0.0, 0.0, 0.5),
+            back_color=Color(0.0, 0.0, 1.0, 0.0),
+        ),
     )
     assert handle > 0
     conn.stimuli.set_alpha(handle, 0.8)
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
-    assert info.params.fore_color[0] == pytest.approx(1.0, abs=0.01)
-    assert info.params.fore_color[3] == pytest.approx(0.5, abs=0.01)
-    assert info.params.back_color[2] == pytest.approx(1.0, abs=0.01)
-    assert info.params.back_color[3] == pytest.approx(0.0, abs=0.01)
+    assert info.params.fore_color.r == pytest.approx(1.0, abs=0.01)
+    assert info.params.fore_color.a == pytest.approx(0.5, abs=0.01)
+    assert info.params.back_color.b == pytest.approx(1.0, abs=0.01)
+    assert info.params.back_color.a == pytest.approx(0.0, abs=0.01)
     assert info.opacity == pytest.approx(0.8, abs=0.01)
     conn.stimuli.delete(handle)
 
 
 def test_grating_opacity(conn: Connection) -> None:
     handle = conn.stimuli.grating.create_grating(
-        pos=Vec2(0, 0), width=200, height=200,
-        fore_color=Color(1.0, 0.0, 0.0),
+        position=Vec2(0, 0),
+        params=GratingParams(width=200, height=200, fore_color=Color(1.0, 0.0, 0.0)),
     )
     assert handle > 0
     conn.stimuli.set_alpha(handle, 0.5)

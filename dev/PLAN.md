@@ -325,6 +325,45 @@ non-deterministic, breaking stimulus timing analysis. Disable in the NVIDIA/AMD 
 panel on Windows, or via `xrandr` / DRM connector properties on Linux. Add this to the
 deployment checklist in the README.
 
+### 3.5 `SetStimulusParams`: One Setter Over the Existing Params Oneof
+
+**Status:** deferred, agreed shape recorded here.
+
+Create takes a `*Params` message and query returns one, so the missing third verb is a setter
+that *replaces* params — `SetStimulusParams { StimulusParams params }`, reusing the very oneof
+`QueryStimulusResponse.params` already carries. The win is the read-modify-write round trip
+(`query` → mutate the object → write it back) in one vocabulary, not a smaller command surface.
+
+**It is additive, not a replacement for the per-property setters.** `SetGratingPhase` is what a
+per-frame animation drives; sending a whole `GratingParams` every frame to advance phase costs
+more bytes and defeats the per-property deferred/dirty bookkeeping. The fine-grained setters stay.
+
+**Decided: no presence change.** proto3 scalars have no presence, so with the existing
+"0 means default" convention a zero-valued `contrast`, `phase` or `drift_speed` is not expressible
+through the blob. Rather than mark those fields `optional`, `SetStimulusParams` is defined as a
+**full replacement**: every field unset in the message resets to its default. That keeps one
+reading of the message in both directions, at the cost of not being a partial update — which is
+what the per-property setters are for anyway.
+
+**Placement stays out of it.** A stimulus' `pos`/`rotation` live in `Transform2D`, not in params,
+so a `query` → `SetStimulusParams` round trip does not carry placement. `SetPosition` and
+`SetOrientation` already own that; the command is params-only and should say so.
+
+**A mismatched arm is an error.** In the *response* the oneof genuinely describes what the
+stimulus is; in a *request* it cannot, because a rect can never become a grating. An arm that does
+not match the target's type returns `WRONG_STIMULUS_TYPE`.
+
+Two cleanups to `StimulusParams` belong with this work:
+
+- **Rename the oneof `shape` → `type`.** It holds gratings and text, which are not shapes. Not
+  `kind`: its arms are `rect`/`circle`/`ellipse`/`polygon`/`grating`/`text`, which is the
+  granularity of the wire's `StimulusType`, not of the server's coarser `StimulusKind` (where all
+  four shapes are one `Shape` arm). `kind` is the renderer's word and must not reach a client.
+  User-visible in generated code (`WhichOneof("shape")` in Python, `shape?.case` in TypeScript),
+  so it touches both clients.
+- **Move `StimulusParams` out of `query.proto`** into its own file beside `identity.proto`, so a
+  setter can name it without importing the query.
+
 ---
 
 ## 4. Crate Dependencies

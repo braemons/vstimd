@@ -50,8 +50,14 @@ Windows or macOS machine like any other files.
 ```python
 with Connection("tcp://stimulus-pc:5555") as conn:
     # Build a scene however you like…
-    conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=200, height=100,
-                                    color=Color(1, 0, 0))
+    conn.stimuli.shapes.create_rect(
+        position=Vec2(0, 0),
+        params=RectParams(
+            width=200,
+            height=100,
+            appearance=ShapeAppearance(fill_color=Color(1, 0, 0)),
+        ),
+    )
 
     # …then save it under a name on the device:
     conn.config.save("center_target")             # → center_target.config.json

@@ -6,7 +6,7 @@ import time
 
 from vstimd import Connection
 from vstimd.animations import AnimationHandle, AnimationState
-from vstimd.stimuli import StimulusHandle
+from vstimd.stimuli import RectParams, ShapeAppearance, StimulusHandle, TextParams
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
 
@@ -14,14 +14,15 @@ def label(conn: Connection, test_id: str, description: str = "") -> StimulusHand
     """Yellow label near top of screen: '[test_id] description'."""
     text = f"[{test_id}] {description}".rstrip()
     return conn.stimuli.text.create_text(
-        text=text,
-        pos=Vec2(0, 250),
-        box_width=900,
-        box_height=200,
-        letter_height=28,
-        color=Color(1.0, 1.0, 0.0),
-        anchor="center",
+        position=Vec2(0, 250),
         name="_label",
+        params=TextParams(
+            text=text,
+            letter_height=28,
+            text_color=Color(1.0, 1.0, 0.0),
+            anchor="center",
+            box_size=Vec2(900, 200),
+        ),
     )
 
 
@@ -52,7 +53,12 @@ def make_rect(
     conn: Connection, *, x: float = 0, y: float = 0, enabled: bool = True
 ) -> StimulusHandle:
     h = conn.stimuli.shapes.create_rect(
-        pos=Vec2(x, y), width=80, height=80, color=Color(0.8, 0.2, 0.2)
+        position=Vec2(x, y),
+        params=RectParams(
+            width=80,
+            height=80,
+            appearance=ShapeAppearance(fill_color=Color(0.8, 0.2, 0.2)),
+        ),
     )
     if not enabled:
         conn.stimuli.set_enabled(h, False)

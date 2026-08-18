@@ -17,7 +17,7 @@ pub use shape_appearance::{DrawMode, ShapeAppearance};
 pub use stimulus::{Stimulus, StimulusKind};
 pub use stimulus_common::StimulusCommon;
 pub use stimulus_flags::{StimulusFlags, StimulusFlagsConfig};
-pub use stimulus_scene_entry::StimulusSceneEntry;
+pub use stimulus_scene_entry::{StimulusIdentity, StimulusSceneEntry};
 pub use text::{Anchor, LanguageStyle, Text, TextRenderParams};
 pub use transform2d::Transform2D;
 pub use transform3d::{Material3D, Shading3D, Transform3D};

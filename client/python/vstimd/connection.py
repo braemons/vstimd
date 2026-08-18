@@ -5,7 +5,7 @@ import zmq  # type: ignore[import]
 from google.protobuf.message import DecodeError
 
 from vstimd._proto import service_pb2
-from vstimd.stimuli import StimuliClient
+from vstimd.stimuli import RectParams, ShapeAppearance, StimuliClient
 from vstimd.system import SystemClient
 from vstimd.vtl import VtlClient
 from vstimd.animations import AnimationClient
@@ -40,8 +40,10 @@ class Connection:
     Example::
 
         with Connection() as conn:
-            h = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=200, height=100,
-                                                color=Color(1, 0, 0))
+            h = conn.stimuli.shapes.create_rect(
+                params=RectParams(width=200, height=100,
+                                  appearance=ShapeAppearance(fill_color=Color(1, 0, 0))),
+            )
             conn.vtl.set_line_name(0, 0, VtlKind.OUTPUT, "frame_sync")
             anim = conn.animations.create_flash(h, duration_ms=500)
             conn.animations.arm(anim)

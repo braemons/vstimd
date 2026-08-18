@@ -68,7 +68,10 @@ with Connection("tcp://stimulus-pc:5555") as conn:
     conn.vtl.set_line_name(bank=0, bit=0, kind=VtlKind.OUTPUT, name="stim_onset")
     stim_onset = VtlHandle.named("stim_onset", VtlKind.OUTPUT)
 
-    target = conn.stimuli.shapes.create_circle(pos=(0, 0), radius=100)
+    target = conn.stimuli.shapes.create_circle(
+        position=(0, 0),
+        params=CircleParams(diameter=200),
+    )
     conn.stimuli.set_enabled(target, False)
 
     flash = conn.animations.create_flash(

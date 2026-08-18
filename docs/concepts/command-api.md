@@ -42,12 +42,16 @@ up** (see [Coordinate system](coordinate-system.md)); colours are RGBA
 in 0–1.
 
 ```python
-from vstimd.stimuli import Vec2, Color
+from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
 with Connection() as conn:
     rect = conn.stimuli.shapes.create_rect(
-        pos=Vec2(0, 0), width=300, height=150,
-        color=Color(1.0, 0.0, 0.0),        # red
+        position=Vec2(0, 0),
+        params=RectParams(
+            width=300,
+            height=150,
+            appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0)),  # red
+        ),
     )
     print(rect)                            # a StimulusHandle
 ```
@@ -102,10 +106,22 @@ deferred batch: the server accumulates the changes and flips them all on one fra
 
 ```python
 with Connection() as conn:
-    left  = conn.stimuli.shapes.create_rect(pos=Vec2(-200, 0), width=100, height=100,
-                                            color=Color(1, 0, 0))
-    right = conn.stimuli.shapes.create_rect(pos=Vec2(200, 0), width=100, height=100,
-                                            color=Color(0, 0, 1))
+    left  = conn.stimuli.shapes.create_rect(
+        position=Vec2(-200, 0),
+        params=RectParams(
+            width=100,
+            height=100,
+            appearance=ShapeAppearance(fill_color=Color(1, 0, 0)),
+        ),
+    )
+    right = conn.stimuli.shapes.create_rect(
+        position=Vec2(200, 0),
+        params=RectParams(
+            width=100,
+            height=100,
+            appearance=ShapeAppearance(fill_color=Color(0, 0, 1)),
+        ),
+    )
 
     conn.system.set_deferred_mode(active=True)
     conn.stimuli.set_enabled(left,  True)
@@ -136,13 +152,21 @@ for entry in conn.system.list_stimuli():           # inventory of the scene
 ```python
 import time
 from vstimd import Connection
-from vstimd.stimuli import Vec2, Color
+from vstimd.stimuli import CircleParams, Color, RectParams, ShapeAppearance, Vec2
 
 with Connection("tcp://stimulus-pc:5555") as conn:
-    fix = conn.stimuli.shapes.create_circle(pos=Vec2(0, 0), radius=10,
-                                            color=Color(1, 1, 1))
-    target = conn.stimuli.shapes.create_rect(pos=Vec2(300, 0), width=80, height=80,
-                                             color=Color(0, 1, 0))
+    fix = conn.stimuli.shapes.create_circle(
+        position=Vec2(0, 0),
+        params=CircleParams(diameter=20, appearance=ShapeAppearance(fill_color=Color(1, 1, 1))),
+    )
+    target = conn.stimuli.shapes.create_rect(
+        position=Vec2(300, 0),
+        params=RectParams(
+            width=80,
+            height=80,
+            appearance=ShapeAppearance(fill_color=Color(0, 1, 0)),
+        ),
+    )
     conn.stimuli.set_enabled(target, False)
 
     for trial in range(20):

@@ -26,9 +26,12 @@ One line, named so the overlay and the saved config both know what it is for.
 
 ```python
 target = conn.stimuli.shapes.create_circle(
-    pos=Vec2(-800, 0), radius=30,
-    color=Color(1.0, 1.0, 1.0),
+    position=Vec2(-800, 0),
     name="target",
+    params=CircleParams(
+        diameter=60,
+        appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
+    ),
 )
 ```
 

@@ -1,8 +1,9 @@
 syntax = "proto3";
 package vstimd.v1;
 
-import "vstimd/v1/vec2.proto";
 import "vstimd/v1/color.proto";
+import "vstimd/v1/stimuli/identity.proto";
+import "vstimd/v1/transform.proto";
 
 // ── Grating enumerations ──────────────────────────────────────────────────────
 
@@ -29,39 +30,19 @@ enum MaskType {
 // Returns the new handle in Response.handle.
 //
 // The grating is rendered analytically in a fragment shader over a rectangular
-// patch.  `angle` controls the orientation of the stripes (not the patch):
-// 0° = vertical stripes varying along X, 90° = horizontal stripes varying along Y.
+// patch. The rotation orients the stripes, not the patch — see `placement`.
 //
 // The carrier oscillates between fore_color (at +1) and back_color (at -1),
 // modulated by contrast.  At contrast=1: peak pixel = fore_color, trough = back_color.
 // At contrast=0: all pixels = mix(back_color, fore_color, 0.5).
 message CreateGratingRequest {
-  Vec2         center          = 1;  // pixel-space position (origin = screen centre, Y-up)
-  float        width           = 2;  // full width in pixels  (0 → default 200)
-  float        height          = 3;  // full height in pixels (0 → default 200)
-  float        sf              = 4;  // spatial frequency in cycles/pixel (0 → default 0.05)
-  float        phase           = 5;  // static phase offset [0, 1] (default 0)
-  float        angle           = 6;  // stripe orientation in degrees CCW (default 0)
-  float        contrast        = 7;  // contrast in [0, 1] (0 → default 1)
-  Color        fore_color      = 8;  // peak colour (carrier = +1); absent → white
-  Color        back_color      = 9;  // trough colour (carrier = −1); absent → black
-  // 10 was `opacity`: opacity is a shared property now, set with SetAlpha.
-  reserved 10;
-  WaveformType waveform        = 11; // carrier waveform (default SIN)
-  MaskType     mask            = 12; // aperture mask (default NONE)
-  // Mask-specific parameter (interpreted per mask type; 0 → use default):
-  //   gauss:     SD in normalized units where patch radius = 1 (default 0.333)
-  //   raisedCos: fringe proportion [0, 1] (default 0.2, matching PsychoPy)
-  float        mask_param      = 13;
-  float        drift_speed     = 14; // drift rate in cycles/second (default 0 = static)
-  // When drift_decoupled is false (default / absent) the drift direction follows
-  // the grating orientation (perpendicular to the stripes).  Set to true and
-  // supply drift_angle to use an independent drift direction.
-  bool         drift_decoupled = 15;
-  float        drift_angle     = 16; // drift direction in degrees CCW; used only when
-                                     // drift_decoupled is true (default 0)
-  string       id              = 17; // client-supplied UUID (empty string → server generates one)
-  string       name            = 18; // optional human-readable label
+  StimulusIdentity identity  = 1;
+  // `placement.rotation_deg` is the stripe orientation: 0° = vertical stripes
+  // varying along X, 90° = horizontal stripes varying along Y. It is the same
+  // property SetOrientation sets, which is why it lives in the placement rather
+  // than in GratingParams.
+  Transform2D      placement = 2;
+  GratingParams    params    = 3;
 }
 
 // ── Grating-specific mutations ────────────────────────────────────────────────
@@ -132,12 +113,18 @@ message SetGratingBackColorRequest {
 
 // ── Grating query params ──────────────────────────────────────────────────────
 
+// Grating geometry and carrier. Used by both CreateGratingRequest and
+// QueryStimulusResponse.params, so the zero-means-default convention noted here
+// is what a create reads and what a query reports.
+//
+// No `angle`: the stripe orientation is the stimulus rotation, and travels in
+// the placement — see CreateGratingRequest.placement.
 message GratingParams {
-  float        width           = 1;
-  float        height          = 2;
-  float        sf              = 3;
-  float        phase           = 4;  // static phase offset
-  float        contrast        = 5;
+  float        width           = 1;  // full width in pixels  (0 → default 200)
+  float        height          = 2;  // full height in pixels (0 → default 200)
+  float        sf              = 3;  // spatial frequency in cycles/pixel (0 → default 0.05)
+  float        phase           = 4;  // static phase offset [0, 1] (default 0)
+  float        contrast        = 5;  // contrast in [0, 1] (0 → default 1)
   WaveformType waveform        = 6;
   MaskType     mask            = 7;
   float        mask_param      = 8;

@@ -1,32 +1,36 @@
 syntax = "proto3";
 package vstimd.v1;
 
-import "vstimd/v1/color.proto";
-import "vstimd/v1/vec2.proto";
+import "vstimd/v1/stimuli/identity.proto";
 import "vstimd/v1/stimuli/shapes.proto";
+import "vstimd/v1/transform.proto";
 
 // System command: create a circle stimulus.
 // Returns the new handle in Response.handle and the UUID in Response.id.
+// See CreateRectRequest for the shared identity/placement/params shape.
 message CreateCircleRequest {
-  Vec2 center = 1; // pixel-space position
-  float radius = 2; // radius in pixels (0 → default 50)
-  Color fill_color = 3; // fill colour (absent → scene default_fill)
-  string id = 4; // client-supplied UUID (empty string → server generates one)
-  string name = 5; // optional human-readable label
-  // See CreateRectRequest.appearance for the fallback rules.
-  ShapeAppearance appearance = 6;
-  // No `angle`: a circle is rotationally symmetric, so an orientation would be
-  // a field that provably does nothing. Use SetOrientation if a future
-  // textured fill ever makes it meaningful.
+  StimulusIdentity identity = 1;
+  // A circle is rotationally symmetric, so `placement.rotation_deg` currently
+  // changes nothing on screen. It is still accepted and stored rather than
+  // special-cased away: SetOrientation already accepts a circle (it works on any
+  // 2-D stimulus), so refusing a rotation only at creation would be the odd
+  // behaviour, and the value becomes visible the moment a textured fill lands.
+  Transform2D placement = 2;
+  CircleParams params = 3;
 }
 
-// Stimulus command: set the radius of a Circle stimulus.
+// Stimulus command: resize a Circle stimulus.
 // Returns WRONG_STIMULUS_TYPE if the handle is not a Circle.
-message SetCircleRadiusRequest {
-  float radius = 1;
+message SetCircleDiameterRequest {
+  float diameter = 1;
 }
 
 message CircleParams {
-  float radius = 1;
+  // Diameter, not radius: every other stimulus is sized by its full extent
+  // (CreateRect's width/height, CreateEllipse's width/height, a grating's patch
+  // size), and a circle sized by half of one was the odd one out — the reader
+  // could not tell which convention a number followed without knowing the type.
+  float diameter = 1; // diameter in pixels (0 → default 100)
+  // See CreateRectRequest's RectParams.appearance for the fallback rules.
   ShapeAppearance appearance = 2;
 }

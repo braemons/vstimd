@@ -38,17 +38,19 @@ precisely the distinction this scene exists to make. Note that
 
 ```python
 conn.stimuli.text.create_text(
-    text="vstimd — first light",
-    pos=Vec2(0, 220),
-    box_width=1600, box_height=120,
-    letter_height=80,
-    color=Color(1.0, 1.0, 1.0),
+    position=Vec2(0, 220),
     name="title",
+    params=TextParams(
+        text="vstimd — first light",
+        letter_height=80,
+        text_color=Color(1.0, 1.0, 1.0),
+        box_size=Vec2(1600, 120),
+    ),
 )
 ```
 
-Text is laid out inside a box: `box_width`/`box_height` set the box,
-`letter_height` sets the glyph size in pixels, and `pos` places the box centre.
+Text is laid out inside a box: `box_size` sets the box, `letter_height` sets the
+glyph size in pixels, and `position` places the box centre.
 Positions are pixels from the screen centre with **Y up** — see
 [Coordinate system](../concepts/coordinate-system.md) — so `y=220` is above
 the middle.
@@ -57,14 +59,18 @@ the middle.
 
 ```python
 conn.stimuli.shapes.create_circle(
-    pos=Vec2(0, 60), radius=8,
-    color=Color(1.0, 1.0, 1.0),
+    position=Vec2(0, 60),
     name="fixation_dot",
+    params=CircleParams(
+        diameter=16,
+        appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
+    ),
 )
 ```
 
-Circles take a radius, so this one is 16 px across. It sits slightly above
-centre to stay clear of the title's descenders.
+Circles take a diameter, the way every other shape takes its full size, so this
+one is 16 px across. It sits slightly above centre to stay clear of the title's
+descenders.
 
 ## 4. Four corner squares
 
@@ -78,9 +84,13 @@ CORNERS = [
 
 for name, x, y in CORNERS:
     conn.stimuli.shapes.create_rect(
-        pos=Vec2(x, y), width=80, height=80,
-        color=Color(1.0, 1.0, 1.0),
+        position=Vec2(x, y),
         name=name,
+        params=RectParams(
+            width=80,
+            height=80,
+            appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0)),
+        ),
     )
 ```
 

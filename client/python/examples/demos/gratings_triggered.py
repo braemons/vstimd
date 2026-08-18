@@ -29,9 +29,9 @@ import time
 from _common import add_explanation, clean_slate, demo_parser
 
 from vstimd import Connection, FinalAction, StartAction, VtlEdge, VtlHandle, VtlKind
-from vstimd.stimuli.grating_models import GratingMask, GratingTexture
+from vstimd.stimuli import CircleParams, Color, GratingMask, GratingParams, GratingTexture, ShapeAppearance, Vec2
+
 from vstimd.stimuli.shapes_models import ShapeDrawMode
-from vstimd.stimuli.stimuli_models import Color, Vec2
 
 EXPLANATION = (
     "demo_gratings_triggered — trigger in, trigger out\n"
@@ -94,17 +94,8 @@ def main() -> None:
         # the animation owns their visibility from here on.
         gratings = {}
         for label, angle in (("45deg", 45.0), ("135deg", 135.0)):
-            handle = conn.stimuli.grating.create_grating(
-                pos=Vec2(0, 0),
-                width=600, height=600,
-                sf=0.02,
-                angle=angle,
-                contrast=1.0,
-                waveform=GratingTexture.SIN,
-                mask=GratingMask.RAISED_COS,
-                mask_param=0.2,             # fringe proportion: soft-edged patch
-                name=f"grating_{label}",
-            )
+            handle = conn.stimuli.grating.create_grating(position=Vec2(0, 0), rotation=angle, # fringe proportion: soft-edged patch
+                name=f"grating_{label}", params=GratingParams(width=600, height=600, sf=0.02, contrast=1.0, waveform=GratingTexture.SIN, mask=GratingMask.RAISED_COS, mask_param=0.2))
             conn.stimuli.set_enabled(handle, False)
             gratings[label] = handle
 
@@ -112,9 +103,12 @@ def main() -> None:
         # Black core, white ring, so it reads against both the grey background
         # and the grating that appears behind it.
         dot = conn.stimuli.shapes.create_circle(
-            pos=Vec2(0, 0), radius=6,
-            color=Color(0.0, 0.0, 0.0),
+            position=Vec2(0, 0),
             name="fixation_dot",
+            params=CircleParams(
+                diameter=12,
+                appearance=ShapeAppearance(fill_color=Color(0.0, 0.0, 0.0), outline_color=Color(1.0, 1.0, 1.0)),
+            ),
         )
         conn.stimuli.shapes.set_draw_mode(dot, ShapeDrawMode.FILLED_AND_OUTLINED)
         conn.stimuli.shapes.set_outline_color(dot, Color(1.0, 1.0, 1.0))
@@ -186,7 +180,6 @@ def main() -> None:
             conn.vtl.set_line(in_135, False)
             time.sleep(2.5)
             print("Both fired. On a wired rig those edges come from the DAQ instead.")
-
 
 if __name__ == "__main__":
     try:

@@ -16,6 +16,7 @@ import argparse
 
 from vstimd import Connection, StimulusHandle
 from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd.stimuli import TextParams
 
 #: Where the caption box sits, and how big it is. Same in every demo.
 EXPLANATION_POS = Vec2(0, -340)
@@ -68,12 +69,13 @@ def add_explanation(conn: Connection, text: str) -> StimulusHandle:
     special — it is an ordinary text stimulus.
     """
     return conn.stimuli.text.create_text(
-        text=text,
-        pos=EXPLANATION_POS,
-        box_width=EXPLANATION_BOX[0],
-        box_height=EXPLANATION_BOX[1],
-        letter_height=24,
-        color=Color(0.9, 0.9, 0.9),
-        fill_color=Color(0.0, 0.0, 0.0, 0.65),
+        position=EXPLANATION_POS,
         name="explanation",
+        params=TextParams(
+            text=text,
+            letter_height=24,
+            text_color=Color(0.9, 0.9, 0.9),
+            fill_color=Color(0.0, 0.0, 0.0, 0.65),
+            box_size=Vec2(EXPLANATION_BOX[0], EXPLANATION_BOX[1]),
+        ),
     )

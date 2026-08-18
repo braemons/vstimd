@@ -114,7 +114,7 @@ describe("vstimd web client e2e (--null)", () => {
 
     const ours = snap.stimuli.find((s) => s.name === "snap-rect");
     expect(ours, "created stimulus should appear in the snapshot").toBeDefined();
-    expect(ours!.kind).toBe("rect");
+    expect(ours!.type).toBe("rect");
     expect(ours!.pos.x).toBeCloseTo(-200, 3);
     expect(ours!.pos.y).toBeCloseTo(75, 3);
   });
@@ -135,7 +135,7 @@ describe("vstimd web client e2e (--null)", () => {
     await conn.stimuli.shapes.createEllipse({ width: 160, height: 80, name: "ell" });
     const snap = await conn.nextSnapshot();
     const ell = snap.stimuli.find((s) => s.name === "ell")!;
-    expect(ell.kind).toBe("ellipse");
+    expect(ell.type).toBe("ellipse");
     expect(ell.size.width).toBeCloseTo(160, 3);
     expect(ell.size.height).toBeCloseTo(80, 3);
   });
@@ -144,7 +144,7 @@ describe("vstimd web client e2e (--null)", () => {
     await conn.stimuli.grating.create({ width: 300, height: 200, sf: 0.04, name: "grat", waveform: "sqr" });
     const snap = await conn.nextSnapshot();
     const g = snap.stimuli.find((s) => s.name === "grat")!;
-    expect(g.kind).toBe("grating");
+    expect(g.type).toBe("grating");
     expect(g.size.width).toBeCloseTo(300, 3);
     expect(g.size.height).toBeCloseTo(200, 3);
   });
@@ -154,7 +154,7 @@ describe("vstimd web client e2e (--null)", () => {
     await conn.stimuli.text.setText(h, "world!");
     const snap = await conn.nextSnapshot();
     const t = snap.stimuli.find((s) => s.name === "txt")!;
-    expect(t.kind).toBe("text");
+    expect(t.type).toBe("text");
   });
 
   it("names and fires a VTL input line", async () => {
@@ -212,7 +212,7 @@ describe("vstimd web client e2e (--null)", () => {
   });
 
   it("round-trips a position update (RF-mapping style)", async () => {
-    const handle = await conn.stimuli.shapes.createCircle({ radius: 20, name: "drag-me" });
+    const handle = await conn.stimuli.shapes.createCircle({ diameter: 40, name: "drag-me" });
     await conn.stimuli.setPosition(handle, { x: 333, y: -111 });
 
     const snap = await conn.nextSnapshot();

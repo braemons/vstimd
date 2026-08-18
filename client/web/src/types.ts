@@ -26,8 +26,13 @@ export type StimulusHandle = number;
 /** Opaque handle to an animation on the server. */
 export type AnimationHandle = number;
 
-/** Stimulus kind, mirrors the server's StimulusType. */
-export type StimulusKind =
+/** Stimulus type, mirroring the wire's `StimulusType` enum as a string union.
+ *
+ * Not "kind": `StimulusKind` is the server's *internal* taxonomy, one arm per
+ * render pipeline (Shape, Grating, Text, Mesh3d), where rect/circle/ellipse/polygon
+ * are all one `Shape`. That name must not reach a client — this is the finer,
+ * user-facing set. */
+export type StimulusType =
   | "rect"
   | "circle"
   | "ellipse"

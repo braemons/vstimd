@@ -63,3 +63,19 @@ class TextParams:
             flip_horiz=proto.flip_horiz,
             language_style=_PROTO_TO_LANGUAGE_STYLE.get(proto.language_style, LanguageStyle.LTR),
         )
+
+    def to_proto(self) -> text_pb2.TextParams:
+        return text_pb2.TextParams(
+            text=self.text,
+            font=self.font,
+            letter_height=self.letter_height,
+            box_size=self.box_size.to_proto(),
+            anchor=self.anchor,
+            text_color=self.text_color.to_proto(),
+            fill_color=self.fill_color.to_proto(),
+            border_color=self.border_color.to_proto(),
+            flip_horiz=self.flip_horiz,
+            language_style=_LANGUAGE_STYLE_TO_PROTO.get(
+                self.language_style, text_pb2.LANGUAGE_STYLE_LTR
+            ),
+        )

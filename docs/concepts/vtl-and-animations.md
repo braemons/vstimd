@@ -62,10 +62,16 @@ The simplest animation. Create a stimulus (disabled), then a `flash` animation o
 it, arm it, and it runs immediately for the given duration:
 
 ```python
-from vstimd.stimuli import Vec2, Color
+from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
-target = conn.stimuli.shapes.create_rect(pos=Vec2(0, 0), width=200, height=200,
-                                         color=Color(1, 1, 1))
+target = conn.stimuli.shapes.create_rect(
+    position=Vec2(0, 0),
+    params=RectParams(
+        width=200,
+        height=200,
+        appearance=ShapeAppearance(fill_color=Color(1, 1, 1)),
+    ),
+)
 conn.stimuli.set_enabled(target, False)
 
 flash = conn.animations.create_flash(target, duration_frames=10)   # or duration_ms=166

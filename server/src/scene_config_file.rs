@@ -12,7 +12,7 @@
 use crate::scene::SceneConfig;
 use crate::vtl_state::VtlConfig;
 
-pub const CONFIG_VERSION: u32 = 4;
+pub const CONFIG_VERSION: u32 = 5;
 
 /// Reserved config name for the auto-saved last-session slot. Written on quit
 /// when `[startup] save_on_quit` is set, and loaded at boot when

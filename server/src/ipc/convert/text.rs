@@ -1,7 +1,8 @@
+//! Text <-> proto conversions.
+
 use crate::proto;
 
-use super::text_params::{Anchor, LanguageStyle, TextRenderParams};
-use super::text_stimulus::Text;
+use crate::scene::stimulus::text::{Anchor, LanguageStyle, Text, TextRenderParams};
 
 // ── Anchor ────────────────────────────────────────────────────────────────────
 
@@ -45,7 +46,7 @@ pub fn language_style_to_proto(ls: LanguageStyle) -> i32 {
 
 // ── CreateTextRequest → scene types ───────────────────────────────────────────
 
-pub fn text_render_params_from_proto(cmd: &proto::CreateTextRequest) -> TextRenderParams {
+pub fn text_render_params_from_proto(cmd: &proto::TextParams) -> TextRenderParams {
     let color = cmd.text_color.as_ref()
         .map(|c| crate::Color::new(c.r, c.g, c.b, c.a))
         .unwrap_or(crate::Color::WHITE);

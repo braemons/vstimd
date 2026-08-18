@@ -35,7 +35,7 @@ export type {
   Color,
   StimulusHandle,
   AnimationHandle,
-  StimulusKind,
+  StimulusType,
 } from "./types.js";
 
 export {

@@ -77,10 +77,11 @@ fn test_create_rect() {
     let resp = scene.handle_request(create_rect_req(
         sys(),
         proto::CreateRectRequest {
-            center: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
-            width: 200.0,
-            height: 100.0,
-            fill_color: None,
+            placement: Some(proto::Transform2D {
+                pos: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
+                rotation_deg: 0.0,
+            }),
+            params: Some(proto::RectParams { width: 200.0, height: 100.0, ..Default::default() }),
             ..Default::default()
         },
     ), None);
@@ -97,10 +98,12 @@ fn test_create_rect_with_fill() {
     let resp = scene.handle_request(create_rect_req(
         sys(),
         proto::CreateRectRequest {
-            center: None,
-            width: 0.0,
-            height: 0.0,
-            fill_color: Some(fill),
+            placement: Some(proto::Transform2D { pos: None, rotation_deg: 0.0 }),
+            params: Some(proto::RectParams {
+                width: 0.0,
+                height: 0.0,
+                appearance: Some(proto::ShapeAppearance { fill_color: Some(fill), ..Default::default() })
+            }),
             ..Default::default()
         },
     ), None);
@@ -120,7 +123,11 @@ fn test_create_rect_defaults() {
     let default_fill = scene.default_fill;
     let resp = scene.handle_request(create_rect_req(
         sys(),
-        proto::CreateRectRequest { center: None, width: 0.0, height: 0.0, fill_color: None, ..Default::default() },
+        proto::CreateRectRequest {
+            placement: Some(proto::Transform2D { pos: None, rotation_deg: 0.0 }),
+            params: Some(proto::RectParams { width: 0.0, height: 0.0, ..Default::default() }),
+            ..Default::default()
+        },
     ), None);
     assert!(is_ok(&resp));
     let h = resp.handle as u32;
@@ -207,21 +214,26 @@ fn test_proto_roundtrip() {
     let req = proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateRect(proto::CreateRectRequest {
-            center: Some(proto::Vec2 { x: 1.0, y: 2.0 }),
-            width: 50.0,
-            height: 30.0,
-            fill_color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }),
-            ..Default::default()
-        })),
+                                                 placement: Some(proto::Transform2D {
+                                                     pos: Some(proto::Vec2 { x: 1.0, y: 2.0 }),
+                                                     rotation_deg: 0.0,
+                                                 }),
+                                                 params: Some(proto::RectParams {
+                                                     width: 50.0,
+                                                     height: 30.0,
+                                                     appearance: Some(proto::ShapeAppearance { fill_color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }), ..Default::default() })
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     };
     let bytes = req.encode_to_vec();
     let decoded = proto::Request::decode(bytes.as_slice()).unwrap();
     assert_eq!(decoded.target, req.target);
 
     if let Some(request::Body::CreateRect(c)) = decoded.body {
-        assert_eq!(c.width, 50.0);
-        assert_eq!(c.fill_color.unwrap().r, 1.0);
-        // id/name are proto string fields; default is empty string
+        let params = c.params.expect("params survive the round trip");
+        assert_eq!(params.width, 50.0);
+        assert_eq!(params.appearance.unwrap().fill_color.unwrap().r, 1.0);
     } else {
         panic!("unexpected body variant");
     }
@@ -233,13 +245,17 @@ fn test_create_ellipse() {
     let resp = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateEllipse(proto::CreateEllipseRequest {
-            center: Some(proto::Vec2 { x: 0.0, y: 0.0 }),
-            width: 120.0,
-            height: 60.0,
-            fill_color: Some(proto::Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0 }),
-            angle: 45.0,
-            ..Default::default()
-        })),
+                                                    placement: Some(proto::Transform2D {
+                                                        pos: Some(proto::Vec2 { x: 0.0, y: 0.0 }),
+                                                        rotation_deg: 45.0,
+                                                    }),
+                                                    params: Some(proto::EllipseParams {
+                                                        width: 120.0,
+                                                        height: 60.0,
+                                                        appearance: Some(proto::ShapeAppearance { fill_color: Some(proto::Color { r: 0.0, g: 1.0, b: 0.0, a: 1.0 }), ..Default::default() })
+                                                    }),
+                                                    ..Default::default()
+                                                })),
     }, None);
     assert!(is_ok(&resp), "unexpected error: {}", resp.error);
     let h = resp.handle as u32;
@@ -495,12 +511,17 @@ fn test_query_stimulus() {
     let h = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateRect(proto::CreateRectRequest {
-            center: Some(proto::Vec2 { x: 5.0, y: 10.0 }),
-            width: 200.0,
-            height: 100.0,
-            fill_color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }),
-            ..Default::default()
-        })),
+                                                 placement: Some(proto::Transform2D {
+                                                     pos: Some(proto::Vec2 { x: 5.0, y: 10.0 }),
+                                                     rotation_deg: 0.0,
+                                                 }),
+                                                 params: Some(proto::RectParams {
+                                                     width: 200.0,
+                                                     height: 100.0,
+                                                     appearance: Some(proto::ShapeAppearance { fill_color: Some(proto::Color { r: 1.0, g: 0.0, b: 0.0, a: 1.0 }), ..Default::default() })
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None).handle as u32;
 
     let resp = scene.handle_request(proto::Request {
@@ -587,9 +608,9 @@ fn test_create_with_name_and_query_returns_name_and_uuid() {
     let resp = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateRect(proto::CreateRectRequest {
-            name: "fix_cross".into(),
-            ..Default::default()
-        })),
+                                                 identity: Some(proto::StimulusIdentity { name: "fix_cross".into() }),
+                                                 ..Default::default()
+                                             })),
     }, None);
     assert!(is_ok(&resp));
     let h = resp.handle as u32;
@@ -606,21 +627,6 @@ fn test_create_with_name_and_query_returns_name_and_uuid() {
     } else {
         panic!("expected StimulusInfo");
     }
-}
-
-#[test]
-fn test_create_with_client_uuid_echoed_back() {
-    let mut scene = SceneState::new();
-    let client_id = "550e8400-e29b-41d4-a716-446655440000";
-    let resp = scene.handle_request(proto::Request {
-        target: Some(sys()),
-        body: Some(request::Body::CreateRect(proto::CreateRectRequest {
-            id: client_id.into(),
-            ..Default::default()
-        })),
-    }, None);
-    assert!(is_ok(&resp));
-    assert_eq!(resp.id, client_id);
 }
 
 #[test]
@@ -654,15 +660,21 @@ fn test_create_text() {
     let resp = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
-            text: "hello".into(),
-            font: "Open Sans".into(),
-            letter_height: 32.0,
-            box_size: Some(proto::Vec2 { x: 400.0, y: 80.0 }),
-            pos: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
-            anchor: "center".into(),
-            text_color: Some(proto::Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }),
-            ..Default::default()
-        })),
+                                                 placement: Some(proto::Transform2D {
+                                                     pos: Some(proto::Vec2 { x: 10.0, y: -20.0 }),
+                                                     rotation_deg: 0.0,
+                                                 }),
+                                                 params: Some(proto::TextParams {
+                                                     text: "hello".into(),
+                                                     font: "Open Sans".into(),
+                                                     letter_height: 32.0,
+                                                     box_size: Some(proto::Vec2 { x: 400.0, y: 80.0 }),
+                                                     anchor: "center".into(),
+                                                     text_color: Some(proto::Color { r: 1.0, g: 1.0, b: 0.0, a: 1.0 }),
+                                                     ..Default::default()
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None);
     assert!(is_ok(&resp), "unexpected error: {}", resp.error);
     let h = resp.handle as u32;
@@ -685,9 +697,12 @@ fn test_create_text_defaults() {
     let resp = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
-            text: "test".into(),
-            ..Default::default()
-        })),
+                                                 params: Some(proto::TextParams {
+                                                     text: "test".into(),
+                                                     ..Default::default()
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None);
     assert!(is_ok(&resp), "unexpected error: {}", resp.error);
     let h = resp.handle as u32;
@@ -703,9 +718,12 @@ fn test_set_text() {
     let h = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
-            text: "before".into(),
-            ..Default::default()
-        })),
+                                                 params: Some(proto::TextParams {
+                                                     text: "before".into(),
+                                                     ..Default::default()
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None).handle as u32;
 
     let resp = scene.handle_request(proto::Request {
@@ -728,9 +746,12 @@ fn test_set_text_color() {
     let h = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
-            text: "hi".into(),
-            ..Default::default()
-        })),
+                                                 params: Some(proto::TextParams {
+                                                     text: "hi".into(),
+                                                     ..Default::default()
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None).handle as u32;
 
     let resp = scene.handle_request(proto::Request {
@@ -767,8 +788,12 @@ fn test_set_text_color_missing_color() {
     let h = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
-            text: "hi".into(), ..Default::default()
-        })),
+                                                 params: Some(proto::TextParams {
+                                                     text: "hi".into(),
+                                                     ..Default::default()
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None).handle as u32;
 
     let resp = scene.handle_request(proto::Request {
@@ -785,15 +810,21 @@ fn test_query_text_stimulus() {
     let h = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
-            text: "hello".into(),
-            font: "Cairo".into(),
-            letter_height: 24.0,
-            box_size: Some(proto::Vec2 { x: 300.0, y: 60.0 }),
-            pos: Some(proto::Vec2 { x: 5.0, y: -10.0 }),
-            anchor: "top-left".into(),
-            text_color: Some(proto::Color { r: 0.5, g: 0.5, b: 1.0, a: 1.0 }),
-            ..Default::default()
-        })),
+                                                 placement: Some(proto::Transform2D {
+                                                     pos: Some(proto::Vec2 { x: 5.0, y: -10.0 }),
+                                                     rotation_deg: 0.0,
+                                                 }),
+                                                 params: Some(proto::TextParams {
+                                                     text: "hello".into(),
+                                                     font: "Cairo".into(),
+                                                     letter_height: 24.0,
+                                                     box_size: Some(proto::Vec2 { x: 300.0, y: 60.0 }),
+                                                     anchor: "top-left".into(),
+                                                     text_color: Some(proto::Color { r: 0.5, g: 0.5, b: 1.0, a: 1.0 }),
+                                                     ..Default::default()
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None).handle as u32;
 
     let resp = scene.handle_request(proto::Request {
@@ -828,9 +859,12 @@ fn test_text_deferred_set_text_and_color() {
     let h = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
-            text: "initial".into(),
-            ..Default::default()
-        })),
+                                                 params: Some(proto::TextParams {
+                                                     text: "initial".into(),
+                                                     ..Default::default()
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None).handle as u32;
 
     // Enter deferred mode
@@ -874,8 +908,12 @@ fn test_create_text_wrong_target() {
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),
         body: Some(request::Body::CreateText(proto::CreateTextRequest {
-            text: "bad".into(), ..Default::default()
-        })),
+                                                 params: Some(proto::TextParams {
+                                                     text: "bad".into(),
+                                                     ..Default::default()
+                                                 }),
+                                                 ..Default::default()
+                                             })),
     }, None);
     assert!(!is_ok(&resp));
     assert_eq!(resp.code, proto::ErrorCode::WrongTarget as i32);
@@ -887,16 +925,16 @@ fn test_list_stimuli_includes_id_and_name() {
     let h1 = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateRect(proto::CreateRectRequest {
-            name: "rect_a".into(),
-            ..Default::default()
-        })),
+                                                 identity: Some(proto::StimulusIdentity { name: "rect_a".into() }),
+                                                 ..Default::default()
+                                             })),
     }, None).handle as u32;
     let h2 = scene.handle_request(proto::Request {
         target: Some(sys()),
         body: Some(request::Body::CreateCircle(proto::CreateCircleRequest {
-            name: "disc_b".into(),
-            ..Default::default()
-        })),
+                                                   identity: Some(proto::StimulusIdentity { name: "disc_b".into() }),
+                                                   ..Default::default()
+                                               })),
     }, None).handle as u32;
 
     let resp = scene.handle_request(proto::Request {
@@ -1086,9 +1124,12 @@ fn one_of_each(scene: &mut SceneState) -> Vec<(&'static str, u32)> {
         (
             "Text",
             request::Body::CreateText(proto::CreateTextRequest {
-                text: "hello".into(),
-                ..Default::default()
-            }),
+                                          params: Some(proto::TextParams {
+                                              text: "hello".into(),
+                                              ..Default::default()
+                                          }),
+                                          ..Default::default()
+                                      }),
         ),
     ] {
         let resp = scene.handle_request(
@@ -1243,7 +1284,10 @@ fn test_create_stores_full_extents() {
     let h = scene
         .handle_request(create_rect_req(
             sys(),
-            proto::CreateRectRequest { width: 200.0, height: 100.0, ..Default::default() },
+            proto::CreateRectRequest {
+                params: Some(proto::RectParams { width: 200.0, height: 100.0, ..Default::default() }),
+                ..Default::default()
+            },
         ), None)
         .handle as u32;
     let r = scene.stimuli[&h].stimulus.shape().expect("expected Rect");
@@ -1253,8 +1297,13 @@ fn test_create_stores_full_extents() {
         .handle_request(proto::Request {
             target: Some(sys()),
             body: Some(request::Body::CreateEllipse(proto::CreateEllipseRequest {
-                width: 300.0, height: 120.0, ..Default::default()
-            })),
+                                                        params: Some(proto::EllipseParams {
+                                                            width: 300.0,
+                                                            height: 120.0,
+                                                            ..Default::default()
+                                                        }),
+                                                        ..Default::default()
+                                                    })),
         }, None)
         .handle as u32;
     let e = scene.stimuli[&h].stimulus.shape().expect("expected Ellipse");
@@ -1264,8 +1313,13 @@ fn test_create_stores_full_extents() {
         .handle_request(proto::Request {
             target: Some(sys()),
             body: Some(request::Body::CreateGrating(proto::CreateGratingRequest {
-                width: 400.0, height: 250.0, ..Default::default()
-            })),
+                                                        params: Some(proto::GratingParams {
+                                                            width: 400.0,
+                                                            height: 250.0,
+                                                            ..Default::default()
+                                                        }),
+                                                        ..Default::default()
+                                                    })),
         }, None)
         .handle as u32;
     let g = scene.stimuli[&h].stimulus.grating().expect("expected Grating");
@@ -1280,8 +1334,13 @@ fn test_query_reports_the_size_that_was_asked_for() {
         (
             "rect",
             request::Body::CreateRect(proto::CreateRectRequest {
-                width: 200.0, height: 100.0, ..Default::default()
-            }),
+                                          params: Some(proto::RectParams {
+                                              width: 200.0,
+                                              height: 100.0,
+                                              ..Default::default()
+                                          }),
+                                          ..Default::default()
+                                      }),
             |p| match p.shape.as_ref().unwrap() {
                 proto::stimulus_params::Shape::Rect(r) => (r.width, r.height),
                 _ => panic!("wrong params type"),
@@ -1290,8 +1349,13 @@ fn test_query_reports_the_size_that_was_asked_for() {
         (
             "ellipse",
             request::Body::CreateEllipse(proto::CreateEllipseRequest {
-                width: 200.0, height: 100.0, ..Default::default()
-            }),
+                                             params: Some(proto::EllipseParams {
+                                                 width: 200.0,
+                                                 height: 100.0,
+                                                 ..Default::default()
+                                             }),
+                                             ..Default::default()
+                                         }),
             |p| match p.shape.as_ref().unwrap() {
                 proto::stimulus_params::Shape::Ellipse(e) => (e.width, e.height),
                 _ => panic!("wrong params type"),
@@ -1300,8 +1364,13 @@ fn test_query_reports_the_size_that_was_asked_for() {
         (
             "grating",
             request::Body::CreateGrating(proto::CreateGratingRequest {
-                width: 200.0, height: 100.0, ..Default::default()
-            }),
+                                             params: Some(proto::GratingParams {
+                                                 width: 200.0,
+                                                 height: 100.0,
+                                                 ..Default::default()
+                                             }),
+                                             ..Default::default()
+                                         }),
             |p| match p.shape.as_ref().unwrap() {
                 proto::stimulus_params::Shape::Grating(g) => (g.width, g.height),
                 _ => panic!("wrong params type"),
@@ -1341,14 +1410,16 @@ fn create_rect_accepts_a_full_appearance() {
         create_rect_req(
             sys(),
             proto::CreateRectRequest {
-                width: 100.0,
-                height: 50.0,
-                angle: 15.0,
-                appearance: Some(proto::ShapeAppearance {
+                placement: Some(proto::Transform2D { pos: None, rotation_deg: 15.0 }),
+                params: Some(proto::RectParams {
+                    width: 100.0,
+                    height: 50.0,
+                    appearance: Some(proto::ShapeAppearance {
                     fill_color: Some(Color::new(0.1, 0.2, 0.3, 1.0).into()),
                     outline_color: Some(Color::new(0.9, 0.8, 0.7, 1.0).into()),
                     outline_width: 6.0,
                     draw_mode: proto::ShapeDrawMode::FilledAndOutlined as i32,
+                })
                 }),
                 ..Default::default()
             },
@@ -1381,7 +1452,10 @@ fn create_rect_without_appearance_is_unchanged() {
         create_rect_req(
             sys(),
             proto::CreateRectRequest {
-                fill_color: Some(Color::new(1.0, 0.0, 0.0, 1.0).into()),
+                params: Some(proto::RectParams {
+                    appearance: Some(proto::ShapeAppearance { fill_color: Some(Color::new(1.0, 0.0, 0.0, 1.0).into()), ..Default::default() }),
+                    ..Default::default()
+                }),
                 ..Default::default()
             },
         ),
@@ -1409,12 +1483,15 @@ fn create_ellipse_appearance_fields_fall_back_individually() {
         proto::Request {
             target: Some(sys()),
             body: Some(request::Body::CreateEllipse(proto::CreateEllipseRequest {
-                appearance: Some(proto::ShapeAppearance {
+                                                        params: Some(proto::EllipseParams {
+                                                            appearance: Some(proto::ShapeAppearance {
                     draw_mode: proto::ShapeDrawMode::Outlined as i32,
                     ..Default::default()
                 }),
-                ..Default::default()
-            })),
+                                                            ..Default::default()
+                                                        }),
+                                                        ..Default::default()
+                                                    })),
         },
         None,
     );
