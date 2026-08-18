@@ -492,8 +492,21 @@ vstimd_<session_id_short>_<YYYYMMDD_HHMMSS>.wllog
 
 Example: `vstimd_a3f2c1d8_20250614_143022.wllog`
 
-Written to `--log-dir` (default `./logs/`). The `.wllog` extension is application-specific
-and not shared with any other tool.
+Written to `--log-dir`. The `.wllog` extension is application-specific and not shared
+with any other tool.
+
+> **Where `--log-dir` points.** `dev/design/ASSET_STORE_PLAN.md` makes the *project* the
+> unit of storage on a rig — one directory per study holding its scene-configs, its
+> images and meshes, and its logs. Under that plan `--log-dir` defaults to
+> `<state-dir>/projects/<project>/logs/`, where `<project>` is the active project (the
+> one the loaded scene-config came from, else `default`). That keeps a study's stimuli
+> and the record of what it presented in one folder that can be copied off the rig
+> whole. A bare `./logs/` remains the fallback when no state dir is writable.
+>
+> Two things that plan deliberately leaves to *this* document: **retention** (logs are
+> the only file type that grows without bound, and nothing prunes them), and the fact
+> that logs are the only **write** target in a tree that is otherwise read-mostly — the
+> asset commands expose them as listable and downloadable but never uploadable.
 
 ### 6.4 Write buffering
 
@@ -580,7 +593,7 @@ event so the operator knows the log has gaps.
 
 ```rust
 pub struct MessengerConfig {
-    pub log_dir:              PathBuf,
+    pub log_dir:              PathBuf,       // <state-dir>/projects/<project>/logs (§6.3)
     pub log_level_file:       LogLevel,
     pub log_level_zmq:        LogLevel,
     pub log_level_sqlite:     LogLevel,
