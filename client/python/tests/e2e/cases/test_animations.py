@@ -1035,10 +1035,13 @@ def test_anim_output_edge_cancel_chaining(
     sa = _make_rect(conn, x=-150, y=0, enabled=False)
     sb = _make_rect(conn, x=150, y=0, enabled=False)
 
-    # A: short flash that pulses output bit (0, 21) on completion.
+    # A: flash that pulses output bit (0, 21) on completion. Long enough that
+    # "B is visible while running" is checked well inside A's run — at 6 frames
+    # (100 ms) A could complete, and cancel B, before the poll below even
+    # returned, and the assert then read the cancelled state as a failure.
     a = conn.animations.create_flash(
         sa,
-        duration_frames=6,
+        duration_frames=60,
         start_action_mask=StartAction.ENABLE,
         final_action_mask=FinalAction.DISABLE | FinalAction.FINAL_ACTION_TRIGGER_LINE,
         final_action_trigger_line=VtlHandle.output(0, 21),
@@ -1056,7 +1059,6 @@ def test_anim_output_edge_cancel_chaining(
     conn.animations.arm(a)
     conn.animations.arm(b)
     _wait_for_state(conn, b, AnimationState.RUNNING, timeout=2.0)
-    time.sleep(0.05)
     assert conn.stimuli.query(sb).enabled is True, "B visible while running"
 
     _update_label(conn, lbl, tid, "B running — A about to finish")
