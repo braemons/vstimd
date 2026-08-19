@@ -28,6 +28,14 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         help="Seconds to hold each visual state so a human can inspect it "
         "(default: 1.0). The null suites pin it to 0",
     )
+    parser.addoption(
+        "--recv-timeout",
+        type=float,
+        default=None,
+        help="Seconds to wait for any one server reply before giving up "
+        "(default: block forever). The review TUI sets this so a stalled "
+        "server surfaces as a failed test instead of wedging the run.",
+    )
 
 
 def pytest_configure(config: pytest.Config) -> None:
@@ -59,8 +67,8 @@ def server_address(request: pytest.FixtureRequest) -> str:
 
 
 @pytest.fixture(scope="session")
-def conn(server_address: str) -> Connection:
-    c = Connection(server_address)
+def conn(server_address: str, request: pytest.FixtureRequest) -> Connection:
+    c = Connection(server_address, recv_timeout_s=request.config.getoption("--recv-timeout"))
     # Clear any VTL names left over from a previous failed run.
     for line in c.vtl.list_lines():
         c.vtl.set_line_name(bank=line.bank, bit=line.bit, kind=line.kind, name="")

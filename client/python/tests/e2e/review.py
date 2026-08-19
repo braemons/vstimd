@@ -25,18 +25,19 @@ import dataclasses
 import datetime
 import json
 import pathlib
+import re
 import subprocess
 import sys
 import time
 
 import pytest
+from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen
 from textual.widgets import (
-    DataTable,
     Footer,
     Header,
     Input,
@@ -45,7 +46,9 @@ from textual.widgets import (
     Static,
     TabbedContent,
     TabPane,
+    Tree,
 )
+from textual.widgets.tree import TreeNode
 
 from vstimd import Connection
 from vstimd.tui import ServerStatus, StimulusList, TriggerLines
@@ -59,6 +62,29 @@ _REPO_ROOT = _PYTHON_CLIENT.parents[1]
 _SUITES = ["tests/e2e/test_e2e.py", "tests/e2e/test_psychopy_visual.py"]
 
 _STATUS = {"passed": "✓", "failed": "✗", "skipped": "–", "": "", "running": "…"}
+
+#: How a test's standing reads in the tree: an icon, a word an operator can scan
+#: for, and the Rich style that colours both. Flagged wins over the run outcome,
+#: because a human saying "this looked wrong" is the thing worth chasing.
+_STATE = {
+    "flagged": ("⚑", "flagged", "yellow"),
+    "passed": ("✓", "passed", "green"),
+    "failed": ("✗", "failed", "red"),
+    "skipped": ("–", "skipped", "dim"),
+    "running": ("…", "running", "cyan"),
+    "": ("·", "not started", "dim"),
+}
+
+
+def _state(entry: "Entry") -> tuple[str, str, str]:
+    """The icon, word and style for how ``entry`` currently stands."""
+    return _STATE["flagged" if entry.flagged else entry.status]
+
+
+def _category(test_id: str) -> str:
+    """The group a test belongs to — the ``ANIM`` of ``ANIM-07``."""
+    match = re.match(r"([A-Za-z]+)-\d", test_id)
+    return match.group(1) if match else "other"
 
 
 @dataclasses.dataclass
@@ -202,13 +228,16 @@ class ReviewApp(App[None]):
     BINDINGS = [
         Binding("j,down", "move(1)", "down", show=False),
         Binding("k,up", "move(-1)", "up", show=False),
+        # enter is consumed by the tree (it selects the row and, on a group,
+        # expands it); the leaf case is picked up in `_selected`. The binding is
+        # here for the footer label, and never fires on its own.
         Binding("enter", "run_and_advance", "run + next"),
-        Binding("space", "run_current", "run"),
         Binding("r", "run_current", "replay"),
         Binding("a", "run_all", "run from here"),
         Binding("s,escape", "stop", "stop"),
         Binding("f", "flag", "flag"),
         Binding("u", "unflag", "unflag", show=False),
+        Binding("c", "toggle_groups", "fold groups"),
         Binding("g", "top", "first", show=False),
         Binding("G", "bottom", "last", show=False),
         Binding("slash", "search", "search", show=False),
@@ -230,6 +259,10 @@ class ReviewApp(App[None]):
         self.driver = driver
         self.report_path = report_path
         self.entries = driver.entries
+        # node_id → its leaf in the tree, and group name → its parent node, so a
+        # single test or a whole group can be re-labelled in place after a run.
+        self._leaf: dict[str, TreeNode] = {}
+        self._groups: dict[str, TreeNode] = {}
         self.session = session or Session(pathlib.Path(".e2e-review-session.json"))
         self.restored = self.session.load(self.entries)
         self.running = False
@@ -245,7 +278,7 @@ class ReviewApp(App[None]):
     def compose(self) -> ComposeResult:
         yield Header()
         with Horizontal(id="body"):
-            yield DataTable(id="list", cursor_type="row", zebra_stripes=True)
+            yield Tree("tests", id="list")
             with TabbedContent(id="side"):
                 with TabPane("test", id="tab-test"):
                     yield Static(id="detail")
@@ -261,45 +294,95 @@ class ReviewApp(App[None]):
 
     def on_mount(self) -> None:
         self.title = "vstimd on-screen review"
-        table = self.query_one(DataTable)
-        table.add_columns("#", "id", "", "should show")
+        tree = self.query_one(Tree)
+        tree.show_root = False
+        tree.guide_depth = 2
         for entry in self.entries:
-            table.add_row(*self._row(entry), key=entry.node_id)
-        table.focus()
-        self.action_resume()
-        self._refresh_detail()
+            category = _category(entry.test_id)
+            group = self._groups.get(category)
+            if group is None:
+                group = tree.root.add(category, data=category, expand=True)
+                self._groups[category] = group
+            self._leaf[entry.node_id] = group.add_leaf(
+                self._leaf_label(entry), data=entry
+            )
+        for category in self._groups:
+            self._refresh_group_label(category)
+        tree.focus()
+        # Jump to the first unrun test only once the tree has laid out — before
+        # that a node's line is unknown and the cursor would clamp to the top.
+        self.call_after_refresh(self.action_resume)
+        self.call_after_refresh(self._refresh_detail)
         if self.restored:
             when = f" (saved {self.session.updated})" if self.session.updated else ""
             self._refresh_status(f"resumed {self.restored} test(s) from earlier{when}")
         else:
             self._refresh_status("ready — ⏎ runs the selected test on the display")
 
-    # ── the table ────────────────────────────────────────────────────────────
+    # ── the tree ─────────────────────────────────────────────────────────────
 
-    def _row(self, entry: Entry) -> tuple[str, str, str, str]:
-        mark = "✗" if entry.flagged else _STATUS.get(entry.status, "")
-        return (str(entry.index), entry.test_id, mark, entry.summary)
+    def _leaf_label(self, entry: Entry) -> Text:
+        """One test's row: a status icon and word, its id, and its caption."""
+        icon, word, style = _state(entry)
+        label = Text()
+        label.append(f"{icon} ", style)
+        label.append(f"{entry.test_id:<9} ", "bold")
+        label.append(f"{word:<11} ", style)
+        label.append(entry.summary, "dim")
+        return label
 
-    def _update_row(self, entry: Entry) -> None:
-        table = self.query_one(DataTable)
-        for column, value in zip(table.columns, self._row(entry)):
-            table.update_cell(entry.node_id, column, value)
+    def _group_label(self, category: str) -> Text:
+        """A group's header: its name and a tally of how its tests stand."""
+        entries = [e for e in self.entries if _category(e.test_id) == category]
+        flagged = sum(1 for e in entries if e.flagged)
+        passed = sum(1 for e in entries if e.status == "passed" and not e.flagged)
+        todo = sum(1 for e in entries if not e.status and not e.flagged)
+        label = Text()
+        label.append(f"{category} ", "bold")
+        label.append(f"({len(entries)})  ", "dim")
+        label.append(f"{passed} passed", "green" if passed else "dim")
+        label.append("  ")
+        label.append(f"{flagged} flagged", "yellow" if flagged else "dim")
+        label.append("  ")
+        label.append(f"{todo} not started", "dim")
+        return label
+
+    def _update_leaf(self, entry: Entry) -> None:
+        self._leaf[entry.node_id].set_label(self._leaf_label(entry))
+        self._refresh_group_label(_category(entry.test_id))
+
+    def _refresh_group_label(self, category: str) -> None:
+        self._groups[category].set_label(self._group_label(category))
 
     @property
-    def current(self) -> Entry:
-        return self.entries[self.query_one(DataTable).cursor_row]
+    def current(self) -> Entry | None:
+        """The test under the cursor, or None when the cursor is on a group."""
+        node = self.query_one(Tree).cursor_node
+        return node.data if node is not None and isinstance(node.data, Entry) else None
 
-    @on(DataTable.RowHighlighted)
+    def _focus_entry(self, entry: Entry) -> None:
+        node = self._leaf[entry.node_id]
+        if node.parent is not None and not node.parent.is_expanded:
+            node.parent.expand()
+        self.query_one(Tree).move_cursor(node)
+
+    @on(Tree.NodeHighlighted)
     def _highlighted(self) -> None:
         self._refresh_detail()
 
-    @on(DataTable.RowSelected)
-    def _selected(self) -> None:
-        # The table takes Enter for itself, so the binding alone never fires.
-        self.action_run_and_advance()
+    @on(Tree.NodeSelected)
+    def _selected(self, event: Tree.NodeSelected) -> None:
+        # The tree takes Enter for itself (selecting a leaf, expanding a group),
+        # so the binding never fires; act on a leaf here. A group has already
+        # toggled itself, so it needs nothing further.
+        if isinstance(event.node.data, Entry):
+            self.action_run_and_advance()
 
     def _refresh_detail(self) -> None:
         entry = self.current
+        if entry is None:
+            self._refresh_group_detail()
+            return
         lines = [
             f"[b]\\[{entry.test_id}][/b]  test {entry.index} of {len(self.entries)}",
             "",
@@ -315,6 +398,22 @@ class ReviewApp(App[None]):
             lines += ["", "[b]failure[/b]", entry.failure[-2000:]]
         self.query_one("#detail", Static).update("\n".join(lines))
 
+    def _refresh_group_detail(self) -> None:
+        """What the right pane shows while the cursor rests on a group header."""
+        node = self.query_one(Tree).cursor_node
+        category = node.data if node is not None else None
+        entries = [e for e in self.entries if _category(e.test_id) == category]
+        lines = [
+            f"[b]{category}[/b]  {len(entries)} test(s)",
+            "",
+            "[dim]⏎ or space folds this group; move onto a test to run it[/dim]",
+            "",
+        ]
+        for entry in entries:
+            icon, word, style = _state(entry)
+            lines.append(f"[{style}]{icon} {word:<11}[/] [{entry.test_id}] {entry.summary}")
+        self.query_one("#detail", Static).update("\n".join(lines))
+
     def _refresh_status(self, message: str) -> None:
         done = sum(1 for e in self.entries if e.status)
         flagged = sum(1 for e in self.entries if e.flagged)
@@ -326,69 +425,99 @@ class ReviewApp(App[None]):
     # ── running ──────────────────────────────────────────────────────────────
 
     def action_move(self, delta: int) -> None:
-        table = self.query_one(DataTable)
-        table.move_cursor(row=max(0, min(len(self.entries) - 1, table.cursor_row + delta)))
+        tree = self.query_one(Tree)
+        (tree.action_cursor_down if delta > 0 else tree.action_cursor_up)()
+
+    def action_toggle_groups(self) -> None:
+        """Fold every group, or, if all are folded already, unfold them."""
+        groups = self._groups.values()
+        collapse = any(g.is_expanded for g in groups)
+        for group in groups:
+            group.collapse() if collapse else group.expand()
 
     def action_resume(self) -> None:
         """Jump to the first test nobody has looked at yet."""
         for entry in self.entries:
             if not entry.status:
-                self.query_one(DataTable).move_cursor(row=entry.index - 1)
+                self._focus_entry(entry)
                 return
-        self.query_one(DataTable).move_cursor(row=0)
+        self._focus_entry(self.entries[0])
 
     def action_save(self) -> None:
         self.session.save(self.entries)
         self._refresh_status(f"progress saved to {self.session.path}")
 
     def action_top(self) -> None:
-        self.query_one(DataTable).move_cursor(row=0)
+        self._focus_entry(self.entries[0])
 
     def action_bottom(self) -> None:
-        self.query_one(DataTable).move_cursor(row=len(self.entries) - 1)
+        self._focus_entry(self.entries[-1])
 
     def action_run_current(self) -> None:
-        self._run(self.current, advance=False)
+        if self.current is not None:
+            self._run(self.current, advance=False)
 
     def action_run_and_advance(self) -> None:
-        self._run(self.current, advance=True)
+        if self.current is not None:
+            self._run(self.current, advance=True)
 
     def action_run_all(self) -> None:
         """Run from here to the end, until something is flagged or `s` is hit."""
+        if self.current is None:
+            return
         self.continuous = True
         self._run(self.current, advance=True)
 
     def action_stop(self) -> None:
         if self.continuous:
             self.continuous = False
-            self._refresh_status("stopped — ⏎ to carry on one at a time")
+            self._refresh_status(
+                "stopped after this test — ⏎ to carry on one at a time"
+                if self.running
+                else "stopped — ⏎ to carry on one at a time"
+            )
+        elif self.running:
+            self._refresh_status("waiting for the running test to finish or time out")
 
     def _run(self, entry: Entry, advance: bool) -> None:
         if self.running:
+            self._refresh_status(
+                "a test is still running — wait for it to finish or time out"
+            )
             return
         self.running = True
         entry.status = "running"
-        self._update_row(entry)
+        self._update_leaf(entry)
         self._refresh_status(f"running [{entry.test_id}] — watch the display")
         self._run_worker(entry, advance)
 
     @work(thread=True)
     def _run_worker(self, entry: Entry, advance: bool) -> None:
-        """Run one test on the pytest side, off the UI thread."""
-        outcome, failure = self.driver.run(entry.node_id)
+        """Run one test on the pytest side, off the UI thread.
+
+        Whatever happens — a pass, a failure, or the runner itself blowing up —
+        `_finished` must run: it is the only thing that clears `self.running`,
+        and a run left un-cleared wedges the whole app, every later start and
+        stop silently doing nothing.
+        """
+        try:
+            outcome, failure = self.driver.run(entry.node_id)
+        except BaseException as exc:  # noqa: BLE001 — the UI must survive anything
+            outcome, failure = "failed", f"the runner raised: {exc!r}"
         self.call_from_thread(self._finished, entry, outcome, failure, advance)
 
     def _finished(self, entry: Entry, outcome: str, failure: str, advance: bool) -> None:
         entry.status = outcome
         entry.failure = failure
-        self._update_row(entry)
+        self._update_leaf(entry)
         self.running = False
-        self._refresh_detail()
         self.session.save(self.entries)
         self._refresh_status(f"[{entry.test_id}] {outcome}")
-        if advance and entry.index < len(self.entries):
-            self.action_move(1)
-        if self.continuous and entry.index < len(self.entries):
+        has_next = entry.index < len(self.entries)
+        if advance and has_next:
+            self._focus_entry(self.entries[entry.index])
+        self._refresh_detail()
+        if self.continuous and has_next and self.current is not None:
             self._run(self.current, advance=True)
         elif self.continuous:
             self.continuous = False
@@ -397,6 +526,9 @@ class ReviewApp(App[None]):
 
     def action_flag(self) -> None:
         entry = self.current
+        if entry is None:
+            self._refresh_status("move onto a test to flag it")
+            return
         self.push_screen(
             PromptScreen(
                 f"What is wrong with [{entry.test_id}]?",
@@ -411,15 +543,17 @@ class ReviewApp(App[None]):
         if note is None:
             return
         entry.note = note
-        self._update_row(entry)
+        self._update_leaf(entry)
         self._refresh_detail()
         self.session.save(self.entries)
         self._refresh_status(f"flagged [{entry.test_id}]")
 
     def action_unflag(self) -> None:
         entry = self.current
+        if entry is None:
+            return
         entry.note = None
-        self._update_row(entry)
+        self._update_leaf(entry)
         self._refresh_detail()
         self.session.save(self.entries)
         self._refresh_status(f"un-flagged [{entry.test_id}]")
@@ -440,11 +574,11 @@ class ReviewApp(App[None]):
     def _search(self, text: str | None) -> None:
         if not text:
             return
-        table = self.query_one(DataTable)
-        order = self.entries[table.cursor_row + 1:] + self.entries[: table.cursor_row + 1]
+        here = self.current.index if self.current is not None else 0
+        order = self.entries[here:] + self.entries[:here]
         for entry in order:
             if text.lower() in f"{entry.test_id} {entry.summary}".lower():
-                table.move_cursor(row=entry.index - 1)
+                self._focus_entry(entry)
                 self._refresh_status(f"found [{entry.test_id}]")
                 return
         self._refresh_status(f"nothing matches {text!r}")
@@ -562,6 +696,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--fullscreen", action="store_true")
     parser.add_argument("--step-delay", default="1.0")
+    parser.add_argument(
+        "--recv-timeout",
+        default="15.0",
+        help="Seconds to wait for any one server reply before a test is failed "
+        "rather than left hanging (default: 15). A stalled server must not wedge "
+        "the review",
+    )
     parser.add_argument("--review-log", default="e2e-review.md")
     parser.add_argument(
         "--session",
@@ -599,6 +740,7 @@ def main(argv: list[str] | None = None) -> int:
                 "--capture=sys",              # leave the real stdout to Textual
                 f"--server={args.server}",
                 f"--step-delay={args.step_delay}",
+                f"--recv-timeout={args.recv_timeout}",
             ],
             plugins=[driver],
         )
