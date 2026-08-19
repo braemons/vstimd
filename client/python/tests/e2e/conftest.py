@@ -10,14 +10,16 @@ from vstimd._proto import service_pb2, system_pb2
 
 from .cases._helpers import Stage
 
-_E2E_DEFAULT = os.environ.get("VSTIMD_SERVER", "tcp://localhost:5555")
+#: Where to look for a server when nothing says otherwise. The null suites take
+#: this as "no server was asked for" and start one of their own instead.
+DEFAULT_SERVER = os.environ.get("VSTIMD_SERVER", "tcp://localhost:5555")
 
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
         "--server",
-        default=_E2E_DEFAULT,
-        help=f"ZMQ address of the vstimd for e2e tests (default: {_E2E_DEFAULT})",
+        default=DEFAULT_SERVER,
+        help=f"ZMQ address of the vstimd for e2e tests (default: {DEFAULT_SERVER})",
     )
     parser.addoption(
         "--step-delay",
