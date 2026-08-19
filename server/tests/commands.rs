@@ -365,6 +365,35 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
 }
 
 #[test]
+fn test_ending_deferred_mode_that_never_began_leaves_the_scene_alone() {
+    // A client that switches deferred mode off defensively — "whatever the last
+    // session left, I want it off" — used to schedule a flip of copies that
+    // nothing had staged. Every write since would be reverted on the next frame,
+    // which reads as a mutation that silently did not take.
+    let mut scene = SceneState::new();
+    let h = scene
+        .handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None)
+        .handle as u32;
+
+    let resp = scene.handle_request(set_deferred_mode_req(false, false), None);
+    assert!(is_ok(&resp));
+    assert!(!scene.runtime.pending_flip, "nothing was staged, so nothing to flip");
+
+    let resp = scene.handle_request(proto::Request {
+        target: Some(stim(h)),
+        body: Some(request::Body::SetPosition(proto::SetPositionRequest { x_px: 15.0, y_px: 25.0 })),
+    }, None);
+    assert!(is_ok(&resp));
+
+    // What the render thread does at the top of every frame.
+    if scene.runtime.pending_flip {
+        scene.apply_flip();
+    }
+    let t = scene.stimuli.get(&h).unwrap().stimulus.transform2d().expect("2-D");
+    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+}
+
+#[test]
 fn test_deferred_mode_stages_composed_mutations_until_flip() {
     let mut scene = SceneState::new();
     let h = scene

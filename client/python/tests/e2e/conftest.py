@@ -110,8 +110,10 @@ def scene_reset(conn: Connection, stage: Stage):
     yield
     stage.close()
     # Deferred mode first: left on by a test that failed half way through, it
-    # would swallow every command below.
-    conn.system.set_deferred_mode(False)
+    # would swallow every command below. `cancel` drops whatever was staged;
+    # the plain "off" ends deferred mode by scheduling a flip, which is the
+    # wrong thing to ask for when there may be nothing staged at all.
+    conn.system.set_deferred_mode(False, cancel=True)
     conn.system.clear_all()
     for anim in conn.animations.list_animations():
         conn.animations.delete(anim.handle)
