@@ -295,7 +295,17 @@ impl SceneState {
     }
 
     /// End deferred mode: schedule an atomic flip on the next frame boundary.
+    ///
+    /// Ending what was never begun does nothing. The flip promotes every copy
+    /// slot over its live one, and outside deferred mode the copies are stale by
+    /// construction — every ordinary write goes to `live` alone. Scheduling one
+    /// anyway would undo, a frame later, whatever had been set in the meantime:
+    /// a defensive "make sure deferred mode is off" from a client would quietly
+    /// revert the scene.
     pub fn end_deferred(&mut self) {
+        if !self.runtime.deferred_mode {
+            return;
+        }
         self.runtime.pending_flip = true;
         self.runtime.deferred_mode = false;
     }

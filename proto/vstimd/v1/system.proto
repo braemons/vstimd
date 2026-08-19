@@ -27,6 +27,28 @@ message SetDeferredModeRequest {
   bool cancel = 2;
 }
 
+// What a SetDeferredMode call did. Ending or cancelling deferred mode that was
+// never begun is a no-op rather than an error — a client is allowed to say "off,
+// whatever the state" — so the reply says which of the two happened, and whether
+// anything is now waiting for the next vsync.
+message SetDeferredModeResponse {
+  // Deferred mode after the call: true only when it was just begun.
+  bool deferred = 1;
+
+  // A flip was queued and lands on the next vsync. False when the call ended
+  // deferred mode that had never begun, or cancelled it (which discards).
+  bool flip_scheduled = 2;
+
+  // Deferred mode before the call, so a client can tell "I ended it" from
+  // "it was not on".
+  bool was_deferred = 3;
+
+  // The frame the staged state lands on — the first frame drawn from it, so a
+  // client can wait for exactly that frame rather than guessing at a vsync.
+  // Zero when no flip is queued.
+  uint64 flip_frame = 4;
+}
+
 // System command: remove all stimuli from the scene (except protected ones).
 // Animations are left alone — see ClearAnimationsRequest and ClearAllRequest.
 message ClearStimuliRequest {}

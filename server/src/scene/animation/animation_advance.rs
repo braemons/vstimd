@@ -481,7 +481,9 @@ fn finalize(
         outputs.set_level(bit);
     }
 
-    if final_action.contains(FinalAction::END_DEFERRED) {
+    // Same rule as `SceneState::end_deferred`: with nothing staged there is
+    // nothing to flip, and flipping stale copies would revert the scene.
+    if final_action.contains(FinalAction::END_DEFERRED) && scene.runtime.deferred_mode {
         scene.runtime.pending_flip = true;
         scene.runtime.deferred_mode = false;
     }

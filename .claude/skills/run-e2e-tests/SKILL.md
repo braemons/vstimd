@@ -12,7 +12,10 @@ E2e tests live in `client/python/tests/e2e/`. All Makefile targets run from `cli
 make test-e2e-null
 
 # Requires a display (X11/Wayland) and GPU — starts server with real renderer, runs all tests
-make test-e2e
+make test-e2e-visible
+
+# The same suite in a terminal UI: pick tests, watch them, flag what looks wrong
+make test-e2e-interactive
 ```
 
 ## Gotchas

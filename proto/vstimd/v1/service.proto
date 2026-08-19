@@ -191,6 +191,7 @@ message Response {
     QueryAnimationResponse query_animation_response = 16;
     ListConfigsResponse config_list = 17;
     RetrieveConfigResponse retrieved_config = 18;
+    SetDeferredModeResponse deferred_mode = 19;
   }
 
   // Server-side monotonic clock at response time, nanoseconds since server

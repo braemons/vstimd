@@ -154,12 +154,90 @@ cd client/python
 # Unit tests (no server required)
 make test
 
-# E2E against the null renderer (builds server binary automatically)
+# E2E against the null renderer — no display, no GPU (builds the server for you)
 make test-e2e-null
 
-# E2E against a real running server
-VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 make test-e2e
+# E2E on a real display, start to finish
+make test-e2e-visible
+
+# The same, one test at a time, to review by eye and flag what looks wrong
+make test-e2e-interactive
+
+# Any of them against a server elsewhere
+VSTIMD_SERVER=tcp://192.168.1.10:5555 make test-e2e-visible
 ```
+
+### Watching the on-screen suite
+
+`make test-e2e-visible` renders for real, and every test captions itself in yellow near
+the top of the display:
+
+```
+[GRAT-09] mask — none, circle, gaussian, hann, raised cosine, left to right
+```
+
+The id in front is stable and belongs to that test alone, so anything that does
+not look right can simply be written down as its id and found again with
+`grep -rn GRAT-09 client/python/tests/e2e`. The prefix names the area — `RECT`,
+`CIRC`, `ELLI`, `POLY`, `SHAPE`, `GRAT`, `TEXT`, `ANIM`, `SHARED`, `QUERY`,
+`SYS`, `CFG`, `VTL`, `DEMO`, and `PSY` for the PsychoPy-compatible API.
+
+Each test holds its scene on screen long enough to be judged. `--step-delay`
+sets that dwell in seconds (default 1.0); the null suites pin it to 0, so
+headless runs pay nothing for it:
+
+```bash
+make test-e2e-visible PYTEST_ARGS="--step-delay 2.5"   # slower, easier to watch
+```
+
+### Reviewing it by hand
+
+`make test-e2e-interactive` opens a terminal UI over the same suite. It lists every
+test with what it should put on screen; you pick one, run it, watch the display,
+and flag it if it looks wrong:
+
+```
+┌ vstimd on-screen review ──────────────────────────────────────────────────┐
+│  #   id        should show              │ test │ scene │ triggers │       │
+│  1   ANIM-01   a dark red 80×80 px squ… │                                  │
+│ ▸2   ANIM-02 ✓ a red square left of ce… │ [ANIM-02]  test 2 of 147         │
+│  3   ANIM-03   a red square right of c… │                                  │
+│  4   ANIM-04   nothing visible below c… │ should show: a red square left   │
+│  5   ANIM-05   a red square in the cen… │ of centre, on for the 60 frames  │
+│                                         │ the flash runs…                  │
+├───────────────────────────────────────────────────────────────────────────┤
+│ 1280×720 @ 60.0 Hz   v0.1.0   background (0.00, 0.00, 0.00)                │
+│ ▉▉▉▉░░░░░░░░░░░░░░░░  2/147 run   0 flagged   [ANIM-02] passed             │
+└ ⏎ run+next  space run  r replay  a run from here  f flag  v panels  q quit ┘
+```
+
+- `j`/`k` (or the arrows) move, `g`/`G` jump to the ends, `/` searches ids and
+  captions.
+- `⏎` runs the selected test and steps on; `space` runs it and stays; `r`
+  replays it; `a` runs from here to the end until you hit `s`.
+- `f` flags the test and asks what was wrong with it, `u` takes the flag back.
+- `v` cycles the side panel between the test's own detail, the live scene
+  (every stimulus the server holds) and the trigger lines — where `t` toggles a
+  line and `p` pulses it, so a trigger-driven scene can be exercised with no DAQ
+  attached.
+- `w` writes the notes out; quitting writes them too. They land in
+  `e2e-review.md`: each note, what the test claims should be visible, and a
+  ready-made command to re-run just the flagged tests.
+
+pytest still does the work underneath — collection, fixtures, reporting — but
+the app decides what runs and when, so a test can be repeated or gone back to,
+which a plain pytest run cannot do. The app also starts its own **windowed**
+server (1280×720; `--fullscreen` for the real thing) so this terminal stays
+visible, and reuses a server that is already running.
+
+The scene and trigger panels are `vstimd.tui` widgets, packaged for reuse:
+
+```python
+from vstimd import Connection
+from vstimd.tui import ServerStatus, StimulusList, TriggerLines
+```
+
+They need the `tui` extra (`pip install "vstimd-client[tui]"`).
 
 ## Status and versioning
 

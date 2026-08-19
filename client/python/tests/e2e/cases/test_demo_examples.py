@@ -25,19 +25,30 @@ import pytest
 
 from vstimd import Connection
 
+from ._helpers import Stage
+
 _PYTHON_CLIENT = pathlib.Path(__file__).parents[3]
 _REPO_ROOT = _PYTHON_CLIENT.parents[1]
 _EXAMPLES = _PYTHON_CLIENT / "examples" / "demos"
 _SHIPPED = _REPO_ROOT / "server" / "config" / "demos"
 
-#: (script stem, shipped demo name). One entry per tutorial page.
+#: (test id, script stem, shipped demo name, what the demo puts on screen).
+#: One entry per tutorial page. The last field is the caption an operator sees
+#: while the built scene is held up for inspection.
 DEMO_SCRIPTS = [
-    ("first_light",        "first_light"),
-    ("drifting_grating",   "drifting_grating"),
-    ("gratings_triggered", "gratings_triggered"),
-    ("moving_target",      "moving_target"),
-    ("photodiode_flicker", "photodiode_flicker"),
-    ("trigger_gate",       "trigger_gate"),
+    ("DEMO-01", "first_light", "first_light",
+     "a white fixation dot in the centre and a line of explanatory text"),
+    ("DEMO-02", "drifting_grating", "drifting_grating",
+     "a masked grating patch drifting steadily, with a fixation dot on top"),
+    ("DEMO-03", "gratings_triggered", "gratings_triggered",
+     "two gratings, 45° and 135°, each waiting on its own trigger line, "
+     "plus a fixation dot and a caption of their own"),
+    ("DEMO-04", "moving_target", "moving_target",
+     "a target sweeping across the screen along its path"),
+    ("DEMO-05", "photodiode_flicker", "photodiode_flicker",
+     "a photodiode patch flickering in a screen corner"),
+    ("DEMO-06", "trigger_gate", "trigger_gate",
+     "a stimulus whose visibility is gated by the level of a trigger line"),
 ]
 
 
@@ -205,15 +216,34 @@ def _run_demo_script(
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
-@pytest.mark.parametrize("script_stem,demo_name", DEMO_SCRIPTS)
+@pytest.mark.onscreen(
+    "DEMO-01…06",
+    "each tutorial demo scene, built by its own script and then held on screen "
+    "— the per-demo id and caption are set once the scene is built",
+    deferred=True,
+)
+@pytest.mark.parametrize(
+    "test_id,script_stem,demo_name,visible",
+    DEMO_SCRIPTS,
+    ids=[test_id for test_id, *_ in DEMO_SCRIPTS],
+)
 def test_demo_script_rebuilds_shipped_demo(
     conn: Connection,
     server_address: str,
     scene_cleanup: None,
+    stage: Stage,
+    test_id: str,
     script_stem: str,
     demo_name: str,
+    visible: str,
 ) -> None:
-    """Running the tutorial script reproduces the demo it documents."""
+    """Running the tutorial script reproduces the demo it documents.
+
+    The scene the script builds is compared against the shipped config *and*
+    then held on screen, so this is also where an operator gets to look at each
+    demo. The comparison is over the whole scene, so the caption cannot be up
+    while it runs — hence the deferred stage, put up only afterwards.
+    """
     shipped = _SHIPPED / f"vstimd_demo_{demo_name}.config.json"
     assert shipped.exists(), f"missing shipped demo: {shipped}"
 
@@ -223,9 +253,20 @@ def test_demo_script_rebuilds_shipped_demo(
     expected = _canonical(json.loads(shipped.read_text(encoding="utf-8")))
     assert built == expected
 
+    # The demo scene is live on the server right now; the fixture tears it down
+    # the moment this test returns, so this is the only chance to see it.
+    stage.test_id = test_id
+    stage.step(f"demo '{demo_name}' — {visible}", hold=3.0)
 
+
+@pytest.mark.onscreen(
+    "DEMO-07",
+    "the gratings_triggered scene is built by its script, cleared away to a "
+    "blank screen, and then rebuilt from the config file it saved",
+    deferred=True,
+)
 def test_demo_script_saves_a_loadable_config(
-    conn: Connection, server_address: str, scene_cleanup: None
+    conn: Connection, server_address: str, scene_cleanup: None, stage: Stage
 ) -> None:
     """The config a script saves is listed, and loads back into a cleared scene.
 
@@ -245,13 +286,27 @@ def test_demo_script_saves_a_loadable_config(
     assert len(conn.animations.list_animations()) == 2
     assert {line.name for line in conn.vtl.list_lines()} >= {"in_pin11", "out_pin35"}
 
+    stage.step("the demo scene, restored from the config the script saved", hold=2.0)
 
-@pytest.mark.parametrize("script_stem,demo_name,flag", [
-    ("gratings_triggered", "gratings_triggered", "--fire"),
-    ("trigger_gate",       "trigger_gate",       "--toggle"),
-])
+
+@pytest.mark.onscreen(
+    "DEMO-08…09",
+    "a demo script firing its own trigger edges in software — the per-demo id "
+    "and caption go up once the script has finished",
+    deferred=True,
+)
+@pytest.mark.parametrize("test_id,script_stem,demo_name,flag", [
+    ("DEMO-08", "gratings_triggered", "gratings_triggered", "--fire"),
+    ("DEMO-09", "trigger_gate",       "trigger_gate",       "--toggle"),
+], ids=["DEMO-08", "DEMO-09"])
 def test_demo_script_software_trigger_flag(
-    server_address: str, scene_cleanup: None, script_stem: str, demo_name: str, flag: str
+    server_address: str,
+    scene_cleanup: None,
+    stage: Stage,
+    test_id: str,
+    script_stem: str,
+    demo_name: str,
+    flag: str,
 ) -> None:
     """The `--fire` / `--toggle` paths run: a software edge stands in for a DAQ.
 
@@ -260,3 +315,9 @@ def test_demo_script_software_trigger_flag(
     same one the test above already checks.
     """
     _run_demo_script(script_stem, demo_name, server_address, flag)
+
+    # The script clears the scene as it builds, so the caption only goes up once
+    # it has finished — what is left on screen is the demo in its final state.
+    stage.test_id = test_id
+    stage.step(f"demo '{demo_name}' after its {flag} run: the script fired the "
+               "trigger edges itself, with no DAQ wiring involved", hold=2.0)

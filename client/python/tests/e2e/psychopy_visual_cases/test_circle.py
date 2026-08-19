@@ -1,18 +1,19 @@
 """Psychopy visual API tests — Circle."""
 from __future__ import annotations
 
-import time
-
 import pytest
 
 import vstimd.psychopy.visual as visual
 from vstimd.stimuli import CircleParams, StimulusType
-from ._helpers import label as _label, update_label as _update_label
+from ..cases._helpers import Stage
 
 
-def test_create_circle(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "blue r=50")
+@pytest.mark.onscreen(
+    "PSY-05",
+    "a blue disc of radius 50 px (100 px across) in the centre, built "
+    "through visual.Circle",
+)
+def test_create_circle(win: visual.Window, stage: Stage) -> None:
     circle = visual.Circle(win, radius=50, fillColor="blue", autoDraw=True)
 
     info = win._conn.stimuli.query(circle._handle)
@@ -25,42 +26,43 @@ def test_create_circle(win: visual.Window, step_delay: float, request: pytest.Fi
     assert info.fill_color.b == pytest.approx(1.0, abs=0.01)
 
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
     circle.autoDraw = False
-    win._conn.stimuli.delete(lbl)
 
 
-def test_circle_sizes(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "red r=150 at centre")
+@pytest.mark.onscreen(
+    "PSY-06",
+    "a large red disc in the centre, then a small green one top-left, then "
+    "a yellow one bottom-right, and finally a red/green/blue trio in a row",
+)
+def test_circle_sizes(win: visual.Window, stage: Stage) -> None:
     circle = visual.Circle(win, radius=150, fillColor="red", pos=(0, 0), autoDraw=True)
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
-    _update_label(win, lbl, tid, "green r=50 top-left")
+    stage.show("green r=50 top-left")
     circle.radius = 50
     circle.pos_px = (-200, 150)
     circle.fillColor = "green"
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
-    _update_label(win, lbl, tid, "yellow r=100 bottom-right")
+    stage.show("yellow r=100 bottom-right")
     circle.radius = 100
     circle.pos_px = (200, -150)
     circle.fillColor = "yellow"
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
     circle.autoDraw = False
 
-    _update_label(win, lbl, tid, "RGB trio r=60")
+    stage.show("RGB trio r=60")
     c1 = visual.Circle(win, radius=60, fillColor="red",   pos=(-150, 0), autoDraw=True)
     c2 = visual.Circle(win, radius=60, fillColor="green", pos=(0, 0),    autoDraw=True)
     c3 = visual.Circle(win, radius=60, fillColor="blue",  pos=(150, 0),  autoDraw=True)
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
     c1.autoDraw = False
     c2.autoDraw = False
     c3.autoDraw = False
-    win._conn.stimuli.delete(lbl)
