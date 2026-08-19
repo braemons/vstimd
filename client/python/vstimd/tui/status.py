@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from textual.reactive import reactive
+from textual.timer import Timer
 from textual.widgets import Static
 
 from ..connection import Connection
@@ -28,13 +29,14 @@ class ServerStatus(Static):
         classes: str | None = None,
     ) -> None:
         super().__init__(name=name, id=id, classes=classes)
-        self.connection = connection
-        self.refresh_interval = refresh_interval
+        self.connection: Connection = connection
+        self.refresh_interval: float = refresh_interval
+        self.timer: Timer | None = None
 
     def on_mount(self) -> None:
         self.reload()
         if self.refresh_interval:
-            self.set_interval(self.refresh_interval, self.reload)
+            self.timer = self.set_interval(self.refresh_interval, self.reload)
 
     def watch_text(self, text: str) -> None:
         self.update(text)
@@ -42,7 +44,7 @@ class ServerStatus(Static):
     def reload(self) -> None:
         try:
             info = self.connection.system.query_server_info()
-        except VstimdError as exc:
+        except (VstimdError, TimeoutError) as exc:
             self.text = f"server unreachable: {exc}"
             return
         version = info.version

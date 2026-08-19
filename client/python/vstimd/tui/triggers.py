@@ -69,7 +69,7 @@ class TriggerLines(DataTable):
     def reload(self) -> None:
         try:
             lines = self.connection.vtl.list_lines()
-        except VstimdError:
+        except (VstimdError, TimeoutError):
             return
         rows = [
             (

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import zmq
+from textual.timer import Timer
 from textual.widgets import DataTable
 
 from ..connection import Connection
@@ -39,15 +41,16 @@ class StimulusList(DataTable):
             classes=classes,
             disabled=disabled,
         )
-        self.connection = connection
-        self.refresh_interval = refresh_interval
-        self.show_disabled = show_disabled
+        self.connection: Connection = connection
+        self.refresh_interval: float = refresh_interval
+        self.show_disabled: bool = show_disabled
+        self.timer: Timer | None = None
 
     def on_mount(self) -> None:
-        self.add_columns("handle", "name", "type", "on")
+        _ = self.add_columns("handle", "name", "type", "on")
         self.reload()
         if self.refresh_interval:
-            self.set_interval(self.refresh_interval, self.reload)
+            self.timer = self.set_interval(self.refresh_interval, self.reload)
 
     @property
     def selected_handle(self) -> int | None:
@@ -65,7 +68,7 @@ class StimulusList(DataTable):
         """
         try:
             entries = self.connection.system.list_stimuli()
-        except VstimdError:
+        except (VstimdError, TimeoutError):
             return
 
         rows = []
@@ -75,7 +78,7 @@ class StimulusList(DataTable):
             try:
                 info = self.connection.stimuli.query(entry.handle)
                 type_name = info.stimulus_type.name.lower()
-            except VstimdError:
+            except (VstimdError, TimeoutError):
                 continue
             rows.append(
                 (
