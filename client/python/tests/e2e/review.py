@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import datetime
+import json
 import pathlib
 import subprocess
 import sys
@@ -75,6 +76,73 @@ class Entry:
     @property
     def flagged(self) -> bool:
         return self.note is not None
+
+
+class Session:
+    """The review so far, on disk, so a pass can be picked up where it stopped.
+
+    Judging 147 stimuli by eye is not one sitting. What survives is the part a
+    person produced — which tests have been looked at, how they came out, and
+    what was said about them — keyed by the stable test id rather than pytest's
+    node id, so renaming a test function does not lose its notes.
+
+    Records for tests this run did not collect (a `-k` selection, a test since
+    deleted) are carried through untouched rather than dropped: an unrelated
+    selection must not throw away yesterday's notes.
+    """
+
+    VERSION = 1
+
+    def __init__(self, path: pathlib.Path) -> None:
+        self.path = path
+        self.unmatched: dict[str, dict] = {}
+        self.updated: str | None = None
+
+    def load(self, entries: list[Entry]) -> int:
+        """Restore what is on disk onto ``entries``; return how many matched."""
+        if not self.path.exists():
+            return 0
+        try:
+            data = json.loads(self.path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return 0
+        if data.get("version") != self.VERSION:
+            return 0
+
+        self.updated = data.get("updated")
+        saved = dict(data.get("tests", {}))
+        restored = 0
+        for entry in entries:
+            record = saved.pop(entry.test_id, None)
+            if record is None:
+                continue
+            entry.status = record.get("status", "")
+            entry.note = record.get("note")
+            entry.failure = record.get("failure", "")
+            restored += 1
+        self.unmatched = saved
+        return restored
+
+    def save(self, entries: list[Entry]) -> None:
+        tests = dict(self.unmatched)
+        for entry in entries:
+            if not entry.status and not entry.flagged:
+                continue  # nothing worth remembering about an untouched test
+            tests[entry.test_id] = {
+                "status": entry.status,
+                "note": entry.note,
+                "failure": entry.failure,
+                "node_id": entry.node_id,
+            }
+        payload = {
+            "version": self.VERSION,
+            "updated": datetime.datetime.now().isoformat(timespec="seconds"),
+            "tests": tests,
+        }
+        try:
+            self.path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        except OSError:
+            pass  # a review that cannot save is still a review worth finishing
 
 
 class PromptScreen(ModalScreen[str | None]):
@@ -145,6 +213,8 @@ class ReviewApp(App[None]):
         Binding("G", "bottom", "last", show=False),
         Binding("slash", "search", "search", show=False),
         Binding("w", "write_report", "write notes"),
+        Binding("R", "resume", "first unrun", show=False),
+        Binding("S", "save", "save progress", show=False),
         Binding("v", "next_tab", "scene / triggers"),
         Binding("q", "quit", "quit"),
     ]
@@ -154,16 +224,21 @@ class ReviewApp(App[None]):
         driver: "PytestDriver",
         report_path: pathlib.Path,
         server_address: str = "tcp://localhost:5555",
+        session: Session | None = None,
     ) -> None:
         super().__init__()
         self.driver = driver
         self.report_path = report_path
         self.entries = driver.entries
+        self.session = session or Session(pathlib.Path(".e2e-review-session.json"))
+        self.restored = self.session.load(self.entries)
         self.running = False
         self.continuous = False
         # The app's own connection: the tests run on a worker thread with the
         # session's connection, and a ZMQ socket belongs to one thread at a time.
-        self.connection = Connection(server_address)
+        # With a receive timeout, because these panels poll from the UI thread —
+        # a server that stops answering must not take the interface with it.
+        self.connection = Connection(server_address, recv_timeout_s=2.0)
 
     # ── layout ───────────────────────────────────────────────────────────────
 
@@ -191,8 +266,13 @@ class ReviewApp(App[None]):
         for entry in self.entries:
             table.add_row(*self._row(entry), key=entry.node_id)
         table.focus()
+        self.action_resume()
         self._refresh_detail()
-        self._refresh_status("ready — ⏎ runs the selected test on the display")
+        if self.restored:
+            when = f" (saved {self.session.updated})" if self.session.updated else ""
+            self._refresh_status(f"resumed {self.restored} test(s) from earlier{when}")
+        else:
+            self._refresh_status("ready — ⏎ runs the selected test on the display")
 
     # ── the table ────────────────────────────────────────────────────────────
 
@@ -249,6 +329,18 @@ class ReviewApp(App[None]):
         table = self.query_one(DataTable)
         table.move_cursor(row=max(0, min(len(self.entries) - 1, table.cursor_row + delta)))
 
+    def action_resume(self) -> None:
+        """Jump to the first test nobody has looked at yet."""
+        for entry in self.entries:
+            if not entry.status:
+                self.query_one(DataTable).move_cursor(row=entry.index - 1)
+                return
+        self.query_one(DataTable).move_cursor(row=0)
+
+    def action_save(self) -> None:
+        self.session.save(self.entries)
+        self._refresh_status(f"progress saved to {self.session.path}")
+
     def action_top(self) -> None:
         self.query_one(DataTable).move_cursor(row=0)
 
@@ -292,6 +384,7 @@ class ReviewApp(App[None]):
         self._update_row(entry)
         self.running = False
         self._refresh_detail()
+        self.session.save(self.entries)
         self._refresh_status(f"[{entry.test_id}] {outcome}")
         if advance and entry.index < len(self.entries):
             self.action_move(1)
@@ -320,6 +413,7 @@ class ReviewApp(App[None]):
         entry.note = note
         self._update_row(entry)
         self._refresh_detail()
+        self.session.save(self.entries)
         self._refresh_status(f"flagged [{entry.test_id}]")
 
     def action_unflag(self) -> None:
@@ -327,6 +421,7 @@ class ReviewApp(App[None]):
         entry.note = None
         self._update_row(entry)
         self._refresh_detail()
+        self.session.save(self.entries)
         self._refresh_status(f"un-flagged [{entry.test_id}]")
 
     def action_next_tab(self) -> None:
@@ -381,6 +476,7 @@ class ReviewApp(App[None]):
 
     def on_unmount(self) -> None:
         self.connection.close()
+        self.session.save(self.entries)
         if self.write_report():
             print(f"notes written to {self.report_path}", file=sys.stderr)
 
@@ -392,6 +488,7 @@ class PytestDriver:
         self.items: list[pytest.Item] = []
         self.entries: list[Entry] = []
         self.report_path = pathlib.Path("e2e-review.md")
+        self.session = Session(pathlib.Path(".e2e-review-session.json"))
         self._outcome = ("", "")
 
     # ── hooks ────────────────────────────────────────────────────────────────
@@ -414,7 +511,7 @@ class PytestDriver:
         if not self.items:
             return True
         address = session.config.getoption("--server")
-        ReviewApp(self, self.report_path, address).run()
+        ReviewApp(self, self.report_path, address, self.session).run()
         return True
 
     # ── what the app calls ───────────────────────────────────────────────────
@@ -467,6 +564,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--step-delay", default="1.0")
     parser.add_argument("--review-log", default="e2e-review.md")
     parser.add_argument(
+        "--session",
+        default=".e2e-review-session.json",
+        help="Where progress is kept between sittings (default: "
+        ".e2e-review-session.json). Deleting it starts the review over",
+    )
+    parser.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Ignore saved progress and start the review from nothing",
+    )
+    parser.add_argument(
         "--server-log", default="vstimd-review.log", help="Where the server's output goes"
     )
     parser.add_argument("suites", nargs="*", default=_SUITES)
@@ -479,6 +587,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     driver = PytestDriver()
     driver.report_path = pathlib.Path(args.review_log)
+    driver.session = Session(pathlib.Path(args.session))
+    if args.fresh:
+        driver.session.path.unlink(missing_ok=True)
     try:
         return pytest.main(
             [
