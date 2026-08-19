@@ -365,6 +365,41 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
 }
 
 #[test]
+fn test_ending_deferred_mode_reports_the_frame_the_flip_lands_on() {
+    let mut scene = SceneState::new();
+    let _ = scene.handle_request(create_rect_req(sys(), proto::CreateRectRequest::default()), None);
+    scene.runtime.frame_count = 41;
+
+    let resp = scene.handle_request(set_deferred_mode_req(true, false), None);
+    let Some(proto::response::Body::DeferredMode(begun)) = resp.body else {
+        panic!("SetDeferredMode did not report what it did");
+    };
+    assert!(begun.deferred && !begun.was_deferred && !begun.flip_scheduled);
+
+    let resp = scene.handle_request(set_deferred_mode_req(false, false), None);
+    let Some(proto::response::Body::DeferredMode(ended)) = resp.body else {
+        panic!("SetDeferredMode did not report what it did");
+    };
+    assert!(ended.was_deferred, "it was on before the call");
+    assert!(!ended.deferred, "and off after it");
+    assert!(ended.flip_scheduled);
+    // The render thread flips, then counts the frame: the staged state is what
+    // frame 42 is drawn from.
+    assert_eq!(ended.flip_frame, 42);
+
+    // Cancelling discards instead, so there is nothing to wait for.
+    let _ = scene.handle_request(set_deferred_mode_req(true, false), None);
+    scene.runtime.pending_flip = false;
+    let resp = scene.handle_request(set_deferred_mode_req(false, true), None);
+    let Some(proto::response::Body::DeferredMode(cancelled)) = resp.body else {
+        panic!("SetDeferredMode did not report what it did");
+    };
+    assert!(cancelled.was_deferred && !cancelled.deferred);
+    assert!(!cancelled.flip_scheduled);
+    assert_eq!(cancelled.flip_frame, 0);
+}
+
+#[test]
 fn test_ending_deferred_mode_that_never_began_leaves_the_scene_alone() {
     // A client that switches deferred mode off defensively — "whatever the last
     // session left, I want it off" — used to schedule a flip of copies that
@@ -378,6 +413,15 @@ fn test_ending_deferred_mode_that_never_began_leaves_the_scene_alone() {
     let resp = scene.handle_request(set_deferred_mode_req(false, false), None);
     assert!(is_ok(&resp));
     assert!(!scene.runtime.pending_flip, "nothing was staged, so nothing to flip");
+
+    // And the reply says as much, rather than a bare ack the caller cannot read.
+    let Some(proto::response::Body::DeferredMode(status)) = resp.body else {
+        panic!("SetDeferredMode did not report what it did");
+    };
+    assert!(!status.was_deferred);
+    assert!(!status.deferred);
+    assert!(!status.flip_scheduled);
+    assert_eq!(status.flip_frame, 0, "no flip, so no frame to wait for");
 
     let resp = scene.handle_request(proto::Request {
         target: Some(stim(h)),

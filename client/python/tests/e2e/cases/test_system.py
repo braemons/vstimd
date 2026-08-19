@@ -239,14 +239,32 @@ def test_set_deferred_mode(conn: Connection, stage: Stage) -> None:
     # The caption is a stimulus like any other, so it has to be written before
     # deferred mode swallows the change along with the move under test.
     stage.show("move sent while deferred — the rect should not move yet")
-    conn.system.set_deferred_mode(True)
+    begun = conn.system.set_deferred_mode(True)
+    assert begun.deferred and not begun.was_deferred
     conn.stimuli.set_position(h, Vec2(100, 50))
     stage.hold(0.5)
 
-    conn.system.set_deferred_mode(False)
-    conn.system.wait_for_frames(1)
+    ended = conn.system.set_deferred_mode(False)
+    assert ended.was_deferred, "it was on, so ending it has something to do"
+    assert ended.flip_scheduled
+    # The flip lands on the frame after the call — or on the call's own frame,
+    # if the render thread got there while the reply was being built.
+    assert ended.flip_frame > 0
+    assert ended.flip_frame <= ended.frame_count + 1
+    assert begun.frame_count <= ended.frame_count
+    # The reported frame is the first one drawn from the staged state, so
+    # waiting for exactly it is enough — no sleeping on a guessed vsync.
+    conn.system.wait_for_frame(ended.flip_frame)
     info = conn.stimuli.query(h)
     assert info.pos_px.x == pytest.approx(100.0, abs=0.5)
 
     stage.step("deferred mode off — the staged move has landed")
+
+    # Ending it again has nothing to end, and says so rather than scheduling a
+    # flip of stale copies over the live scene.
+    again = conn.system.set_deferred_mode(False)
+    assert again.was_a_no_op
+    assert not again.flip_scheduled
+    assert again.flip_frame == 0
+
     conn.stimuli.delete(h)
