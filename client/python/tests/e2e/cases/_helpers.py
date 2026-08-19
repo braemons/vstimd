@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import time
-from typing import Callable
 
 from vstimd import Connection, HandleNotFoundError
 from vstimd.animations import AnimationHandle, AnimationState
@@ -54,7 +53,6 @@ class Stage:
         test_id: str,
         description: str,
         step_delay: float,
-        pause: Callable[["Stage"], None] = lambda stage: None,
         node_id: str = "",
     ) -> None:
         self.conn = conn
@@ -64,7 +62,6 @@ class Stage:
         self.summary = description
         self.description = description
         self.step_delay = step_delay
-        self.pause = pause
         #: pytest's own name for the test, so a flagged one can be re-run.
         self.node_id = node_id
         self._handle: StimulusHandle | None = None
@@ -125,13 +122,9 @@ class Stage:
 
     def hold(self, factor: float = 1.0) -> None:
         """Leave the current frame up for ``factor`` step delays.
-
-        With ``--pause=step`` the frame stays up until someone says otherwise,
-        which is the only way to study something that a dwell always cuts short.
         """
         if self.step_delay > 0:
             time.sleep(self.step_delay * factor)
-        self.pause(self)
 
     def close(self) -> None:
         if self._handle is None:

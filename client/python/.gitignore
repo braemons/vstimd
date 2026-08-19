@@ -8,7 +8,7 @@ docs/_build/
 
 # Notes taken while watching the on-screen e2e suite (make test-e2e-review)
 e2e-review.md
-.e2e-browse.json
+vstimd-review.log
 
 # Generated protobuf stubs — regenerate with: make proto
 vstimd/_proto/**/*_pb2.py

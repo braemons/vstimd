@@ -192,49 +192,52 @@ make test-e2e PYTEST_ARGS="--step-delay 2.5"   # slower, easier to watch
 
 ### Reviewing it by hand
 
-`make test-e2e-review` walks the same suite under your control. It says what is
-about to run, then stops with what should have been on screen, how the test came
-out, and where in the suite you are:
+`make test-e2e-review` opens a terminal UI over the same suite. It lists every
+test with what it should put on screen; you pick one, run it, watch the display,
+and flag it if it looks wrong:
 
 ```
-  [ 42/147] ███░░░░░░░░░  29%
-  ▶  [GRAT-03]  a centred grating whose stripes double in number when the
-                spatial frequency goes from 0.05 to 0.1 cycles/px
-
-  [ 42/147] ███░░░░░░░░░  29%
-  ⏸  [GRAT-03] ✓  a centred grating whose stripes double in number when the
-                  spatial frequency goes from 0.05 to 0.1 cycles/px
-     on screen: 0.1 cycles/px — twice as many, half as wide
-     j/⏎ next   k prev   5j/5k ±5   42G go to 42   gg/G first/last
-     r replay   /text search   l list (L all)   f flag   c run on   q quit
-     >
+┌ vstimd on-screen review ──────────────────────────────────────────────────┐
+│  #   id        should show              │ test │ scene │ triggers │       │
+│  1   ANIM-01   a dark red 80×80 px squ… │                                  │
+│ ▸2   ANIM-02 ✓ a red square left of ce… │ [ANIM-02]  test 2 of 147         │
+│  3   ANIM-03   a red square right of c… │                                  │
+│  4   ANIM-04   nothing visible below c… │ should show: a red square left   │
+│  5   ANIM-05   a red square in the cen… │ of centre, on for the 60 frames  │
+│                                         │ the flash runs…                  │
+├───────────────────────────────────────────────────────────────────────────┤
+│ 1280×720 @ 60.0 Hz   v0.1.0   background (0.00, 0.00, 0.00)                │
+│ ▉▉▉▉░░░░░░░░░░░░░░░░  2/147 run   0 flagged   [ANIM-02] passed             │
+└ ⏎ run+next  space run  r replay  a run from here  f flag  v panels  q quit ┘
 ```
 
-The motions are vim's: `j`/`k` step, `5j`/`5k` jump five, `42G` (or `:42`, or
-`42`) goes to a numbered test, `gg`/`G` to the ends, `r` replays the one you are
-on, `/grating` finds the next test whose id or caption matches, `l` lists the
-tests around you and `L` all of them.
+- `j`/`k` (or the arrows) move, `g`/`G` jump to the ends, `/` searches ids and
+  captions.
+- `⏎` runs the selected test and steps on; `space` runs it and stays; `r`
+  replays it; `a` runs from here to the end until you hit `s`.
+- `f` flags the test and asks what was wrong with it, `u` takes the flag back.
+- `v` cycles the side panel between the test's own detail, the live scene
+  (every stimulus the server holds) and the trigger lines — where `t` toggles a
+  line and `p` pulses it, so a trigger-driven scene can be exercised with no DAQ
+  attached.
+- `w` writes the notes out; quitting writes them too. They land in
+  `e2e-review.md`: each note, what the test claims should be visible, and a
+  ready-made command to re-run just the flagged tests.
 
-`f` writes the test down as wrong and asks what is wrong with it; the run then
-carries on, so one pass produces one list at the end instead of a scribbled page
-of ids. Flagged tests are printed in the summary and written to `e2e-review.md`,
-each with its note, what the test claims should be visible, and a ready-made
-command to re-run just those tests.
+pytest still does the work underneath — collection, fixtures, reporting — but
+the app decides what runs and when, so a test can be repeated or gone back to,
+which a plain pytest run cannot do. The app also starts its own **windowed**
+server (1280×720; `--fullscreen` for the real thing) so this terminal stays
+visible, and reuses a server that is already running.
 
-Going backwards restarts pytest — a session runs its tests once, in order — so
-this target goes through `tests/e2e/browse.py`, which owns the loop and carries
-the notes across. It also starts a **windowed** server (1280×720; `--fullscreen`
-to override) so the terminal you are answering in stays visible, and reuses a
-server that is already running.
+The scene and trigger panels are `vstimd.tui` widgets, packaged for reuse:
 
-```bash
-make test-e2e-review
-make test-e2e-review PYTEST_ARGS="--start-at 42"      # open on test 42
-make test-e2e-review PYTEST_ARGS="--pause=step"       # stop at every caption
+```python
+from vstimd import Connection
+from vstimd.tui import ServerStatus, StimulusList, TriggerLines
 ```
 
-Pausing needs a terminal to ask on: with stdin closed (CI, a backgrounded
-`make`) the first prompt turns pausing off and the run carries on.
+They need the `tui` extra (`pip install "vstimd-client[tui]"`).
 
 ## Status and versioning
 

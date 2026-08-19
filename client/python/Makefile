@@ -33,13 +33,12 @@ test-integration:
 test-e2e: proto
 	uv run --group dev pytest $(E2E_SUITES) -v $(PYTEST_ARGS)
 
-# The same suite, reviewed by hand: it pauses on every test with what should be
-# on screen, takes vim motions to move around the suite (k back, 5j forward
-# five, 42G to a number, / to search) and `f` to flag one with a note, which
-# lands in e2e-review.md. Runs its own windowed server so this terminal stays
-# visible; pass PYTEST_ARGS="--pause=step" to stop at every caption change.
+# The same suite, reviewed by eye: a terminal UI (vstimd.tui widgets) listing
+# every test with what it should put on screen. Pick one, run it, watch the
+# display, flag it with a note if it looks wrong — the notes land in
+# e2e-review.md. Runs its own windowed server so this terminal stays visible.
 test-e2e-review: proto
-	uv run --group dev python tests/e2e/browse.py $(PYTEST_ARGS)
+	uv run --group dev python tests/e2e/review.py $(PYTEST_ARGS)
 
 test-e2e-null: proto
 	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v $(PYTEST_ARGS)
