@@ -158,18 +158,18 @@ make test
 make test-e2e-null
 
 # E2E on a real display, start to finish
-make test-e2e
+make test-e2e-visible
 
 # The same, one test at a time, to review by eye and flag what looks wrong
-make test-e2e-review
+make test-e2e-interactive
 
 # Any of them against a server elsewhere
-VSTIMD_SERVER=tcp://192.168.1.10:5555 make test-e2e
+VSTIMD_SERVER=tcp://192.168.1.10:5555 make test-e2e-visible
 ```
 
 ### Watching the on-screen suite
 
-`make test-e2e` renders for real, and every test captions itself in yellow near
+`make test-e2e-visible` renders for real, and every test captions itself in yellow near
 the top of the display:
 
 ```
@@ -187,12 +187,12 @@ sets that dwell in seconds (default 1.0); the null suites pin it to 0, so
 headless runs pay nothing for it:
 
 ```bash
-make test-e2e PYTEST_ARGS="--step-delay 2.5"   # slower, easier to watch
+make test-e2e-visible PYTEST_ARGS="--step-delay 2.5"   # slower, easier to watch
 ```
 
 ### Reviewing it by hand
 
-`make test-e2e-review` opens a terminal UI over the same suite. It lists every
+`make test-e2e-interactive` opens a terminal UI over the same suite. It lists every
 test with what it should put on screen; you pick one, run it, watch the display,
 and flag it if it looks wrong:
 
