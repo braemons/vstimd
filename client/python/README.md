@@ -154,11 +154,17 @@ cd client/python
 # Unit tests (no server required)
 make test
 
-# E2E against the null renderer (builds server binary automatically)
+# E2E against the null renderer — no display, no GPU (builds the server for you)
 make test-e2e-null
 
-# E2E against a real running server
-VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 make test-e2e
+# E2E on a real display, start to finish
+make test-e2e
+
+# The same, one test at a time, to review by eye and flag what looks wrong
+make test-e2e-review
+
+# Any of them against a server elsewhere
+VSTIMD_SERVER=tcp://192.168.1.10:5555 make test-e2e
 ```
 
 ### Watching the on-screen suite
@@ -181,84 +187,54 @@ sets that dwell in seconds (default 1.0); the null suites pin it to 0, so
 headless runs pay nothing for it:
 
 ```bash
-uv run pytest tests/e2e/test_e2e.py --step-delay 2.5   # slower, easier to watch
+make test-e2e PYTEST_ARGS="--step-delay 2.5"   # slower, easier to watch
 ```
 
-### Reviewing it, one test at a time
+### Reviewing it by hand
 
-To stop and look at something properly, run the suite pausable:
-
-```bash
-make test-e2e-review   # pause once per test
-make test-e2e-step     # pause at every caption change, i.e. step by step
-```
-
-Either way you get a prompt naming the test, what it is for, and what is on
-screen at this instant:
+`make test-e2e-review` walks the same suite under your control. It says what is
+about to run, then stops with what should have been on screen, how the test came
+out, and where in the suite you are:
 
 ```
-  ────────────────────────────────────────────────────────────────────
-  ⏸  [GRAT-03]  a centred grating whose stripes double in number when the
+  [ 42/147] ███░░░░░░░░░  29%
+  ▶  [GRAT-03]  a centred grating whose stripes double in number when the
                 spatial frequency goes from 0.05 to 0.1 cycles/px
+
+  [ 42/147] ███░░░░░░░░░  29%
+  ⏸  [GRAT-03] ✓  a centred grating whose stripes double in number when the
+                  spatial frequency goes from 0.05 to 0.1 cycles/px
      on screen: 0.1 cycles/px — twice as many, half as wide
-     [Enter] next   [f] flag a problem   [c] run on   [q] quit:
+     j/⏎ next   k prev   5j/5k ±5   42G go to 42   gg/G first/last
+     r replay   /text search   l list (L all)   f flag   c run on   q quit
+     >
 ```
+
+The motions are vim's: `j`/`k` step, `5j`/`5k` jump five, `42G` (or `:42`, or
+`42`) goes to a numbered test, `gg`/`G` to the ends, `r` replays the one you are
+on, `/grating` finds the next test whose id or caption matches, `l` lists the
+tests around you and `L` all of them.
 
 `f` writes the test down as wrong and asks what is wrong with it; the run then
-carries on, so one pass over the suite produces one list at the end instead of a
-scribbled page of ids. Flagged tests are printed in the summary and written to
-`e2e-review.md`, with each note, what the test claims should be visible, and a
-ready-made command to re-run just those tests.
+carries on, so one pass produces one list at the end instead of a scribbled page
+of ids. Flagged tests are printed in the summary and written to `e2e-review.md`,
+each with its note, what the test claims should be visible, and a ready-made
+command to re-run just those tests.
 
-Both targets take `PYTEST_ARGS`, and the underlying options work on any run:
-
-```bash
-make test-e2e-step PYTEST_ARGS="-k grating"
-uv run pytest tests/e2e/test_e2e.py --pause --review-log today.md
-```
-
-### Browsing it: moving around the suite
-
-`make test-e2e-browse` is the same prompt with the suite under vim's motions,
-so a test can be gone back to rather than only watched going past:
-
-| key | does |
-| --- | --- |
-| `j` / Enter | next test |
-| `k` | previous test |
-| `5j`, `5k` | five forward, five back |
-| `42G`, `:42`, `42` | go to test 42 |
-| `gg`, `G` | first, last |
-| `r` | replay this test |
-| `/text` | next test whose id or caption matches |
-| `l` | list every test, with its number |
-| `f` | flag this one, with a note |
-| `c` | run on without pausing |
-| `q` | stop here |
-
-A pytest session runs its tests once, in order, so `j` and `5j` are handled
-inside it by skipping ahead — but `k` cannot be: a test that has run is done.
-`tests/e2e/browse.py` therefore owns the loop, restarting pytest at the test
-asked for and carrying the notes across. It also starts a **windowed** server
-(`--windowed 1280x720`, or `--fullscreen`) so this terminal stays visible, and
-reuses one that is already running.
+Going backwards restarts pytest — a session runs its tests once, in order — so
+this target goes through `tests/e2e/browse.py`, which owns the loop and carries
+the notes across. It also starts a **windowed** server (1280×720; `--fullscreen`
+to override) so the terminal you are answering in stays visible, and reuses a
+server that is already running.
 
 ```bash
-make test-e2e-browse
-make test-e2e-browse PYTEST_ARGS="--start-at 42"
+make test-e2e-review
+make test-e2e-review PYTEST_ARGS="--start-at 42"      # open on test 42
+make test-e2e-review PYTEST_ARGS="--pause=step"       # stop at every caption
 ```
 
-Pausing needs a terminal to ask: with stdin closed (CI, a backgrounded `make`)
-the first prompt turns pausing off and the run carries on.
-
-The suite starts its server fullscreen, which covers the terminal the prompt is
-waiting in. Start a windowed server first and the suite attaches to that one
-instead of starting its own — and leaves it running afterwards:
-
-```bash
-cargo run --release -- --windowed 1280x720 &
-uv run pytest tests/e2e/test_e2e.py --pause
-```
+Pausing needs a terminal to ask on: with stdin closed (CI, a backgrounded
+`make`) the first prompt turns pausing off and the run carries on.
 
 ## Status and versioning
 

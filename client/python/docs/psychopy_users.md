@@ -144,5 +144,5 @@ make test
 make test-e2e-null
 
 # E2E against a real running server
-VSTIM_SERVER_ADDR=tcp://192.168.1.10:5555 make test-e2e
+VSTIMD_SERVER=tcp://192.168.1.10:5555 make test-e2e
 ```

@@ -5,7 +5,9 @@ import datetime
 import json
 import os
 import pathlib
+import shutil
 import sys
+import textwrap
 
 import pytest
 import zmq
@@ -135,12 +137,20 @@ class Reviewer:
 
     # ── prompting ────────────────────────────────────────────────────────────
 
-    def _ask(self, prompt: str) -> str | None:
-        """Ask on the real terminal, or return None if there is not one."""
+    def _ask(self, block: str, prompt: str = "     > ") -> str | None:
+        """Show ``block``, then ask on ``prompt``. None when there is no terminal.
+
+        The two are separate on purpose: readline treats an ``input()`` prompt
+        as a single line and eats any newlines in it, which turned the whole
+        console into one long smear the first time this ran on a real terminal.
+        Everything multi-line is printed; only the cursor line is the prompt.
+        """
         capture = self.config.pluginmanager.getplugin("capturemanager")
         if capture is not None:
             capture.suspend_global_capture(in_=True)
         try:
+            if block:
+                print(block, file=sys.stderr, flush=True)
             return input(prompt)
         except (EOFError, OSError):
             self.mode = "off"  # nothing on stdin to ask
@@ -162,6 +172,21 @@ class Reviewer:
 
     # ── what the prompt shows ────────────────────────────────────────────────
 
+    @staticmethod
+    def _wrap(label: str, text: str) -> str:
+        """One labelled line, folded to the terminal rather than run off it.
+
+        The captions are whole sentences — a paragraph's worth on a 60-column
+        terminal — and printed raw they turn the console into a single smear.
+        """
+        width = max(48, shutil.get_terminal_size((100, 24)).columns) - 2
+        return textwrap.fill(
+            text,
+            width=width,
+            initial_indent=label,
+            subsequent_indent=" " * len(label),
+        )
+
     def _progress(self) -> str:
         """`[ 12/147 ] ███░░░░░░░░` — where in the suite this test is."""
         if not self.total:
@@ -172,8 +197,10 @@ class Reviewer:
 
     _KEYS = (
         "     j/⏎ next   k prev   5j/5k ±5   42G go to 42   gg/G first/last\n"
-        "     r replay   /text search   l list   f flag   c run on   q quit"
+        "     r replay   /text search   l list (L all)   f flag   "
+        "c run on   q quit"
     )
+
 
     def _prompt(self, stage: Stage, where: str) -> None:
         if self.mode != where:
@@ -182,7 +209,7 @@ class Reviewer:
         # summary is what the test as a whole is for. They differ often enough
         # that showing only one leaves the operator guessing.
         on_screen = (
-            f"     on screen: {stage.description}\n"
+            self._wrap("     on screen: ", stage.description)
             if stage.description != stage.summary
             else ""
         )
@@ -190,14 +217,19 @@ class Reviewer:
         mark = {"passed": "✓", "failed": "✗ FAILED", "skipped": "– skipped"}.get(
             outcome, ""
         )
-        while True:
-            answer = self._ask(
-                f"\n{self._progress()}\n"
-                f"  ⏸  [{stage.test_id}] {mark}  {stage.summary}\n"
-                f"{on_screen}"
-                f"{self._KEYS}\n"
-                f"     > "
+        block = "\n".join(
+            line
+            for line in (
+                "",
+                self._progress(),
+                self._wrap(f"  ⏸  [{stage.test_id}] {mark}  ", stage.summary),
+                on_screen,
+                self._KEYS,
             )
+            if line
+        )
+        while True:
+            answer = self._ask(block)
             if answer is None:
                 return
             if self._act(answer.strip(), stage):
@@ -227,6 +259,9 @@ class Reviewer:
             self._say(self._KEYS)
             return False
         if answer in ("l", ":ls", ":list"):
+            self._list(window=12)
+            return False
+        if answer in ("L", ":ls!", ":list!"):
             self._list()
             return False
         if answer.startswith("/"):
@@ -311,15 +346,36 @@ class Reviewer:
         self._say(f"     ? nothing matches {text!r}")
         return None
 
-    def _list(self) -> None:
+    def _list(self, window: int | None = None) -> None:
+        """The suite as a numbered list — nearby by default, all of it on `L`."""
+        entries = self.entries
+        if window is not None:
+            first = max(0, self.index - 1 - window)
+            entries = entries[first: first + 2 * window + 1]
         lines = []
-        for entry in self.entries:
+        for entry in entries:
             here = "→" if entry.index == self.index else " "
             flagged = "✗" if any(f.node_id == entry.node_id for f in self.flags) else " "
-            lines.append(
-                f"   {here}{flagged} {entry.index:>3}  [{entry.test_id}]  {entry.summary[:60]}"
-            )
+            width = max(48, shutil.get_terminal_size((100, 24)).columns) - 2
+            head = f"   {here}{flagged} {entry.index:>3}  [{entry.test_id}]  "
+            lines.append(head + entry.summary[: max(20, width - len(head))])
+        if window is not None and len(lines) < self.total:
+            lines.append(f"        … {self.total} tests in all — L lists every one")
         self._say("\n".join(lines))
+
+    def announce(self, index: int, entry: Entry) -> None:
+        """Say what the next test will show, *before* it shows it.
+
+        Several tests are over in a second, so a description that only arrives
+        with the prompt afterwards is a description of something already gone.
+        """
+        if self.mode == "off":
+            return
+        self.index = index
+        self._say(
+            f"\n{self._progress()}\n"
+            + self._wrap(f"  ▶  [{entry.test_id}]  ", entry.summary)
+        )
 
     # ── the two pause points ─────────────────────────────────────────────────
 
@@ -397,13 +453,16 @@ def pytest_collection_modifyitems(
 
 
 def pytest_runtest_setup(item: pytest.Item) -> None:
-    """Step over the tests a forward jump asked to skip."""
+    """Step over the tests a forward jump asked to skip, and announce the rest."""
     reviewer = item.config.stash[_REVIEWER]
-    if reviewer.skip_until is None:
-        return
-    if item.stash.get(_INDEX, 0) < reviewer.skip_until:
-        pytest.skip(f"jumped over, on the way to test {reviewer.skip_until}")
-    reviewer.skip_until = None
+    index = item.stash.get(_INDEX, 0)
+    if reviewer.skip_until is not None:
+        if index < reviewer.skip_until:
+            pytest.skip(f"jumped over, on the way to test {reviewer.skip_until}")
+        reviewer.skip_until = None
+    entry = next((e for e in reviewer.entries if e.index == index), None)
+    if entry is not None:
+        reviewer.announce(index, entry)
 
 
 @pytest.hookimpl(trylast=True)
@@ -519,6 +578,10 @@ def scene_reset(
     """
     yield
     reviewer.at_test(stage, request.node.stash.get(_INDEX, 0))
+    # Take the caption down first: clearing the scene out from under it would
+    # leave Stage.close deleting a handle the server has already dropped, and
+    # the server logs a warning for every one of those.
+    stage.close()
     # Deferred mode first: left on by a test that failed half way through, it
     # would swallow every command below.
     conn.system.set_deferred_mode(False)

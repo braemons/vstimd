@@ -10,9 +10,29 @@ from vstimd.animations import AnimationHandle, AnimationState
 from vstimd.stimuli import RectParams, ShapeAppearance, StimulusHandle, TextParams
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
-#: Near the top of the frame, clear of where demos put their own titles.
-CAPTION_POS = Vec2(0.0, 420.0)
-CAPTION_BOX = Vec2(1600.0, 80.0)
+#: Screen size per connection, so the caption can be placed relative to it
+#: rather than at a pixel offset that falls off a small window.
+_SCREEN: dict[int, tuple[int, int]] = {}
+
+
+def _caption_geometry(conn: Connection) -> tuple[Vec2, Vec2, float]:
+    """Where the caption goes on *this* display: position, box, letter height.
+
+    A fixed offset does not travel: y=420 is near the top of a 1080-line screen
+    and off the bottom of a 720-line window, which is exactly what the browser
+    opens. Everything here is a fraction of the real frame instead.
+    """
+    size = _SCREEN.get(id(conn))
+    if size is None:
+        info = conn.system.query_server_info()
+        size = _SCREEN[id(conn)] = (info.width_px, info.height_px)
+    width_px, height_px = size
+
+    letter_height_px = min(32.0, max(16.0, height_px / 30.0))
+    box = Vec2(min(width_px - 40.0, 1600.0), letter_height_px * 2.6)
+    # A hair below the top edge, measuring from the centre the server places by.
+    top = height_px / 2.0 - box.y / 2.0 - height_px * 0.02
+    return Vec2(0.0, top), box, letter_height_px
 
 
 class Stage:
@@ -69,18 +89,19 @@ class Stage:
         if description is not None:
             self.description = description
         previous = self._handle
+        position_px, box_size_px, letter_height_px = _caption_geometry(self.conn)
         self._handle = self.conn.stimuli.text.create_text(
-            position_px=CAPTION_POS,
+            position_px=position_px,
             name="_label",
             params=TextParams(
                 text=self._caption(self.description),
-                letter_height_px=28,
+                letter_height_px=letter_height_px,
                 text_color=Color(1.0, 1.0, 0.0),
                 # A dim backing box: the caption has to stay readable over a
                 # mid-grey background and over any stimulus it lands on.
                 fill_color=Color(0.0, 0.0, 0.0, 0.7),
                 anchor="center",
-                box_size_px=CAPTION_BOX,
+                box_size_px=box_size_px,
             ),
         )
         if previous is not None:

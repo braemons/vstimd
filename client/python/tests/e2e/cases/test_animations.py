@@ -24,7 +24,7 @@ from ._helpers import wait_for_anim_state as _wait_for_state
 @pytest.mark.onscreen(
     "ANIM-01",
     "a dark red 80×80 px square in the centre that switches on by itself "
-    "for 30 frames (half a second) and then goes off and stays off",
+    "for 60 frames (one second) and then goes off and stays off",
 )
 def test_anim_flash_state_transitions(conn: Connection, stage: Stage) -> None:
     """Flash runs for N frames and ends in DONE state."""
@@ -96,7 +96,7 @@ def test_anim_flash_stimulus_visible_during_run(conn: Connection, stage: Stage) 
 @pytest.mark.onscreen(
     "ANIM-03",
     "a red square right of centre that stays hidden until a rising edge "
-    "arrives on input line (0,10), then flashes for 30 frames",
+    "arrives on input line (0,10), then flashes for a second",
 )
 def test_anim_flash_start_trigger(conn: Connection, stage: Stage) -> None:
     """Flash with start_trigger stays ARMED until a rising edge fires it."""
@@ -281,7 +281,7 @@ def test_anim_cancel_trigger_while_armed(conn: Connection, stage: Stage) -> None
 @pytest.mark.onscreen(
     "ANIM-08",
     "a red square up and left of centre flickering 6 frames on, 6 frames "
-    "off (about 5 Hz) for one second, then off",
+    "off (about 5 Hz) for two seconds, then off",
 )
 def test_anim_flicker_cycles(conn: Connection, stage: Stage) -> None:
     """Flicker toggles a stimulus on and off at the specified cadence."""
@@ -651,7 +651,7 @@ def test_anim_move_along_segments_2d(conn: Connection, stage: Stage) -> None:
 
 @pytest.mark.onscreen(
     "ANIM-17",
-    "a red square above centre, on while a 20-frame flash runs and hidden "
+    "a red square above centre, on while a 45-frame flash runs and hidden "
     "again afterwards — RESTORE_VISIBILITY puts back the state it had "
     "before",
 )
@@ -687,7 +687,7 @@ def test_anim_final_action_restore_visibility(conn: Connection, stage: Stage) ->
 
 @pytest.mark.onscreen(
     "ANIM-18",
-    "a red square below centre flashing for 15 frames; on completion it "
+    "a red square below centre flashing for 45 frames; on completion it "
     "pulses the named output line 'anim_done_out', which is checked over "
     "the wire",
 )

@@ -2,7 +2,7 @@ PROTO_SRC  := $(shell find ../../proto -name '*.proto' | sort)
 PROTO_OUT  := vstimd/_proto
 
 .PHONY: build publish proto test test-integration test-e2e test-e2e-review \
-        test-e2e-step test-e2e-browse test-e2e-null typecheck docs clean
+        test-e2e-null typecheck docs clean
 
 # Extra arguments for the e2e targets, e.g. make test-e2e-step PYTEST_ARGS="-k grating"
 PYTEST_ARGS ?=
@@ -29,26 +29,16 @@ test: proto
 test-integration:
 	@echo "Not implemented yet: integration tests with MockServer"
 
+# The suite that renders for real, start to finish, no interaction.
 test-e2e: proto
 	uv run --group dev pytest $(E2E_SUITES) -v $(PYTEST_ARGS)
 
-# Watched runs. Both wait for a keypress rather than a fixed dwell, and both
-# take notes: `f` at the prompt flags what is on screen as wrong and writes it,
-# with the id and the pytest node, to e2e-review.md at the end of the run.
-#   test-e2e-review — one pause per test
-#   test-e2e-step   — a pause at every caption change, i.e. step by step
-# Run these from a terminal you can type into, with the server windowed (see
-# README) so the prompt is not hidden behind a fullscreen stimulus window.
+# The same suite, reviewed by hand: it pauses on every test with what should be
+# on screen, takes vim motions to move around the suite (k back, 5j forward
+# five, 42G to a number, / to search) and `f` to flag one with a note, which
+# lands in e2e-review.md. Runs its own windowed server so this terminal stays
+# visible; pass PYTEST_ARGS="--pause=step" to stop at every caption change.
 test-e2e-review: proto
-	uv run --group dev pytest $(E2E_SUITES) -v --pause=test $(PYTEST_ARGS)
-
-test-e2e-step: proto
-	uv run --group dev pytest $(E2E_SUITES) -v --pause=step $(PYTEST_ARGS)
-
-# Browse the suite instead of watching it go by: the same prompt, plus vim keys
-# to move around it — k back, 5j forward five, 42G to a number, / to search.
-# Runs its own windowed server so this terminal stays visible.
-test-e2e-browse: proto
 	uv run --group dev python tests/e2e/browse.py $(PYTEST_ARGS)
 
 test-e2e-null: proto
