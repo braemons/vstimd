@@ -1,4 +1,5 @@
 pub mod animation;
+pub mod conditions;
 pub mod deferred;
 pub mod photodiode;
 pub mod scene_config;
@@ -6,6 +7,7 @@ mod scene_state;
 pub mod stimulus;
 
 pub use animation::{AnimState, AnimationEntry, AnimationTarget, VtlEdge, VtlPolarity, FinalAction, VtlBit};
+pub use conditions::{Condition, ConditionAction, Conditions};
 pub use deferred::Deferred;
 pub use photodiode::PhotoDiodeState;
 pub use scene_config::{LoadMode, SceneConfig};

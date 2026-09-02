@@ -71,12 +71,18 @@ See `docs/PLAN.md` for the full design and roadmap.
   `Enum::try_from(v).unwrap_or(Unspecified)`.
 - `proto.rs` stays at the crate root, not under `ipc/` — the scene and the web surface speak it too.
 - `scene/` — state only; nothing here speaks protobuf.
+- **Conditions** (`scene/conditions.rs`) are protocol steps: each stimulus and animation carries a
+  list of condition indices, empty meaning *every* condition, and exactly one index is active.
+  Membership is the saved state; the gates it implies (`StimulusFlags::cond_enabled`,
+  `AnimationEntry::cond_enabled`) are derived by `SceneState::apply_conditions` and never
+  serialized, which is what lets every existing render path pick conditions up unchanged. A
+  switch is a hard cut — there is no cross-fade.
 
 **Two configs — always name which one.** They are unrelated:
 - **rig-config** (`rig_config.rs`) — the physical rig: VTL shm, display mode, thread scheduling.
   TOML at `/etc/braemons/vstimd-rig-config.toml`, changes when the hardware does.
 - **scene-config** (`scene_config_file.rs`) — one experiment: a `SceneConfig` (stimuli, animations,
-  background, photodiode) plus named VTL trigger lines. JSON at
+  background, photodiode, conditions) plus named VTL trigger lines. JSON at
   `<storage-dir>/projects/<project>/scene-configs/<name>.config.json`, changes per session. The
   payload type lives in `scene/scene_config.rs`; the load/save methods are on `SceneState` in
   `scene/scene_state.rs`. Addressed as `[<project>/]<name>` — never a path — and an unqualified

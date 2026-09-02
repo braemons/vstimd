@@ -2,6 +2,7 @@ syntax = "proto3";
 package vstimd.v1;
 
 import "vstimd/v1/animations.proto";
+import "vstimd/v1/conditions.proto";
 import "vstimd/v1/stimuli/circle.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
 import "vstimd/v1/stimuli/grating.proto";
@@ -156,6 +157,13 @@ message Request {
     UploadSceneConfigRequest    upload_scene_config   = 112;
     RetrieveSceneConfigRequest  retrieve_scene_config = 113;
 
+    // ── Conditions ──────────────────────────────────────────────────────────
+    SetConditionRequest          set_condition           = 130; // system target
+    DeclareConditionsRequest     declare_conditions      = 131; // system target
+    ListConditionsRequest        list_conditions         = 132; // system target
+    SetStimulusConditionsRequest set_stimulus_conditions = 133; // stimulus target
+    SetAnimationConditionsRequest set_animation_conditions = 134; // system target
+
     // ── Lifecycle (system target) ─────────────────────────────────────────────
     ShutdownRequest shutdown = 120;
   }
@@ -192,6 +200,7 @@ message Response {
     ListSceneConfigsResponse scene_config_list = 17;
     RetrieveSceneConfigResponse retrieved_scene_config = 18;
     SetDeferredModeResponse deferred_mode = 19;
+    ListConditionsResponse condition_list = 22;
   }
 
   // Server-side monotonic clock at response time, nanoseconds since server

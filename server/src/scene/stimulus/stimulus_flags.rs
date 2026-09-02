@@ -13,6 +13,13 @@ pub struct StimulusFlagsConfig {
 pub struct StimulusFlags {
     pub config: StimulusFlagsConfig,
     pub enabled_copy: bool,
+    /// Condition-controlled visibility: false while the active condition
+    /// excludes this stimulus. Derived from the entry's membership list by
+    /// `SceneState::apply_conditions`, never written by a command, and never
+    /// serialized — the membership is the saved state, this is the conclusion
+    /// drawn from it. Defaults to true, so anything the conditions never speak
+    /// about is shown.
+    pub cond_enabled: bool,
     /// Animation-controlled visibility. Written by the render thread each frame.
     /// Defaults to true (no animation hold). Animations set this; user commands do not.
     /// Not part of deferred mode — the render thread owns it exclusively.
@@ -27,6 +34,7 @@ impl Default for StimulusFlags {
         Self {
             config: StimulusFlagsConfig::default(),
             enabled_copy: false,
+            cond_enabled: true,
             anim_enabled: true,
             dirty: true,
         }
@@ -63,14 +71,17 @@ impl<'de> serde::Deserialize<'de> for StimulusFlags {
 impl StimulusFlags {
     /// Rebuild from the config half, restoring every runtime field to the value
     /// a freshly-loaded stimulus needs: `dirty` so the render thread tessellates
-    /// it on the first frame, `anim_enabled` true (no animation hold yet), and
-    /// the deferred copy equal to live so a flip is a no-op.
+    /// it on the first frame, `anim_enabled` and `cond_enabled` true (no
+    /// animation hold, and no condition gate yet — the load path re-derives that
+    /// one from the loaded conditions), and the deferred copy equal to live so a
+    /// flip is a no-op.
     ///
     /// The one place a `StimulusFlags` comes back from a config file.
     pub fn from_config(config: StimulusFlagsConfig) -> Self {
         Self {
             enabled_copy: config.enabled,
             config,
+            cond_enabled: true,
             anim_enabled: true,
             dirty: true,
         }
@@ -81,6 +92,7 @@ impl StimulusFlags {
         Self {
             config: StimulusFlagsConfig { enabled, protected: false },
             enabled_copy: false,
+            cond_enabled: true,
             anim_enabled: true,
             dirty: true,
         }
@@ -98,7 +110,10 @@ impl StimulusFlags {
         self.enabled = self.enabled_copy;
     }
 
+    /// Three independent gates, all of which must be open: what the operator
+    /// asked for, what the active condition allows, and what a running
+    /// animation is holding.
     pub fn is_visible(&self) -> bool {
-        self.enabled && self.anim_enabled
+        self.enabled && self.cond_enabled && self.anim_enabled
     }
 }

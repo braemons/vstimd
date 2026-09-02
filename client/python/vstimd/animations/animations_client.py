@@ -6,6 +6,7 @@ from typing import Callable, Optional, Union
 from vstimd._handles import AnimationHandle, StimulusHandle
 from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import animations_pb2, vtl_pb2
+from vstimd.conditions import ConditionAction
 from vstimd.response import ServerResponse
 from vstimd.vtl import VtlHandle
 from .animations_models import AnimationDetails, AnimationInfo, AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
@@ -154,6 +155,8 @@ class AnimationClient:
                 name=a.name,
                 state=AnimationState(a.state),
                 type_name=a.type_name,
+                condition_indices=tuple(a.condition_indices),
+                condition_enabled=a.condition_enabled,
             )
             for a in resp.animation_list.animations
         ]
@@ -177,6 +180,9 @@ class AnimationClient:
             stimuli=tuple(StimulusHandle(s) for s in _target_stimuli(p)),
             final_action=FinalAction(p.final_action_mask),
             cancel_action=CancelAction(p.cancel_action_mask),
+            condition_indices=tuple(r.condition_indices),
+            condition_action=ConditionAction(r.condition_action),
+            condition_enabled=r.condition_enabled,
         )
 
     # ── Shared keyword args (passed through _make_req) ────────────────────────

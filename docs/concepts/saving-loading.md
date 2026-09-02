@@ -36,6 +36,7 @@ You never handle paths from a client. A scene-config is addressed by
 | All animation definitions | Anything outside the scene (rig-config, network settings) |
 | Background colour | |
 | VTL line **names** (the I/O map) | VTL live line levels |
+| [Conditions](conditions.md): declarations, memberships, the active index | |
 
 ## Four ways to do it
 
@@ -175,5 +176,6 @@ accumulate, as a nudge to clean up.
 - **[How vstimd works](how-vstimd-works.md)** — where config files fit as a setup
   API alongside the command API, ahead of trigger-driven execution.
 - **[Deferred mode](deferred-mode.md)** — atomic frame flips for coordinated changes.
+- **[Conditions](conditions.md)** — switching protocol steps without reloading the scene.
 - **[Build the demos yourself](../tutorials/index.md)** — six scripts that each
   end by saving the scene they built.

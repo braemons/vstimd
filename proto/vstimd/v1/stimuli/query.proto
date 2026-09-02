@@ -58,4 +58,10 @@ message QueryStimulusResponse {
   oneof placement {
     Transform2D transform_2d = 16;
   }
+
+  // Conditions this stimulus is active in; empty = every condition.
+  repeated uint32 condition_indices = 17;
+  // False while the active condition excludes this stimulus. Independent of
+  // `enabled`, which the condition switch never touches.
+  bool condition_enabled = 18;
 }

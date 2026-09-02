@@ -1,0 +1,103 @@
+syntax = "proto3";
+package vstimd.v1;
+
+// ── Conditions ────────────────────────────────────────────────────────────────
+//
+// A **condition** is one step of an experimental protocol — baseline vs.
+// treatment, numbered protocol steps — and it selects which stimuli and which
+// animations are active. Exactly one condition is active at a time; switching
+// is a hard cut on the next frame, never a cross-fade.
+//
+// A condition is addressed by its **index**. Declaring it additionally gives it
+// a name, so a script can say "probe" instead of 2, but declaration is
+// optional: any index is a valid condition, an undeclared one simply has no
+// name. Only a *name* has to be declared before it can be used.
+//
+// Membership is per stimulus and per animation, as a list of condition indices.
+// An **empty list means every condition** — so a scene that never mentions
+// conditions behaves exactly as it did before, and only what opts in is gated.
+//
+// A stimulus outside the active condition is hidden: its own `enabled` is left
+// untouched, so switching back restores what the operator had set. An animation
+// outside the active condition does not advance; what a switch does to its
+// lifecycle state is per-animation policy — see ConditionAction.
+
+// One declared condition: the index it is addressed by, plus the name that
+// index may also be addressed by.
+message Condition {
+  uint32 index = 1;
+  // Human-readable label. Empty when the condition is declared without one.
+  string name = 2;
+}
+
+// System command: make one condition active, by index or by name.
+// The switch is a hard cut — the next frame is drawn from the new condition.
+message SetConditionRequest {
+  oneof condition {
+    uint32 index = 1;
+    // Must match a declared condition; unknown names are an error, because a
+    // typo that silently selected "no condition" would blank the screen.
+    string name = 2;
+  }
+}
+
+// System command: replace the declared condition set.
+//
+// Declaring is what gives an index a name; it neither creates nor destroys
+// conditions, and it does not change which one is active. Indices must be
+// unique, and so must the non-empty names.
+message DeclareConditionsRequest {
+  repeated Condition conditions = 1;
+}
+
+// System command: list the declared conditions and say which one is active.
+// Returns ListConditionsResponse in Response.body.
+message ListConditionsRequest {}
+
+message ListConditionsResponse {
+  // Declared conditions, in declaration order. The active condition need not
+  // be among them — an undeclared index is a valid, nameless condition.
+  repeated Condition conditions = 1;
+  uint32 active_index = 2;
+  // Name of the active condition, empty when it has none.
+  string active_name = 3;
+}
+
+// Stimulus command: set the conditions this stimulus is active in.
+// Empty = active in every condition.
+message SetStimulusConditionsRequest {
+  repeated uint32 condition_indices = 1;
+}
+
+// What a condition switch does to an animation's lifecycle state.
+//
+// Membership decides *whether* an animation runs; this decides what happens to
+// one at the moment the answer changes. It is per-animation because the two
+// useful readings genuinely differ per animation: a stimulus sequence that
+// belongs to a protocol step wants to start afresh each time that step comes
+// up, while a long-running background animation shared across steps wants to be
+// left exactly where it is.
+enum ConditionAction {
+  // Field was never set: treated as CONDITION_ACTION_RESET.
+  CONDITION_ACTION_UNSPECIFIED = 0;
+  // Default. Leaving the active condition returns the animation to Idle
+  // (releasing any visibility hold it placed); entering re-arms it, from the
+  // start, so the step it belongs to plays the same way every time.
+  CONDITION_ACTION_RESET = 1;
+  // Leave the lifecycle state alone. The animation stops advancing while its
+  // condition is inactive and resumes from the same frame when it returns —
+  // and a running one keeps holding its stimuli hidden meanwhile.
+  CONDITION_ACTION_HOLD = 2;
+  // Stop on the way out (back to Idle), but do not re-arm on the way in: the
+  // animation runs again only when something explicitly arms it.
+  CONDITION_ACTION_STOP = 3;
+}
+
+// System command: set the conditions an animation is active in, and what a
+// condition switch does to it.
+// Empty condition_indices = active in every condition.
+message SetAnimationConditionsRequest {
+  uint32 handle = 1;
+  repeated uint32 condition_indices = 2;
+  ConditionAction condition_action = 3;
+}

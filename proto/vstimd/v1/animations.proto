@@ -1,6 +1,8 @@
 syntax = "proto3";
 package vstimd.v1;
 
+import "vstimd/v1/conditions.proto";
+
 import "vstimd/v1/vtl.proto";
 
 // ── State enum ────────────────────────────────────────────────────────────────
@@ -196,6 +198,11 @@ message AnimationInfo {
   string         name      = 2;
   AnimationState state     = 3;
   string         type_name = 4;
+  // Conditions this animation is active in; empty = every condition.
+  repeated uint32 condition_indices = 5;
+  // False while the active condition excludes this animation, which then does
+  // not advance.
+  bool condition_enabled = 6;
 }
 
 // Full animation configuration plus current state.
@@ -206,6 +213,12 @@ message QueryAnimationResponse {
   // Canonical animation-type tag — same string as AnimationInfo.type_name and the
   // serde config-file enum tag (the Rust variant name). Clients pass it through.
   string                 type_name = 4;
+  // Conditions this animation is active in; empty = every condition.
+  repeated uint32        condition_indices = 5;
+  // What a condition switch does to it.
+  ConditionAction        condition_action = 6;
+  // False while the active condition excludes it, which stops it advancing.
+  bool                   condition_enabled = 7;
 }
 
 message ListAnimationsResponse {

@@ -130,6 +130,8 @@ message StimulusEntry {
   bool         enabled       = 3;
   string       id            = 4; // stable UUID assigned at creation
   string       name          = 5; // human-readable label (empty if not set)
+  // Conditions this stimulus is active in; empty = every condition.
+  repeated uint32 condition_indices = 6;
 }
 
 // Response payload for ListStimuliRequest.

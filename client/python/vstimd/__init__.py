@@ -31,6 +31,7 @@ from .response import ErrorCode, ServerResponse
 from .system import ServerInfo, ServerVersion, StimulusListEntry
 from .vtl import VtlClient, VtlHandle, VtlKind, VtlLineInfo
 from .scene_config import SceneConfigClient
+from .conditions import Condition, ConditionAction, ConditionStatus, ConditionsClient
 from .animations import (
     AnimationClient,
     AnimationDetails,
@@ -75,6 +76,10 @@ __all__ = [
     "ServerVersion",
     "StimulusListEntry",
     "SceneConfigClient",
+    "ConditionsClient",
+    "Condition",
+    "ConditionAction",
+    "ConditionStatus",
     "SceneConfigError",
     "SceneConfigNotFoundError",
     "SceneConfigIoError",
