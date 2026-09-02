@@ -1,5 +1,5 @@
 //! Tests for the startup save/load boot path: `SceneState::save_named_config`
-//! and `SceneState::load_named_config`, plus the `[startup]` config-dir layout.
+//! and `SceneState::load_named_config`, plus the project layout under the storage dir.
 //!
 //! These exercise the same code the `main.rs` boot flow uses (load a named
 //! config at startup, save the scene to the last-session slot on quit) without
@@ -8,8 +8,8 @@
 use std::sync::atomic::{AtomicU32, Ordering};
 
 use vstimd::scene_config_file::{
-    config_path, count_archive_configs, dir_is_writable, first_writable_dir, is_archive_name,
-    is_not_found, LAST_SESSION_CONFIG,
+    count_archive_configs, dir_is_writable, first_writable_dir, is_archive_name, is_not_found,
+    scene_config_path, SceneConfigRef, DEFAULT_PROJECT, LAST_SESSION_CONFIG, SESSION_PROJECT,
 };
 use vstimd::scene::{
     SceneState, Shape, ShapeAppearance, ShapeGeometry, Stimulus,
@@ -17,7 +17,7 @@ use vstimd::scene::{
 };
 
 /// A unique scratch directory that is removed when dropped, so each test gets
-/// an isolated config dir without a `tempfile` dependency.
+/// an isolated storage dir without a `tempfile` dependency.
 struct TempDir(std::path::PathBuf);
 
 impl TempDir {
@@ -43,8 +43,17 @@ impl Drop for TempDir {
     }
 }
 
+/// Path a `[<project>/]<name>` resolves to under a storage dir — the same
+/// resolution the server does, spelled once for the assertions below.
+fn path_of(storage_dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    scene_config_path(
+        storage_dir,
+        &SceneConfigRef::parse(name, DEFAULT_PROJECT).expect("test name should parse"),
+    )
+}
+
 fn scene_with_rect(dir: &std::path::Path) -> SceneState {
-    let mut scene = SceneState::new_with_config_dir(dir.to_path_buf());
+    let mut scene = SceneState::new_with_storage_dir(dir.to_path_buf());
     scene.add_stimulus(StimulusSceneEntry::new(
         StimulusIdentity::new(Some("target".into())),
         Stimulus::from(Shape::new(
@@ -68,7 +77,7 @@ fn save_then_load_named_config_roundtrips() {
         .expect("save should succeed");
 
     // A fresh, empty scene loads it back and gets the stimulus.
-    let mut loaded = SceneState::new_with_config_dir(dir.path().to_path_buf());
+    let mut loaded = SceneState::new_with_storage_dir(dir.path().to_path_buf());
     assert_eq!(loaded.stimuli.len(), 0);
     loaded
         .load_named_config("center_target", false, None)
@@ -82,26 +91,30 @@ fn save_named_config_writes_expected_path() {
     let scene = scene_with_rect(dir.path());
     scene.save_named_config("my_scene", None).unwrap();
 
-    let expected = config_path(dir.path(), "my_scene");
-    assert!(expected.exists(), "config file should be at {expected:?}");
-    assert_eq!(expected.file_name().unwrap(), "vstimd_my_scene.config.json");
+    // An unqualified name lands in the default project, unprefixed.
+    let expected = path_of(dir.path(), "my_scene");
+    assert!(expected.exists(), "scene-config should be at {expected:?}");
+    assert_eq!(
+        expected,
+        dir.path().join("projects/default/scene-configs/my_scene.config.json")
+    );
 }
 
 #[test]
-fn save_named_config_creates_missing_config_dir() {
+fn save_named_config_creates_missing_project_dir() {
     let dir = TempDir::new();
     let nested = dir.path().join("does/not/exist/yet");
     let scene = scene_with_rect(&nested);
     scene
         .save_named_config("boot", None)
-        .expect("save should create the config dir");
-    assert!(config_path(&nested, "boot").exists());
+        .expect("save should create the project's scene-configs dir");
+    assert!(path_of(&nested, "boot").exists());
 }
 
 #[test]
 fn load_missing_named_config_reports_not_found() {
     let dir = TempDir::new();
-    let mut scene = SceneState::new_with_config_dir(dir.path().to_path_buf());
+    let mut scene = SceneState::new_with_storage_dir(dir.path().to_path_buf());
     let err = scene
         .load_named_config("nope", false, None)
         .expect_err("loading a missing config should fail");
@@ -114,11 +127,12 @@ fn last_session_slot_roundtrips() {
     // then load it back on the next boot.
     let dir = TempDir::new();
     let saved = scene_with_rect(dir.path());
-    saved.save_named_config(LAST_SESSION_CONFIG, None).unwrap();
+    let slot = format!("{SESSION_PROJECT}/{LAST_SESSION_CONFIG}");
+    saved.save_named_config(&slot, None).unwrap();
 
-    let mut restored = SceneState::new_with_config_dir(dir.path().to_path_buf());
+    let mut restored = SceneState::new_with_storage_dir(dir.path().to_path_buf());
     restored
-        .load_named_config(LAST_SESSION_CONFIG, false, None)
+        .load_named_config(&slot, false, None)
         .expect("last-session slot should load");
     assert_eq!(restored.stimuli.len(), 1);
 }
@@ -133,11 +147,14 @@ fn session_snapshot_writes_last_and_timestamped_archive() {
         .expect("session snapshot should succeed");
 
     // Both artifacts exist: the overwritable last-session slot and the archive.
-    assert!(config_path(dir.path(), LAST_SESSION_CONFIG).exists());
-    assert!(config_path(dir.path(), &archive).exists());
-    // The archive name is a recognisable timestamp, distinct from the slot.
-    assert!(is_archive_name(&archive), "archive name '{archive}' should be a timestamp");
-    assert_ne!(archive, LAST_SESSION_CONFIG);
+    // Both live in the session project — per-rig state, not part of any study.
+    assert!(path_of(dir.path(), &format!("{SESSION_PROJECT}/{LAST_SESSION_CONFIG}")).exists());
+    assert!(path_of(dir.path(), &archive).exists());
+    // The archive is a qualified name whose bare half is a recognisable
+    // timestamp, distinct from the slot.
+    let bare = archive.strip_prefix(&format!("{SESSION_PROJECT}/")).unwrap();
+    assert!(is_archive_name(bare), "archive name '{archive}' should be a timestamp");
+    assert_ne!(bare, LAST_SESSION_CONFIG);
     // Exactly one archive so far; the last-session slot is not counted.
     assert_eq!(count_archive_configs(dir.path()), 1);
 }
@@ -165,7 +182,7 @@ fn first_writable_dir_skips_unwritable_candidates() {
 fn load_named_config_replace_clears_previous_scene() {
     let dir = TempDir::new();
     // An empty saved scene…
-    let empty = SceneState::new_with_config_dir(dir.path().to_path_buf());
+    let empty = SceneState::new_with_storage_dir(dir.path().to_path_buf());
     empty.save_named_config("empty", None).unwrap();
 
     // …loaded over a populated scene replaces it (default, non-additive).

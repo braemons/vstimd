@@ -41,11 +41,12 @@ bit  = 63
 
 # ── Startup scene ─────────────────────────────────────────────────────────────
 # Load a scene at boot so the rig comes up ready with no experiment PC attached.
-# Configs live in --config-dir (default /var/lib/braemons/vstimd, or
-# ~/.local/braemons/vstimd if that is not writable).
+# Scene-configs live in a project under --storage-dir (default
+# /var/lib/braemons/vstimd, or ~/.local/braemons/vstimd if that is not writable).
 #
 # [startup]
-# # Named config to load at boot; "last" loads the auto-saved last session.
+# # Named scene-config to load at boot, [<project>/]<name>; "last" loads the
+# # auto-saved last session.
 # load_config  = "center_target"
 # # On quit, save the scene to the last-session slot AND a timestamped archive.
 # save_on_quit = false

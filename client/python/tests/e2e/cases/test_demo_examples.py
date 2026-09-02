@@ -163,10 +163,10 @@ def _reset_photodiode(conn: Connection) -> None:
     switch it on. Without this, a demo that turns it on leaks into the next
     script's scene — the scripts themselves never turn it off.
     """
-    scene = json.loads(conn.config.retrieve())
+    scene = json.loads(conn.scene_config.retrieve())
     scene["scene"]["photodiode"]["enabled"] = False
     scene["scene"]["photodiode"]["flicker"] = False
-    conn.config.upload("e2e_demo_scratch", json.dumps(scene),
+    conn.scene_config.upload("e2e_demo_scratch", json.dumps(scene),
                        overwrite=True, apply_now=True)
 
 
@@ -244,12 +244,12 @@ def test_demo_script_rebuilds_shipped_demo(
     demo. The comparison is over the whole scene, so the caption cannot be up
     while it runs — hence the deferred stage, put up only afterwards.
     """
-    shipped = _SHIPPED / f"vstimd_demo_{demo_name}.config.json"
+    shipped = _SHIPPED / f"{demo_name}.config.json"
     assert shipped.exists(), f"missing shipped demo: {shipped}"
 
     _run_demo_script(script_stem, demo_name, server_address)
 
-    built = _canonical(json.loads(conn.config.retrieve()))
+    built = _canonical(json.loads(conn.scene_config.retrieve()))
     expected = _canonical(json.loads(shipped.read_text(encoding="utf-8")))
     assert built == expected
 
@@ -273,14 +273,14 @@ def test_demo_script_saves_a_loadable_config(
     This is the round trip the gratings/triggers/config tutorial ends on.
     """
     name = _run_demo_script("gratings_triggered", "gratings_triggered", server_address)
-    assert name in conn.config.list_configs()
+    assert name in conn.scene_config.list_scene_configs()
 
     conn.system.clear_all()
     for anim in conn.animations.list_animations():
         conn.animations.delete(anim.handle)
     assert conn.system.list_stimuli() == []
 
-    conn.config.load(name)
+    conn.scene_config.load(name)
     names = {entry.name for entry in conn.system.list_stimuli()}
     assert {"grating_45deg", "grating_135deg", "fixation_dot", "explanation"} <= names
     assert len(conn.animations.list_animations()) == 2

@@ -1,30 +1,148 @@
 //! Scene-config files: the per-experiment configuration, saved as
-//! `<config-dir>/vstimd_<name>.config.json`. A scene-config is a
-//! [`SceneConfig`] (stimuli, animations, background, photodiode) plus the
-//! named VTL trigger lines. This module owns the file format, the directory
-//! layout, the bundled demos and the quit-time archives.
+//! `<storage-dir>/projects/<project>/scene-configs/<name>.config.json`. A
+//! scene-config is a [`SceneConfig`] (stimuli, animations, background,
+//! photodiode) plus the named VTL trigger lines. This module owns the file
+//! format, the directory layout, the bundled demos and the quit-time archives.
 //!
 //! Not to be confused with [`crate::rig_config`], the server's other config:
 //! that one describes the physical rig (TOML, `/etc`, changes when the
-//! hardware does), this one describes an experiment (JSON, `--config-dir`,
-//! changes per session).
+//! hardware does), this one describes an experiment (JSON, under
+//! `--storage-dir`, changes per session).
+//!
+//! # Layout
+//!
+//! The storage dir holds **projects**, and a project holds **typed files**; a
+//! scene-config is one of the types. Everything a study needs lives in one
+//! directory, so copying, archiving or deleting a study is one operation:
+//!
+//! ```text
+//! <storage-dir>/
+//!   projects/
+//!     <project>/
+//!       scene-configs/    <name>.config.json
+//!     default/            ← where an unqualified name lands
+//!     demos/              ← seeded at startup
+//!     _session/           ← the last-session slot and the quit-time archives
+//! ```
+//!
+//! See `dev/design/ASSET_STORE_PLAN.md` for the full model, including the
+//! asset types that join `scene-configs/` under a project.
 
 use crate::scene::SceneConfig;
 use crate::vtl_state::VtlConfig;
 
 pub const CONFIG_VERSION: u32 = 5;
 
-/// Reserved config name for the auto-saved last-session slot. Written on quit
-/// when `[startup] save_on_quit` is set, and loaded at boot when
-/// `[startup] load_config = "last"`. Leading underscore keeps it distinct from
-/// user-chosen names.
+/// Reserved scene-config name for the auto-saved last-session slot. Written on
+/// quit when `[startup] save_on_quit` is set, and loaded at boot when
+/// `[startup] load_config = "last"`. Lives in the [`SESSION_PROJECT`], which is
+/// per-rig rather than per-study, so it never clutters a real project.
 pub const LAST_SESSION_CONFIG: &str = "_last_session";
 
-/// Path to the file backing a named config inside `dir`. Named configs live at
-/// `<dir>/vstimd_<name>.config.json`; this is the one place that layout is
-/// defined.
-pub fn config_path(dir: &std::path::Path, name: &str) -> std::path::PathBuf {
-    dir.join(format!("vstimd_{name}.config.json"))
+// ── Projects and the directory layout ─────────────────────────────────────────
+
+/// The one child of the storage dir. Every project is a directory below this, so
+/// a single `--storage-dir` names the whole tree and the pieces can never be
+/// pointed at unrelated places.
+pub const PROJECTS_DIR: &str = "projects";
+
+/// The scene-config type directory inside a project. Assets will grow siblings
+/// (`images/`, `meshes/`, …); the type level is what scopes name collisions.
+pub const SCENE_CONFIGS_DIR: &str = "scene-configs";
+
+/// Where an unqualified scene-config name lands, and the active project at boot.
+pub const DEFAULT_PROJECT: &str = "default";
+
+/// The project holding the shipped demos, seeded at startup. Replaces the old
+/// `demo_` name prefix: a demo that ships with images later needs no special
+/// case, which a prefix scheme could never offer.
+pub const DEMOS_PROJECT: &str = "demos";
+
+/// The project holding the last-session slot and the timestamped quit archives.
+/// Server-owned (leading underscore) and per-rig, not per-study.
+pub const SESSION_PROJECT: &str = "_session";
+
+/// True if `name` is a legal project or scene-config name: `[A-Za-z0-9._-]`,
+/// 1-64 bytes. Rejects `..`, path separators, NUL and leading `-` by
+/// construction rather than by sanitising, so a name can never escape the tree.
+pub fn is_valid_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.len() <= 64
+        && name != "."
+        && name != ".."
+        && !name.starts_with('-')
+        && name
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b == b'.' || b == b'_' || b == b'-')
+}
+
+/// True if `project` is server-owned and may not be created or deleted by a
+/// client. Leading underscore is the marker; `default` and `demos` are ordinary
+/// projects the server merely seeds.
+pub fn is_reserved_project(project: &str) -> bool {
+    project.starts_with('_')
+}
+
+/// A scene-config's two coordinates: the project holding it and its bare name.
+/// This is what every load/save path takes, so no caller has to know the
+/// on-disk layout.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SceneConfigRef {
+    pub project: String,
+    pub name:    String,
+}
+
+impl SceneConfigRef {
+    /// Parse `[<project>/]<name>`, filling an unqualified name in with
+    /// `default_project`. Both segments are validated, so a parsed ref is
+    /// always safe to join onto the storage dir.
+    pub fn parse(s: &str, default_project: &str) -> anyhow::Result<Self> {
+        let (project, name) = match s.split_once('/') {
+            Some((p, n)) => (p, n),
+            None => (default_project, s),
+        };
+        anyhow::ensure!(is_valid_name(project), "invalid project name {project:?}");
+        anyhow::ensure!(is_valid_name(name), "invalid scene-config name {name:?}");
+        Ok(Self { project: project.to_string(), name: name.to_string() })
+    }
+
+    /// The wire/CLI spelling: bare inside `default`, `<project>/<name>`
+    /// elsewhere, so the common case stays one word.
+    pub fn qualified(&self) -> String {
+        if self.project == DEFAULT_PROJECT {
+            self.name.clone()
+        } else {
+            format!("{}/{}", self.project, self.name)
+        }
+    }
+}
+
+impl std::fmt::Display for SceneConfigRef {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(&self.qualified())
+    }
+}
+
+/// `<storage-dir>/projects`.
+pub fn projects_dir(storage_dir: &std::path::Path) -> std::path::PathBuf {
+    storage_dir.join(PROJECTS_DIR)
+}
+
+/// `<storage-dir>/projects/<project>`. The caller is responsible for having
+/// validated `project` — [`SceneConfigRef::parse`] does.
+pub fn project_dir(storage_dir: &std::path::Path, project: &str) -> std::path::PathBuf {
+    projects_dir(storage_dir).join(project)
+}
+
+/// `<storage-dir>/projects/<project>/scene-configs`.
+pub fn scene_config_dir(storage_dir: &std::path::Path, project: &str) -> std::path::PathBuf {
+    project_dir(storage_dir, project).join(SCENE_CONFIGS_DIR)
+}
+
+/// Path to the file backing `r` under `storage_dir`. This is the one place the
+/// scene-config layout is defined.
+pub fn scene_config_path(storage_dir: &std::path::Path, r: &SceneConfigRef) -> std::path::PathBuf {
+    scene_config_dir(storage_dir, &r.project).join(format!("{}.config.json", r.name))
 }
 
 /// The sections of a scene-config file other than the scene, borrowed at save
@@ -78,7 +196,7 @@ pub fn save_config(scene: &SceneConfig, vtl: &VtlConfig, path: &std::path::Path)
 }
 
 /// Parse and validate a config JSON string without touching the filesystem.
-/// Used by both `load_config` and `UploadConfig` validation.
+/// Used by both `load_config` and `UploadSceneConfig` validation.
 pub fn parse_config_json(s: &str) -> anyhow::Result<(SceneConfig, Sections)> {
     // Check the version before the full parse so an older-format file fails with
     // a clear version error rather than a confusing deserialization error.
@@ -133,47 +251,29 @@ pub fn load_config(path: &std::path::Path) -> anyhow::Result<(SceneConfig, Secti
 
 // ── Demo configs ──────────────────────────────────────────────────────────────
 
-/// Every demo name starts with this, so demos are visible as a group in
-/// `config list` and cannot be confused with user-saved configs.
-pub const DEMO_PREFIX: &str = "demo_";
-
 /// Demos shipped with the server: `(name, config JSON)`.
 ///
-/// Demos are deliberately *ordinary* configs — there is no demo-specific
+/// Demos are deliberately *ordinary* scene-configs — there is no demo-specific
 /// command, load path or scene builder. They are compiled in (rather than
 /// installed as package data) so a dev checkout, a `.deb` install and the
-/// Raspberry Pi image all offer the same set, and are written into the config
-/// dir at startup by [`seed_demo_configs`]. From that point on a demo is just a
-/// file: `config load` it, edit the scene, `config save` it under your own name.
+/// Raspberry Pi image all offer the same set, and are written into the
+/// [`DEMOS_PROJECT`] at startup by [`seed_demo_configs`]. From that point on a
+/// demo is just a file: `scene-config load demos/<name>` it, edit the scene,
+/// `scene-config save` it under your own name.
+///
+/// The project directory is what keeps them visible as a group and distinct
+/// from user-saved scene-configs; they carry no name prefix.
 ///
 /// The trigger lines they use are the ones the Raspberry Pi 5 gpiochip-daqd
 /// example wires to physical header pins (`in_pin11`, `out_pin36`, …), so a
 /// demo does something measurable on a stock Pi 5 rig with no extra config.
 pub const DEMO_CONFIGS: &[(&str, &str)] = &[
-    (
-        "demo_first_light",
-        include_str!("../config/demos/vstimd_demo_first_light.config.json"),
-    ),
-    (
-        "demo_drifting_grating",
-        include_str!("../config/demos/vstimd_demo_drifting_grating.config.json"),
-    ),
-    (
-        "demo_gratings_triggered",
-        include_str!("../config/demos/vstimd_demo_gratings_triggered.config.json"),
-    ),
-    (
-        "demo_moving_target",
-        include_str!("../config/demos/vstimd_demo_moving_target.config.json"),
-    ),
-    (
-        "demo_photodiode_flicker",
-        include_str!("../config/demos/vstimd_demo_photodiode_flicker.config.json"),
-    ),
-    (
-        "demo_trigger_gate",
-        include_str!("../config/demos/vstimd_demo_trigger_gate.config.json"),
-    ),
+    ("first_light", include_str!("../config/demos/first_light.config.json")),
+    ("drifting_grating", include_str!("../config/demos/drifting_grating.config.json")),
+    ("gratings_triggered", include_str!("../config/demos/gratings_triggered.config.json")),
+    ("moving_target", include_str!("../config/demos/moving_target.config.json")),
+    ("photodiode_flicker", include_str!("../config/demos/photodiode_flicker.config.json")),
+    ("trigger_gate", include_str!("../config/demos/trigger_gate.config.json")),
 ];
 
 /// Sidecar recording the fingerprint of each demo file this server wrote, so a
@@ -264,12 +364,17 @@ pub enum DemoSkip {
 ///
 /// A demo the operator deletes comes back on the next start; deleting it for
 /// good means saving something else under that name.
-pub fn seed_demo_configs(dir: &std::path::Path) -> DemoSeedReport {
+pub fn seed_demo_configs(storage_dir: &std::path::Path) -> DemoSeedReport {
     let mut report = DemoSeedReport::default();
-    let mut stamps = read_demo_stamps(dir);
+    let dir = scene_config_dir(storage_dir, DEMOS_PROJECT);
+    if let Err(e) = std::fs::create_dir_all(&dir) {
+        report.failed.push(("(demos project)", e));
+        return report;
+    }
+    let mut stamps = read_demo_stamps(&dir);
 
     for (name, json) in DEMO_CONFIGS {
-        let path = config_path(dir, name);
+        let path = dir.join(format!("{name}.config.json"));
         let shipped = demo_fingerprint(json.as_bytes());
         let mut refreshing = false;
         match std::fs::read(&path) {
@@ -311,38 +416,81 @@ pub fn seed_demo_configs(dir: &std::path::Path) -> DemoSeedReport {
         }
     }
 
-    write_demo_stamps(dir, &stamps);
+    write_demo_stamps(&dir, &stamps);
     report
 }
 
-/// List bare config names (no path, no extension) from a config directory.
-pub fn list_config_names(dir: &std::path::Path) -> anyhow::Result<Vec<String>> {
+/// Bare scene-config names (no path, no extension) in one project, sorted. A
+/// project with no `scene-configs/` directory yet lists empty rather than
+/// erroring — an empty project and a missing one are the same thing here.
+pub fn list_scene_config_names(
+    storage_dir: &std::path::Path,
+    project: &str,
+) -> anyhow::Result<Vec<String>> {
+    let dir = scene_config_dir(storage_dir, project);
     if !dir.exists() {
         return Ok(vec![]);
     }
     let mut names = vec![];
-    for entry in std::fs::read_dir(dir)? {
+    for entry in std::fs::read_dir(&dir)? {
         let entry = entry?;
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if let Some(prefixed) = name.strip_suffix(".config.json")
-            && let Some(bare) = prefixed.strip_prefix("vstimd_") {
-                names.push(bare.to_string());
-            }
+        if let Some(bare) = name.strip_suffix(".config.json") {
+            names.push(bare.to_string());
+        }
     }
     names.sort();
     Ok(names)
 }
 
-// ── Startup config directory ──────────────────────────────────────────────────
+/// Project names present under `<storage-dir>/projects`, sorted. Non-directories
+/// and names the layout would reject are skipped: the filesystem is the source
+/// of truth, and files arrive over Samba and ssh without the server's knowledge.
+pub fn list_projects(storage_dir: &std::path::Path) -> anyhow::Result<Vec<String>> {
+    let dir = projects_dir(storage_dir);
+    if !dir.exists() {
+        return Ok(vec![]);
+    }
+    let mut names = vec![];
+    for entry in std::fs::read_dir(&dir)? {
+        let entry = entry?;
+        if !entry.file_type()?.is_dir() {
+            continue;
+        }
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if is_valid_name(&name) {
+            names.push(name.into_owned());
+        }
+    }
+    names.sort();
+    Ok(names)
+}
 
-/// Default config directory for a deployed rig. Matches the packaged systemd
-/// unit (`StateDirectory=braemons/vstimd`). Used when `--config-dir` is not
+/// Every scene-config in the storage dir, as [`SceneConfigRef::qualified`]
+/// strings: bare inside `default`, `<project>/<name>` elsewhere. This is what
+/// `ListSceneConfigs` returns when no project is named.
+pub fn list_all_scene_configs(storage_dir: &std::path::Path) -> anyhow::Result<Vec<String>> {
+    let mut out = vec![];
+    for project in list_projects(storage_dir)? {
+        for name in list_scene_config_names(storage_dir, &project)? {
+            out.push(SceneConfigRef { project: project.clone(), name }.qualified());
+        }
+    }
+    out.sort();
+    Ok(out)
+}
+
+// ── Startup storage directory ─────────────────────────────────────────────────
+
+/// Default storage directory for a deployed rig. Matches the packaged systemd
+/// unit (`StateDirectory=braemons/vstimd`). Used when `--storage-dir` is not
 /// given; falls back to a home directory if this is not writable.
-pub const DEFAULT_CONFIG_DIR: &str = "/var/lib/braemons/vstimd";
+pub const DEFAULT_STORAGE_DIR: &str = "/var/lib/braemons/vstimd";
 
 /// True if `dir` exists (creating it if needed) and a file can be created in
-/// it. Used to pick a writable config dir at startup — a rig running as a
+/// it. Used to pick a writable storage dir at startup — a rig running as a
 /// non-root/dev user often cannot write under `/var`.
 pub fn dir_is_writable(dir: &std::path::Path) -> bool {
     if std::fs::create_dir_all(dir).is_err() {
@@ -370,8 +518,8 @@ pub fn first_writable_dir(candidates: &[std::path::PathBuf]) -> std::path::PathB
 
 // ── Quit-time archive configs ──────────────────────────────────────────────────
 
-/// Warn past this many timestamped archives in one config dir — they are never
-/// pruned automatically, so this nudges an operator to clean up.
+/// Warn past this many timestamped archives in the session project — they are
+/// never pruned automatically, so this nudges an operator to clean up.
 pub const ARCHIVE_WARN_THRESHOLD: usize = 500;
 
 /// Filesystem- and sort-safe UTC timestamp name for a quit-time archive config,
@@ -429,10 +577,10 @@ pub fn is_archive_name(name: &str) -> bool {
         && b[15] == b'Z'
 }
 
-/// Count timestamped archive configs in `dir` (ignores named configs and the
+/// Count timestamped archive scene-configs in the session project (ignores the
 /// last-session slot). Returns 0 on any read error.
-pub fn count_archive_configs(dir: &std::path::Path) -> usize {
-    list_config_names(dir)
+pub fn count_archive_configs(storage_dir: &std::path::Path) -> usize {
+    list_scene_config_names(storage_dir, SESSION_PROJECT)
         .map(|names| names.iter().filter(|n| is_archive_name(n)).count())
         .unwrap_or(0)
 }
@@ -461,6 +609,63 @@ mod tests {
         assert_eq!(format_utc_compact(946_684_800), "20000101T000000Z");
         // The "billennium": 2001-09-09 01:46:40 UTC.
         assert_eq!(format_utc_compact(1_000_000_000), "20010909T014640Z");
+    }
+
+    #[test]
+    fn names_are_validated_not_sanitised() {
+        assert!(is_valid_name("faces2026"));
+        assert!(is_valid_name("_last_session"));
+        assert!(is_valid_name("a.b-c_d"));
+        assert!(is_valid_name(&"x".repeat(64)));
+
+        assert!(!is_valid_name(""));
+        assert!(!is_valid_name(&"x".repeat(65)));
+        assert!(!is_valid_name("."));
+        assert!(!is_valid_name(".."));
+        assert!(!is_valid_name("a/b"));
+        assert!(!is_valid_name("a\\b"));
+        assert!(!is_valid_name("-flag"));
+        assert!(!is_valid_name("caf\u{e9}"));
+    }
+
+    #[test]
+    fn scene_config_refs_round_trip() {
+        let bare = SceneConfigRef::parse("center_target", DEFAULT_PROJECT).unwrap();
+        assert_eq!(bare.project, DEFAULT_PROJECT);
+        assert_eq!(bare.name, "center_target");
+        // Bare in `default`, qualified elsewhere — so the common case stays one word.
+        assert_eq!(bare.qualified(), "center_target");
+
+        let qualified = SceneConfigRef::parse("demos/gratings", DEFAULT_PROJECT).unwrap();
+        assert_eq!(qualified.project, "demos");
+        assert_eq!(qualified.qualified(), "demos/gratings");
+
+        // An unqualified name lands in whatever project is active.
+        let active = SceneConfigRef::parse("session1", "faces2026").unwrap();
+        assert_eq!(active.qualified(), "faces2026/session1");
+
+        // Traversal is rejected at parse time, so no path built from a ref can escape.
+        assert!(SceneConfigRef::parse("../etc/passwd", DEFAULT_PROJECT).is_err());
+        assert!(SceneConfigRef::parse("..", DEFAULT_PROJECT).is_err());
+        assert!(SceneConfigRef::parse("a/b/c", DEFAULT_PROJECT).is_err());
+    }
+
+    #[test]
+    fn layout_puts_a_scene_config_in_its_project() {
+        let state = std::path::Path::new("/var/lib/braemons/vstimd");
+        let r = SceneConfigRef::parse("demos/gratings", DEFAULT_PROJECT).unwrap();
+        assert_eq!(
+            scene_config_path(state, &r),
+            state.join("projects/demos/scene-configs/gratings.config.json"),
+        );
+    }
+
+    #[test]
+    fn shipped_demo_names_are_legal_and_unprefixed() {
+        for (name, _) in DEMO_CONFIGS {
+            assert!(is_valid_name(name), "demo name {name:?} is not a legal name");
+            assert!(!name.starts_with("demo_"), "demo {name:?} still carries the retired prefix");
+        }
     }
 
     #[test]

@@ -11,8 +11,8 @@ from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1.stimuli import shared_set_requests_pb2
 from vstimd.connection import Connection
 from vstimd.exceptions import (
-    ConfigError,
-    ConfigNotFoundError,
+    SceneConfigError,
+    SceneConfigNotFoundError,
     HandleNotFoundError,
     InvalidArgumentError,
     NotReadyError,
@@ -104,13 +104,13 @@ def test_exception_knows_its_own_code_when_raised_by_hand():
 
 
 def test_families_can_be_caught_together():
-    assert issubclass(ConfigNotFoundError, ConfigError)
+    assert issubclass(SceneConfigNotFoundError, SceneConfigError)
     assert issubclass(HandleNotFoundError, StimulusError)
     # ...without losing the common base.
-    assert issubclass(ConfigError, VstimdError)
+    assert issubclass(SceneConfigError, VstimdError)
     assert issubclass(StimulusError, VstimdError)
     # A grouping is not itself a code, so it never shadows a real error.
-    assert ConfigError.code is None
+    assert SceneConfigError.code is None
     assert StimulusError.code is None
 
 
@@ -175,7 +175,7 @@ def test_send_raises_config_errors_for_file_codes():
     conn = _connection_replying(
         _reply(service_pb2.ERROR_CODE_FILE_NOT_FOUND, "no config 'gratings'")
     )
-    with pytest.raises(ConfigNotFoundError) as exc_info:
+    with pytest.raises(SceneConfigNotFoundError) as exc_info:
         conn._send(service_pb2.Request(system=service_pb2.SystemTarget()))
     assert exc_info.value.code is ErrorCode.FILE_NOT_FOUND
 

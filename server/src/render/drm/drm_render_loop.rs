@@ -158,7 +158,7 @@ impl DrmRenderLoopData {
         let (ctx, display_info, vk_display) = super::drm_init::init(display_pref);
 
         // Build scene + text sub-renderers first (before ctx moves).
-        let config_dir = scene.read().unwrap().runtime.config_dir.clone();
+        let storage_dir = scene.read().unwrap().runtime.storage_dir.clone();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
         let text = TextRenderer::new(&ctx);
 
@@ -171,7 +171,7 @@ impl DrmRenderLoopData {
             ctx.set_debug_name(*img, &format!("swapchain[{i}]"));
         }
 
-        let ui = UiRenderer::new(&ctx, config_dir, log_buffer, overlay_scale);
+        let ui = UiRenderer::new(&ctx, storage_dir, log_buffer, overlay_scale);
 
         let input = InputState::new(vt_number_from_env());
 

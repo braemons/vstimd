@@ -134,11 +134,14 @@ HANDLE  ENABLED  NAME       ID
 | `wait-frames [N]` | block until N more frames are rendered |
 | `wait-ready` | block until the server answers and has drawn a frame |
 | `shutdown` | ask the server to exit cleanly (prompts unless `-y`) |
-| `config list` | list saved configs in the server's config directory |
-| `config save NAME` | save the current scene (`-f` to overwrite) |
-| `config load NAME` | load and apply a config (`--additive` to merge) |
-| `config get` | print the current config JSON (`-o FILE` to write it) |
-| `config upload NAME FILE` | upload a local config (`-` reads stdin) |
+| `scene-config list` | list the scene-configs on the server (`-p PROJECT` scopes it) |
+| `scene-config save NAME` | save the current scene (`-f` to overwrite) |
+| `scene-config load NAME` | load and apply a scene-config (`--additive` to merge) |
+| `scene-config get` | print the current scene-config JSON (`-o FILE` to write it) |
+| `scene-config upload NAME FILE` | upload a local scene-config (`-` reads stdin) |
+
+Every `NAME` is `[<project>/]<name>`; an unqualified name means the `default`
+project.
 
 `wait-ready` is the one to use in start-up scripts — it retries the connection
 until the server is up, so it doubles as "is this machine ready?":
@@ -157,8 +160,8 @@ with `jq`:
 vstimd-client --json discover | jq -r '.[0].address'
 
 # Back up the running scene, then restore it later
-vstimd-client config get -o scene.json
-vstimd-client config upload restored scene.json --overwrite --apply-now
+vstimd-client scene-config get -o scene.json
+vstimd-client scene-config upload restored scene.json --overwrite --apply-now
 ```
 
 ### Exit codes

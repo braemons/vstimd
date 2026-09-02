@@ -1,7 +1,7 @@
 """Shared scaffolding for the demo-building example scripts.
 
 Every ``examples/demos/*.py`` script builds one of the shipped demo scenes
-(``server/config/demos/vstimd_demo_*.config.json``) from an empty scene, then
+(``server/config/demos/*.config.json``) from an empty scene, then
 saves it under a name of your own. The three things they all need live here so
 each script stays about the demo it builds:
 

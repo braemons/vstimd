@@ -39,15 +39,15 @@ pub struct RigConfig {
 /// saves the scene back out on quit — so a rig can boot into a known
 /// configuration with no client attached.
 ///
-/// Overridden by the `--config <path>` CLI flag: if that is given, it wins and
-/// `load_config` is ignored.
+/// Overridden by the `--scene-config <name>` and `--scene-config-file <path>`
+/// CLI flags: if either is given, it wins and `load_config` is ignored.
 #[derive(Debug, Clone, serde::Deserialize, Default)]
 #[serde(deny_unknown_fields)]
 pub struct StartupRigConfig {
-    /// Named config (in the `--config-dir`) to load at boot. The literal
-    /// `"last"` resolves to the auto-saved last-session slot (see
-    /// `save_on_quit`). Omit — or set to the empty string — to start with an
-    /// empty scene.
+    /// Named scene-config to load at boot, `[<project>/]<name>` under the
+    /// `--storage-dir`. The literal `"last"` resolves to the auto-saved
+    /// last-session slot (see `save_on_quit`). Omit — or set to the empty
+    /// string — to start with an empty scene.
     #[serde(default, deserialize_with = "deserialize_startup_load")]
     pub load_config: Option<StartupLoad>,
     /// Save the current scene to the last-session slot on graceful shutdown, so

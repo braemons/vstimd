@@ -77,8 +77,12 @@ See `docs/PLAN.md` for the full design and roadmap.
   TOML at `/etc/braemons/vstimd-rig-config.toml`, changes when the hardware does.
 - **scene-config** (`scene_config_file.rs`) — one experiment: a `SceneConfig` (stimuli, animations,
   background, photodiode) plus named VTL trigger lines. JSON at
-  `<config-dir>/vstimd_<name>.config.json`, changes per session. The payload type lives in
-  `scene/scene_config.rs`; the load/save methods are on `SceneState` in `scene/scene_state.rs`.
+  `<storage-dir>/projects/<project>/scene-configs/<name>.config.json`, changes per session. The
+  payload type lives in `scene/scene_config.rs`; the load/save methods are on `SceneState` in
+  `scene/scene_state.rs`. Addressed as `[<project>/]<name>` — never a path — and an unqualified
+  name means the `default` project. `--storage-dir` names the root of that tree; `projects/` is
+  its only child, so there is one flag and no way to point the pieces at unrelated places.
+  See `dev/design/ASSET_STORE_PLAN.md` for where the asset types join `scene-configs/`.
 - `render/` — the display application. `overlay_ui/` holds the egui overlay, one file per group
   under `overlay_ui/panels/`; `vk/` is the only Vulkan layer.
 - `input/`, `system_info.rs`, `system_metrics.rs`, `benchmark.rs` are peers of `render/`, not part

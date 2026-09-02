@@ -61,7 +61,7 @@ acknowledges, and a server error is raised as a typed exception (see
 | `conn.system` | Scene-wide + queries | `set_background`, `set_all_enabled`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_deferred_mode`, `list_stimuli`, `query_server_info`, `wait_for_frames`, `wait_until` |
 | `conn.animations` | On-device animations | `create_flash`, `create_flicker`, `create_move_along_path_2d`, `create_couple_visibility_to_trigger_line`, `arm`, `disarm`, `cancel`, `query`, … |
 | `conn.vtl` | Virtual Trigger Lines | `set_line_name`, `set_line`, `toggle_line`, `list_lines` |
-| `conn.config` | Save/load scenes | `save`, `load`, `list_configs`, `retrieve`, `upload` |
+| `conn.scene_config` | Save/load scenes | `save`, `load`, `list_scene_configs`, `retrieve`, `upload` |
 
 The method list above is a map, not an exhaustive signature reference — the
 authoritative signatures and docstrings live in the source under
@@ -126,9 +126,9 @@ under `ConfigError`, so you can catch a family rather than listing members:
 from vstimd.exceptions import ConfigError, ConfigNotFoundError
 
 try:
-    conn.config.load("gratings")
+    conn.scene_config.load("gratings")
 except ConfigNotFoundError:
-    conn.config.save("gratings")          # first run on this rig
+    conn.scene_config.save("gratings")          # first run on this rig
 except ConfigError as exc:
     log.error("config unusable: %s", exc.detail)
 ```

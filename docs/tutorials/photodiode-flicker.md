@@ -1,6 +1,6 @@
 # Tutorial: Photodiode & flicker
 
-**Rebuilds:** `demo_photodiode_flicker` · **Script:** `client/python/examples/demos/photodiode_flicker.py`
+**Rebuilds:** `demos/photodiode_flicker` · **Script:** `client/python/examples/demos/photodiode_flicker.py`
 
 This is the measurement scene. The corner photodiode patch inverts on every
 single frame, so a photodiode taped to that corner reports what the display is
@@ -64,10 +64,10 @@ ways to set it are the on-device overlay, or the config JSON:
 ```python
 import json
 
-scene = json.loads(conn.config.retrieve())
+scene = json.loads(conn.scene_config.retrieve())
 scene["scene"]["photodiode"]["enabled"] = True
 scene["scene"]["photodiode"]["flicker"] = True
-conn.config.upload("my_photodiode_flicker", json.dumps(scene),
+conn.scene_config.upload("my_photodiode_flicker", json.dumps(scene),
                    overwrite=True, apply_now=True)
 ```
 
@@ -89,7 +89,7 @@ Without `flicker` it is a static square, useful as a fixed luminance reference.
 
 ## 4. Save
 
-The script saves first with `conn.config.save(...)` and then re-uploads the
+The script saves first with `conn.scene_config.save(...)` and then re-uploads the
 patched JSON under the same name, so the file on the device has the photodiode
 settings in it and a later `load` restores them.
 

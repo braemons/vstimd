@@ -35,7 +35,7 @@ class ExitCode(IntEnum):
     """The server answered, and the answer was an error."""
 
     NOT_FOUND = 6
-    """What was asked for does not exist: no rigs discovered, no such config."""
+    """What was asked for does not exist: no rigs discovered, no such scene-config."""
 
     NO_BACKEND = 7
     """``discover`` has no mDNS implementation available on this machine."""

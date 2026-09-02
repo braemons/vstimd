@@ -146,10 +146,10 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::QueryAnimation(c)) => format!("QueryAnimation({})", c.handle),
         Some(request::Body::WaitForFrames(c)) => format!("WaitForFrames({})", c.count),
         Some(request::Body::WaitUntil(c)) => format!("WaitUntil({}ns)", c.server_time_ns),
-        Some(request::Body::ListConfigs(_)) => "ListConfigs".into(),
-        Some(request::Body::LoadConfig(c)) => format!("LoadConfig({:?})", c.name),
-        Some(request::Body::UploadConfig(c)) => format!("UploadConfig({:?})", c.name),
-        Some(request::Body::RetrieveConfig(_)) => "RetrieveConfig".into(),
+        Some(request::Body::ListSceneConfigs(_)) => "ListSceneConfigs".into(),
+        Some(request::Body::LoadSceneConfig(c)) => format!("LoadSceneConfig({:?})", c.name),
+        Some(request::Body::UploadSceneConfig(c)) => format!("UploadSceneConfig({:?})", c.name),
+        Some(request::Body::RetrieveSceneConfig(_)) => "RetrieveSceneConfig".into(),
         Some(request::Body::Shutdown(_)) => "Shutdown".into(),
         None => "?".into(),
     }
@@ -257,10 +257,10 @@ impl SceneState {
             request::Body::DeleteAnimation(cmd) => self.cmd_delete_animation(cmd),
             request::Body::ListAnimations(_) => self.cmd_list_animations(),
             request::Body::QueryAnimation(cmd) => self.cmd_query_animation(cmd),
-            request::Body::ListConfigs(_) => self.cmd_list_configs(),
-            request::Body::LoadConfig(cmd) => self.cmd_load_config(cmd, vtl),
-            request::Body::UploadConfig(cmd) => self.cmd_upload_config(cmd, vtl),
-            request::Body::RetrieveConfig(_) => self.cmd_retrieve_config(vtl.as_deref()),
+            request::Body::ListSceneConfigs(cmd) => self.cmd_list_scene_configs(cmd),
+            request::Body::LoadSceneConfig(cmd) => self.cmd_load_scene_config(cmd, vtl),
+            request::Body::UploadSceneConfig(cmd) => self.cmd_upload_scene_config(cmd, vtl),
+            request::Body::RetrieveSceneConfig(_) => self.cmd_retrieve_scene_config(vtl.as_deref()),
             request::Body::Shutdown(_) => {
                 crate::process::shutdown::request();
                 ok_ack()
@@ -306,10 +306,10 @@ impl SceneState {
             | request::Body::QueryAnimation(_)
             | request::Body::WaitForFrames(_)
             | request::Body::WaitUntil(_)
-            | request::Body::ListConfigs(_)
-            | request::Body::LoadConfig(_)
-            | request::Body::UploadConfig(_)
-            | request::Body::RetrieveConfig(_)
+            | request::Body::ListSceneConfigs(_)
+            | request::Body::LoadSceneConfig(_)
+            | request::Body::UploadSceneConfig(_)
+            | request::Body::RetrieveSceneConfig(_)
             | request::Body::Shutdown(_) => err(
                 proto::ErrorCode::WrongTarget,
                 "system command must use target.system (not a stimulus handle)",

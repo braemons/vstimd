@@ -77,11 +77,11 @@ fn main() {
     }
     log::info!("vstimd: render target: {:?}", render_target);
 
-    let config_dir = resolve_config_dir(args.config_dir.clone());
-    log::info!("vstimd: config dir: {}", config_dir.display());
-    seed_demo_configs(&config_dir);
-    let scene = Arc::new(RwLock::new(SceneState::new_with_config_dir(
-        config_dir.clone(),
+    let storage_dir = resolve_storage_dir(args.storage_dir.clone());
+    log::info!("vstimd: storage dir: {}", storage_dir.display());
+    seed_projects(&storage_dir);
+    let scene = Arc::new(RwLock::new(SceneState::new_with_storage_dir(
+        storage_dir.clone(),
     )));
 
     // Seed display metrics from rig-config so headless/null mode reports a
@@ -127,10 +127,11 @@ fn main() {
         );
     }
 
-    // Startup scene load. An explicit `--config <path>` wins; otherwise the
-    // rig-config `[startup] load_config` (a named config in the config dir, or
-    // "last" for the auto-saved last-session slot) is applied, if set.
-    if let Some(ref path) = args.config_file {
+    // Startup scene load, in priority order: an explicit
+    // `--scene-config-file <path>`, then `--scene-config [<project>/]<name>`,
+    // then the rig-config `[startup] load_config` (a named scene-config, or
+    // "last" for the auto-saved last-session slot).
+    if let Some(ref path) = args.scene_config_file {
         match vstimd::scene_config_file::load_config(path) {
             Ok((scene_cfg, sections)) => {
                 if let Some(ref v) = vtl {
@@ -142,32 +143,30 @@ fn main() {
                     .write()
                     .unwrap()
                     .load_snapshot(scene_cfg, vstimd::scene::LoadMode::Replace);
-                log::info!("vstimd: loaded config from {:?}", path);
+                log::info!("vstimd: loaded scene-config from {:?}", path);
             }
-            Err(e) => log::error!("vstimd: failed to load config {:?}: {e}", path),
+            Err(e) => log::error!("vstimd: failed to load scene-config {:?}: {e}", path),
         }
-    } else if let Some(load) = &rig.startup.load_config {
-        let name = match load {
-            rig_config::StartupLoad::Named(n) => n.as_str(),
-            rig_config::StartupLoad::LastSession => vstimd::scene_config_file::LAST_SESSION_CONFIG,
-        };
+    } else if let Some(name) = args.scene_config.clone().or_else(|| {
+        rig.startup.load_config.as_ref().map(|load| match load {
+            rig_config::StartupLoad::Named(n) => n.clone(),
+            rig_config::StartupLoad::LastSession => last_session_ref(),
+        })
+    }) {
         // Runs before the ZMQ/web threads spawn, but keep scene-then-vtl lock
         // order consistent with ipc.rs regardless.
         let mut scene_guard = scene.write().unwrap();
         let mut vtl_guard = vtl.as_ref().map(|v| v.lock().unwrap());
-        let result = scene_guard.load_named_config(name, false, vtl_guard.as_deref_mut());
+        let result = scene_guard.load_named_config(&name, false, vtl_guard.as_deref_mut());
         match result {
-            Ok(()) => log::info!("vstimd: loaded startup config '{name}'"),
+            Ok(()) => log::info!("vstimd: loaded startup scene-config '{name}'"),
             // A missing last-session slot on first boot is expected, not an error.
-            Err(e)
-                if matches!(load, rig_config::StartupLoad::LastSession)
-                    && vstimd::scene_config_file::is_not_found(&e) =>
-            {
+            Err(e) if name == last_session_ref() && vstimd::scene_config_file::is_not_found(&e) => {
                 log::info!(
-                    "vstimd: no last-session config yet ('{name}') — starting with an empty scene"
+                    "vstimd: no last-session scene-config yet ('{name}') — starting with an empty scene"
                 );
             }
-            Err(e) => log::error!("vstimd: failed to load startup config '{name}': {e}"),
+            Err(e) => log::error!("vstimd: failed to load startup scene-config '{name}': {e}"),
         }
     }
 
@@ -322,8 +321,13 @@ struct Args {
     #[cfg_attr(not(feature = "web"), allow(dead_code))]
     web_port: Option<u16>,
     rig_config: String,
-    config_file: Option<std::path::PathBuf>,
-    config_dir: Option<std::path::PathBuf>,
+    /// `--scene-config-file <path>`: load this exact file at startup, bypassing
+    /// the storage dir entirely. For a dev checkout running a config out of the repo.
+    scene_config_file: Option<std::path::PathBuf>,
+    /// `--scene-config [<project>/]<name>`: a named scene-config in the state
+    /// dir. Overrides rig-config's `[startup] load_config`.
+    scene_config: Option<String>,
+    storage_dir: Option<std::path::PathBuf>,
     /// `Some(s)` if `--overlay-scale` was passed; otherwise `None` (use rig-config).
     overlay_scale: Option<f32>,
     /// `Some(pref)` if `--preferred-clock-source` was passed (overrides rig-config
@@ -332,39 +336,59 @@ struct Args {
     preferred_clock_source: Option<Option<ClockSource>>,
 }
 
-/// Choose the directory for named scene-configs (and the save-on-quit slot and
-/// archives). An explicit `--config-dir` is honoured verbatim. Otherwise prefer
-/// the deployed default (`/var/lib/braemons/vstimd`, matching the packaged
-/// systemd `StateDirectory`); if it is not writable — e.g. a non-root dev run —
-/// fall back to `~/.local/braemons/vstimd`, then the current directory.
-fn resolve_config_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBuf {
-    use vstimd::scene_config_file::{first_writable_dir, DEFAULT_CONFIG_DIR};
+/// The qualified name of the last-session slot, `_session/_last_session`.
+fn last_session_ref() -> String {
+    format!(
+        "{}/{}",
+        vstimd::scene_config_file::SESSION_PROJECT,
+        vstimd::scene_config_file::LAST_SESSION_CONFIG
+    )
+}
+
+/// Choose the root of the on-device storage tree — the projects holding
+/// scene-configs, the save-on-quit slot and the archives. An explicit
+/// `--storage-dir` is honoured verbatim. Otherwise prefer the deployed default
+/// (`/var/lib/braemons/vstimd`, matching the packaged systemd
+/// `StateDirectory`); if it is not writable — e.g. a non-root dev run — fall
+/// back to `~/.local/braemons/vstimd`, then the current directory.
+fn resolve_storage_dir(explicit: Option<std::path::PathBuf>) -> std::path::PathBuf {
+    use vstimd::scene_config_file::{first_writable_dir, DEFAULT_STORAGE_DIR};
     if let Some(dir) = explicit {
         return dir;
     }
-    let mut candidates = vec![std::path::PathBuf::from(DEFAULT_CONFIG_DIR)];
+    let mut candidates = vec![std::path::PathBuf::from(DEFAULT_STORAGE_DIR)];
     if let Some(home) = std::env::var_os("HOME") {
         candidates.push(std::path::Path::new(&home).join(".local/braemons/vstimd"));
     }
     first_writable_dir(&candidates)
 }
 
-/// Install the shipped demo configs into `dir` — writing the missing ones and
-/// replacing the ones this server wrote that nobody has since edited (see
-/// [`vstimd::scene_config_file::seed_demo_configs`] for the full rule). Never fatal: a
-/// read-only or full config dir costs the demos, not the server.
+/// Create the `default` project and install the shipped demos into `demos` —
+/// writing the missing ones and replacing the ones this server wrote that
+/// nobody has since edited (see [`vstimd::scene_config_file::seed_demo_configs`]
+/// for the full rule). Never fatal: a read-only or full storage dir costs the
+/// demos, not the server.
 ///
 /// Installing and refreshing are logged apart on purpose: "installed" added a
 /// file, "updated" *overwrote* one that was already there, and an operator
 /// reading the journal after an upgrade needs to tell those apart.
-fn seed_demo_configs(dir: &std::path::Path) {
-    let report = vstimd::scene_config_file::seed_demo_configs(dir);
+fn seed_projects(storage_dir: &std::path::Path) {
+    // The default project is where an unqualified name lands, so it should
+    // exist before anyone browses for it — including the overlay's file dialog.
+    let default_dir = vstimd::scene_config_file::scene_config_dir(
+        storage_dir,
+        vstimd::scene_config_file::DEFAULT_PROJECT,
+    );
+    if let Err(e) = std::fs::create_dir_all(&default_dir) {
+        log::warn!("vstimd: could not create the default project at {default_dir:?}: {e}");
+    }
+    let report = vstimd::scene_config_file::seed_demo_configs(storage_dir);
     if !report.installed.is_empty() {
-        log::info!("vstimd: installed demo configs: {}", report.installed.join(", "));
+        log::info!("vstimd: installed demos: {}", report.installed.join(", "));
     }
     if !report.refreshed.is_empty() {
         log::info!(
-            "vstimd: updated demo configs to the shipped version: {}",
+            "vstimd: updated demos to the shipped version: {}",
             report.refreshed.join(", ")
         );
     }
@@ -378,12 +402,12 @@ fn seed_demo_configs(dir: &std::path::Path) {
         .collect();
     if !kept.is_empty() {
         log::info!(
-            "vstimd: kept local demo configs (edited here, so not replaced): {}",
+            "vstimd: kept local demos (edited here, so not replaced): {}",
             kept.join(", ")
         );
     }
     for (name, e) in report.failed {
-        log::warn!("vstimd: could not install demo config '{name}': {e}");
+        log::warn!("vstimd: could not install demo '{name}': {e}");
     }
 }
 
@@ -524,8 +548,9 @@ fn parse_args() -> Args {
     let mut web_enabled: Option<bool> = None;
     let mut web_port: Option<u16> = None;
     let mut rig_config  = rig_config::DEFAULT_PATH.to_string();
-    let mut config_file: Option<std::path::PathBuf> = None;
-    let mut config_dir: Option<std::path::PathBuf> = None;
+    let mut scene_config_file: Option<std::path::PathBuf> = None;
+    let mut scene_config: Option<String> = None;
+    let mut storage_dir: Option<std::path::PathBuf> = None;
     let mut overlay_scale: Option<f32> = None;
     let mut preferred_clock_source: Option<Option<ClockSource>> = None;
 
@@ -553,11 +578,19 @@ fn parse_args() -> Args {
                     std::process::exit(1);
                 });
             }
-            "--config" => {
-                config_file = args.next().map(std::path::PathBuf::from);
+            "--scene-config" => {
+                scene_config = Some(args.next().unwrap_or_else(|| {
+                    eprintln!(
+                        "vstimd: --scene-config requires a name argument ([<project>/]<name>)"
+                    );
+                    std::process::exit(1);
+                }));
             }
-            "--config-dir" => {
-                config_dir = args.next().map(std::path::PathBuf::from);
+            "--scene-config-file" => {
+                scene_config_file = args.next().map(std::path::PathBuf::from);
+            }
+            "--storage-dir" => {
+                storage_dir = args.next().map(std::path::PathBuf::from);
             }
             "--zmq-port" => {
                 zmq_port = args.next().and_then(|s| s.parse::<u16>().ok()).unwrap_or_else(|| {
@@ -638,8 +671,9 @@ fn parse_args() -> Args {
         web_enabled,
         web_port,
         rig_config,
-        config_file,
-        config_dir,
+        scene_config_file,
+        scene_config,
+        storage_dir,
         overlay_scale,
         preferred_clock_source,
     }
@@ -744,8 +778,12 @@ fn print_usage() {
     eprintln!("                            overrides rig-config's [display] clock (default: auto)");
     eprintln!("  -v, --verbose             Enable debug logging (overridden by RUST_LOG)");
     eprintln!("      --rig-config <path>   Rig config (default: {})", vstimd::rig_config::DEFAULT_PATH);
-    eprintln!("      --config <path>       Load scene-config file at startup");
-    eprintln!("      --config-dir <path>   Directory for named scene-config files");
+    eprintln!("      --scene-config <name> Load a named scene-config at startup,");
+    eprintln!("                            [<project>/]<name> (default project: \"default\")");
+    eprintln!("      --scene-config-file <path>");
+    eprintln!("                            Load a scene-config file at startup, by path");
+    eprintln!("      --storage-dir <path>  Root of the on-device storage tree; projects (with");
+    eprintln!("                            their scene-configs) live in <path>/projects");
     eprintln!("                            (default: /var/lib/braemons/vstimd, else");
     eprintln!("                            ~/.local/braemons/vstimd if not writable)");
 

@@ -76,7 +76,7 @@ impl FileBrowser {
                 if !name.starts_with('.') {
                     dirs.push(name);
                 }
-            } else if name.starts_with("vstimd_") && name.ends_with(".config.json") {
+            } else if name.ends_with(".config.json") {
                 files.push(name);
             }
         }
@@ -150,9 +150,8 @@ impl FileBrowser {
                                 self.current_dir.push(&name);
                                 self.refresh();
                             } else {
-                                // Strip vstimd_ prefix and .config.json suffix for the filename field
-                                self.filename = name.strip_prefix("vstimd_")
-                                    .and_then(|n| n.strip_suffix(".config.json"))
+                                // Show the bare name in the filename field
+                                self.filename = name.strip_suffix(".config.json")
                                     .unwrap_or(&name)
                                     .to_string();
                                 if matches!(self.mode, BrowserMode::OpenReplace | BrowserMode::OpenAdditive) {
@@ -177,7 +176,7 @@ impl FileBrowser {
                         let can_save = !self.filename.trim().is_empty();
                         if ui.add_enabled(can_save, egui::Button::new("Save")).clicked() {
                             let bare = self.filename.trim().to_string();
-                            let filename = format!("vstimd_{}.config.json", bare);
+                            let filename = format!("{bare}.config.json");
                             let path = self.current_dir.join(filename);
                             self.result = Some((self.mode, path));
                             self.open = false;

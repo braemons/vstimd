@@ -17,7 +17,7 @@ pub struct UiRenderer {
 }
 
 impl UiRenderer {
-    pub fn new(ctx: &VkContext, config_dir: PathBuf, log_buffer: LogBuffer, overlay_scale: f32) -> Self {
+    pub fn new(ctx: &VkContext, storage_dir: PathBuf, log_buffer: LogBuffer, overlay_scale: f32) -> Self {
         let egui_renderer = VkEguiRenderer::new(
             &ctx.device,
             &ctx.instance,
@@ -32,7 +32,7 @@ impl UiRenderer {
         Self {
             egui_renderer,
             egui_ctx,
-            overlay: OverlayState::new(config_dir),
+            overlay: OverlayState::new(storage_dir),
             metrics: MetricsSampler::new(),
             log_buffer,
         }

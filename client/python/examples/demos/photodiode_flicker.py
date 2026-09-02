@@ -1,4 +1,4 @@
-"""photodiode_flicker.py — Build the `demo_photodiode_flicker` scene from scratch.
+"""photodiode_flicker.py — Build the `demos/photodiode_flicker` scene from scratch.
 
 Usage
 -----
@@ -9,7 +9,7 @@ Usage
     uv run examples/demos/photodiode_flicker.py tcp://vstimd-ab12.local:5555
     uv run examples/demos/photodiode_flicker.py --save-as my_timing_check -f
 
-Reproduces the shipped `demo_photodiode_flicker` config: the corner photodiode
+Reproduces the shipped `demos/photodiode_flicker` config: the corner photodiode
 patch inverting on every single frame, plus a large patch flickering at 5 Hz as
 a visible cross-check. This is the scene you load to measure what the display is
 actually doing, rather than what it claims to do.
@@ -27,7 +27,7 @@ from vstimd.stimuli.stimuli_models import Color, Vec2
 from vstimd.stimuli import RectParams, ShapeAppearance
 
 EXPLANATION = (
-    "demo_photodiode_flicker — frame timing\n"
+    "demos/photodiode_flicker — frame timing\n"
     "\n"
     "The photodiode patch (bottom-left corner) inverts on every single frame,\n"
     "so a photodiode on that corner reports the real refresh rate.\n"
@@ -73,7 +73,7 @@ def main() -> None:
         )
         conn.animations.arm(flicker)
 
-        conn.config.save(args.save_as, overwrite=args.overwrite)
+        conn.scene_config.save(args.save_as, overwrite=args.overwrite)
         print(f"Saved as '{args.save_as}'.")
 
         # ── The corner photodiode patch ───────────────────────────────────────
@@ -81,10 +81,10 @@ def main() -> None:
         # it has no command of its own yet — so set it by editing the retrieved
         # JSON and uploading it back with `apply_now`. `flicker` is what makes
         # it invert every frame; without it the patch is a static square.
-        scene = json.loads(conn.config.retrieve())
+        scene = json.loads(conn.scene_config.retrieve())
         scene["scene"]["photodiode"]["enabled"] = True
         scene["scene"]["photodiode"]["flicker"] = True
-        conn.config.upload(args.save_as, json.dumps(scene),
+        conn.scene_config.upload(args.save_as, json.dumps(scene),
                            overwrite=True, apply_now=True)
         print("Photodiode patch on and inverting every frame.")
 

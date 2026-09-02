@@ -12,9 +12,9 @@ import json
 import pytest
 
 from vstimd import (
-    ConfigAlreadyExistsError,
-    ConfigFormatError,
-    ConfigNotFoundError,
+    SceneConfigAlreadyExistsError,
+    SceneConfigFormatError,
+    SceneConfigNotFoundError,
     Connection,
 )
 from vstimd.stimuli import RectParams
@@ -29,7 +29,7 @@ from ._helpers import Stage
 )
 def test_retrieve_returns_valid_json(conn: Connection, stage: Stage) -> None:
     """retrieve() returns a non-empty string that parses as JSON."""
-    raw = conn.config.retrieve()
+    raw = conn.scene_config.retrieve()
     assert isinstance(raw, str) and len(raw) > 0
     data = json.loads(raw)
     assert data["version"] == 5
@@ -45,7 +45,7 @@ def test_retrieve_returns_valid_json(conn: Connection, stage: Stage) -> None:
 )
 def test_retrieve_scene_structure(conn: Connection, stage: Stage) -> None:
     """retrieve() JSON contains expected scene keys."""
-    data = json.loads(conn.config.retrieve())
+    data = json.loads(conn.scene_config.retrieve())
     scene = data["scene"]
     assert "background" in scene
     assert "stimuli" in scene
@@ -60,9 +60,9 @@ def test_retrieve_scene_structure(conn: Connection, stage: Stage) -> None:
 )
 def test_upload_and_list(conn: Connection, stage: Stage) -> None:
     """Uploaded config appears in list_configs()."""
-    raw = conn.config.retrieve()
-    conn.config.upload("e2e_test_list", raw, overwrite=True)
-    names = conn.config.list_configs()
+    raw = conn.scene_config.retrieve()
+    conn.scene_config.upload("e2e_test_list", raw, overwrite=True)
+    names = conn.scene_config.list_scene_configs()
     assert "e2e_test_list" in names
     stage.hold(0.3)
 
@@ -74,8 +74,8 @@ def test_upload_and_list(conn: Connection, stage: Stage) -> None:
 )
 def test_save_convenience(conn: Connection, stage: Stage) -> None:
     """save() is equivalent to retrieve() + upload()."""
-    conn.config.save("e2e_test_save", overwrite=True)
-    assert "e2e_test_save" in conn.config.list_configs()
+    conn.scene_config.save("e2e_test_save", overwrite=True)
+    assert "e2e_test_save" in conn.scene_config.list_scene_configs()
     stage.hold(0.3)
 
 
@@ -92,13 +92,13 @@ def test_upload_and_load_roundtrip(conn: Connection, stage: Stage) -> None:
         name="cfg_roundtrip_rect",
         params=RectParams(width_px=50, height_px=50),
     )
-    conn.config.save("e2e_test_roundtrip", overwrite=True)
+    conn.scene_config.save("e2e_test_roundtrip", overwrite=True)
     conn.system.clear_all()
 
     stim_handles_before = {e.handle for e in conn.system.list_stimuli()}
     assert h not in stim_handles_before
 
-    conn.config.load("e2e_test_roundtrip")
+    conn.scene_config.load("e2e_test_roundtrip")
     entries = conn.system.list_stimuli()
     names = {e.name for e in entries}
     assert "cfg_roundtrip_rect" in names
@@ -117,10 +117,10 @@ def test_load_additive(conn: Connection, stage: Stage) -> None:
     conn.system.clear_all()
     h_existing = conn.stimuli.shapes.create_rect(name="existing_stim")
 
-    conn.config.save("e2e_test_additive", overwrite=True)
+    conn.scene_config.save("e2e_test_additive", overwrite=True)
 
     # Load the saved config additively (it contains "existing_stim").
-    conn.config.load("e2e_test_additive", additive=True)
+    conn.scene_config.load("e2e_test_additive", additive=True)
 
     names = {e.name for e in conn.system.list_stimuli()}
     # The original stimulus is still there AND the loaded one is added.
@@ -136,38 +136,38 @@ def test_load_additive(conn: Connection, stage: Stage) -> None:
 @pytest.mark.onscreen(
     "CFG-07",
     "nothing on screen: uploading over an existing config name without "
-    "overwrite=True is refused with ConfigAlreadyExistsError",
+    "overwrite=True is refused with SceneConfigAlreadyExistsError",
 )
 def test_upload_overwrite_false_raises(conn: Connection, stage: Stage) -> None:
     """Uploading a config that already exists without overwrite=True raises."""
-    raw = conn.config.retrieve()
-    conn.config.upload("e2e_test_no_overwrite", raw, overwrite=True)
-    with pytest.raises(ConfigAlreadyExistsError):
-        conn.config.upload("e2e_test_no_overwrite", raw, overwrite=False)
+    raw = conn.scene_config.retrieve()
+    conn.scene_config.upload("e2e_test_no_overwrite", raw, overwrite=True)
+    with pytest.raises(SceneConfigAlreadyExistsError):
+        conn.scene_config.upload("e2e_test_no_overwrite", raw, overwrite=False)
     stage.hold(0.3)
 
 
 @pytest.mark.onscreen(
     "CFG-08",
     "nothing on screen: loading a config name that was never saved is refused "
-    "with ConfigNotFoundError",
+    "with SceneConfigNotFoundError",
 )
 def test_load_nonexistent_raises(conn: Connection, stage: Stage) -> None:
-    """Loading a config that does not exist raises ConfigNotFoundError."""
-    with pytest.raises(ConfigNotFoundError):
-        conn.config.load("this_name_does_not_exist_xyz123")
+    """Loading a config that does not exist raises SceneConfigNotFoundError."""
+    with pytest.raises(SceneConfigNotFoundError):
+        conn.scene_config.load("this_name_does_not_exist_xyz123")
     stage.hold(0.3)
 
 
 @pytest.mark.onscreen(
     "CFG-09",
     "nothing on screen: uploading a string that is not JSON is refused with "
-    "ConfigFormatError, and the scene is left alone",
+    "SceneConfigFormatError, and the scene is left alone",
 )
 def test_upload_invalid_json_raises(conn: Connection, stage: Stage) -> None:
-    """Uploading a malformed JSON string raises ConfigFormatError."""
-    with pytest.raises(ConfigFormatError):
-        conn.config.upload("e2e_test_bad_json", "not valid json {{{", overwrite=True)
+    """Uploading a malformed JSON string raises SceneConfigFormatError."""
+    with pytest.raises(SceneConfigFormatError):
+        conn.scene_config.upload("e2e_test_bad_json", "not valid json {{{", overwrite=True)
     stage.hold(0.3)
 
 
@@ -181,12 +181,12 @@ def test_upload_apply_now(conn: Connection, stage: Stage) -> None:
     """upload(apply_now=True) applies the config immediately."""
     conn.system.clear_all()
     h = conn.stimuli.shapes.create_rect(name="apply_now_rect")
-    raw = conn.config.retrieve()
+    raw = conn.scene_config.retrieve()
 
     conn.system.clear_all()
     assert len(conn.system.list_stimuli()) == 0
 
-    conn.config.upload("e2e_test_apply_now", raw, overwrite=True, apply_now=True)
+    conn.scene_config.upload("e2e_test_apply_now", raw, overwrite=True, apply_now=True)
     names = {e.name for e in conn.system.list_stimuli()}
     assert "apply_now_rect" in names
 

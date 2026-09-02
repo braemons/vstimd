@@ -9,11 +9,11 @@ The exceptions form a shallow tree, so you can catch a family or a specific
 failure::
 
     try:
-        conn.config.load("gratings")
-    except ConfigNotFoundError:
-        conn.config.save("gratings")     # first run on this rig
-    except ConfigError as exc:
-        log.error("config %s unusable: %s", exc.detail, exc.code.name)
+        conn.scene_config.load("gratings")
+    except SceneConfigNotFoundError:
+        conn.scene_config.save("gratings")     # first run on this rig
+    except SceneConfigError as exc:
+        log.error("scene-config %s unusable: %s", exc.detail, exc.code.name)
 
 Each one carries the machine-readable :attr:`~VstimdError.code`, the server's
 own message as :attr:`~VstimdError.detail`, and — when the server was answering
@@ -161,39 +161,39 @@ class UnknownServerError(VstimdError):
     code = ErrorCode.UNKNOWN
 
 
-# ── Scene configs ─────────────────────────────────────────────────────────────
+# ── Scene-configs ─────────────────────────────────────────────────────────────
 
 
-class ConfigError(VstimdError):
-    """Something went wrong loading, saving, or parsing a scene config."""
+class SceneConfigError(VstimdError):
+    """Something went wrong loading, saving, or parsing a scene-config."""
 
 
-class ConfigNotFoundError(ConfigError):
-    """Named config does not exist in the server's config directory."""
+class SceneConfigNotFoundError(SceneConfigError):
+    """Named scene-config does not exist on the server."""
 
     code = ErrorCode.FILE_NOT_FOUND
 
 
-class ConfigIoError(ConfigError):
-    """Filesystem error while reading or writing a config file."""
+class SceneConfigIoError(SceneConfigError):
+    """Filesystem error while reading or writing a scene-config file."""
 
     code = ErrorCode.FILE_IO
 
 
-class ConfigFormatError(ConfigError):
-    """Config file contains invalid JSON or does not match the expected schema."""
+class SceneConfigFormatError(SceneConfigError):
+    """Scene-config contains invalid JSON or does not match the expected schema."""
 
     code = ErrorCode.FILE_FORMAT
 
 
-class ConfigVersionError(ConfigError):
-    """Config file version is not supported by this server."""
+class SceneConfigVersionError(SceneConfigError):
+    """Scene-config file version is not supported by this server."""
 
     code = ErrorCode.UNSUPPORTED_VERSION
 
 
-class ConfigAlreadyExistsError(ConfigError):
-    """Config already exists and overwrite was not requested."""
+class SceneConfigAlreadyExistsError(SceneConfigError):
+    """Scene-config already exists and overwrite was not requested."""
 
     code = ErrorCode.FILE_ALREADY_EXISTS
 

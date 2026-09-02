@@ -1,4 +1,4 @@
-"""drifting_grating.py — Build the `demo_drifting_grating` scene from scratch.
+"""drifting_grating.py — Build the `demos/drifting_grating` scene from scratch.
 
 Usage
 -----
@@ -9,7 +9,7 @@ Usage
     uv run examples/demos/drifting_grating.py tcp://vstimd-ab12.local:5555
     uv run examples/demos/drifting_grating.py --save-as my_drifting_grating -f
 
-Reproduces the shipped `demo_drifting_grating` config: one full-field sinusoidal
+Reproduces the shipped `demos/drifting_grating` config: one full-field sinusoidal
 grating that drifts on its own, with no animation and no trigger — the motion
 comes from the grating's own `drift_speed_hz`, advanced by the render thread once
 per frame.
@@ -27,7 +27,7 @@ from vstimd.stimuli.stimuli_models import Vec2
 from vstimd.stimuli import GratingMask, GratingParams, GratingTexture
 
 EXPLANATION = (
-    "demo_drifting_grating — a moving stimulus every frame\n"
+    "demos/drifting_grating — a moving stimulus every frame\n"
     "\n"
     "Full-field sinusoidal grating: 0.01 cycles/px (100 px per cycle),\n"
     "vertical stripes, drifting at 4 cycles/s perpendicular to the stripes.\n"
@@ -66,7 +66,7 @@ def main() -> None:
 
         add_explanation(conn, EXPLANATION)
 
-        conn.config.save(args.save_as, overwrite=args.overwrite)
+        conn.scene_config.save(args.save_as, overwrite=args.overwrite)
         print(f"Saved as '{args.save_as}' — it starts drifting the moment it is loaded.")
 
 if __name__ == "__main__":

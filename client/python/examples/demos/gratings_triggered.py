@@ -1,4 +1,4 @@
-"""gratings_triggered.py — Build the `demo_gratings_triggered` scene from scratch.
+"""gratings_triggered.py — Build the `demos/gratings_triggered` scene from scratch.
 
 Usage
 -----
@@ -10,7 +10,7 @@ Usage
     uv run examples/demos/gratings_triggered.py --save-as my_experiment -f
     uv run examples/demos/gratings_triggered.py --fire           # pulse both inputs
 
-Reproduces the shipped `demo_gratings_triggered` config: two masked gratings,
+Reproduces the shipped `demos/gratings_triggered` config: two masked gratings,
 each hidden until its own input line goes high, each flashed for 2 s, each
 re-arming itself afterwards — a complete trial-by-trial setup that runs with no
 client connected. Every presentation marks its onset and its end on an output
@@ -34,7 +34,7 @@ from vstimd.stimuli import CircleParams, Color, GratingMask, GratingParams, Grat
 from vstimd.stimuli.shapes_models import ShapeDrawMode
 
 EXPLANATION = (
-    "demo_gratings_triggered — trigger in, trigger out\n"
+    "demos/gratings_triggered — trigger in, trigger out\n"
     "\n"
     "Two masked gratings at the centre, hidden until triggered. Each re-arms itself, so\n"
     "every rising edge fires another 2 s presentation (120 frames @ 60 Hz).\n"
@@ -156,17 +156,17 @@ def main() -> None:
         # ── 5. Persist the whole thing ────────────────────────────────────────
         # The config carries the stimuli, the animations *and* the VTL names, so
         # loading it on a fresh server restores a rig that is ready to trial.
-        conn.config.save(args.save_as, overwrite=args.overwrite)
+        conn.scene_config.save(args.save_as, overwrite=args.overwrite)
         print(f"Saved as '{args.save_as}'. Configs on the device: "
-              f"{', '.join(conn.config.list_configs())}")
+              f"{', '.join(conn.scene_config.list_scene_configs())}")
 
         # The shipped demo also turns on the photodiode patch, so a photodiode
         # taped to the corner timestamps the same onsets the pulses mark. That
         # is a scene setting with no command of its own yet — edit it into the
         # saved JSON and push it back, applying it in the same call.
-        scene = json.loads(conn.config.retrieve())
+        scene = json.loads(conn.scene_config.retrieve())
         scene["scene"]["photodiode"]["enabled"] = True
-        conn.config.upload(args.save_as, json.dumps(scene),
+        conn.scene_config.upload(args.save_as, json.dumps(scene),
                            overwrite=True, apply_now=True)
 
         # ── 6. Optional: fire the triggers from software ──────────────────────

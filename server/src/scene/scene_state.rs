@@ -2,8 +2,8 @@ use super::animation::{AnimState, AnimationEntry};
 use super::scene_config::{LoadMode, SceneConfig};
 use super::stimulus::StimulusSceneEntry;
 use crate::scene_config_file::{
-    ARCHIVE_WARN_THRESHOLD, LAST_SESSION_CONFIG, archive_timestamp_name, config_path,
-    count_archive_configs, load_config, save_config,
+    ARCHIVE_WARN_THRESHOLD, DEFAULT_PROJECT, LAST_SESSION_CONFIG, SESSION_PROJECT, SceneConfigRef,
+    archive_timestamp_name, count_archive_configs, load_config, save_config, scene_config_path,
 };
 use crate::vtl_state::{VtlConfig, VtlState};
 extern crate vtl;
@@ -26,8 +26,9 @@ pub struct CommandEntry {
 // ── Non-serializable runtime state ────────────────────────────────────────────
 
 pub struct SceneRuntimeState {
-    /// Directory where named config files are stored.  Set from `--config-dir` arg.
-    pub config_dir: std::path::PathBuf,
+    /// Root of the on-device storage tree — projects, and the scene-configs and
+    /// assets inside them. Set from `--storage-dir`.
+    pub storage_dir: std::path::PathBuf,
     /// True while commands should write into copy fields instead of live fields.
     pub deferred_mode: bool,
     /// Set by `DeferredMode{start:false}`; cleared by the render thread after flip.
@@ -63,10 +64,10 @@ pub struct SceneRuntimeState {
 }
 
 impl SceneRuntimeState {
-    pub fn new_with_config_dir(config_dir: std::path::PathBuf) -> Self {
+    pub fn new_with_storage_dir(storage_dir: std::path::PathBuf) -> Self {
         let (tx, _rx) = tokio::sync::watch::channel(0u64);
         Self {
-            config_dir,
+            storage_dir,
             deferred_mode: false,
             pending_flip: false,
             frame_rate_hz: 60.0,
@@ -86,7 +87,7 @@ impl SceneRuntimeState {
     }
 
     fn new() -> Self {
-        Self::new_with_config_dir(std::path::PathBuf::from("."))
+        Self::new_with_storage_dir(std::path::PathBuf::from("."))
     }
 }
 
@@ -136,10 +137,10 @@ impl SceneState {
         }
     }
 
-    pub fn new_with_config_dir(config_dir: std::path::PathBuf) -> Self {
+    pub fn new_with_storage_dir(storage_dir: std::path::PathBuf) -> Self {
         Self {
             config: SceneConfig::default(),
-            runtime: SceneRuntimeState::new_with_config_dir(config_dir),
+            runtime: SceneRuntimeState::new_with_storage_dir(storage_dir),
         }
     }
 
@@ -437,15 +438,27 @@ impl SceneState {
         self.config.photodiode.make_copy();
     }
 
-    // ── Named-config load/save ────────────────────────────────────────────────
+    // ── Scene-config load/save ────────────────────────────────────────────────
     //
     // Name resolution and the scene-side apply. The file format and directory
     // layout live in `crate::scene_config_file`; the matching IPC commands live in
-    // `ipc::config_commands`. Nothing here speaks protobuf.
+    // `ipc::scene_config_commands`. Nothing here speaks protobuf.
 
-    /// Load a named config from the config directory into the scene, replacing
-    /// (or, with `additive`, merging) the current scene and — if a VTL segment
-    /// is present — its line names. Shared by the `LoadConfig` command and the
+    /// Resolve `[<project>/]<name>` against the project unqualified names land
+    /// in. One place, so every caller — the wire, the boot path, the overlay —
+    /// spells a scene-config the same way.
+    pub fn scene_config_ref(&self, name: &str) -> anyhow::Result<SceneConfigRef> {
+        SceneConfigRef::parse(name, DEFAULT_PROJECT)
+    }
+
+    /// Path on disk for `[<project>/]<name>`, resolved the same way.
+    pub fn scene_config_path_for(&self, name: &str) -> anyhow::Result<std::path::PathBuf> {
+        Ok(scene_config_path(&self.runtime.storage_dir, &self.scene_config_ref(name)?))
+    }
+
+    /// Load a named scene-config into the scene, replacing (or, with
+    /// `additive`, merging) the current scene and — if a VTL segment is present
+    /// — its line names. Shared by the `LoadSceneConfig` command and the
     /// `[startup] load_config` boot path.
     pub fn load_named_config(
         &mut self,
@@ -453,7 +466,7 @@ impl SceneState {
         additive: bool,
         vtl: Option<&mut VtlState>,
     ) -> anyhow::Result<()> {
-        let path = config_path(&self.runtime.config_dir, name);
+        let path = self.scene_config_path_for(name)?;
         let (scene_cfg, sections) = load_config(&path)?;
         if let Some(v) = vtl {
             v.config.names = sections.vtl.names;
@@ -468,30 +481,34 @@ impl SceneState {
         Ok(())
     }
 
-    /// Save the current scene and VTL line names to a named config file in the
-    /// config directory, creating the directory if needed.
+    /// Save the current scene and VTL line names to a named scene-config file,
+    /// creating the project's `scene-configs/` directory if needed.
     pub fn save_named_config(&self, name: &str, vtl: Option<&VtlState>) -> anyhow::Result<()> {
-        std::fs::create_dir_all(&self.runtime.config_dir)?;
-        let path = config_path(&self.runtime.config_dir, name);
+        let path = self.scene_config_path_for(name)?;
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
         let default_vtl = VtlConfig::default();
         let vtl_cfg = vtl.map_or(&default_vtl, |v| &v.config);
         save_config(&self.config, vtl_cfg, &path)
     }
 
     /// Quit-time save (`[startup] save_on_quit`): overwrite the last-session
-    /// slot and write a timestamped archive so history is preserved. Returns
-    /// the archive's config name. Logs a warning once archives pile up past
-    /// [`ARCHIVE_WARN_THRESHOLD`] — they are never pruned automatically.
+    /// slot and write a timestamped archive so history is preserved. Both land
+    /// in the `_session` project — per-rig state, not part of any study.
+    /// Returns the archive's qualified name. Logs a warning once archives pile
+    /// up past [`ARCHIVE_WARN_THRESHOLD`] — they are never pruned automatically.
     pub fn save_session_snapshot(&self, vtl: Option<&VtlState>) -> anyhow::Result<String> {
-        self.save_named_config(LAST_SESSION_CONFIG, vtl)?;
-        let archive = archive_timestamp_name();
+        let slot = format!("{SESSION_PROJECT}/{LAST_SESSION_CONFIG}");
+        self.save_named_config(&slot, vtl)?;
+        let archive = format!("{SESSION_PROJECT}/{}", archive_timestamp_name());
         self.save_named_config(&archive, vtl)?;
 
-        let n = count_archive_configs(&self.runtime.config_dir);
+        let n = count_archive_configs(&self.runtime.storage_dir);
         if n > ARCHIVE_WARN_THRESHOLD {
             log::warn!(
                 "vstimd: {n} timestamped session archives in {:?} — consider pruning old ones",
-                self.runtime.config_dir
+                crate::scene_config_file::scene_config_dir(&self.runtime.storage_dir, SESSION_PROJECT)
             );
         }
         Ok(archive)
