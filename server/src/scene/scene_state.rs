@@ -402,6 +402,7 @@ impl SceneState {
         // their holds), which cannot happen while the map is being iterated.
         let mut to_idle: Vec<u32> = Vec::new();
         let mut to_arm: Vec<u32> = Vec::new();
+        let mut to_release_hold: Vec<u32> = Vec::new();
         for (&handle, entry) in self.config.animations.iter_mut() {
             let on = active_in(&entry.config.conditions, active);
             if entry.cond_enabled == on {
@@ -409,11 +410,21 @@ impl SceneState {
             }
             entry.cond_enabled = on;
             match (entry.config.condition_action, on) {
-                (ConditionAction::Hold, _) => {}
+                (ConditionAction::Hold, false) => to_release_hold.push(handle),
+                (ConditionAction::Hold, true) => {}
                 (ConditionAction::Reset, true) => to_arm.push(handle),
                 (ConditionAction::Reset | ConditionAction::Stop, false) => to_idle.push(handle),
                 (ConditionAction::Stop, true) => {}
             }
+        }
+        for handle in to_release_hold {
+            let stim_handles = match self.config.animations.get(&handle) {
+                Some(entry) if matches!(entry.state, AnimState::Running { .. }) => {
+                    entry.target.stimuli().to_vec()
+                }
+                _ => continue,
+            };
+            self.release_anim_hold(&stim_handles);
         }
         for handle in to_idle {
             self.disarm_animation(handle);
