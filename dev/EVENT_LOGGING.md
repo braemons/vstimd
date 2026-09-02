@@ -498,8 +498,8 @@ with any other tool.
 > **Where `--log-dir` points.** `dev/design/ASSET_STORE_PLAN.md` makes the *project* the
 > unit of storage on a rig — one directory per study holding its scene-configs, its
 > images and meshes, and its logs. Under that plan `--log-dir` defaults to
-> `<state-dir>/projects/<project>/logs/`, where `<project>` is the active project (the
-> one the loaded scene-config came from, else `default`). That keeps a study's stimuli
+> `<state-dir>/projects/<project>/logs/`, where `<project>` is the active project (default `default`,
+> set at boot via `--project` / rig-config, by `SetProject`, and implicitly on scene-config load). That keeps a study's stimuli
 > and the record of what it presented in one folder that can be copied off the rig
 > whole. A bare `./logs/` remains the fallback when no state dir is writable.
 >
