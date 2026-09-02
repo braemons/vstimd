@@ -1,7 +1,12 @@
 PROTO_SRC  := $(shell find ../../proto -name '*.proto' | sort)
 PROTO_OUT  := vstimd/_proto
 
-.PHONY: build publish proto test test-integration test-e2e test-e2e-null typecheck docs clean
+.PHONY: build publish proto test test-e2e-visible test-e2e-interactive \
+        test-e2e-null typecheck docs clean
+
+# Extra arguments for the e2e targets, e.g. make test-e2e-visible PYTEST_ARGS="-k grating"
+PYTEST_ARGS ?=
+E2E_SUITES  := tests/e2e/test_e2e.py tests/e2e/test_psychopy_visual.py
 
 proto:
 	uv run --group dev python -m grpc_tools.protoc \
@@ -21,14 +26,19 @@ test: proto
 	uv pip install psychopy --no-deps
 	uv run --group dev pytest tests/unit/
 
-test-integration:
-	@echo "Not implemented yet: integration tests with MockServer"
+# The suite that renders for real, start to finish, no interaction.
+test-e2e-visible: proto
+	uv run --group dev pytest $(E2E_SUITES) -v $(PYTEST_ARGS)
 
-test-e2e: proto
-	uv run --group dev pytest tests/e2e/test_e2e.py tests/e2e/test_psychopy_visual.py -v
+# The same suite, reviewed by eye: a terminal UI (vstimd.tui widgets) listing
+# every test with what it should put on screen. Pick one, run it, watch the
+# display, flag it with a note if it looks wrong — the notes land in
+# e2e-review.md. Runs its own windowed server so this terminal stays visible.
+test-e2e-interactive: proto
+	uv run --group dev python tests/e2e/review.py $(PYTEST_ARGS)
 
 test-e2e-null: proto
-	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v
+	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v $(PYTEST_ARGS)
 
 typecheck: proto
 	uv run --group dev ty check

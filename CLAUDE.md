@@ -20,11 +20,13 @@ cargo run --release -- --windowed 1280x720
 
 ```bash
 cd client/python
-make proto          # regenerate protobuf stubs from proto/
-make test           # unit tests
-make test-e2e       # e2e tests (requires running server)
-make test-e2e-null  # e2e tests against null renderer
-make typecheck      # ty type checking
+make proto                # regenerate protobuf stubs from proto/
+make test                 # unit tests
+make test-e2e-null        # e2e tests against the null renderer (no display)
+make test-e2e-visible     # e2e tests on a real display, start to finish
+make test-e2e-interactive # the same, in a terminal UI: run tests by hand and
+                          # flag what looks wrong (notes land in e2e-review.md)
+make typecheck            # ty type checking
 ```
 
 ## Architecture

@@ -57,6 +57,9 @@ dependencies = [
 # Kept as a no-op so `vstimd-client[discover]`, which 0.1.0rc1 documented,
 # keeps resolving. zeroconf is now a plain dependency.
 discover = []
+# Terminal UI widgets (vstimd.tui) for building consoles against a server.
+# An extra, not a dependency: talking to the server needs none of it.
+tui = ["textual>=0.80"]
 
 [project.scripts]
 vstimd-client = "vstimd.cli.main:run"
@@ -78,6 +81,7 @@ dev = [
     "furo>=2024",
     "sphinx-copybutton>=0.5",
     "sphinx-autodoc-typehints>=2",
+    "textual>=0.80",
 ]
 
 [tool.ty.src]

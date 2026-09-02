@@ -126,10 +126,11 @@ make test-e2e-null
 
 ### End-to-end tests against a real server
 
-`tests/e2e/test_e2e.py` and `test_psychopy_visual_null.py` share test cases
-via `_psychopy_visual_cases.py`. To run against a real server set
-`VSTIM_SERVER_ADDR`:
+`tests/e2e/test_psychopy_visual.py` and `test_psychopy_visual_null.py` share
+their cases via `tests/e2e/psychopy_visual_cases/`. To run against a server
+elsewhere, set `VSTIMD_SERVER` (or pass `--server`):
 
 ```bash
 make test-e2e
+VSTIMD_SERVER=tcp://192.168.1.10:5555 make test-e2e
 ```

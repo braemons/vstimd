@@ -218,7 +218,7 @@ Validated on hardware in two stages:
    this box at that point) — ~900 frames over 15s, naturally paced to ~60fps
    by `page_flip` backpressure, correctly positioned colored rectangles
    confirmed by direct visual check.
-2. The full `client/python` e2e suite (`make test-e2e`, after installing
+2. The full `client/python` e2e suite (`make test-e2e-visible`, after installing
    `uv`, which wasn't present on this box either) run against a real
    `vstimd --evdi` process over the network/ZMQ path: **126 passed, 6
    xfailed** (pre-existing known-unimplemented features — polygons,

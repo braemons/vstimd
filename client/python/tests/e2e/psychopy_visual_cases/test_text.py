@@ -1,60 +1,63 @@
 """Psychopy visual API tests — TextBox2."""
 from __future__ import annotations
 
-import time
-
 import pytest
 
 import vstimd.psychopy.visual as visual
-from ._helpers import label as _label, update_label as _update_label
+from ..cases._helpers import Stage
 
 
-def test_create_textbox2(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "white 'Hello vstimd'")
+@pytest.mark.onscreen(
+    "PSY-07",
+    "white 56 px text reading 'Hello vstimd' in the centre, built through "
+    "visual.TextBox2",
+)
+def test_create_textbox2(win: visual.Window, stage: Stage) -> None:
     tb = visual.TextBox2(
         win, text="Hello vstimd",
         pos=(0, 0), size=(600, 100), letterHeight=56,
         color="white", autoDraw=True,
     )
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
     tb.autoDraw = False
-    win._conn.stimuli.delete(lbl)
 
 
-def test_textbox2_text_update(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "'Before'")
+@pytest.mark.onscreen(
+    "PSY-08",
+    "centre text reading 'Before' that is rewritten in place to 'After'",
+)
+def test_textbox2_text_update(win: visual.Window, stage: Stage) -> None:
     tb = visual.TextBox2(win, text="Before", pos=(0, 0),
                          size=(600, 100), letterHeight=56,
                          color="white", autoDraw=True)
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
-    _update_label(win, lbl, tid, "'After'")
+    stage.show("'After'")
     tb.text = "After"
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
     tb.autoDraw = False
-    win._conn.stimuli.delete(lbl)
 
 
-def test_textbox2_colors(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "white")
+@pytest.mark.onscreen(
+    "PSY-09",
+    "centre text reading 'Color test' in white, then red, then cyan, then "
+    "yellow — same wording throughout",
+)
+def test_textbox2_colors(win: visual.Window, stage: Stage) -> None:
     tb = visual.TextBox2(win, text="Color test", pos=(0, 0),
                          size=(500, 100), letterHeight=56,
                          color="white", autoDraw=True)
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
     for color, name in [("red", "red"), ("cyan", "cyan"), ("yellow", "yellow")]:
-        _update_label(win, lbl, tid, name)
+        stage.show(name)
         tb.color = color
         win.flip()
-        time.sleep(step_delay)
+        stage.hold()
 
     tb.autoDraw = False
-    win._conn.stimuli.delete(lbl)

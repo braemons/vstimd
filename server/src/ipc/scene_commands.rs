@@ -41,6 +41,7 @@ impl SceneState {
     // ── SetDeferredMode ───────────────────────────────────────────────────────
 
     pub(super) fn cmd_set_deferred_mode(&mut self, cmd: proto::SetDeferredModeRequest) -> proto::Response {
+        let was_deferred = self.runtime.deferred_mode;
         if cmd.active {
             self.begin_deferred();
         } else if cmd.cancel {
@@ -48,7 +49,24 @@ impl SceneState {
         } else {
             self.end_deferred();
         }
-        ok_ack()
+        // Say what the call did: ending or cancelling a mode that was never
+        // begun is a no-op, and a client that cannot tell that apart from
+        // "flip queued" has no way to know whether its staged frame is coming.
+        ok_body(proto::response::Body::DeferredMode(
+            proto::SetDeferredModeResponse {
+                deferred: self.runtime.deferred_mode,
+                flip_scheduled: self.runtime.pending_flip,
+                was_deferred,
+                // The render thread flips at the top of a frame and then counts
+                // it, so the staged state is what the *next* frame is drawn
+                // from. A client can wait for that number instead of sleeping.
+                flip_frame: if self.runtime.pending_flip {
+                    self.runtime.frame_count + 1
+                } else {
+                    0
+                },
+            },
+        ))
     }
 
     // ── ClearStimuli / ClearAnimations / ClearAll ─────────────────────────────

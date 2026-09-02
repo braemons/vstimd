@@ -1,18 +1,19 @@
 """Psychopy visual API tests — Rect."""
 from __future__ import annotations
 
-import time
-
 import pytest
 
 import vstimd.psychopy.visual as visual
 from vstimd.stimuli import RectParams, StimulusType
-from ._helpers import label as _label, update_label as _update_label
+from ..cases._helpers import Stage
 
 
-def test_create_rect(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "red 200×100 rect")
+@pytest.mark.onscreen(
+    "PSY-01",
+    "a red 200×100 px rectangle in the centre, built through the "
+    "PsychoPy-style visual.Rect API with autoDraw on",
+)
+def test_create_rect(win: visual.Window, stage: Stage) -> None:
     rect = visual.Rect(win, width_px=200, height_px=100, fillColor="red", autoDraw=True)
 
     info = win._conn.stimuli.query(rect._handle)
@@ -25,71 +26,79 @@ def test_create_rect(win: visual.Window, step_delay: float, request: pytest.Fixt
     assert info.fill_color.b == pytest.approx(0.0, abs=0.01)
 
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
     rect.autoDraw = False
-    win._conn.stimuli.delete(lbl)
 
 
-def test_rect_position_size(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "blue 400×300 at centre")
+@pytest.mark.onscreen(
+    "PSY-02",
+    "a blue 400×300 px rect in the centre, which becomes a small green "
+    "100×100 px square at the top right, then a yellow one at the bottom "
+    "left",
+)
+def test_rect_position_size(win: visual.Window, stage: Stage) -> None:
     rect = visual.Rect(win, width_px=400, height_px=300, fillColor="blue", pos=(0, 0), autoDraw=True)
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
-    _update_label(win, lbl, tid, "green 100×100 top-right")
+    stage.show("green 100×100 top-right")
     rect.size = (100, 100)
     rect.pos_px = (300, 200)
     rect.fillColor = "green"
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
-    _update_label(win, lbl, tid, "yellow 100×100 bottom-left")
+    stage.show("yellow 100×100 bottom-left")
     rect.pos_px = (-300, -200)
     rect.fillColor = "yellow"
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
     rect.autoDraw = False
-    win._conn.stimuli.delete(lbl)
 
 
-def test_rect_colors(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "red")
+@pytest.mark.onscreen(
+    "PSY-03",
+    "one 200×200 px square in the centre cycling through red, green, blue, "
+    "white and orange — the last one set as an rgb1 tuple rather than a "
+    "name",
+)
+def test_rect_colors(win: visual.Window, stage: Stage) -> None:
     rect = visual.Rect(win, width_px=200, height_px=200, fillColor="red", autoDraw=True)
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
     for color, name in [("green", "green"), ("blue", "blue"), ("white", "white"),
                         ((1.0, 0.5, 0.0), "orange (rgb1 tuple)")]:
-        _update_label(win, lbl, tid, name)
+        stage.show(name)
         rect.fillColor = color
         win.flip()
-        time.sleep(step_delay)
+        stage.hold()
 
     rect.autoDraw = False
-    win._conn.stimuli.delete(lbl)
 
 
-def test_rect_opacity(win: visual.Window, step_delay: float, request: pytest.FixtureRequest) -> None:
-    tid = request.node.name
-    lbl = _label(win, tid, "red + blue, both opaque")
+@pytest.mark.onscreen(
+    "PSY-04",
+    "two overlapping 300×300 px squares, red on the left and blue on the "
+    "right; the blue fades to 0.5 and then the red to 0.7, showing the "
+    "overlap through",
+)
+def test_rect_opacity(win: visual.Window, stage: Stage) -> None:
     rect1 = visual.Rect(win, width_px=300, height_px=300, fillColor="red", pos=(-100, 0), autoDraw=True)
     rect2 = visual.Rect(win, width_px=300, height_px=300, fillColor="blue", pos=(100, 0), autoDraw=True)
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
-    _update_label(win, lbl, tid, "blue semi-transparent (0.5)")
+    stage.show("blue semi-transparent (0.5)")
     rect2.opacity = 0.5
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
-    _update_label(win, lbl, tid, "both semi-transparent (0.7 / 0.5)")
+    stage.show("both semi-transparent (0.7 / 0.5)")
     rect1.opacity = 0.7
     win.flip()
-    time.sleep(step_delay)
+    stage.hold()
 
     rect1.autoDraw = False
     rect2.autoDraw = False
-    win._conn.stimuli.delete(lbl)

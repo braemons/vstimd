@@ -7,7 +7,12 @@ from vstimd._proto import service_pb2, system_pb2
 from vstimd._proto.vstimd.v1 import color_pb2
 from vstimd.response import ServerResponse
 from vstimd.stimuli.color import Color
-from .system_models import ServerInfo, ServerVersion, StimulusListEntry
+from .system_models import (
+    DeferredModeStatus,
+    ServerInfo,
+    ServerVersion,
+    StimulusListEntry,
+)
 
 
 _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
@@ -72,12 +77,38 @@ class SystemClient:
         )
         return ServerResponse._from_proto(self._send(req))
 
-    def set_deferred_mode(self, active: bool, *, cancel: bool = False) -> ServerResponse:
+    def set_deferred_mode(
+        self, active: bool, *, cancel: bool = False
+    ) -> DeferredModeStatus:
+        """Begin, end or cancel deferred mode, and report what that did.
+
+        ``active=True`` begins it: writes are staged rather than drawn.
+        ``active=False`` ends it, queueing one atomic flip for the next vsync.
+        ``cancel=True`` throws the staged state away instead.
+
+        Ending or cancelling a mode that was never begun does nothing at all —
+        which is worth knowing, so the reply says whether it had been on and
+        which frame any flip lands on::
+
+            begun = conn.system.set_deferred_mode(True)   # staging from frame N
+            ...
+            ended = conn.system.set_deferred_mode(False)  # lands on flip_frame
+            if ended.flip_scheduled:
+                conn.system.wait_for_frame(ended.flip_frame)  # now it is drawn
+        """
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             set_deferred_mode=system_pb2.SetDeferredModeRequest(active=active, cancel=cancel),
         )
-        return ServerResponse._from_proto(self._send(req))
+        resp = self._send(req)
+        status = resp.deferred_mode
+        return DeferredModeStatus(
+            deferred=status.deferred,
+            flip_scheduled=status.flip_scheduled,
+            was_deferred=status.was_deferred,
+            flip_frame=status.flip_frame,
+            frame_count=resp.frame_count,
+        )
 
     def clear_stimuli(self) -> ServerResponse:
         """Remove every unprotected stimulus. Animations are left alone."""
@@ -138,6 +169,19 @@ class SystemClient:
             wait_for_frames=system_pb2.WaitForFramesRequest(count=count),
         )
         return ServerResponse._from_proto(self._send(req))
+
+    def wait_for_frame(self, frame_count: int) -> ServerResponse:
+        """Block until the server has drawn frame number ``frame_count``.
+
+        The protocol's wait is relative (``wait_for_frames(n)``), but the
+        interesting number is often absolute — the frame a deferred flip lands
+        on, say. Every response carries the current count, so the remaining
+        distance is recomputed until it is covered.
+        """
+        resp = self.wait_for_frames(0)
+        while resp.frame_count < frame_count:
+            resp = self.wait_for_frames(frame_count - resp.frame_count)
+        return resp
 
     def wait_until(self, server_time_ns: int) -> ServerResponse:
         """Block until the server's monotonic clock reaches `server_time_ns`."""

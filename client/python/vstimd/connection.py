@@ -100,9 +100,20 @@ class Connection:
         The single choke point for error handling: no caller anywhere in the
         client sees a non-OK response, so none of them has to remember to look.
         """
-        self._sock.send(req.SerializeToString())
-        raw = self._sock.recv()
         command, handle = _request_context(req)
+        self._sock.send(req.SerializeToString())
+        try:
+            raw = self._sock.recv()
+        except zmq.Again as exc:
+            # A REQ socket that timed out waiting is stuck: it owes a reply it
+            # will never get, and the next send would fail with EFSM. Reset it
+            # here, once, rather than leaving every caller to know that.
+            self._sock.close()
+            self._sock = self._connect()
+            raise TimeoutError(
+                f"no reply from {self._address} within "
+                f"{self._recv_timeout_ms / 1000:.1f}s ({command})"
+            ) from exc
 
         resp = service_pb2.Response()
         try:
@@ -146,9 +157,8 @@ class Connection:
             try:
                 self.system.wait_for_frames(1)
                 return
-            except zmq.Again:
-                self._sock.close()
-                self._sock = self._connect()
+            except TimeoutError:
+                pass  # _send has already reset the socket for the next attempt
             finally:
                 self._sock.setsockopt(zmq.RCVTIMEO, self._recv_timeout_ms)
 
