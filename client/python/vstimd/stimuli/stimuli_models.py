@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
 from typing import Union
 
@@ -80,6 +80,11 @@ class StimulusInfo:
     name: str = ""
     anim_enabled: bool = True  # animation-level enable (False when animation holds it off)
     draw_order: int = 0  # 0-based position in scene draw order (0 = drawn first / behind)
+    #: Conditions this stimulus is active in; empty means every condition.
+    condition_indices: list[int] = field(default_factory=list)
+    #: Condition-level enable: False while the active condition excludes it.
+    #: Independent of ``enabled``, which a condition switch never touches.
+    condition_enabled: bool = True
 
     @classmethod
     def from_proto(cls, proto: query_pb2.QueryStimulusResponse) -> StimulusInfo:
@@ -130,6 +135,8 @@ class StimulusInfo:
             name=proto.name,
             anim_enabled=proto.anim_enabled,
             draw_order=proto.draw_order,
+            condition_indices=list(proto.condition_indices),
+            condition_enabled=proto.condition_enabled,
         )
 
     # ── Shape appearance, reached through the params ──────────────────────────

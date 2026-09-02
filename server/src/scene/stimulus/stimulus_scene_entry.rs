@@ -45,12 +45,18 @@ impl StimulusIdentity {
 pub struct StimulusSceneEntry {
     #[serde(flatten)]
     pub identity: StimulusIdentity,
+    /// The conditions this stimulus is active in; empty means every condition.
+    /// Membership sits on the entry rather than on the [`Stimulus`]: it says
+    /// where in the *protocol* the stimulus belongs, which is a property of the
+    /// scene, not of the thing being drawn.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<u32>,
     pub stimulus: Stimulus,
 }
 
 impl StimulusSceneEntry {
     pub fn new(identity: StimulusIdentity, stimulus: Stimulus) -> Self {
-        Self { identity, stimulus }
+        Self { identity, conditions: Vec::new(), stimulus }
     }
 
     /// The stable id. A shorthand for the `identity.id` hop, which most callers

@@ -9,6 +9,7 @@ from vstimd.stimuli import RectParams, ShapeAppearance, StimuliClient
 from vstimd.system import SystemClient
 from vstimd.vtl import VtlClient
 from vstimd.animations import AnimationClient
+from vstimd.conditions import ConditionsClient
 from vstimd.scene_config import SceneConfigClient
 from vstimd.exceptions import ProtocolError, error_for_code
 
@@ -37,6 +38,8 @@ class Connection:
     * ``animations`` — :class:`~vstimd.AnimationClient`: frame-accurate animation sequences
     * ``scene_config`` — :class:`~vstimd.scene_config.SceneConfigClient`: save, load, and
       retrieve named scene-configs
+    * ``conditions`` — :class:`~vstimd.conditions.ConditionsClient`: switch between
+      experimental conditions
 
     Example::
 
@@ -80,6 +83,7 @@ class Connection:
             fps_getter=lambda: self.system.query_server_info().frame_rate_hz,
         )
         self.scene_config = SceneConfigClient(self._send)
+        self.conditions = ConditionsClient(self._send)
         if wait_ready:
             self.wait_until_ready(timeout_s=ready_timeout_s)
 

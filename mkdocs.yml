@@ -109,6 +109,7 @@ nav:
       - Execution — triggers & animations (VTL): concepts/vtl-and-animations.md
       - Coordinate system: concepts/coordinate-system.md
       - Deferred mode: concepts/deferred-mode.md
+      - Conditions: concepts/conditions.md
       - Saving & loading: concepts/saving-loading.md
       - Integrating recording systems: concepts/recording-integration.md
   - Tutorials:

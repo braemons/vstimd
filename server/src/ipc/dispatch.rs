@@ -150,6 +150,25 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::LoadSceneConfig(c)) => format!("LoadSceneConfig({:?})", c.name),
         Some(request::Body::UploadSceneConfig(c)) => format!("UploadSceneConfig({:?})", c.name),
         Some(request::Body::RetrieveSceneConfig(_)) => "RetrieveSceneConfig".into(),
+        Some(request::Body::SetCondition(c)) => match &c.condition {
+            Some(proto::set_condition_request::Condition::Index(i)) => {
+                format!("SetCondition({i})")
+            }
+            Some(proto::set_condition_request::Condition::Name(n)) => {
+                format!("SetCondition({n:?})")
+            }
+            None => "SetCondition(?)".into(),
+        },
+        Some(request::Body::DeclareConditions(c)) => {
+            format!("DeclareConditions({})", c.conditions.len())
+        }
+        Some(request::Body::ListConditions(_)) => "ListConditions".into(),
+        Some(request::Body::SetStimulusConditions(c)) => {
+            format!("SetStimulusConditions({:?})", c.condition_indices)
+        }
+        Some(request::Body::SetAnimationConditions(c)) => {
+            format!("SetAnimationConditions({}, {:?})", c.handle, c.condition_indices)
+        }
         Some(request::Body::Shutdown(_)) => "Shutdown".into(),
         None => "?".into(),
     }
@@ -261,6 +280,10 @@ impl SceneState {
             request::Body::LoadSceneConfig(cmd) => self.cmd_load_scene_config(cmd, vtl),
             request::Body::UploadSceneConfig(cmd) => self.cmd_upload_scene_config(cmd, vtl),
             request::Body::RetrieveSceneConfig(_) => self.cmd_retrieve_scene_config(vtl.as_deref()),
+            request::Body::SetCondition(cmd) => self.cmd_set_condition(cmd),
+            request::Body::DeclareConditions(cmd) => self.cmd_declare_conditions(cmd),
+            request::Body::ListConditions(_) => self.cmd_list_conditions(),
+            request::Body::SetAnimationConditions(cmd) => self.cmd_set_animation_conditions(cmd),
             request::Body::Shutdown(_) => {
                 crate::process::shutdown::request();
                 ok_ack()
@@ -310,6 +333,10 @@ impl SceneState {
             | request::Body::LoadSceneConfig(_)
             | request::Body::UploadSceneConfig(_)
             | request::Body::RetrieveSceneConfig(_)
+            | request::Body::SetCondition(_)
+            | request::Body::DeclareConditions(_)
+            | request::Body::ListConditions(_)
+            | request::Body::SetAnimationConditions(_)
             | request::Body::Shutdown(_) => err(
                 proto::ErrorCode::WrongTarget,
                 "system command must use target.system (not a stimulus handle)",
@@ -357,6 +384,9 @@ impl SceneState {
                 proto::ErrorCode::NotSupported,
                 "SendToBack not yet implemented",
             ),
+            request::Body::SetStimulusConditions(cmd) => {
+                self.cmd_set_stimulus_conditions(handle, cmd)
+            }
             request::Body::QueryStimulus(_) => self.cmd_query_stimulus(handle),
         }
     }

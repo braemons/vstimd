@@ -2,7 +2,8 @@
 //! in `convert::animation`, with every other conversion.
 
 use super::convert::{
-    animation_body_to_proto, animation_from_proto, output_vtl_bit_from_proto, vtl_bit_from_proto,
+    animation_body_to_proto, animation_from_proto, condition_action_to_proto,
+    output_vtl_bit_from_proto, vtl_bit_from_proto,
     vtl_bit_to_proto, vtl_edge_from_proto, vtl_edge_to_proto,
 };
 use super::response::{err, ok_ack, ok_body, ok_handle};
@@ -104,6 +105,8 @@ impl SceneState {
                             .map(|proto::animation_target::Target::Stimuli(s)| s.handles)
                             .unwrap_or_default(),
                     },
+                    conditions: Vec::new(),
+                    condition_action: crate::scene::ConditionAction::default(),
                     start_action,
                     start_action_trigger_line,
                     final_action,
@@ -116,6 +119,7 @@ impl SceneState {
                     animation,
                 },
                 captured_user_enabled: None,
+                cond_enabled: true,
             },
         );
         ok_handle(handle)
@@ -207,6 +211,8 @@ impl SceneState {
                     name: entry.name.clone(),
                     state,
                     type_name: entry.animation.type_name().to_string(),
+                    condition_indices: entry.conditions.clone(),
+                    condition_enabled: entry.cond_enabled,
                 }
             })
             .collect();
@@ -270,6 +276,9 @@ impl SceneState {
                 state,
                 params: Some(params),
                 type_name: entry.animation.type_name().to_string(),
+                condition_indices: entry.conditions.clone(),
+                condition_action: condition_action_to_proto(entry.condition_action) as i32,
+                condition_enabled: entry.cond_enabled,
             },
         ))
     }

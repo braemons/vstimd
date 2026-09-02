@@ -2,6 +2,7 @@
 //! entry (`AnimationEntry`) that pairs it with non-serialized runtime state.
 
 use super::{AnimState, Animation, CancelAction, FinalAction, StartAction};
+use crate::scene::conditions::ConditionAction;
 use crate::vtl_state::{VtlEdge, VtlBit};
 
 /// What an animation drives.
@@ -77,6 +78,15 @@ pub struct AnimationConfig {
     /// Output line to pulse for one frame when `CANCEL_ACTION_TRIGGER_LINE` is set.
     #[serde(default)]
     pub cancel_action_trigger_line: Option<VtlBit>,
+    /// The conditions this animation is active in; empty means every condition.
+    /// Outside them the animation does not advance.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<u32>,
+    /// What a condition switch does to this animation's lifecycle state.
+    /// Omitted on save when it is the default, so an animation that says
+    /// nothing about conditions serializes as it always did.
+    #[serde(default, skip_serializing_if = "ConditionAction::is_default")]
+    pub condition_action: ConditionAction,
     pub animation: Animation,
 }
 
@@ -89,6 +99,10 @@ pub struct AnimationEntry {
     /// transitions to Running. Used by `RESTORE_VISIBILITY` to undo visibility changes.
     /// Not serialized — always None in saved configs.
     pub captured_user_enabled: Option<Vec<bool>>,
+    /// False while the active condition excludes this animation. Derived from
+    /// `config.conditions` by `SceneState::apply_conditions`, the same way
+    /// `StimulusFlags::cond_enabled` is; not serialized.
+    pub cond_enabled: bool,
 }
 
 impl std::ops::Deref for AnimationEntry {
@@ -108,7 +122,11 @@ impl serde::Serialize for AnimationEntry {
 
 impl<'de> serde::Deserialize<'de> for AnimationEntry {
     fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-        Ok(Self { config: AnimationConfig::deserialize(d)?, captured_user_enabled: None })
+        Ok(Self {
+            config: AnimationConfig::deserialize(d)?,
+            captured_user_enabled: None,
+            cond_enabled: true,
+        })
     }
 }
 
@@ -128,9 +146,12 @@ impl AnimationEntry {
                 cancel_trigger: None,
                 cancel_action: CancelAction::empty(),
                 cancel_action_trigger_line: None,
+                conditions: Vec::new(),
+                condition_action: ConditionAction::default(),
                 animation,
             },
             captured_user_enabled: None,
+            cond_enabled: true,
         }
     }
 

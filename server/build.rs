@@ -50,6 +50,7 @@ fn main() {
         "../proto/vstimd/v1/system.proto",
         "../proto/vstimd/v1/vtl.proto",
         "../proto/vstimd/v1/animations.proto",
+        "../proto/vstimd/v1/conditions.proto",
         "../proto/vstimd/v1/service.proto",
         "../proto/vstimd/v1/snapshot.proto",
     ] {
@@ -76,6 +77,7 @@ fn main() {
                 "../proto/vstimd/v1/system.proto",
                 "../proto/vstimd/v1/vtl.proto",
                 "../proto/vstimd/v1/animations.proto",
+                "../proto/vstimd/v1/conditions.proto",
                 "../proto/vstimd/v1/service.proto",
                 "../proto/vstimd/v1/snapshot.proto",
             ],

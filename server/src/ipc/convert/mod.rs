@@ -22,12 +22,17 @@
 //! the wire cannot reach the scene tree without passing through this module.
 
 mod animation;
+mod condition;
 mod grating;
 mod text;
 mod vtl;
 
 pub(super) use animation::{
     animation_body_to_proto, animation_from_proto, vtl_edge_from_proto, vtl_edge_to_proto,
+};
+pub(super) use condition::{
+    condition_action_from_proto, condition_action_to_proto, condition_from_proto,
+    condition_to_proto,
 };
 pub(super) use grating::{
     grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,

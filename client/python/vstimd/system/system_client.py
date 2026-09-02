@@ -62,7 +62,13 @@ class SystemClient:
         )
         resp = self._send(req)
         return [
-            StimulusListEntry(handle=StimulusHandle(e.handle), enabled=e.enabled, id=e.id, name=e.name)
+            StimulusListEntry(
+                handle=StimulusHandle(e.handle),
+                enabled=e.enabled,
+                id=e.id,
+                name=e.name,
+                condition_indices=list(e.condition_indices),
+            )
             for e in resp.stimulus_list.entries
         ]
 

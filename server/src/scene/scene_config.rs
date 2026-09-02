@@ -1,6 +1,7 @@
 use indexmap::IndexMap;
 
 use super::animation::AnimationEntry;
+use super::conditions::Conditions;
 use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
 use super::stimulus::StimulusSceneEntry;
@@ -21,6 +22,12 @@ pub struct SceneConfig {
     pub next_stim_handle: u32,
     pub animations: IndexMap<u32, AnimationEntry>,
     pub next_anim_handle: u32,
+    /// Declared conditions and the active one. Defaulted on load, so a
+    /// scene-config written before conditions existed still reads; omitted on
+    /// save when it says nothing, so one that does not use conditions is
+    /// written exactly as it always was.
+    #[serde(default, skip_serializing_if = "Conditions::is_default")]
+    pub conditions: Conditions,
 }
 
 impl Default for SceneConfig {
@@ -34,6 +41,7 @@ impl Default for SceneConfig {
             next_stim_handle: 1,
             animations: IndexMap::new(),
             next_anim_handle: 1,
+            conditions: Conditions::default(),
         }
     }
 }

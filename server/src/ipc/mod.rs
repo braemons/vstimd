@@ -7,6 +7,7 @@
 //! control surface speak it too, so it is not owned by this transport.
 
 mod animation_commands;
+mod condition_commands;
 mod scene_config_commands;
 mod convert;
 mod dispatch;

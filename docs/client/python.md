@@ -62,6 +62,7 @@ acknowledges, and a server error is raised as a typed exception (see
 | `conn.animations` | On-device animations | `create_flash`, `create_flicker`, `create_move_along_path_2d`, `create_couple_visibility_to_trigger_line`, `arm`, `disarm`, `cancel`, `query`, … |
 | `conn.vtl` | Virtual Trigger Lines | `set_line_name`, `set_line`, `toggle_line`, `list_lines` |
 | `conn.scene_config` | Save/load scenes | `save`, `load`, `list_scene_configs`, `retrieve`, `upload` |
+| `conn.conditions` | [Protocol steps](../concepts/conditions.md) | `set`, `declare`, `list_conditions`, `set_stimulus_conditions`, `set_animation_conditions` |
 
 The method list above is a map, not an exhaustive signature reference — the
 authoritative signatures and docstrings live in the source under

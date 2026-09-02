@@ -47,6 +47,7 @@ hand-maintained message list drifts out of date. Read the `.proto` files directl
 | [`stimuli/`](https://github.com/braemons/vstimd/tree/main/proto/vstimd/v1/stimuli) | Create / mutate / query messages per stimulus type |
 | [`animations.proto`](https://github.com/braemons/vstimd/blob/main/proto/vstimd/v1/animations.proto) | Animation create / arm / query |
 | [`vtl.proto`](https://github.com/braemons/vstimd/blob/main/proto/vstimd/v1/vtl.proto) | Virtual Trigger Line commands |
+| [`conditions.proto`](https://github.com/braemons/vstimd/blob/main/proto/vstimd/v1/conditions.proto) | Condition switch, declaration and membership |
 | [`snapshot.proto`](https://github.com/braemons/vstimd/blob/main/proto/vstimd/v1/snapshot.proto) | Full scene snapshot pushed on the web UI's `/events` WebSocket |
 
 ## Transport

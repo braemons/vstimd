@@ -147,6 +147,15 @@ for entry in conn.system.list_stimuli():           # inventory of the scene
     print(entry.handle, entry.type, entry.name, entry.enabled)
 ```
 
+The `conditions` namespace switches between protocol steps without touching the
+scene — see **[Conditions](conditions.md)**:
+
+```python
+conn.conditions.declare([(0, "baseline"), (1, "probe")])
+conn.conditions.set_stimulus_conditions(grating, [1])   # probe only
+conn.conditions.set("probe")                            # hard cut, next frame
+```
+
 ## Putting it together: a minimal trial loop
 
 ```python
@@ -211,3 +220,4 @@ win.flip()
   rebuilt call by call in runnable scripts.
 - **[Python client reference](../client/python.md)** — the full command surface.
 - **[Deferred mode](deferred-mode.md)** — atomic frame flips in depth.
+- **[Conditions](conditions.md)** — protocol steps that gate stimuli and animations.

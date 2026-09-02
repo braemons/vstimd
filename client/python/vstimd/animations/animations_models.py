@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from enum import IntEnum, IntFlag
 
 from vstimd._handles import AnimationHandle, StimulusHandle
+from vstimd.conditions.conditions_models import ConditionAction
 
 
 class AnimationState(IntEnum):
@@ -78,6 +79,10 @@ class AnimationInfo:
     name: str
     state: AnimationState
     type_name: str
+    #: Conditions this animation is active in; empty means every condition.
+    condition_indices: tuple[int, ...] = ()
+    #: False while the active condition excludes it, which stops it advancing.
+    condition_enabled: bool = True
 
 
 @dataclass(frozen=True)
@@ -89,3 +94,10 @@ class AnimationDetails:
     stimuli: tuple[StimulusHandle, ...]
     final_action: FinalAction
     cancel_action: CancelAction = CancelAction(0)
+    #: Conditions this animation is active in; empty means every condition.
+    condition_indices: tuple[int, ...] = ()
+    #: What a condition switch does to it — see
+    #: :class:`~vstimd.conditions.ConditionAction`.
+    condition_action: "ConditionAction" = ConditionAction.RESET
+    #: False while the active condition excludes it.
+    condition_enabled: bool = True

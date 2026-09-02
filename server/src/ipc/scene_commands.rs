@@ -223,6 +223,8 @@ impl SceneState {
             draw_order,
             handle,
             placement,
+            condition_indices: entry.conditions.clone(),
+            condition_enabled: stim.flags().cond_enabled,
         }
     }
 
@@ -241,6 +243,7 @@ impl SceneState {
                     enabled: stim.flags().enabled,
                     id: entry.id().to_string(),
                     name: entry.name().to_string(),
+                    condition_indices: entry.conditions.clone(),
                 }
             })
             .collect();

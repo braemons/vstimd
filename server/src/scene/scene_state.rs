@@ -1,4 +1,5 @@
 use super::animation::{AnimState, AnimationEntry};
+use super::conditions::{Condition, ConditionAction, active_in};
 use super::scene_config::{LoadMode, SceneConfig};
 use super::stimulus::StimulusSceneEntry;
 use crate::scene_config_file::{
@@ -270,7 +271,15 @@ impl SceneState {
         // directly. Taking the scratch Vec out lets us hand `self` to the callee.
         let mut handles = std::mem::take(&mut self.runtime.anim_scratch);
         handles.clear();
-        handles.extend(self.animations.keys().copied());
+        // Animations outside the active condition do not advance: they observe
+        // no trigger and hold nothing. They are filtered here rather than
+        // inside `advance_one` so the skip is stated once, next to the reason.
+        handles.extend(
+            self.animations
+                .iter()
+                .filter(|(_, e)| e.cond_enabled)
+                .map(|(&h, _)| h),
+        );
         for &handle in &handles {
             super::animation::advance_one(
                 handle,
@@ -281,6 +290,148 @@ impl SceneState {
             );
         }
         self.runtime.anim_scratch = handles;
+    }
+
+    // ── Conditions ────────────────────────────────────────────────────────────
+    //
+    // The active condition gates stimuli and animations through a derived flag
+    // on each (`StimulusFlags::cond_enabled`, `AnimationEntry::cond_enabled`),
+    // recomputed here whenever the active condition or a membership changes.
+    // The type itself, and the "empty list means every condition" rule, live in
+    // [`super::conditions`].
+
+    /// Make `index` the active condition and re-derive every gate. A hard cut:
+    /// the next frame is drawn from the new condition, with no cross-fade.
+    ///
+    /// Any index is accepted — declaring a condition is what gives it a *name*,
+    /// not what brings it into existence, so a protocol that just counts
+    /// upwards needs no declarations at all.
+    pub fn set_condition(&mut self, index: u32) {
+        self.config.conditions.active = index;
+        self.apply_conditions();
+    }
+
+    /// Make the condition declared under `name` active. `Err` names the miss:
+    /// an unknown name cannot be interpreted as an index, and guessing one
+    /// would blank the screen for a typo.
+    pub fn set_condition_by_name(&mut self, name: &str) -> Result<u32, String> {
+        match self.config.conditions.index_of_name(name) {
+            Some(index) => {
+                self.set_condition(index);
+                Ok(index)
+            }
+            None => Err(format!("no condition named {name:?}")),
+        }
+    }
+
+    /// Replace the declared condition set. Does not change which condition is
+    /// active, but does re-derive the gates: a rename never moves the active
+    /// index, while re-declaring can change what a *name* resolves to later.
+    pub fn declare_conditions(&mut self, declared: Vec<Condition>) -> Result<(), String> {
+        self.config.conditions.declare(declared)?;
+        self.apply_conditions();
+        Ok(())
+    }
+
+    /// Set the conditions a stimulus is active in. Empty = every condition.
+    /// Returns false if the handle is unknown.
+    pub fn set_stimulus_conditions(&mut self, handle: u32, conditions: Vec<u32>) -> bool {
+        match self.config.stimuli.get_mut(&handle) {
+            Some(entry) => {
+                entry.conditions = conditions;
+                self.apply_conditions();
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Set the conditions an animation is active in, and what a switch does to
+    /// it. Empty = every condition. Returns false if the handle is unknown.
+    pub fn set_animation_conditions(
+        &mut self,
+        handle: u32,
+        conditions: Vec<u32>,
+        action: ConditionAction,
+    ) -> bool {
+        match self.config.animations.get_mut(&handle) {
+            Some(entry) => {
+                entry.config.conditions = conditions;
+                entry.config.condition_action = action;
+                self.apply_conditions();
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Re-derive every condition gate from the memberships and the active index.
+    ///
+    /// Called after anything that can change the answer — a switch, a
+    /// declaration, a membership edit, a config load. Cheap enough to run
+    /// wholesale (a scene is tens of entries, and this is never on the render
+    /// path), which is why no caller has to work out which subset moved.
+    ///
+    /// What a switch does to an animation's lifecycle state is that animation's
+    /// [`ConditionAction`]: `Reset` (the default) idles it on the way out and
+    /// re-arms it on the way in, so a protocol step plays the same way every
+    /// time it comes up; `Stop` idles it on the way out only; `Hold` leaves the
+    /// state alone, freezing a running animation mid-flight.
+    ///
+    /// Idling goes through [`Self::disarm_animation`], not `cancel`: a
+    /// condition switch is bookkeeping, and firing an animation's
+    /// `cancel_action` — which can pulse a trigger line — would put a mark on
+    /// the recording that no experiment asked for. The `anim_enabled` hold is
+    /// released either way, which is the part that has to happen: a running
+    /// animation left holding a stimulus hidden would go on hiding it for the
+    /// *new* condition.
+    pub fn apply_conditions(&mut self) {
+        let active = self.config.conditions.active;
+
+        for entry in self.config.stimuli.values_mut() {
+            let on = active_in(&entry.conditions, active);
+            let flags = entry.stimulus.flags_mut();
+            if flags.cond_enabled != on {
+                flags.cond_enabled = on;
+                flags.mark_dirty();
+            }
+        }
+
+        // Two passes: the transitions are collected first because idling one
+        // animation borrows the whole scene (it reaches the stimuli to release
+        // their holds), which cannot happen while the map is being iterated.
+        let mut to_idle: Vec<u32> = Vec::new();
+        let mut to_arm: Vec<u32> = Vec::new();
+        let mut to_release_hold: Vec<u32> = Vec::new();
+        for (&handle, entry) in self.config.animations.iter_mut() {
+            let on = active_in(&entry.config.conditions, active);
+            if entry.cond_enabled == on {
+                continue;
+            }
+            entry.cond_enabled = on;
+            match (entry.config.condition_action, on) {
+                (ConditionAction::Hold, false) => to_release_hold.push(handle),
+                (ConditionAction::Hold, true) => {}
+                (ConditionAction::Reset, true) => to_arm.push(handle),
+                (ConditionAction::Reset | ConditionAction::Stop, false) => to_idle.push(handle),
+                (ConditionAction::Stop, true) => {}
+            }
+        }
+        for handle in to_release_hold {
+            let stim_handles = match self.config.animations.get(&handle) {
+                Some(entry) if matches!(entry.state, AnimState::Running { .. }) => {
+                    entry.target.stimuli().to_vec()
+                }
+                _ => continue,
+            };
+            self.release_anim_hold(&stim_handles);
+        }
+        for handle in to_idle {
+            self.disarm_animation(handle);
+        }
+        for handle in to_arm {
+            self.arm_animation(handle);
+        }
     }
 
     // ── Deferred mode ─────────────────────────────────────────────────────────
@@ -410,6 +561,7 @@ impl SceneState {
                         .stimuli
                         .insert(new_handle, make_entry_dirty(entry));
                 }
+                self.config.conditions.merge_declared(&cfg.conditions);
                 for (handle, mut anim) in cfg.animations {
                     for sh in anim.config.target.stimuli_mut() {
                         *sh += stim_offset;
@@ -420,6 +572,10 @@ impl SceneState {
                 }
                 self.config.next_stim_handle += additive_next_stim;
                 self.config.next_anim_handle += additive_next_anim;
+                // Condition indices are a scene-wide namespace, not handles, so
+                // the merged-in memberships come across unrebased: an additive
+                // load is how you *add* to a condition, not how you shadow it.
+                self.apply_conditions();
             }
         }
     }
@@ -436,6 +592,9 @@ impl SceneState {
         }
         self.config.background.make_copy();
         self.config.photodiode.make_copy();
+        // `cond_enabled` is derived, never saved: a load restores the
+        // memberships and the active index, and the gates follow from them.
+        self.apply_conditions();
     }
 
     // ── Scene-config load/save ────────────────────────────────────────────────

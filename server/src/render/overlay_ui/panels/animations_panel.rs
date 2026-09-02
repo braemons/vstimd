@@ -43,6 +43,16 @@ pub(in crate::render::overlay_ui) fn animations_panel(
                     ui.horizontal(|ui| {
                         ui.colored_label(state_col, format!("● {state_txt}"));
                         ui.label(format!("{name}  ({} stim)", entry.target.stimuli().len()));
+                        // An animation the active condition excludes does not
+                        // advance whatever its state says, so say so here
+                        // rather than leave "Armed" looking like it is waiting.
+                        if !entry.cond_enabled {
+                            ui.colored_label(
+                                egui::Color32::DARK_GRAY,
+                                format!("[cond {:?}]", entry.conditions),
+                            )
+                            .on_hover_text("inactive: outside the active condition");
+                        }
                     });
                     ui.horizontal(|ui| {
                         if ui.small_button("Arm").clicked() { arm = Some(*h); }

@@ -5,6 +5,39 @@ use std::sync::{Arc, RwLock};
 use crate::render::overlay_ui::stimulus_dialog::StimulusDialog;
 use crate::scene::{SceneState, ShapeGeometry, StimulusBody};
 
+/// The active-condition strip: what is active, and the two buttons that step
+/// through the protocol. It sits above the stimulus table because that table is
+/// where the effect shows — a stimulus the active condition excludes is drawn
+/// greyed, with its own `enabled` checkbox untouched.
+fn condition_bar(ui: &mut egui::Ui, sc: &mut SceneState) {
+    ui.horizontal(|ui| {
+        ui.label("Condition:");
+        ui.label(
+            egui::RichText::new(sc.conditions.active_label())
+                .strong()
+                .color(egui::Color32::from_rgb(120, 180, 255)),
+        );
+        let active = sc.conditions.active;
+        if ui
+            .add_enabled(active > 0, egui::Button::new("◀").small())
+            .on_hover_text("Previous condition")
+            .clicked()
+        {
+            sc.set_condition(active - 1);
+        }
+        if ui.small_button("▶").on_hover_text("Next condition").clicked() {
+            sc.set_condition(active + 1);
+        }
+        let declared = sc.conditions.declared.len();
+        if declared > 0 {
+            ui.label(
+                egui::RichText::new(format!("({declared} declared)"))
+                    .color(egui::Color32::DARK_GRAY),
+            );
+        }
+    });
+}
+
 pub(in crate::render::overlay_ui) fn stimuli_panel(
     ui: &mut egui::Ui,
     want_focus: bool,
@@ -21,6 +54,8 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
     });
     ui.separator();
     if let Ok(mut sc) = scene.try_write() {
+        condition_bar(ui, &mut sc);
+        ui.separator();
         let handles: Vec<u32> = sc.stimuli.keys().copied().collect();
         let mut to_delete: Option<u32> = None;
         egui::ScrollArea::vertical().max_height(220.0).show(ui, |ui| {
@@ -55,9 +90,25 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                         };
                         let name_label = entry.name().to_string();
                         let uuid_str = entry.id().to_string();
+                        let conditions = entry.conditions.clone();
                         let flags = entry.stimulus.flags_mut();
+                        // Grey the row when the active condition excludes it:
+                        // the checkbox still shows what the operator asked for,
+                        // which is not what is on screen.
+                        let cond_on = flags.cond_enabled;
                         ui.checkbox(&mut flags.enabled, "");
-                        ui.label(format!("#{h} {type_name}"));
+                        let handle_label = egui::RichText::new(format!("#{h} {type_name}"));
+                        let handle_label = if cond_on {
+                            handle_label
+                        } else {
+                            handle_label.color(egui::Color32::DARK_GRAY)
+                        };
+                        let cond_hover = if conditions.is_empty() {
+                            "conditions: all".to_string()
+                        } else {
+                            format!("conditions: {conditions:?}")
+                        };
+                        ui.label(handle_label).on_hover_text(cond_hover);
                         let disp = if name_label.is_empty() {
                             &uuid_str[..8]
                         } else { name_label.as_str() };

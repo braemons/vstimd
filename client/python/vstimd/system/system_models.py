@@ -87,3 +87,5 @@ class StimulusListEntry:
     enabled: bool
     id: str
     name: str
+    #: Conditions this stimulus is active in; empty means every condition.
+    condition_indices: list[int] = field(default_factory=list)
