@@ -12,6 +12,20 @@ versioned independently of the vstimd server.
 The API-consistency pass before the first release. No aliases are kept: the
 server and the client move together, and nothing has shipped yet.
 
+- **Projects, and one word for a scene-config.** The server now stores each
+  experiment in a **project** — one directory holding everything a study needs —
+  and `conn.config` is `conn.scene_config`, matching the vocabulary the server
+  and the docs already used. `list_configs()` is `list_scene_configs()` and takes
+  an optional `project=` to scope the listing. Every name argument is
+  `[<project>/]<name>`: an unqualified name means the `default` project, so the
+  everyday call is unchanged, and the shipped demos are now
+  `demos/first_light` and friends rather than `demo_first_light`. The CLI's
+  `config` command group is `scene-config` (with `-p/--project` on `list`), and
+  the exceptions gain the same prefix: `ConfigError` → `SceneConfigError`,
+  `ConfigNotFoundError` → `SceneConfigNotFoundError`, and so on for the other
+  three. On the server, `--config-dir` is `--storage-dir` and `--config <path>`
+  splits into `--scene-config <name>` and `--scene-config-file <path>`.
+
 - **Quantities carry their unit in the name.** Every field, argument and config
   key that has a unit now says which: `width_px`, `height_px`, `diameter_px`,
   `pos_px`, `position_px`, `box_size_px`, `letter_height_px`, `outline_width_px`,
@@ -126,8 +140,8 @@ server and the client move together, and nothing has shipped yet.
   (which request failed, e.g. `set_position`) and `handle` (the stimulus it
   addressed, or `None`). `str(exc)` includes them, so an uncaught error reads
   `no such stimulus (set_position, handle 7)`.
-- `StimulusError` and `ConfigError` group the exceptions that share a cause, so
-  `except ConfigError` catches all five config failures without listing them.
+- `StimulusError` and `SceneConfigError` group the exceptions that share a cause, so
+  `except SceneConfigError` catches all five scene-config failures without listing them.
 - `ProtocolError` for a reply that cannot be decoded, or that arrives with no
   result code set — previously the first crashed with a raw protobuf
   `DecodeError` and the second was treated as success.

@@ -18,10 +18,10 @@ const REPO_ROOT = new URL("../..", import.meta.url).pathname;
 // Locally, `cargo run` builds + runs the server. In CI (where the binary is
 // downloaded as an artifact and the Rust toolchain may be absent), set
 // VSTIMD_BIN to the prebuilt binary to skip cargo entirely.
-// Isolated config dir so ConfigPanel save/load tests don't litter the repo
+// Isolated storage dir so SceneConfigPanel save/load tests don't litter the repo
 // (the default dir is the cwd).
-const CONFIG_DIR = mkdtempSync(join(tmpdir(), "vstimd-ui-cfg-"));
-const backendArgs = `--null --web-port ${VSTIMD_WEB_PORT} --zmq-port ${VSTIMD_ZMQ_PORT} --config-dir ${CONFIG_DIR}`;
+const STORAGE_DIR = mkdtempSync(join(tmpdir(), "vstimd-ui-storage-"));
+const backendArgs = `--null --web-port ${VSTIMD_WEB_PORT} --zmq-port ${VSTIMD_ZMQ_PORT} --storage-dir ${STORAGE_DIR}`;
 const backendCommand = process.env.VSTIMD_BIN
   ? `${process.env.VSTIMD_BIN} ${backendArgs}`
   : `cargo run --release --bin vstimd -- ${backendArgs}`;

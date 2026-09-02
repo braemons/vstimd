@@ -121,7 +121,7 @@
               1500.0,
               320.0
             ],
-            "text_live": "demo_drifting_grating \u2014 a moving stimulus every frame\n\nFull-field sinusoidal grating: 0.01 cycles/px (100 px per cycle),\nvertical stripes, drifting at 4 cycles/s perpendicular to the stripes.\nRuns on load \u2014 no trigger. Tearing or stutter here means a frame-timing problem.\nEdit sf_cycles_per_px / drift_speed_hz / rotation live, then save it under your own name.",
+            "text_live": "demos/drifting_grating \u2014 a moving stimulus every frame\n\nFull-field sinusoidal grating: 0.01 cycles/px (100 px per cycle),\nvertical stripes, drifting at 4 cycles/s perpendicular to the stripes.\nRuns on load \u2014 no trigger. Tearing or stutter here means a frame-timing problem.\nEdit sf_cycles_per_px / drift_speed_hz / rotation live, then save it under your own name.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",

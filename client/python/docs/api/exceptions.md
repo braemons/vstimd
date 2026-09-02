@@ -16,7 +16,7 @@ reports.
 
 .. autoexception:: vstimd.StimulusError
 
-.. autoexception:: vstimd.ConfigError
+.. autoexception:: vstimd.SceneConfigError
 ```
 
 ## Addressing a stimulus
@@ -46,15 +46,15 @@ reports.
 ## Scene configs
 
 ```{eval-rst}
-.. autoexception:: vstimd.ConfigNotFoundError
+.. autoexception:: vstimd.SceneConfigNotFoundError
 
-.. autoexception:: vstimd.ConfigIoError
+.. autoexception:: vstimd.SceneConfigIoError
 
-.. autoexception:: vstimd.ConfigFormatError
+.. autoexception:: vstimd.SceneConfigFormatError
 
-.. autoexception:: vstimd.ConfigVersionError
+.. autoexception:: vstimd.SceneConfigVersionError
 
-.. autoexception:: vstimd.ConfigAlreadyExistsError
+.. autoexception:: vstimd.SceneConfigAlreadyExistsError
 ```
 
 ## Client-side

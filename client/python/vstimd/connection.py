@@ -9,7 +9,7 @@ from vstimd.stimuli import RectParams, ShapeAppearance, StimuliClient
 from vstimd.system import SystemClient
 from vstimd.vtl import VtlClient
 from vstimd.animations import AnimationClient
-from vstimd.config import ConfigClient
+from vstimd.scene_config import SceneConfigClient
 from vstimd.exceptions import ProtocolError, error_for_code
 
 
@@ -35,7 +35,8 @@ class Connection:
     * ``system`` — :class:`~vstimd.system.SystemClient`: scene-wide commands and server queries
     * ``vtl`` — :class:`~vstimd.VtlClient`: Virtual Trigger Line control
     * ``animations`` — :class:`~vstimd.AnimationClient`: frame-accurate animation sequences
-    * ``config`` — :class:`~vstimd.config.ConfigClient`: save, load, and retrieve named scene configs
+    * ``scene_config`` — :class:`~vstimd.scene_config.SceneConfigClient`: save, load, and
+      retrieve named scene-configs
 
     Example::
 
@@ -78,7 +79,7 @@ class Connection:
             self._send,
             fps_getter=lambda: self.system.query_server_info().frame_rate_hz,
         )
-        self.config = ConfigClient(self._send)
+        self.scene_config = SceneConfigClient(self._send)
         if wait_ready:
             self.wait_until_ready(timeout_s=ready_timeout_s)
 

@@ -1,4 +1,4 @@
-"""moving_target.py — Build the `demo_moving_target` scene from scratch.
+"""moving_target.py — Build the `demos/moving_target` scene from scratch.
 
 Usage
 -----
@@ -9,7 +9,7 @@ Usage
     uv run examples/demos/moving_target.py tcp://vstimd-ab12.local:5555
     uv run examples/demos/moving_target.py --save-as my_moving_target -f
 
-Reproduces the shipped `demo_moving_target` config: a target sweeping left to
+Reproduces the shipped `demos/moving_target` config: a target sweeping left to
 right at a constant 600 px/s, restarting forever, and pulsing an output line at
 the end of every sweep. The two ideas here are motion the server owns (rather
 than a Python loop setting positions) and an animation that both repeats itself
@@ -27,7 +27,7 @@ from vstimd.stimuli.stimuli_models import Color, Vec2
 from vstimd.stimuli import CircleParams, ShapeAppearance
 
 EXPLANATION = (
-    "demo_moving_target — motion plus an output pulse\n"
+    "demos/moving_target — motion plus an output pulse\n"
     "\n"
     "A 30 px target sweeps from x = -800 to x = +800 at 600 px/s, then restarts.\n"
     "Each completed sweep pulses out_pin36 (header pin 36) for one frame —\n"
@@ -83,7 +83,7 @@ def main() -> None:
         # No start_trigger, so arming starts it immediately.
         conn.animations.arm(sweep)
 
-        conn.config.save(args.save_as, overwrite=args.overwrite)
+        conn.scene_config.save(args.save_as, overwrite=args.overwrite)
         print(f"Saved as '{args.save_as}' — sweeping now, and again on every load.")
 
 

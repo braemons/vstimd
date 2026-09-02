@@ -1,6 +1,6 @@
 # Tutorial: First light
 
-**Rebuilds:** `demo_first_light` · **Script:** `client/python/examples/demos/first_light.py`
+**Rebuilds:** `demos/first_light` · **Script:** `client/python/examples/demos/first_light.py`
 
 The smallest complete scene there is: a title, a dot in the middle, and a square
 in each corner. No animations, no triggers, nothing that can be mistimed. Load
@@ -107,15 +107,15 @@ compositor in the way.
 
 ```python
 add_explanation(conn, EXPLANATION)         # see the overview page
-conn.config.save("my_first_light")
+conn.scene_config.save("my_first_light")
 ```
 
-`save` writes `my_first_light.config.json` into the server's config directory
+`save` writes `my_first_light.config.json` into the server's `default` project
 and raises `ConfigAlreadyExistsError` if that name is taken — pass
 `overwrite=True` to replace it. From then on:
 
 ```python
-conn.config.load("my_first_light")
+conn.scene_config.load("my_first_light")
 ```
 
 restores the whole scene, on this server or any other one you upload the file
@@ -127,7 +127,7 @@ to.
 $ cd client/python
 $ uv run examples/demos/first_light.py
 Connecting to tcp://localhost:5555 …
-Saved as 'my_first_light' — load it again with conn.config.load('my_first_light')
+Saved as 'my_first_light' — load it again with conn.scene_config.load('my_first_light')
 ```
 
 ## Try changing it
@@ -136,7 +136,7 @@ Saved as 'my_first_light' — load it again with conn.config.load('my_first_ligh
   corner is which.
 - Add a fifth square at the exact centre of each edge to check for
   non-uniform scaling.
-- Re-save under a second name and use `conn.config.list_configs()` to see both.
+- Re-save under a second name and use `conn.scene_config.list_scene_configs()` to see both.
 
 ## The complete script
 

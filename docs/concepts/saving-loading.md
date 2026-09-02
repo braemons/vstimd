@@ -1,15 +1,34 @@
 # Saving & loading scenes
 
 A whole scene — every stimulus, every animation, the background, **and** the VTL
-line names (the I/O map) — can be saved to and loaded from a named **config** on the
-device. This lets a rig boot into a known stimulus configuration with **no client
-connected at all**, and lets you version and share scenes as plain JSON.
+line names (the I/O map) — can be saved to and loaded from a named
+**scene-config** on the device. This lets a rig boot into a known stimulus
+configuration with **no client connected at all**, and lets you version and share
+scenes as plain JSON.
 
-Configs are stored as `.config.json` files in the server's config directory
-(set with `--config-dir`; the default is baked into the rig's deployment). You never
-handle paths from a client — configs are addressed by a bare **name**.
+## Projects
 
-## What a config contains
+Scene-configs live in **projects**. A project is one directory on the device
+holding everything a study needs, so copying a study to a second rig, archiving
+it at the end, or handing it to a collaborator is one operation instead of
+several that can drift:
+
+```text
+<storage-dir>/                 # --storage-dir; the rig's deployment sets it
+  projects/
+    faces2026/                 # your study
+      scene-configs/
+        session1.config.json
+    default/                   # where an unqualified name lands
+    demos/                     # the shipped demo scenes
+    _session/                  # the save-on-quit slot and its archives
+```
+
+You never handle paths from a client. A scene-config is addressed by
+`[<project>/]<name>` — `faces2026/session1`, or just `session1` for the
+`default` project. Names carry no extension and no directory beyond the project.
+
+## What a scene-config contains
 
 | Included | Not included |
 |---|---|
@@ -25,27 +44,28 @@ take, so use whichever is in front of you.
 
 | From | How | Good for |
 |---|---|---|
-| **The on-device overlay** | The **Config** panel (++f6++) lists the configs in the config directory; load, save, and overwrite from there | a rig with a keyboard and no client attached |
-| **The web control UI** | The config section of the browser UI served by the device — [Web control UI](../client/web.md) | setting a rig up from a laptop or a phone on the same network, with no software installed |
-| **The command-line client** | `vstimd-client config list` / `save NAME` / `load NAME` / `get` / `upload NAME FILE` — [Command-line client](../client/cli.md) | scripts, deployment, CI, and anything you want in a shell history |
-| **The Python client** | `conn.config.*` — see below | building a scene programmatically and persisting it in the same script |
+| **The on-device overlay** | The **Scene-config** panel (++f6++) lists the scene-configs on the device, grouped by project; load, save, and overwrite from there | a rig with a keyboard and no client attached |
+| **The web control UI** | The scene-config section of the browser UI served by the device — [Web control UI](../client/web.md) | setting a rig up from a laptop or a phone on the same network, with no software installed |
+| **The command-line client** | `vstimd-client scene-config list` / `save NAME` / `load NAME` / `get` / `upload NAME FILE` — [Command-line client](../client/cli.md) | scripts, deployment, CI, and anything you want in a shell history |
+| **The Python client** | `conn.scene_config.*` — see below | building a scene programmatically and persisting it in the same script |
 
 ```console
-$ vstimd-client config list
-$ vstimd-client config save center_target -f
-$ vstimd-client config load center_target
+$ vstimd-client scene-config list
+$ vstimd-client scene-config save center_target -f
+$ vstimd-client scene-config load center_target
+$ vstimd-client scene-config load demos/drifting_grating
 ```
 
-All four write the same `.config.json` files into the same directory, so a scene
-saved from the overlay loads from Python, and a config uploaded from CI shows up
-in the web UI. A fifth route exists on a rig with the
+All four write the same `.config.json` files into the same projects, so a scene
+saved from the overlay loads from Python, and a scene-config uploaded from CI
+shows up in the web UI. A fifth route exists on a rig with the
 [Samba shares](../operations/appliance-setup.md#6-admin-access-ssh-optional-samba)
-installed: the config directory under `/var/lib/braemons` is exported as a
+installed: the storage directory under `/var/lib/braemons` is exported as a
 network share — browsable by anyone on the LAN, writable with an admin account —
-so the `.config.json` files can be copied on and off the device from a lab
+so a whole project folder can be dragged on and off the device from a lab
 Windows or macOS machine like any other files.
 
-## From a client (`config` namespace)
+## From a client (`scene_config` namespace)
 
 ```python
 with Connection("tcp://stimulus-pc:5555") as conn:
@@ -60,11 +80,14 @@ with Connection("tcp://stimulus-pc:5555") as conn:
     )
 
     # …then save it under a name on the device:
-    conn.config.save("center_target")             # → center_target.config.json
+    conn.scene_config.save("center_target")   # → default/scene-configs/center_target.config.json
 
     # Later, list and load:
-    print(conn.config.list_configs())             # ['center_target', …]
-    conn.config.load("center_target")             # clears the scene, then loads
+    print(conn.scene_config.list_scene_configs())   # ['center_target', 'demos/first_light', …]
+    conn.scene_config.load("center_target")         # clears the scene, then loads
+
+    # Only one project's, as bare names:
+    print(conn.scene_config.list_scene_configs(project="demos"))   # ['first_light', …]
 ```
 
 ### Additive load
@@ -74,7 +97,7 @@ config's stimuli and animations into the current scene instead — handles are r
 to avoid collisions. The I/O config (VTL names) is always fully replaced.
 
 ```python
-conn.config.load("distractors", additive=True)    # add on top of what's shown
+conn.scene_config.load("distractors", additive=True)    # add on top of what's shown
 ```
 
 ### Retrieve, upload, and round-tripping JSON
@@ -84,11 +107,11 @@ conn.config.load("distractors", additive=True)    # add on top of what's shown
 name. This lets you inspect, edit, version-control, or template configs off-device:
 
 ```python
-text = conn.config.retrieve()                      # current scene → JSON string
+text = conn.scene_config.retrieve()                      # current scene → JSON string
 open("my_scene.json", "w").write(text)
 
 # …edit / commit / template it, then push it back:
-conn.config.upload("my_scene", text, overwrite=True, apply_now=True)
+conn.scene_config.upload("my_scene", text, overwrite=True, apply_now=True)
 ```
 
 `upload` raises `ConfigAlreadyExistsError` if the name exists and `overwrite=False`.
@@ -121,29 +144,31 @@ installed, `/etc/braemons` is a network share, so pointing a rig at a different
 startup scene is a file edit from your own machine — no SSH session and no
 `vstimd-client` needed. Restart `vstimd.service` for it to take effect.
 
-An explicit `--config <path>` CLI flag overrides `[startup] load_config`. A missing
+The `--scene-config <name>` and `--scene-config-file <path>` CLI flags override
+`[startup] load_config`. A missing
 last-session slot on first boot is a no-op (the rig starts with an empty scene), not
 an error. See [Deployment](../operations/deployment.md) for the wider boot flow, and
 [Gratings, triggers & a saved config](../tutorials/gratings-triggers-config.md)
 for a worked example that ends with exactly this step.
 
-### Where configs live, and save-on-quit archives
+### Where scene-configs live, and save-on-quit archives
 
-Named configs are stored in `--config-dir`. On a deployed rig this defaults to
+The project tree is rooted at `--storage-dir`. On a deployed rig this defaults to
 `/var/lib/braemons/vstimd` (created by the packaged systemd unit's `StateDirectory`);
 if that directory is not writable — for example a non-root development run — vstimd
 falls back to `~/.local/braemons/vstimd`, then the current directory, logging which it
 chose.
 
-With `save_on_quit = true`, each graceful shutdown writes **two** files:
+With `save_on_quit = true`, each graceful shutdown writes **two** files, both into
+the `_session` project — per-rig state, so it never clutters a study:
 
-- `vstimd__last_session.config.json` — overwritten every quit; restored by
+- `_session/_last_session` — overwritten every quit; restored by
   `load_config = "last"`.
-- `vstimd_<YYYYMMDDTHHMMSSZ>.config.json` — a timestamped archive (UTC), so you keep
+- `_session/<YYYYMMDDTHHMMSSZ>` — a timestamped archive (UTC), so you keep
   a history of what each session ended with.
 
 Archives are never pruned automatically; vstimd logs a warning once more than 500
-accumulate in one directory, as a nudge to clean up.
+accumulate, as a nudge to clean up.
 
 ## See also
 

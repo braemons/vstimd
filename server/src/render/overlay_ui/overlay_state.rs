@@ -21,7 +21,7 @@ pub enum OverlayGroup {
     Vtl,
     Animations,
     System,
-    Config,
+    SceneConfig,
     Benchmarks,
 }
 
@@ -32,7 +32,7 @@ impl OverlayGroup {
         OverlayGroup::Vtl,
         OverlayGroup::Animations,
         OverlayGroup::System,
-        OverlayGroup::Config,
+        OverlayGroup::SceneConfig,
         OverlayGroup::Benchmarks,
     ];
 
@@ -47,7 +47,7 @@ impl OverlayGroup {
             OverlayGroup::Vtl => "Virtual Trigger",
             OverlayGroup::Animations => "Animations",
             OverlayGroup::System => "System",
-            OverlayGroup::Config => "Config",
+            OverlayGroup::SceneConfig => "Scene-config",
             OverlayGroup::Benchmarks => "Benchmarks",
         }
     }
@@ -85,14 +85,18 @@ pub struct OverlayState {
 }
 
 impl OverlayState {
-    pub fn new(config_dir: PathBuf) -> Self {
+    pub fn new(storage_dir: PathBuf) -> Self {
         Self {
             master_visible: false,
             visible: [false; 7],
             focused: OverlayGroup::Stimuli,
             pending_focus: false,
             wireframe_toggle_requested: false,
-            file_browser: FileBrowser::new(config_dir),
+            // Opens in the default project, where an unqualified save lands.
+            file_browser: FileBrowser::new(crate::scene_config_file::scene_config_dir(
+                &storage_dir,
+                crate::scene_config_file::DEFAULT_PROJECT,
+            )),
             benchmark: BenchmarkState::new(),
             stimulus_dialog: StimulusDialog::default(),
             animation_dialog: AnimationDialog::default(),

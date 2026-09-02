@@ -1,6 +1,6 @@
 # Tutorial: Gratings, triggers & a saved config
 
-**Rebuilds:** `demo_gratings_triggered` · **Script:** `client/python/examples/demos/gratings_triggered.py`
+**Rebuilds:** `demos/gratings_triggered` · **Script:** `client/python/examples/demos/gratings_triggered.py`
 
 This is the one that ties everything together. In a single script you will build
 two gratings, arm each of them against its own hardware input line, mark every
@@ -185,8 +185,8 @@ another presentation. Trial after trial, indefinitely.
 ## 5. Save it, and check the round trip
 
 ```python
-conn.config.save("my_gratings_triggered")
-print(conn.config.list_configs())
+conn.scene_config.save("my_gratings_triggered")
+print(conn.scene_config.list_scene_configs())
 ```
 
 `save` retrieves the current scene and writes it to the server's config
@@ -201,10 +201,10 @@ gives you back a rig that is armed and ready:
 
 ```python
 with Connection("tcp://vstimd-ab12.local:5555") as conn:
-    print(conn.config.list_configs())
-    # ['demo_first_light', …, 'my_gratings_triggered']
+    print(conn.scene_config.list_scene_configs())
+    # ['demos/first_light', …, 'my_gratings_triggered']
 
-    conn.config.load("my_gratings_triggered")     # clears, then loads
+    conn.scene_config.load("my_gratings_triggered")     # clears, then loads
 
     print([e.name for e in conn.system.list_stimuli()])
     print([a.name for a in conn.animations.list_animations()])
@@ -212,7 +212,7 @@ with Connection("tcp://vstimd-ab12.local:5555") as conn:
 ```
 
 !!! note "One thing the shipped demo adds here"
-    `demo_gratings_triggered` also switches on the corner photodiode patch, so a
+    `demos/gratings_triggered` also switches on the corner photodiode patch, so a
     photodiode timestamps the same onsets the pulses mark. That is a scene
     setting with no command of its own in v0.1, so the script sets it by editing
     the retrieved config JSON and uploading it back — the four lines are shown
@@ -246,7 +246,7 @@ This is a stand-in for the real thing, and it is worth being clear about what it
 does and does not prove. It exercises the animation, the actions, and the output
 pulses exactly as a hardware edge would. It does **not** exercise your wiring,
 your DAQ mapping, or the latency between the physical edge and vstimd seeing it.
-For that, `demo_trigger_gate` and a scope are the tools —
+For that, `demos/trigger_gate` and a scope are the tools —
 see [Trigger gate](trigger-gate.md).
 
 ## 7. The payoff: make it what the rig boots into
@@ -257,7 +257,7 @@ the rig config at it and the rig comes up armed after a power cycle:
 ```toml
 # /etc/braemons/vstimd-rig-config.toml
 [startup]
-# Named config (in --config-dir) to load at boot. The literal "last" loads the
+# Named config (in --storage-dir) to load at boot. The literal "last" loads the
 # auto-saved last-session slot. Omit or "" for an empty scene.
 load_config = "my_gratings_triggered"
 ```
@@ -273,7 +273,8 @@ Notes on that file:
 - On a rig with the [Samba shares](../operations/appliance-setup.md#6-admin-access-ssh-optional-samba)
   installed, `/etc/braemons` is a network share, so this is a file you can edit
   from a lab Windows or macOS machine without SSHing in.
-- `--config <path>` on the command line overrides `[startup] load_config`.
+- `--scene-config <name>` (or `--scene-config-file <path>`) on the command line
+  overrides `[startup] load_config`.
 - `save_on_quit = true` plus `load_config = "last"` gives you the other
   behaviour: come back up in whatever state the last session ended in.
 
@@ -283,7 +284,7 @@ Notes on that file:
 $ cd client/python
 $ uv run examples/demos/gratings_triggered.py --fire
 Connecting to tcp://localhost:5555 …
-Saved as 'my_gratings_triggered'. Configs on the device: demo_first_light, …
+Saved as 'my_gratings_triggered'. Configs on the device: demos/first_light, …
 Firing in_pin11 (45°) …
 Firing in_pin12 (135°) …
 Both fired. On a wired rig those edges come from the DAQ instead.

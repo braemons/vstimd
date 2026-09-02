@@ -119,15 +119,20 @@ HANDLE  ENABLED  NAME       ID
 | `wait-frames [N]` | block until N more frames are rendered |
 | `wait-ready` | block until the server answers and has drawn a frame |
 | `shutdown` | ask the server to exit cleanly (prompts unless `-y`) |
-| `config list` | list configs in the server's config directory |
-| `config save NAME` | save the current scene (`-f` overwrites) |
-| `config load NAME` | load and apply a config (`--additive` merges) |
-| `config get` | print the current config JSON (`-o FILE` writes it) |
-| `config upload NAME FILE` | upload a local config (`-` reads stdin) |
+| `scene-config list` | list the scene-configs on the server (`-p PROJECT` scopes it) |
+| `scene-config save NAME` | save the current scene (`-f` overwrites) |
+| `scene-config load NAME` | load and apply a scene-config (`--additive` merges) |
+| `scene-config get` | print the current scene-config JSON (`-o FILE` writes it) |
+| `scene-config upload NAME FILE` | upload a local scene-config (`-` reads stdin) |
 
-The `demo_*` entries in `config list` are the [demo scenes](../getting-started/demos.md)
-the server installs on first start — ordinary configs, so `config load
-demo_drifting_grating` is all it takes to put one on the display.
+Every `NAME` is `[<project>/]<name>`. A **project** is a directory on the device
+holding everything one study needs; an unqualified name means the `default`
+project, so the everyday case stays one word.
+
+The `demos/*` entries in `scene-config list` are the
+[demo scenes](../getting-started/demos.md) the server installs on first start —
+ordinary scene-configs, so `scene-config load demos/drifting_grating` is all it
+takes to put one on the display. `scene-config list -p demos` shows just those.
 
 ## Scripting
 
@@ -141,8 +146,8 @@ addr=$(vstimd-client --json discover | jq -r '.[0].address')
 vstimd-client --host vstimd-a1b2c3 wait-ready --wait 60
 
 # Back up the running scene, restore it later
-vstimd-client config get -o scene.json
-vstimd-client config upload restored scene.json --overwrite --apply-now
+vstimd-client scene-config get -o scene.json
+vstimd-client scene-config upload restored scene.json --overwrite --apply-now
 ```
 
 Failures are told apart by exit status, so a start-up script can distinguish a

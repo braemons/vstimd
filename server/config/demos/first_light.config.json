@@ -351,7 +351,7 @@
               1500.0,
               320.0
             ],
-            "text_live": "demo_first_light \u2014 the display works\n\nStatic scene: a centre dot and four corner squares (1800 x 960 px apart),\nso you can see at a glance that the whole display is being driven.\nNo triggers, no animations.\nNext: load demo_drifting_grating, or list all demos with config list.",
+            "text_live": "demos/first_light \u2014 the display works\n\nStatic scene: a centre dot and four corner squares (1800 x 960 px apart),\nso you can see at a glance that the whole display is being driven.\nNo triggers, no animations.\nNext: load demos/drifting_grating, or list all demos with\nscene-config list -p demos.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",

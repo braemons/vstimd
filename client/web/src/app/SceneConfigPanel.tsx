@@ -1,6 +1,9 @@
-// Named scene-config persistence against the server's config directory — the web
-// counterpart of the overlay's save/load file browser. Simple list/load/save;
-// a schema-driven editor is deferred (see brain-daemons/vstimd#45).
+// Named scene-config persistence — the web counterpart of the overlay's
+// save/load file browser. Simple list/load/save; a schema-driven editor is
+// deferred (see brain-daemons/vstimd#45).
+//
+// The list spans every project, so a name outside `default` arrives already
+// spelled `<project>/<name>` — which is also what the save box accepts.
 
 import { useCallback, useEffect, useState } from "react";
 import type { Connection } from "../index.js";
@@ -9,7 +12,7 @@ interface Props {
   conn: Connection | null;
 }
 
-export function ConfigPanel({ conn }: Props) {
+export function SceneConfigPanel({ conn }: Props) {
   const [names, setNames] = useState<string[]>([]);
   const [saveName, setSaveName] = useState("");
   const [overwrite, setOverwrite] = useState(false);
@@ -18,7 +21,7 @@ export function ConfigPanel({ conn }: Props) {
   const refresh = useCallback(async () => {
     if (!conn) return;
     try {
-      setNames(await conn.config.list());
+      setNames(await conn.sceneConfig.list());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -42,19 +45,19 @@ export function ConfigPanel({ conn }: Props) {
     const name = saveName.trim();
     if (!name || !conn) return;
     void run(async () => {
-      await conn.config.save(name, { overwrite });
+      await conn.sceneConfig.save(name, { overwrite });
       setSaveName("");
     });
   }
 
   return (
     <div style={{ minWidth: 220 }}>
-      <h3>Config</h3>
+      <h3>Scene-config</h3>
 
       <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 4 }}>
         <input
           type="text"
-          placeholder="save as…"
+          placeholder="save as… ([project/]name)"
           value={saveName}
           disabled={!conn}
           onChange={(e) => setSaveName(e.target.value)}
@@ -69,7 +72,7 @@ export function ConfigPanel({ conn }: Props) {
       </label>
 
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-        <span style={{ fontSize: 12, color: "#888" }}>Saved configs</span>
+        <span style={{ fontSize: 12, color: "#888" }}>Saved scene-configs</span>
         <button disabled={!conn} onClick={() => void refresh()} style={{ fontSize: 11 }}>↻</button>
       </div>
       {names.length === 0 ? (
@@ -83,15 +86,17 @@ export function ConfigPanel({ conn }: Props) {
                 <td style={{ whiteSpace: "nowrap", textAlign: "right" }}>
                   <button
                     disabled={!conn}
-                    title="Replace the scene with this config"
-                    onClick={() => void run(() => conn!.config.load(name))}
+                    title="Replace the scene with this scene-config"
+                    onClick={() => void run(() => conn!.sceneConfig.load(name))}
                   >
                     Load
                   </button>{" "}
                   <button
                     disabled={!conn}
-                    title="Merge this config into the current scene"
-                    onClick={() => void run(() => conn!.config.load(name, { additive: true }))}
+                    title="Merge this scene-config into the current scene"
+                    onClick={() =>
+                      void run(() => conn!.sceneConfig.load(name, { additive: true }))
+                    }
                   >
                     Load+
                   </button>

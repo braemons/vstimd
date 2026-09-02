@@ -1,6 +1,6 @@
 # Tutorial: Drifting grating
 
-**Rebuilds:** `demo_drifting_grating` · **Script:** `client/python/examples/demos/drifting_grating.py`
+**Rebuilds:** `demos/drifting_grating` · **Script:** `client/python/examples/demos/drifting_grating.py`
 
 One stimulus, one command, and something moves on every single frame forever
 without Python being involved again. That is the whole lesson: a grating's drift
@@ -82,7 +82,7 @@ Two related knobs, if you need them:
 
 ```python
 add_explanation(conn, EXPLANATION)
-conn.config.save("my_drifting_grating")
+conn.scene_config.save("my_drifting_grating")
 ```
 
 Because the drift lives in the stimulus, the saved config needs nothing extra:

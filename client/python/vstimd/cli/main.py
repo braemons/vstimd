@@ -9,7 +9,7 @@ from typing import Any, Callable, Sequence
 
 from vstimd._version import __version__
 from vstimd.connection import Connection
-from vstimd.exceptions import ConfigNotFoundError, VstimdError
+from vstimd.exceptions import SceneConfigNotFoundError, VstimdError
 
 from . import discovery
 from .address import DEFAULT_ADDRESS, DEFAULT_PORT, AddressError, normalize_address
@@ -108,7 +108,7 @@ _COMMAND_GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
     (
         "Manage the server",
         (
-            ("config", "list, save, load, get, or upload scene configs"),
+            ("scene-config", "list, save, load, get, or upload scene-configs"),
             ("shutdown", "ask the server to exit cleanly"),
         ),
     ),
@@ -247,45 +247,64 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("-y", "--yes", action="store_true", help="skip the confirmation prompt")
     p.set_defaults(func=cmd_shutdown)
 
-    _add_config_parsers(sub)
+    _add_scene_config_parsers(sub)
     return parser
 
 
-def _add_config_parsers(sub: Any) -> None:
-    config = sub.add_parser("config", help="manage saved scene configs on the server")
-    csub = config.add_subparsers(dest="config_command", metavar="SUBCOMMAND")
+# Every name argument below is `[<project>/]<name>`: an unqualified name means
+# the `default` project, so the everyday case stays one word.
+_NAME_HELP = "[<project>/]<name>; unqualified means the 'default' project"
+
+
+def _add_scene_config_parsers(sub: Any) -> None:
+    scene_config = sub.add_parser(
+        "scene-config", help="manage saved scene-configs on the server"
+    )
+    csub = scene_config.add_subparsers(dest="scene_config_command", metavar="SUBCOMMAND")
     csub.required = True
 
-    p = csub.add_parser("list", help="list configs in the server's config directory")
-    p.set_defaults(func=cmd_config_list)
+    p = csub.add_parser("list", help="list the scene-configs on the server")
+    p.add_argument(
+        "-p", "--project", default="",
+        help="only this project's scene-configs (default: every project)",
+    )
+    p.set_defaults(func=cmd_scene_config_list)
 
     p = csub.add_parser("save", help="save the current scene under a name")
-    p.add_argument("name")
-    p.add_argument("-f", "--overwrite", action="store_true", help="replace an existing config")
-    p.set_defaults(func=cmd_config_save)
+    p.add_argument("name", help=_NAME_HELP)
+    p.add_argument(
+        "-f", "--overwrite", action="store_true", help="replace an existing scene-config"
+    )
+    p.set_defaults(func=cmd_scene_config_save)
 
-    p = csub.add_parser("load", help="load and apply a named config")
-    p.add_argument("name")
+    p = csub.add_parser("load", help="load and apply a named scene-config")
+    p.add_argument("name", help=_NAME_HELP)
     p.add_argument(
         "--additive", action="store_true",
         help="merge into the current scene instead of clearing it first",
     )
-    p.set_defaults(func=cmd_config_load)
+    p.set_defaults(func=cmd_scene_config_load)
 
-    p = csub.add_parser("get", help="print the current scene config as JSON")
+    p = csub.add_parser("get", help="print the current scene-config as JSON")
     p.add_argument("-o", "--output", help="write to a file instead of stdout")
-    p.set_defaults(func=cmd_config_get)
+    p.set_defaults(func=cmd_scene_config_get)
 
-    p = csub.add_parser("upload", help="upload a local config JSON file to the server")
-    p.add_argument("name")
-    p.add_argument("file", help="path to a config JSON file, or '-' for stdin")
-    p.add_argument("-f", "--overwrite", action="store_true", help="replace an existing config")
-    p.add_argument("--apply-now", action="store_true", help="apply the config after saving")
+    p = csub.add_parser(
+        "upload", help="upload a local scene-config JSON file to the server"
+    )
+    p.add_argument("name", help=_NAME_HELP)
+    p.add_argument("file", help="path to a scene-config JSON file, or '-' for stdin")
+    p.add_argument(
+        "-f", "--overwrite", action="store_true", help="replace an existing scene-config"
+    )
+    p.add_argument(
+        "--apply-now", action="store_true", help="apply the scene-config after saving"
+    )
     p.add_argument(
         "--additive", action="store_true",
         help="with --apply-now, merge instead of clearing the scene",
     )
-    p.set_defaults(func=cmd_config_upload)
+    p.set_defaults(func=cmd_scene_config_upload)
 
 
 # ── Commands ──────────────────────────────────────────────────────────────────
@@ -419,53 +438,53 @@ def cmd_shutdown(conn: Connection, args: argparse.Namespace) -> int:
     return _ok(args, "shutdown requested")
 
 
-def cmd_config_list(conn: Connection, args: argparse.Namespace) -> int:
-    names = conn.config.list_configs()
+def cmd_scene_config_list(conn: Connection, args: argparse.Namespace) -> int:
+    names = conn.scene_config.list_scene_configs(project=args.project)
     if args.as_json:
         _print_json(names)
         return 0
     if not names:
-        print("no configs")
+        print("no scene-configs")
         return 0
     for name in names:
         print(name)
     return 0
 
 
-def cmd_config_save(conn: Connection, args: argparse.Namespace) -> int:
-    conn.config.save(args.name, overwrite=args.overwrite)
-    return _ok(args, f"saved config {args.name!r}")
+def cmd_scene_config_save(conn: Connection, args: argparse.Namespace) -> int:
+    conn.scene_config.save(args.name, overwrite=args.overwrite)
+    return _ok(args, f"saved scene-config {args.name!r}")
 
 
-def cmd_config_load(conn: Connection, args: argparse.Namespace) -> int:
-    conn.config.load(args.name, additive=args.additive)
-    return _ok(args, f"loaded config {args.name!r}")
+def cmd_scene_config_load(conn: Connection, args: argparse.Namespace) -> int:
+    conn.scene_config.load(args.name, additive=args.additive)
+    return _ok(args, f"loaded scene-config {args.name!r}")
 
 
-def cmd_config_get(conn: Connection, args: argparse.Namespace) -> int:
-    text = conn.config.retrieve()
+def cmd_scene_config_get(conn: Connection, args: argparse.Namespace) -> int:
+    text = conn.scene_config.retrieve()
     if args.output:
         with open(args.output, "w", encoding="utf-8") as fh:
             fh.write(text)
-        return _ok(args, f"wrote config to {args.output}")
+        return _ok(args, f"wrote scene-config to {args.output}")
     print(text)
     return 0
 
 
-def cmd_config_upload(conn: Connection, args: argparse.Namespace) -> int:
+def cmd_scene_config_upload(conn: Connection, args: argparse.Namespace) -> int:
     if args.file == "-":
         text = sys.stdin.read()
     else:
         with open(args.file, encoding="utf-8") as fh:
             text = fh.read()
-    conn.config.upload(
+    conn.scene_config.upload(
         args.name,
         text,
         overwrite=args.overwrite,
         apply_now=args.apply_now,
         additive=args.additive,
     )
-    return _ok(args, f"uploaded config {args.name!r}")
+    return _ok(args, f"uploaded scene-config {args.name!r}")
 
 
 # ── Output helpers ────────────────────────────────────────────────────────────
@@ -483,7 +502,7 @@ def _fail(message: object, code: ExitCode, *, hint: str | None = None) -> int:
     """Report a failure the way a command-line tool should: one line, no stack.
 
     Tracebacks are for bugs in the client. Everything a user can cause — a rig
-    that is off, a typo in an address, a config that does not exist — is a
+    that is off, a typo in an address, a scene-config that does not exist — is a
     sentence on stderr and a distinct exit code.
     """
     print(f"vstimd-client: {message}", file=sys.stderr)
@@ -680,7 +699,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
     except zmq.ZMQError as exc:
         return _fail(f"connection to {address} failed: {exc}", ExitCode.UNAVAILABLE)
-    except ConfigNotFoundError as exc:
+    except SceneConfigNotFoundError as exc:
         return _fail(exc, ExitCode.NOT_FOUND)
     except VstimdError as exc:
         return _fail(exc, ExitCode.SERVER_ERROR)

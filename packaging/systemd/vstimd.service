@@ -38,11 +38,12 @@ Type=notify
 # without it vstimd still runs, but frame delivery loses its priority and the
 # overlay's System panel shows the promotion as FAILED.
 User=root
-# Named stim-configs (and the save-on-quit slot) live here. StateDirectory=
-# makes systemd create /var/lib/braemons/vstimd (0755, owned by the service
-# user) on start, so it exists even on a first boot with no client attached.
+# vstimd's storage tree lives here: projects, each holding its scene-configs
+# (and, later, its assets), plus the save-on-quit slot. StateDirectory= makes
+# systemd create /var/lib/braemons/vstimd (0755, owned by the service user) on
+# start, so it exists even on a first boot with no client attached.
 StateDirectory=braemons/vstimd
-ExecStart=/usr/bin/vstimd --config-dir /var/lib/braemons/vstimd
+ExecStart=/usr/bin/vstimd --storage-dir /var/lib/braemons/vstimd
 Restart=on-failure
 RestartSec=2
 # Give Vulkan time to release the display on SIGTERM before SIGKILL.

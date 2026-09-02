@@ -58,7 +58,7 @@ async function waitForPort(port: number, attempts = 40): Promise<void> {
 
 let server: ChildProcess;
 let conn: Connection;
-let configDir: string;
+let storageDir: string;
 
 describe("vstimd web client e2e (--null)", () => {
   beforeAll(async () => {
@@ -66,15 +66,15 @@ describe("vstimd web client e2e (--null)", () => {
     // with a real vstimd the developer may be running.
     const rig = join(tmpdir(), `vstimd-e2e-rig-${process.pid}.toml`);
     writeFileSync(rig, `[vtl]\nshm_name = "/vstimd_e2e_${process.pid}"\n`);
-    // Isolated config dir so saved configs don't litter the repo (the default
-    // dir is the cwd) and don't collide between runs.
-    configDir = mkdtempSync(join(tmpdir(), "vstimd-e2e-cfg-"));
+    // Isolated storage dir so saved scene-configs don't litter the repo (the
+    // default dir is the cwd) and don't collide between runs.
+    storageDir = mkdtempSync(join(tmpdir(), "vstimd-e2e-storage-"));
     server = spawn(
       serverBinary(),
       [
         "--null", "--web-port", String(WEB_PORT),
         "--zmq-port", String(ZMQ_PORT), "--rig-config", rig,
-        "--config-dir", configDir,
+        "--storage-dir", storageDir,
       ],
       { stdio: "ignore" },
     );
@@ -85,7 +85,7 @@ describe("vstimd web client e2e (--null)", () => {
   afterAll(() => {
     conn?.close();
     server?.kill("SIGTERM");
-    if (configDir) rmSync(configDir, { recursive: true, force: true });
+    if (storageDir) rmSync(storageDir, { recursive: true, force: true });
   });
 
   it("creates a stimulus and returns a handle", async () => {
@@ -275,17 +275,17 @@ describe("vstimd web client e2e (--null)", () => {
     expect(details.typeName).toBe("FlashForNFrames");
   });
 
-  it("saves, lists, retrieves, and loads a config", async () => {
+  it("saves, lists, retrieves, and loads a scene-config", async () => {
     await conn.stimuli.shapes.createRect({ widthPx: 50, heightPx: 50, name: "cfg-rect" });
-    await conn.config.save("e2e_web", { overwrite: true });
+    await conn.sceneConfig.save("e2e_web", { overwrite: true });
 
-    expect(await conn.config.list()).toContain("e2e_web");
+    expect(await conn.sceneConfig.list()).toContain("e2e_web");
 
-    const json = await conn.config.retrieve();
+    const json = await conn.sceneConfig.retrieve();
     expect(json).toContain("cfg-rect");
 
     // Reload (replace) and confirm the stimulus is restored.
-    await conn.config.load("e2e_web");
+    await conn.sceneConfig.load("e2e_web");
     const snap = await conn.nextSnapshot();
     expect(snap.stimuli.find((s) => s.name === "cfg-rect")).toBeDefined();
   });

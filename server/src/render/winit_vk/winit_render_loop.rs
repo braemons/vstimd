@@ -86,7 +86,7 @@ impl WinitRenderLoopData {
         log::info!("vstimd: present mode: FIFO");
 
         // Build sub-renderers before ctx moves into RenderState.
-        let config_dir = scene.read().unwrap().runtime.config_dir.clone();
+        let storage_dir = scene.read().unwrap().runtime.storage_dir.clone();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
         let text = TextRenderer::new(&ctx);
 
@@ -111,7 +111,7 @@ impl WinitRenderLoopData {
             },
         };
 
-        let ui = UiRenderer::new(&ctx, config_dir, log_buffer, overlay_scale);
+        let ui = UiRenderer::new(&ctx, storage_dir, log_buffer, overlay_scale);
         // egui::Context is Arc-based; clone gives egui_winit a handle to the
         // same context so it can read/write egui state (e.g. zoom factor).
         let egui_ctx = ui.egui_ctx.clone();
@@ -357,7 +357,7 @@ impl ApplicationHandler for WinitEventHandler {
                 KeyCode::F3 => Some(OverlayGroup::Vtl),
                 KeyCode::F4 => Some(OverlayGroup::Animations),
                 KeyCode::F5 => Some(OverlayGroup::System),
-                KeyCode::F6 => Some(OverlayGroup::Config),
+                KeyCode::F6 => Some(OverlayGroup::SceneConfig),
                 KeyCode::F7 => Some(OverlayGroup::Benchmarks),
                 _ => None,
             };

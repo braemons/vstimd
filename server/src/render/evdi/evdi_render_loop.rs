@@ -67,10 +67,10 @@ impl EvdiBackend {
 
         let ctx = evdi_init::init(output.width, output.height);
 
-        let config_dir = scene.read().expect("scene lock poisoned").runtime.config_dir.clone();
+        let storage_dir = scene.read().expect("scene lock poisoned").runtime.storage_dir.clone();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
         let text = TextRenderer::new(&ctx);
-        let ui = UiRenderer::new(&ctx, config_dir, self.log_buffer, overlay_scale);
+        let ui = UiRenderer::new(&ctx, storage_dir, self.log_buffer, overlay_scale);
 
         // Guard the VT that is currently active: unlike the DRM backend we
         // never activate one of our own, so that is where stray keystrokes

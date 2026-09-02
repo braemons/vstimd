@@ -7,7 +7,7 @@
 
 pub(super) mod animations_panel;
 pub(super) mod benchmarks_panel;
-pub(super) mod config_panel;
+pub(super) mod scene_config_panel;
 pub(super) mod log_panel;
 pub(super) mod stimuli_panel;
 pub(super) mod system_panel;

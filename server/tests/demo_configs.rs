@@ -1,11 +1,12 @@
 //! The demo configs shipped in `DEMO_CONFIGS` are plain config files — nothing
 //! parses them at build time, so a field renamed in the scene model would only
 //! surface as a load error on a rig. These tests load every demo the same way
-//! `config load` does, and assert the properties each demo is supposed to
+//! `scene-config load` does, and assert the properties each demo is supposed to
 //! demonstrate.
 
 use vstimd::scene_config_file::{
-    parse_config_json, retrieve_config_json, DemoSkip, DEMO_CONFIGS, DEMO_PREFIX,
+    is_valid_name, parse_config_json, retrieve_config_json, scene_config_dir, DemoSkip,
+    DEMO_CONFIGS, DEMOS_PROJECT,
 };
 use vstimd::scene::animation::{Animation, StartAction};
 use vstimd::scene::{AnimState, FinalAction};
@@ -99,13 +100,13 @@ fn every_demo_explains_itself_on_screen() {
 }
 
 #[test]
-fn demo_names_are_prefixed_and_unique() {
+fn demo_names_are_legal_and_unique() {
     let mut names: Vec<&str> = DEMO_CONFIGS.iter().map(|(n, _)| *n).collect();
     for name in &names {
-        assert!(
-            name.starts_with(DEMO_PREFIX),
-            "demo '{name}' does not start with '{DEMO_PREFIX}'"
-        );
+        assert!(is_valid_name(name), "demo '{name}' is not a legal scene-config name");
+        // The `demos` project is what groups them now; the old `demo_` prefix
+        // would show up doubled as `demos/demo_foo`.
+        assert!(!name.starts_with("demo_"), "demo '{name}' still carries the retired prefix");
     }
     let before = names.len();
     names.sort_unstable();
@@ -132,7 +133,7 @@ fn demo_files_survive_a_reserialize_unchanged() {
 
 #[test]
 fn gratings_demo_flashes_two_orientations_on_two_input_triggers() {
-    let (scene, io) = parse_config_json(demo("demo_gratings_triggered")).unwrap();
+    let (scene, io) = parse_config_json(demo("gratings_triggered")).unwrap();
 
     // Two centred gratings, both hidden until their trigger fires.
     let gratings: Vec<_> = scene
@@ -220,7 +221,7 @@ fn no_demo_ships_an_idle_animation() {
 
 #[test]
 fn moving_target_loops_and_pulses_an_output_each_pass() {
-    let (scene, io) = parse_config_json(demo("demo_moving_target")).unwrap();
+    let (scene, io) = parse_config_json(demo("moving_target")).unwrap();
     let anim = scene.animations.values().next().expect("no animation");
     assert!(anim.start_trigger.is_none(), "the sweep should not wait for a trigger");
     assert!(matches!(anim.animation, Animation::MoveAlongSegments2D { .. }));
@@ -233,7 +234,7 @@ fn moving_target_loops_and_pulses_an_output_each_pass() {
 
 #[test]
 fn trigger_gate_follows_an_input_level() {
-    let (scene, io) = parse_config_json(demo("demo_trigger_gate")).unwrap();
+    let (scene, io) = parse_config_json(demo("trigger_gate")).unwrap();
     let anim = scene.animations.values().next().expect("no animation");
     let Animation::CoupleVisibilityToTriggerLine { trigger, polarity } = anim.animation else {
         panic!("demo_trigger_gate is not level-coupled");
@@ -249,7 +250,7 @@ fn trigger_gate_follows_an_input_level() {
 
 #[test]
 fn photodiode_demo_enables_the_patch() {
-    let (scene, _) = parse_config_json(demo("demo_photodiode_flicker")).unwrap();
+    let (scene, _) = parse_config_json(demo("photodiode_flicker")).unwrap();
     assert!(scene.photodiode.enabled, "photodiode patch is off");
     assert!(scene.photodiode.flicker, "photodiode patch does not flicker");
     let anim = scene.animations.values().next().expect("no animation");
@@ -261,7 +262,7 @@ fn photodiode_demo_enables_the_patch() {
 
 #[test]
 fn drifting_grating_demo_drifts() {
-    let (scene, _) = parse_config_json(demo("demo_drifting_grating")).unwrap();
+    let (scene, _) = parse_config_json(demo("drifting_grating")).unwrap();
     let entry = scene
         .stimuli
         .values()
@@ -285,7 +286,7 @@ fn loading_the_gratings_demo_leaves_it_waiting_for_its_triggers() {
     use vstimd::scene::{LoadMode, SceneState};
     use vstimd::vtl_state::VtlEdges;
 
-    let (cfg, _io) = parse_config_json(demo("demo_gratings_triggered")).unwrap();
+    let (cfg, _io) = parse_config_json(demo("gratings_triggered")).unwrap();
     let mut scene = SceneState::new();
     scene.load_snapshot(cfg, LoadMode::Replace);
 
@@ -358,7 +359,7 @@ fn loading_the_moving_target_demo_starts_it_moving() {
     use vstimd::scene::{LoadMode, SceneState};
     use vstimd::vtl_state::VtlEdges;
 
-    let (cfg, _io) = parse_config_json(demo("demo_moving_target")).unwrap();
+    let (cfg, _io) = parse_config_json(demo("moving_target")).unwrap();
     let mut scene = SceneState::new();
     scene.load_snapshot(cfg, LoadMode::Replace);
 
@@ -378,7 +379,7 @@ fn loading_the_moving_target_demo_starts_it_moving() {
     assert_ne!(pos_px(&scene), start, "the target never started moving");
 }
 
-/// A scratch config dir for a seeding test. Per-test name so the cases can run
+/// A scratch storage dir for a seeding test. Per-test name so the cases can run
 /// in parallel without sharing a directory.
 fn seed_dir(tag: &str) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("vstimd-demo-seed-{}-{tag}", std::process::id()));
@@ -388,15 +389,16 @@ fn seed_dir(tag: &str) -> std::path::PathBuf {
 }
 
 /// Record `content` as the version the server installed for `name`, mirroring
-/// what `seed_demo_configs` writes into its sidecar. Lets a test stand in for
-/// "an older release wrote this file".
-fn stamp_as_installed(dir: &std::path::Path, name: &str, content: &str) {
+/// what `seed_demo_configs` writes into its sidecar — which lives beside the
+/// demos, inside the project. Lets a test stand in for "an older release wrote
+/// this file".
+fn stamp_as_installed(storage_dir: &std::path::Path, name: &str, content: &str) {
     let mut h: u64 = 0xcbf2_9ce4_8422_2325;
     for b in content.as_bytes() {
         h ^= *b as u64;
         h = h.wrapping_mul(0x0000_0100_0000_01b3);
     }
-    let path = dir.join(".vstimd_demo_seed");
+    let path = scene_config_dir(storage_dir, DEMOS_PROJECT).join(".vstimd_demo_seed");
     let mut lines: Vec<String> = std::fs::read_to_string(&path)
         .unwrap_or_default()
         .lines()
@@ -407,6 +409,15 @@ fn stamp_as_installed(dir: &std::path::Path, name: &str, content: &str) {
     std::fs::write(&path, lines.join("\n") + "\n").unwrap();
 }
 
+/// Where seeding puts a demo: inside the `demos` project, unprefixed. Creates
+/// the project directory, so a test can write a stand-in file there before the
+/// first seed has run.
+fn demo_path(storage_dir: &std::path::Path, name: &str) -> std::path::PathBuf {
+    let dir = scene_config_dir(storage_dir, DEMOS_PROJECT);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir.join(format!("{name}.config.json"))
+}
+
 #[test]
 fn seeding_writes_every_demo_and_never_overwrites() {
     let dir = seed_dir("basic");
@@ -415,7 +426,8 @@ fn seeding_writes_every_demo_and_never_overwrites() {
     assert!(report.failed.is_empty(), "seed errors: {:?}", report.failed);
     assert_eq!(report.installed.len(), DEMO_CONFIGS.len());
     assert!(report.refreshed.is_empty(), "nothing existed to refresh");
-    let listed = vstimd::scene_config_file::list_config_names(&dir).unwrap();
+    let listed =
+        vstimd::scene_config_file::list_scene_config_names(&dir, DEMOS_PROJECT).unwrap();
     for (name, _) in DEMO_CONFIGS {
         assert!(listed.contains(&name.to_string()), "'{name}' is not listed after seeding");
     }
@@ -434,7 +446,7 @@ fn seeding_writes_every_demo_and_never_overwrites() {
     );
 
     // An operator's edit survives the next start.
-    let edited = vstimd::scene_config_file::config_path(&dir, DEMO_CONFIGS[0].0);
+    let edited = demo_path(&dir, DEMO_CONFIGS[0].0);
     std::fs::write(&edited, "edited by the operator").unwrap();
     let report = vstimd::scene_config_file::seed_demo_configs(&dir);
     assert!(report.installed.is_empty() && report.refreshed.is_empty() && report.failed.is_empty());
@@ -456,7 +468,7 @@ fn seeding_writes_every_demo_and_never_overwrites() {
 fn seeding_refreshes_an_untouched_demo_that_changed_upstream() {
     let (name, shipped) = DEMO_CONFIGS[0];
     let dir = seed_dir("refresh");
-    let path = vstimd::scene_config_file::config_path(&dir, name);
+    let path = demo_path(&dir, name);
 
     vstimd::scene_config_file::seed_demo_configs(&dir);
 
@@ -492,7 +504,7 @@ fn seeding_refreshes_an_untouched_demo_that_changed_upstream() {
 fn seeding_leaves_an_unstamped_file_alone() {
     let (name, _) = DEMO_CONFIGS[0];
     let dir = seed_dir("unstamped");
-    let path = vstimd::scene_config_file::config_path(&dir, name);
+    let path = demo_path(&dir, name);
     std::fs::write(&path, "someone else's file").unwrap();
 
     let report = vstimd::scene_config_file::seed_demo_configs(&dir);
@@ -517,7 +529,7 @@ fn seeding_leaves_an_unstamped_file_alone() {
 fn seeding_adopts_a_file_identical_to_the_shipped_one() {
     let (name, shipped) = DEMO_CONFIGS[0];
     let dir = seed_dir("adopt");
-    let path = vstimd::scene_config_file::config_path(&dir, name);
+    let path = demo_path(&dir, name);
     std::fs::write(&path, shipped).unwrap();
 
     let report = vstimd::scene_config_file::seed_demo_configs(&dir);

@@ -1,4 +1,4 @@
-"""first_light.py — Build the `demo_first_light` scene from scratch.
+"""first_light.py — Build the `demos/first_light` scene from scratch.
 
 Usage
 -----
@@ -9,7 +9,7 @@ Usage
     uv run examples/demos/first_light.py tcp://vstimd-ab12.local:5555
     uv run examples/demos/first_light.py --save-as my_first_light -f
 
-Reproduces the shipped `demo_first_light` config: a title, a centre dot, and a
+Reproduces the shipped `demos/first_light` config: a title, a centre dot, and a
 40 px square in each corner, so one glance tells you the whole display is being
 driven. No animations, no triggers — the smallest complete scene there is.
 
@@ -24,12 +24,13 @@ from vstimd import Connection
 from vstimd.stimuli import CircleParams, Color, RectParams, ShapeAppearance, TextParams, Vec2
 
 EXPLANATION = (
-    "demo_first_light — the display works\n"
+    "demos/first_light — the display works\n"
     "\n"
     "Static scene: a centre dot and four corner squares (1800 x 960 px apart),\n"
     "so you can see at a glance that the whole display is being driven.\n"
     "No triggers, no animations.\n"
-    "Next: load demo_drifting_grating, or list all demos with config list."
+    "Next: load demos/drifting_grating, or list all demos with\n"
+    "scene-config list -p demos."
 )
 
 #: Corner squares, as (name, x, y): 80 x 80 px each, their centres 1800 x 960 px
@@ -88,10 +89,10 @@ def main() -> None:
         _ = add_explanation(conn, EXPLANATION)
 
         # ── Persist ───────────────────────────────────────────────────────────
-        result = conn.config.save(args.save_as, overwrite=args.overwrite)
+        result = conn.scene_config.save(args.save_as, overwrite=args.overwrite)
         assert result is not None
         print(f"Saved as '{args.save_as}' — load it again with "
-              f"conn.config.load('{args.save_as}')")
+              f"conn.scene_config.load('{args.save_as}')")
 
 if __name__ == "__main__":
     try:

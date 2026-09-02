@@ -17,7 +17,8 @@ use prost::Message;
 use zeromq::{Socket, SocketRecv, SocketSend};
 
 use vstimd::scene_config_file::{
-    config_path, count_archive_configs, list_config_names, parse_config_json, LAST_SESSION_CONFIG,
+    count_archive_configs, list_scene_config_names, parse_config_json, scene_config_path,
+    SceneConfigRef, DEFAULT_PROJECT, LAST_SESSION_CONFIG, SESSION_PROJECT,
 };
 use vstimd::proto;
 use vstimd::proto::request;
@@ -54,9 +55,21 @@ fn free_port() -> u16 {
         .port()
 }
 
-/// Spawn the real `vstimd` binary in null-render mode with the given config dir
+/// The last-session slot's on-disk path under a storage dir.
+fn last_session_path(storage_dir: &std::path::Path) -> std::path::PathBuf {
+    scene_config_path(
+        storage_dir,
+        &SceneConfigRef::parse(
+            &format!("{SESSION_PROJECT}/{LAST_SESSION_CONFIG}"),
+            DEFAULT_PROJECT,
+        )
+        .unwrap(),
+    )
+}
+
+/// Spawn the real `vstimd` binary in null-render mode with the given storage dir
 /// and rig-config, on a free ZMQ port. Returns the child and the port.
-fn spawn_vstimd(config_dir: &std::path::Path, rig_config: &std::path::Path) -> (std::process::Child, u16) {
+fn spawn_vstimd(storage_dir: &std::path::Path, rig_config: &std::path::Path) -> (std::process::Child, u16) {
     let port = free_port();
     let child = Command::new(env!("CARGO_BIN_EXE_vstimd"))
         .args([
@@ -64,8 +77,8 @@ fn spawn_vstimd(config_dir: &std::path::Path, rig_config: &std::path::Path) -> (
             "--no-web",
             "--rig-config",
             rig_config.to_str().unwrap(),
-            "--config-dir",
-            config_dir.to_str().unwrap(),
+            "--storage-dir",
+            storage_dir.to_str().unwrap(),
             "--zmq-port",
             &port.to_string(),
         ])
@@ -154,8 +167,8 @@ fn writes_last_session_on_quit_when_enabled() {
     assert!(status.success(), "vstimd exited with {status:?}");
 
     // The last-session slot must now exist and contain the rect we created.
-    let saved = config_path(dir.path(), LAST_SESSION_CONFIG);
-    assert!(saved.exists(), "expected last-session config at {saved:?}");
+    let saved = last_session_path(dir.path());
+    assert!(saved.exists(), "expected last-session scene-config at {saved:?}");
     let json = std::fs::read_to_string(&saved).unwrap();
     let (scene, _io) = parse_config_json(&json).expect("saved config should parse");
     assert_eq!(scene.stimuli.len(), 1, "saved scene should contain the created rect");
@@ -165,7 +178,7 @@ fn writes_last_session_on_quit_when_enabled() {
         count_archive_configs(dir.path()),
         1,
         "expected exactly one timestamped archive; got: {:?}",
-        list_config_names(dir.path()).unwrap()
+        list_scene_config_names(dir.path(), SESSION_PROJECT).unwrap()
     );
 }
 
@@ -182,6 +195,6 @@ fn does_not_write_last_session_when_disabled() {
     let status = terminate_and_wait(&mut child);
     assert!(status.success(), "vstimd exited with {status:?}");
 
-    let saved = config_path(dir.path(), LAST_SESSION_CONFIG);
-    assert!(!saved.exists(), "no last-session config should be written when disabled");
+    let saved = last_session_path(dir.path());
+    assert!(!saved.exists(), "no last-session scene-config should be written when disabled");
 }

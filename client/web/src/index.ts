@@ -10,7 +10,7 @@ export type { SnapshotListener, EventSubscription } from "./connection.js";
 export { StimuliClient, ShapesClient, type ShapeDrawMode } from "./stimuli.js";
 export { GratingClient, type Waveform, type GratingMask } from "./grating.js";
 export { TextClient } from "./text.js";
-export { ConfigClient, type UploadOpts } from "./config.js";
+export { SceneConfigClient, type UploadOpts } from "./sceneConfig.js";
 export { SystemClient, type ServerInfo } from "./system.js";
 export { VtlClient, VtlHandle, type VtlKind } from "./vtl.js";
 export {

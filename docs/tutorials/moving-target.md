@@ -1,6 +1,6 @@
 # Tutorial: Moving target
 
-**Rebuilds:** `demo_moving_target` · **Script:** `client/python/examples/demos/moving_target.py`
+**Rebuilds:** `demos/moving_target` · **Script:** `client/python/examples/demos/moving_target.py`
 
 A target sweeps across the screen at a constant speed, restarts, and pulses an
 output line at the end of every sweep — forever, with nothing driving it. Two
@@ -83,7 +83,7 @@ Then the two final actions:
 
 ```python
 add_explanation(conn, EXPLANATION)
-conn.config.save("my_moving_target")
+conn.scene_config.save("my_moving_target")
 ```
 
 ## Run it

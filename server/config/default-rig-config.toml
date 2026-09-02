@@ -80,19 +80,22 @@
 
 # ── Startup scene ────────────────────────────────────────────────────────────
 # Load a scene at boot so the rig comes up in a known state with no client
-# attached.  Overridden by the --config <path> CLI flag.  Configs live in
-# --config-dir (default /var/lib/braemons/vstimd, or ~/.local/braemons/vstimd
-# if that is not writable).
+# attached.  Overridden by the --scene-config / --scene-config-file CLI flags.
+# Scene-configs live in a project under --storage-dir (default
+# /var/lib/braemons/vstimd, or ~/.local/braemons/vstimd if that is not
+# writable), at <storage-dir>/projects/<project>/scene-configs/.
 #
 # [startup]
-# # Named config (in --config-dir) to load at boot.  The literal "last" loads
-# # the auto-saved last-session slot (see save_on_quit).  Omit or "" = empty scene.
+# # Named scene-config to load at boot, [<project>/]<name> -- an unqualified
+# # name means the "default" project.  The literal "last" loads the auto-saved
+# # last-session slot (see save_on_quit).  Omit or "" = empty scene.
 # load_config = "center_target"
 #
 # # On graceful shutdown, save the current scene twice: overwrite the
 # # last-session slot (restored next boot via load_config = "last") AND write a
-# # timestamped archive vstimd_<YYYYMMDDTHHMMSSZ>.config.json for history.
-# # Archives are never pruned; vstimd logs a warning past 500 in one dir.
+# # timestamped archive <YYYYMMDDTHHMMSSZ>.config.json for history.  Both land
+# # in the "_session" project.
+# # Archives are never pruned; vstimd logs a warning past 500.
 # save_on_quit = false
 
 # ── Thread scheduling ─────────────────────────────────────────────────────────

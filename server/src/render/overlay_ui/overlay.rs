@@ -10,7 +10,7 @@ use super::file_browser::BrowserMode;
 use super::overlay_state::{OverlayGroup, OverlayState};
 use super::panels::animations_panel::animations_panel;
 use super::panels::benchmarks_panel::benchmarks_panel;
-use super::panels::config_panel::config_panel;
+use super::panels::scene_config_panel::scene_config_panel;
 use super::panels::log_panel::log_panel;
 use super::panels::stimuli_panel::stimuli_panel;
 use super::panels::system_panel::{frame_timing, system_panel};
@@ -34,7 +34,7 @@ const PANEL_COLORS: [egui::Color32; 12] = [
     egui::Color32::from_rgb(15, 55, 20),  // 2 VTL        — forest green
     egui::Color32::from_rgb(60, 35, 12),  // 3 Animations — amber
     egui::Color32::from_rgb(12, 30, 62),  // 4 System     — navy
-    egui::Color32::from_rgb(55, 20, 50),  // 5 Config     — magenta
+    egui::Color32::from_rgb(55, 20, 50),  // 5 Scene-config — magenta
     egui::Color32::from_rgb(50, 50, 12),  // 6 Benchmarks — olive
     egui::Color32::from_rgb(55, 18, 18),  // 7            — crimson
     egui::Color32::from_rgb(15, 42, 35),  // 8            — sea green
@@ -129,7 +129,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
     let want = |g: OverlayGroup| focus_now && focused == g;
     let foc  = |g: OverlayGroup| focused == g;
 
-    // Quick-load requested from the inline config list; applied after the panels
+    // Quick-load requested from the inline scene-config list; applied after the panels
     // are drawn (like the file-browser result) so we never write the scene mid-draw.
     let mut quick_load: Option<(BrowserMode, std::path::PathBuf)> = None;
 
@@ -222,19 +222,19 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
             if closed { visible[OverlayGroup::System.index()] = false; }
         }
 
-        // ── Config ────────────────────────────────────────────────────────────
-        if visible[OverlayGroup::Config.index()] {
+        // ── Scene-config ──────────────────────────────────────────────────────
+        if visible[OverlayGroup::SceneConfig.index()] {
             let mut closed = false;
-            egui::Panel::left("ovl_config").resizable(false).default_size(GROUP_W)
-                .frame(group_frame(OverlayGroup::Config, &style))
+            egui::Panel::left("ovl_scene_config").resizable(false).default_size(GROUP_W)
+                .frame(group_frame(OverlayGroup::SceneConfig, &style))
                 .show_inside(ui, |ui| {
-                group_panel_header(ui, OverlayGroup::Config,
-                    foc(OverlayGroup::Config), want(OverlayGroup::Config), &mut closed,
+                group_panel_header(ui, OverlayGroup::SceneConfig,
+                    foc(OverlayGroup::SceneConfig), want(OverlayGroup::SceneConfig), &mut closed,
                     |ui, want_focus| {
-                    quick_load = config_panel(ui, want_focus, scene, file_browser);
+                    quick_load = scene_config_panel(ui, want_focus, scene, file_browser);
                 });
             });
-            if closed { visible[OverlayGroup::Config.index()] = false; }
+            if closed { visible[OverlayGroup::SceneConfig.index()] = false; }
         }
 
         // ── Benchmarks ────────────────────────────────────────────────────────
@@ -333,9 +333,9 @@ fn handle_file_result(
             let vtl_guard = vtl.and_then(|v| v.try_lock().ok());
             let vtl_cfg = vtl_guard.as_ref().map(|v| &v.config).unwrap_or(&default_vtl);
             if let Err(e) = save_config(&scene_guard.config, vtl_cfg, &path) {
-                log::error!("Config save failed: {e}");
+                log::error!("Scene-config save failed: {e}");
             } else {
-                log::info!("Config saved to {:?}", path);
+                log::info!("Scene-config saved to {:?}", path);
             }
         }
         BrowserMode::OpenReplace | BrowserMode::OpenAdditive => {

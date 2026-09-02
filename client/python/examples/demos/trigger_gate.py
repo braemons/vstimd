@@ -1,4 +1,4 @@
-"""trigger_gate.py — Build the `demo_trigger_gate` scene from scratch.
+"""trigger_gate.py — Build the `demos/trigger_gate` scene from scratch.
 
 Usage
 -----
@@ -10,7 +10,7 @@ Usage
     uv run examples/demos/trigger_gate.py --save-as my_trigger_gate -f
     uv run examples/demos/trigger_gate.py --toggle       # drive the gate in software
 
-Reproduces the shipped `demo_trigger_gate` config: a square-wave patch visible
+Reproduces the shipped `demos/trigger_gate` config: a square-wave patch visible
 exactly while an input line is HIGH. Level-coupled, not edge-triggered — there
 is no duration, no re-arming, and no state to get stuck in, which is what makes
 it the scene to load when you are debugging input wiring.
@@ -29,7 +29,7 @@ from vstimd.stimuli.stimuli_models import Vec2
 from vstimd.stimuli import GratingMask, GratingParams, GratingTexture
 
 EXPLANATION = (
-    "demo_trigger_gate — visibility follows an input level\n"
+    "demos/trigger_gate — visibility follows an input level\n"
     "\n"
     "The square-wave patch is visible exactly while in_pin7 (header pin 7) is HIGH,\n"
     "and hidden while it is LOW — level-coupled, not edge-triggered, so it needs\n"
@@ -82,7 +82,7 @@ def main() -> None:
         )
         conn.animations.arm(gated)
 
-        conn.config.save(args.save_as, overwrite=args.overwrite)
+        conn.scene_config.save(args.save_as, overwrite=args.overwrite)
         print(f"Saved as '{args.save_as}'.")
 
         # ── Optional: drive the gate from software ────────────────────────────

@@ -1,6 +1,6 @@
 # Tutorial: Trigger gate
 
-**Rebuilds:** `demo_trigger_gate` · **Script:** `client/python/examples/demos/trigger_gate.py`
+**Rebuilds:** `demos/trigger_gate` · **Script:** `client/python/examples/demos/trigger_gate.py`
 
 A patch that is visible exactly while an input line is HIGH, and hidden while it
 is LOW. No duration, no re-arming, no state that can get stuck — which is why
@@ -74,7 +74,7 @@ when a TTL line idles high.
 ## 4. Save, then prove the wiring
 
 ```python
-conn.config.save("my_trigger_gate")
+conn.scene_config.save("my_trigger_gate")
 ```
 
 With the config saved, the useful part starts. Drive the line from software

@@ -15,12 +15,12 @@ into it with no client attached.
 
 | Tutorial | Rebuilds | Teaches |
 |---|---|---|
-| [First light](first-light.md) | `demo_first_light` | shapes, text, the scene as a unit |
-| [Drifting grating](drifting-grating.md) | `demo_drifting_grating` | gratings, and motion the server owns |
-| [Gratings, triggers & a saved config](gratings-triggers-config.md) | `demo_gratings_triggered` | arming stimuli against input lines, marking onsets on output lines, saving and booting into the result |
-| [Moving target](moving-target.md) | `demo_moving_target` | path animations, looping, one pulse per repeat |
-| [Photodiode & flicker](photodiode-flicker.md) | `demo_photodiode_flicker` | frame-counted timing, the photodiode patch |
-| [Trigger gate](trigger-gate.md) | `demo_trigger_gate` | level-coupled visibility, driving a line from software |
+| [First light](first-light.md) | `demos/first_light` | shapes, text, the scene as a unit |
+| [Drifting grating](drifting-grating.md) | `demos/drifting_grating` | gratings, and motion the server owns |
+| [Gratings, triggers & a saved config](gratings-triggers-config.md) | `demos/gratings_triggered` | arming stimuli against input lines, marking onsets on output lines, saving and booting into the result |
+| [Moving target](moving-target.md) | `demos/moving_target` | path animations, looping, one pulse per repeat |
+| [Photodiode & flicker](photodiode-flicker.md) | `demos/photodiode_flicker` | frame-counted timing, the photodiode patch |
+| [Trigger gate](trigger-gate.md) | `demos/trigger_gate` | level-coupled visibility, driving a line from software |
 
 Each page has a companion script in `client/python/examples/demos/`, runnable
 as-is, and ends with that script in full under **The complete script** — the
@@ -118,7 +118,7 @@ months later.
     radius, so every stimulus is sized the same way.
 
 !!! note "The photodiode patch has no command yet"
-    `demo_photodiode_flicker` and `demo_gratings_triggered` switch on the
+    `demos/photodiode_flicker` and `demos/gratings_triggered` switch on the
     corner photodiode patch, which is a scene setting rather than a stimulus
     and has no command of its own in v0.1. The scripts set it by editing the
     retrieved config JSON and uploading it back — see

@@ -104,7 +104,7 @@ Raise the level with a drop-in: `systemctl edit vstimd` and set
 ## Updating a deployed rig
 
 **Upgrade in place — do not re-flash.** Re-flashing wipes `/etc/braemons` (the
-rig config and every saved stimulus config) and `/var/lib/braemons`.
+rig-config and every project of saved scene-configs) and `/var/lib/braemons`.
 
 ```bash
 sudo apt update && sudo apt upgrade

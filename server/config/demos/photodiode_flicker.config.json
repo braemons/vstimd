@@ -20,15 +20,15 @@
       1.0
     ],
     "photodiode": {
-      "enabled": false,
+      "enabled": true,
       "lit": false,
-      "flicker": false,
+      "flicker": true,
       "position": 0
     },
     "stimuli": {
       "1": {
-        "id": "d3701003-0000-4000-8000-000000000001",
-        "name": "target",
+        "id": "d3701004-0000-4000-8000-000000000001",
+        "name": "flicker_patch",
         "stimulus": {
           "common": {
             "flags": {
@@ -41,8 +41,8 @@
             "type": "Shape",
             "transform": {
               "pos_px": [
-                -800.0,
-                0.0
+                0.0,
+                100.0
               ],
               "angle_deg": 0.0
             },
@@ -63,14 +63,17 @@
               "draw_mode": "Fill"
             },
             "geometry": {
-              "type": "Circle",
-              "diameter_px": 60.0
+              "type": "Rect",
+              "size_px": [
+                1400.0,
+                600.0
+              ]
             }
           }
         }
       },
       "2": {
-        "id": "d3701003-0000-4000-8000-000000000002",
+        "id": "d3701004-0000-4000-8000-000000000002",
         "name": "explanation",
         "stimulus": {
           "common": {
@@ -114,7 +117,7 @@
               1500.0,
               320.0
             ],
-            "text_live": "demo_moving_target \u2014 motion plus an output pulse\n\nA 30 px target sweeps from x = -800 to x = +800 at 600 px/s, then restarts.\nEach completed sweep pulses out_pin36 (header pin 36) for one frame \u2014\nscope that pin against the display to measure end-to-end output latency.\nRuns on load; no input trigger needed.",
+            "text_live": "demos/photodiode_flicker \u2014 frame timing\n\nThe photodiode patch (bottom-left corner) inverts on every single frame,\nso a photodiode on that corner reports the real refresh rate.\nThe big white patch flickers at 5 Hz (6 frames on / 6 off at 60 Hz) as a\nvisible cross-check. Both run on load and never stop; no triggers used.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",
@@ -126,7 +129,7 @@
     "next_stim_handle": 3,
     "animations": {
       "1": {
-        "name": "sweep_left_to_right",
+        "name": "field_flicker_5hz",
         "state": "Armed",
         "target": {
           "kind": "Stimuli",
@@ -134,32 +137,21 @@
             1
           ]
         },
-        "start_action": 0,
+        "start_action": 2,
         "start_action_trigger_line": null,
-        "final_action": 24,
-        "final_action_trigger_line": {
-          "bank": 0,
-          "bit": 36,
-          "kind": "Output"
-        },
+        "final_action": 0,
+        "final_action_trigger_line": null,
         "final_action_level_line": null,
         "start_trigger": null,
         "cancel_trigger": null,
         "cancel_action": 0,
         "cancel_action_trigger_line": null,
         "animation": {
-          "MoveAlongSegments2D": {
-            "waypoints_px": [
-              [
-                -800.0,
-                0.0
-              ],
-              [
-                800.0,
-                0.0
-              ]
-            ],
-            "speed_px_per_sec": 600.0
+          "FlickerForNFrames": {
+            "on_frames": 6,
+            "off_frames": 6,
+            "total_frames": null,
+            "start_on_phase": true
           }
         }
       }
@@ -168,14 +160,7 @@
   },
   "io": {
     "vtl": {
-      "names": [
-        {
-          "name": "out_pin36",
-          "bank": 0,
-          "bit": 36,
-          "kind": "Output"
-        }
-      ]
+      "names": []
     }
   }
 }

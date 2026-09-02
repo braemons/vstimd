@@ -128,7 +128,7 @@ is served from the rig itself and needs nothing installed locally.
 
 ### Put something on the display
 
-`vstimd-client config load demo_first_light` shows a self-explaining scene; the
+`vstimd-client scene-config load demos/first_light` shows a self-explaining scene; the
 other [demo scenes](../getting-started/demos.md) cover a drifting grating,
 trigger-driven flashes and a photodiode flicker. The trigger demos use the
 header pins this image's `gpiochip-daqd` config already wires up, so they drive
@@ -235,7 +235,7 @@ or from a shell: `vstimd-client --host vstimd-a1b2c3 info`.
 ## 5. Updating — never re-flash
 
 Re-flashing wipes `/etc/braemons` and `/var/lib/braemons`: the rig config and
-every saved stimulus config. The image ships with the braemons apt archive
+every project of saved scene-configs. The image ships with the braemons apt archive
 already configured and its signing key installed, so upgrades are in place:
 
 ```bash

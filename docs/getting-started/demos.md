@@ -4,26 +4,26 @@ vstimd ships a handful of ready-made scenes so a fresh rig shows something in
 ten seconds — before anyone writes a line of Python — and so there is a fixed
 set of scenes to eyeball after a deploy or a renderer change.
 
-They are **ordinary configs**. Every demo is a `vstimd_demo_*.config.json` file
-in the server's config directory, in exactly the format
-[`config save`](../concepts/saving-loading.md) writes. There is no demo command
+They are **ordinary scene-configs**. Every demo is a `.config.json` file in the
+server's `demos` project, in exactly the format
+[`scene-config save`](../concepts/saving-loading.md) writes. There is no demo command
 and no demo code path: anything a demo does, you can do, and a demo you like is
 a starting point you can edit and re-save under your own name.
 
 ```console
-$ vstimd-client config list
-demo_drifting_grating
-demo_first_light
-demo_gratings_triggered
-demo_moving_target
-demo_photodiode_flicker
-demo_trigger_gate
+$ vstimd-client scene-config list
+demos/drifting_grating
+demos/first_light
+demos/gratings_triggered
+demos/moving_target
+demos/photodiode_flicker
+demos/trigger_gate
 
-$ vstimd-client config load demo_drifting_grating
+$ vstimd-client scene-config load demos/drifting_grating
 ```
 
-The server installs the demos into its config directory
-(`/var/lib/braemons/vstimd` on a packaged rig) at startup. What happens to a
+The server installs the demos into its `demos` project
+(`/var/lib/braemons/vstimd/projects/demos` on a packaged rig) at startup. What happens to a
 file that is already there depends on whether you have touched it:
 
 | Your copy | What the server does |
@@ -49,12 +49,12 @@ self-describing.
 
 | Name | What it shows | Triggers |
 |---|---|---|
-| `demo_first_light` | Centre dot and four corner squares — the display is being driven, edge to edge | — |
-| `demo_drifting_grating` | Full-field sinusoidal grating, 0.01 cyc/px, drifting at 4 cyc/s | — |
-| `demo_gratings_triggered` | Two masked gratings (45°, 135°) at the centre, each flashed for 2 s by its own input pin | in 11, 12 → out 36/37, 38/40 |
-| `demo_moving_target` | Target sweeping left→right at 600 px/s, looping forever | out 36 each sweep |
-| `demo_photodiode_flicker` | Photodiode patch inverting every frame, plus a 5 Hz full-field flicker | — |
-| `demo_trigger_gate` | Square-wave patch visible exactly while an input pin is HIGH | in 7 |
+| `demos/first_light` | Centre dot and four corner squares — the display is being driven, edge to edge | — |
+| `demos/drifting_grating` | Full-field sinusoidal grating, 0.01 cyc/px, drifting at 4 cyc/s | — |
+| `demos/gratings_triggered` | Two masked gratings (45°, 135°) at the centre, each flashed for 2 s by its own input pin | in 11, 12 → out 36/37, 38/40 |
+| `demos/moving_target` | Target sweeping left→right at 600 px/s, looping forever | out 36 each sweep |
+| `demos/photodiode_flicker` | Photodiode patch inverting every frame, plus a 5 Hz full-field flicker | — |
+| `demos/trigger_gate` | Square-wave patch visible exactly while an input pin is HIGH | in 7 |
 
 The three demos that need no trigger start running the moment they are loaded.
 
@@ -71,7 +71,7 @@ for a trigger that never arrives.
 
 | Demo | VTL line | Header pin | Meaning |
 |---|---|---|---|
-| `demo_gratings_triggered` | `in_pin11` | 11 | rising edge → show the 45° grating for 2 s |
+| `demos/gratings_triggered` | `in_pin11` | 11 | rising edge → show the 45° grating for 2 s |
 | | `out_pin36` | 36 | pulses at 45° onset |
 | | `out_pin37` | 37 | pulses when the 45° flash ends |
 | | `out_pin35` | 35 | HIGH from the end of the 45° flash until the next one starts |
@@ -79,8 +79,8 @@ for a trigger that never arrives.
 | | `out_pin38` | 38 | pulses at 135° onset |
 | | `out_pin40` | 40 | pulses when the 135° flash ends |
 | | `out_pin32` | 32 | HIGH from the end of the 135° flash until the next one starts |
-| `demo_moving_target` | `out_pin36` | 36 | pulses at the end of every sweep |
-| `demo_trigger_gate` | `in_pin7` | 7 | HIGH → patch visible, LOW → hidden |
+| `demos/moving_target` | `out_pin36` | 36 | pulses at the end of every sweep |
+| `demos/trigger_gate` | `in_pin7` | 7 | HIGH → patch visible, LOW → hidden |
 
 Output pulses are one frame wide and are committed right after the vblank the
 stimulus becomes visible on, which is what makes them usable as event marks —
@@ -90,7 +90,7 @@ next presentation starts, for a client that polls rather than timestamps.
 
 !!! note "Durations are counted in frames"
 
-    `demo_gratings_triggered` uses `FlashForNFrames`, whose duration is counted
+    `demos/gratings_triggered` uses `FlashForNFrames`, whose duration is counted
     in frames: 120 frames is 2 s at the 60 Hz the Pi 5 rig runs at, and
     something else on a display running at another rate.
 
@@ -111,7 +111,7 @@ from vstimd.vtl import VtlHandle, VtlKind
 pin11 = VtlHandle.named("in_pin11", VtlKind.INPUT)
 
 with Connection() as conn:
-    conn.config.load("demo_gratings_triggered")
+    conn.scene_config.load("demos/gratings_triggered")
     conn.vtl.set_line(pin11, True)     # rising edge → 45° grating, 2 s
     conn.vtl.set_line(pin11, False)
 ```
@@ -126,12 +126,12 @@ the scripts are a better starting point for your own scene than a JSON file is.
 
 | Demo | Tutorial | Script |
 |---|---|---|
-| `demo_first_light` | [First light](../tutorials/first-light.md) | `examples/demos/first_light.py` |
-| `demo_drifting_grating` | [Drifting grating](../tutorials/drifting-grating.md) | `examples/demos/drifting_grating.py` |
-| `demo_gratings_triggered` | [Gratings, triggers & a saved config](../tutorials/gratings-triggers-config.md) | `examples/demos/gratings_triggered.py` |
-| `demo_moving_target` | [Moving target](../tutorials/moving-target.md) | `examples/demos/moving_target.py` |
-| `demo_photodiode_flicker` | [Photodiode & flicker](../tutorials/photodiode-flicker.md) | `examples/demos/photodiode_flicker.py` |
-| `demo_trigger_gate` | [Trigger gate](../tutorials/trigger-gate.md) | `examples/demos/trigger_gate.py` |
+| `demos/first_light` | [First light](../tutorials/first-light.md) | `examples/demos/first_light.py` |
+| `demos/drifting_grating` | [Drifting grating](../tutorials/drifting-grating.md) | `examples/demos/drifting_grating.py` |
+| `demos/gratings_triggered` | [Gratings, triggers & a saved config](../tutorials/gratings-triggers-config.md) | `examples/demos/gratings_triggered.py` |
+| `demos/moving_target` | [Moving target](../tutorials/moving-target.md) | `examples/demos/moving_target.py` |
+| `demos/photodiode_flicker` | [Photodiode & flicker](../tutorials/photodiode-flicker.md) | `examples/demos/photodiode_flicker.py` |
+| `demos/trigger_gate` | [Trigger gate](../tutorials/trigger-gate.md) | `examples/demos/trigger_gate.py` |
 
 ## Making your own
 
@@ -140,10 +140,10 @@ the [web UI](../client/web.md), or a client — and save it under a name of your
 own:
 
 ```console
-$ vstimd-client config load demo_gratings_triggered
+$ vstimd-client scene-config load demos/gratings_triggered
 $ # …adjust orientations, sizes, durations…
-$ vstimd-client config save my_experiment
+$ vstimd-client scene-config save my_experiment
 ```
 
-Saving under a `demo_`-prefixed name works too, but the next server start will
-not replace it, so prefer your own names for real experiments.
+Saving into the `demos` project works too, but the server re-seeds that project
+on every start, so keep real experiments in a project of your own.

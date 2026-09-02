@@ -67,7 +67,7 @@ test("lists an animation and arms it", async ({ page }) => {
 
   // The animation appears in the panel (polled) with its canonical type tag.
   // Scope to the animations panel: other panels render rows too — the config
-  // list alone carries demo_photodiode_flicker — and an unscoped "fl" filter
+  // list alone carries demos/photodiode_flicker — and an unscoped "fl" filter
   // matches those as well.
   const row = page
     .getByTestId("animations-panel")
@@ -118,7 +118,7 @@ test("system: Hide all disables every stimulus", async ({ page }) => {
   await expect(checkbox).not.toBeChecked(); // reconciled via the next snapshot
 });
 
-test("config: save then load restores the scene", async ({ page }) => {
+test("scene-config: save then load restores the scene", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByText("connected")).toBeVisible();
 
@@ -128,7 +128,7 @@ test("config: save then load restores the scene", async ({ page }) => {
   await expect(page.locator("tr", { hasText: "cfg-rect" })).toBeVisible();
 
   await page.getByText("overwrite if exists").click(); // tolerate re-runs
-  await page.getByPlaceholder("save as…").fill("ui_test_cfg");
+  await page.getByPlaceholder("save as… ([project/]name)").fill("ui_test_cfg");
   await page.getByRole("button", { name: "Save" }).click();
   await expect(page.locator("tr", { hasText: "ui_test_cfg" })).toBeVisible();
 

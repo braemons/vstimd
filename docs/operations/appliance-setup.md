@@ -153,8 +153,9 @@ sudo chage -d 0 vstimd-admin   # force a password change at first login
 ```
 
 **Optional — Samba shares** for editing `/etc/braemons` (rig config,
-`gpiochip-daqd-config.toml`) and reading `/var/lib/braemons` (saved stim
-configs) from a lab Windows/macOS machine without SSHing in each time. Both
+`gpiochip-daqd-config.toml`) and reading `/var/lib/braemons` (the projects
+holding saved scene-configs) from a lab Windows/macOS machine without SSHing in
+each time. Both
 shares are browsable read-only to anyone on the LAN with no credentials;
 writing requires an account in `sudo` (or `wheel` on RHEL-family), which
 `vstimd-admin` is.
@@ -235,7 +236,7 @@ sudo install -d -m 0755 /var/lib/braemons
 ```
 
 Only put Samba on a network you trust — the read-only guest share means
-anyone who can reach the box on the LAN can browse rig config and saved
+anyone who can reach the box on the LAN can browse rig-config and saved
 scene-configs with no credentials at all.
 
 From Windows, reach the shares by typing `\\vstimd-XXXXXX\vstimd-config` into

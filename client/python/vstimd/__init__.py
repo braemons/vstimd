@@ -30,7 +30,7 @@ from ._handles import AnimationHandle, StimulusHandle
 from .response import ErrorCode, ServerResponse
 from .system import ServerInfo, ServerVersion, StimulusListEntry
 from .vtl import VtlClient, VtlHandle, VtlKind, VtlLineInfo
-from .config import ConfigClient
+from .scene_config import SceneConfigClient
 from .animations import (
     AnimationClient,
     AnimationDetails,
@@ -54,12 +54,12 @@ from .exceptions import (
     NotSupportedError,
     NotReadyError,
     UnknownServerError,
-    ConfigError,
-    ConfigNotFoundError,
-    ConfigIoError,
-    ConfigFormatError,
-    ConfigVersionError,
-    ConfigAlreadyExistsError,
+    SceneConfigError,
+    SceneConfigNotFoundError,
+    SceneConfigIoError,
+    SceneConfigFormatError,
+    SceneConfigVersionError,
+    SceneConfigAlreadyExistsError,
 )
 from . import psychopy
 from vstimd.stimuli import RectParams, ShapeAppearance, Vec2
@@ -74,13 +74,13 @@ __all__ = [
     "ServerInfo",
     "ServerVersion",
     "StimulusListEntry",
-    "ConfigClient",
-    "ConfigError",
-    "ConfigNotFoundError",
-    "ConfigIoError",
-    "ConfigFormatError",
-    "ConfigVersionError",
-    "ConfigAlreadyExistsError",
+    "SceneConfigClient",
+    "SceneConfigError",
+    "SceneConfigNotFoundError",
+    "SceneConfigIoError",
+    "SceneConfigFormatError",
+    "SceneConfigVersionError",
+    "SceneConfigAlreadyExistsError",
     "VstimdError",
     "ProtocolError",
     "StimulusError",
