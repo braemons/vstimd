@@ -44,11 +44,11 @@ Samba share, or by hand over ssh.
 
 ### Recommendation
 
-The state dir holds **projects**. A project holds **typed files**, and a
+The storage dir holds **projects**. A project holds **typed files**, and a
 scene-config is one of the types:
 
 ```
-<state-dir>/                     /var/lib/braemons/vstimd  (or ~/.local/braemons/vstimd)
+<storage-dir>/                     /var/lib/braemons/vstimd  (or ~/.local/braemons/vstimd)
   projects/
     <project>/
       scene-configs/             <name>.config.json
@@ -62,7 +62,7 @@ scene-config is one of the types:
     _session/                    ← last-session slot + quit-time archives
 ```
 
-**`<state-dir>` is the directory systemd's `StateDirectory=braemons/vstimd`
+**`<storage-dir>` is the directory systemd's `StateDirectory=braemons/vstimd`
 creates** — `/var/lib/braemons/vstimd` on a packaged rig, `~/.local/braemons/vstimd`
 on a dev run. Today it holds scene-configs at its root and nothing else, which is
 why the flag naming it is spelled `--config-dir`; assets make that spelling wrong
@@ -73,19 +73,19 @@ layout before anything is built on top of them** — see §11.
 Nothing is released beyond `v0.1.0-alpha*`/`beta*` pre-releases, so Phase 0 breaks
 freely: no aliases, no migration shims, no deprecation window.
 
-`--state-dir <path>` names the root; `projects/` is always its child, so there is
+`--storage-dir <path>` names the root; `projects/` is always its child, so there is
 one flag and no way to point the pieces at unrelated places. It is
 resolved by exactly the ladder `resolve_config_dir` uses today
 (`server/src/main.rs:340`): explicit flag → `/var/lib/braemons/vstimd` →
 `~/.local/braemons/vstimd` → `.`, picking the first writable one via
 `first_writable_dir`.
 
-### Why under the state dir, not `/var/lib/braemons/assets`
+### Why under the storage dir, not `/var/lib/braemons/assets`
 
 The obvious alternative — a sibling `assets/` next to `vstimd/`, shared by every
 braemons daemon — costs more than it buys today:
 
-| | `<state-dir>/projects` | `/var/lib/braemons/assets` |
+| | `<storage-dir>/projects` | `/var/lib/braemons/assets` |
 |---|---|---|
 | systemd | already writable: `StateDirectory=braemons/vstimd` (`packaging/systemd/vstimd.service:44`) | needs a second `StateDirectory=braemons/assets`, and ownership decisions between services |
 | Samba | already visible: the `vstimd-data` share exports `/var/lib/braemons` (`packaging/samba/vstimd-shares.conf:65`) | also visible — no difference |
@@ -167,7 +167,7 @@ What differs is the API, not the location:
   allowed (an operator reclaiming disk) but never implicit.
 - Its writer is the messenger thread of `dev/EVENT_LOGGING.md`, not the asset
   store. That document's `--log-dir` (default `./logs/`) becomes
-  `<state-dir>/projects/<project>/logs/`, which also answers its open question of
+  `<storage-dir>/projects/<project>/logs/`, which also answers its open question of
   which project a session's log belongs to: **the project of the scene-config
   currently loaded**, falling back to `default` when a session runs an unsaved
   scene.
@@ -268,7 +268,7 @@ server/src/assets/
   store.rs      scan, stat, read, write, delete
 ```
 
-`AssetStore` holds the state-dir root plus a metadata cache keyed by absolute ref,
+`AssetStore` holds the storage-dir root plus a metadata cache keyed by absolute ref,
 each entry `{ size, mtime, sha256: Option }`. It does **not** hold the active
 project: that is scene state (`SceneState.runtime.active_project`), because it
 changes with a loaded scene-config and belongs in the same lock as the scene it
@@ -488,7 +488,7 @@ Each phase is a shippable PR; phases 0–2 are pure infrastructure and unblock #
 
 | # | Phase | Depends on |
 |---|---|---|
-| 0 | **Naming + layout pass:** `scene-config` / `rig-config` everywhere, `--state-dir`, scene-configs into `scene-configs/` (below) | — |
+| 0 | **Naming + layout pass:** `scene-config` / `rig-config` everywhere, `--storage-dir`, scene-configs into `scene-configs/` (below) | — |
 | 1 | `AssetRef` (absolute + relative) + `AssetStore` + project enumeration (scan, stat, read, write, delete) + unit tests. No proto, no GPU | — |
 | 2 | `assets.proto`, `ipc/asset_commands.rs`, the active-project commands + `ProjectChanged` event, dispatcher wiring, error codes, integration tests via `SceneState::handle_request` | 1 |
 | 3 | Python client + CLI (`asset`, `project`) + web project picker + overlay panel + docs | 2 |
@@ -500,7 +500,7 @@ Each phase is a shippable PR; phases 0–2 are pure infrastructure and unblock #
 
 `CLAUDE.md` already rules that the two configs are always named: **rig-config**
 (the rig's TOML in `/etc/braemons`) and **scene-config** (one experiment's JSON in
-the state dir). The code, the CLI and the wire only half-follow it, and the asset
+the storage dir). The code, the CLI and the wire only half-follow it, and the asset
 store is about to add a third kind of file to the same directory. Fix it first, in
 one mechanical PR, so nothing new is built on the ambiguous spelling.
 
@@ -513,7 +513,7 @@ an unknown-flag error, which is the outcome we want.
 
 | Today | Becomes |
 |---|---|
-| `--config-dir <path>` | `--state-dir <path>` — the root; `projects/` is its only child |
+| `--config-dir <path>` | `--storage-dir <path>` — the root; `projects/` is its only child |
 | `--config <name>` | `--scene-config [<project>/]<name>` |
 | — | `--project <name>` — the boot active project (also `[startup] project` in the rig-config) |
 | `--rig-config <path>` | unchanged — already right |
@@ -522,11 +522,11 @@ an unknown-flag error, which is the outcome we want.
 
 | Today | Becomes |
 |---|---|
-| `scene_config_file::DEFAULT_CONFIG_DIR` | `DEFAULT_STATE_DIR` |
-| `main::resolve_config_dir` | `resolve_state_dir` |
-| `SceneState.runtime.config_dir` | `state_dir`, plus the loaded project (see below) |
+| `scene_config_file::DEFAULT_CONFIG_DIR` | `DEFAULT_STORAGE_DIR` |
+| `main::resolve_config_dir` | `resolve_storage_dir` |
+| `SceneState.runtime.config_dir` | `storage_dir`, plus the loaded project (see below) |
 | `ipc/config_commands.rs` | `ipc/scene_config_commands.rs` |
-| `scene_config_file::config_path(dir, name)` | `project_dir(state, project).join("scene-configs").join(…)` |
+| `scene_config_file::config_path(dir, name)` | `project_dir(storage, project).join("scene-configs").join(…)` |
 | `DEMO_PREFIX = "demo_"` | the `demos` project — demo names lose the prefix |
 
 **Wire and clients** — renamed too, since there is no compatibility to keep and
@@ -539,7 +539,7 @@ half-consistency is what got us here:
 | `vstimd-client config list\|save\|load\|get\|upload` | `vstimd-client scene-config …`, with `-p/--project` (default `default`) |
 | web `src/config.ts` | `src/sceneConfig.ts` |
 
-**Layout** — scene-configs move off the root of the state dir into their project,
+**Layout** — scene-configs move off the root of the storage dir into their project,
 which also retires the `vstimd_` filename prefix: the prefix only ever existed to
 keep them distinguishable in a shared directory, and a dedicated one does that
 better.
