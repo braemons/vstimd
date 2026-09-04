@@ -8,7 +8,7 @@ together in runnable scenes.
 
 | Page | Types |
 |---|---|
-| [Shapes](shapes.md) | `Rect`, `Circle`, `Ellipse` — flat coloured geometry, fill and outline (plus `Polygon`, not yet implemented) |
+| [Shapes](shapes.md) | `Rect`, `Circle`, `Ellipse` — flat coloured geometry, fill and outline (plus `Polygon`, which the [server does not yet accept](shapes.md#polygon)) |
 | [Gratings](gratings.md) | `Grating` — a masked, drifting sinusoidal (or square, saw, triangle) carrier |
 | [Text](text.md) | `Text` — laid-out glyphs, with an optional box and border |
 | [Random dot kinematograms](random-dots.md) | `Dots` — moving dot fields, coherence, and motion-defined figures |
@@ -25,8 +25,15 @@ These are not part of any `*Params`. They are set at create time or through
 | `opacity` | `set_alpha` | One multiplier in `[0, 1]` applied to *every* colour the stimulus carries, on top of that colour's own alpha. It never overwrites a colour, so the relationship between a translucent fill and an opaque outline survives a fade. |
 | `enabled` | `set_enabled` | Visibility, independent of existence. A disabled stimulus stays in the scene, keeps its handle, and costs nothing to bring back. |
 | `name` | `create_*(name=...)`, `set_name` | What the overlay, the web UI, `list_stimuli()` and a saved config call it. Unnamed stimuli are legal and unreadable six months later. |
-| draw order | `bring_to_front`, `send_to_back`, `swap_draw_order` | Stimuli draw in scene order, later over earlier. This is what makes two overlapping `Dots` fields resolve predictably — see the [figure-ground tutorial](../tutorials/figure-ground-rdk.md). |
+| draw order | creation order | Stimuli draw in scene order, later over earlier, so the order you create them in is the order they stack — which is what makes two overlapping `Dots` fields resolve predictably, see the [figure-ground tutorial](../tutorials/figure-ground-rdk.md). Draw order is saved with the scene. Reordering *after* creation is [not implemented yet](#reordering-is-not-implemented-yet). |
 | condition membership | `conn.conditions.set_stimulus_conditions` | Which [conditions](../concepts/conditions.md) the stimulus is active in; empty means every condition. |
+
+### Reordering is not implemented yet
+
+`conn.stimuli.bring_to_front`, `send_to_back` and `swap_draw_order` exist in the
+Python client and on the wire, but the server refuses all three with
+`NotSupportedError`. Until they land, set the stacking you want by creating
+stimuli in that order, or delete and recreate the one that has to move.
 
 ## Two conventions that hold everywhere
 

@@ -61,7 +61,7 @@ the same, which is how they are tested.
 
 ## What every script does first
 
-Three things repeat in all six, so they live in
+Three things repeat in all seven, so they live in
 `examples/demos/_common.py` rather than in each script.
 
 **Start from nothing.** `clear_all` takes the animations and the stimuli
@@ -114,9 +114,10 @@ months later.
 !!! note "Sizes are full sizes everywhere"
     `RectParams(width_px=80, height_px=80)` makes an 80 × 80 px square, and the
     saved JSON records `"size_px": [80.0, 80.0]`. Gratings and ellipses store
-    `size` the same way, so a demo config can be read straight off as the
-    arguments to pass. Circles are no exception: they take a `diameter`, not a
-    radius, so every stimulus is sized the same way.
+    `size_px` the same way, so a demo config can be read straight off as the
+    arguments to pass. Circles are no exception: they record a `diameter_px`,
+    not a radius, so every stimulus is sized the same way — see
+    [Stimuli](../stimuli/index.md#two-conventions-that-hold-everywhere).
 
 !!! note "The photodiode patch has no command yet"
     `demos/photodiode_flicker` and `demos/gratings_triggered` switch on the

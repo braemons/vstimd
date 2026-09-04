@@ -119,7 +119,7 @@ class Aperture:
     ``width_px``/``height_px`` are full extents, never half-extents. For
     ``CIRCLE``, ``width_px`` is the **diameter** and ``height_px`` is ignored.
     Psychtoolbox scripts specify a radius — double it (see
-    :func:`aperture_from_radius_deg`).
+    :func:`diameter_from_radius`).
 
     Zero width or height means "the field", i.e. no crop in that axis.
     """

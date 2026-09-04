@@ -1,23 +1,22 @@
 # The command API
 
-<span class="wip-badge">WIP</span>
-
 The command API is the **imperative** path: your client sends a command, the server
 applies it on the next frame and replies. Use it to build the scene, run your trial
 logic, and query state. This page walks from a first stimulus to atomic
 multi-stimulus updates.
 
 !!! info "Prerequisites"
-    A running server (`cargo run --release`, or `--null` for a headless test — see
-    [Installation](../getting-started/installation.md)) and the Python client
-    (`cd client/python && uv sync`). The examples use Python; the same commands
-    exist in the PsychoPy layer (a MATLAB client is planned).
+    A running server — a rig on your network, or one on this machine — and the
+    Python client (`pip install vstimd-client`). See
+    [Installation](../getting-started/installation.md) for both. The examples
+    use Python; the same commands exist in the PsychoPy layer (a MATLAB client
+    is planned).
 
 ## 1. Connect
 
 Every session starts with a `Connection`. It opens a ZMQ REQ socket to the server
 and exposes the command namespaces (`stimuli`, `system`, `animations`, `vtl`,
-`config`).
+`scene_config`, `conditions`).
 
 ```python
 from vstimd import Connection
@@ -56,11 +55,11 @@ with Connection() as conn:
     print(rect)                            # a StimulusHandle
 ```
 
-The available stimulus types are rectangles, circles, ellipses, polygons,
-gratings, text and random dot fields. Each has a matching `create_*` and its own
-params — see **[Stimuli](../stimuli/index.md)** for every parameter of every
-type, and the [Python client reference](../client/python.md) for the command
-surface.
+The available stimulus types are rectangles, circles, ellipses, gratings, text
+and random dot fields (plus polygons, which the client can send but the server
+does not yet accept). Each has a matching `create_*` and its own params — see
+**[Stimuli](../stimuli/index.md)** for every parameter of every type, and the
+[Python client reference](../client/python.md) for the command surface.
 
 ## 3. Mutate and query
 
@@ -146,8 +145,12 @@ conn.system.clear_stimuli()                        # stimuli only
 conn.system.clear_animations()                     # animations only
 
 for entry in conn.system.list_stimuli():           # inventory of the scene
-    print(entry.handle, entry.type, entry.name, entry.enabled)
+    print(entry.handle, entry.name, entry.enabled, entry.id)
 ```
+
+`list_stimuli` gives you the handle, the name, the enabled flag, the stable UUID
+and the condition membership. For a stimulus's *type* and its full parameters,
+ask for one by handle with `conn.stimuli.query(handle)`.
 
 The `conditions` namespace switches between protocol steps without touching the
 scene — see **[Conditions](conditions.md)**:
@@ -203,16 +206,27 @@ If you have existing PsychoPy code, the `vstimd.psychopy` layer mirrors
 from vstimd.psychopy import visual
 
 win  = visual.Window(address="tcp://stimulus-pc:5555")
-rect = visual.Rect(win, width=0.5, height=0.25, fillColor="red")
+rect = visual.Rect(win, size=(300, 150), pos=(0, 0), fillColor="red")
 rect.draw()
 win.flip()
 ```
 
+`Window` defaults to `units="pix"`, so sizes and positions are pixels unless you
+pass `units=` — `norm`, `deg` and `cm` all work, the last two needing a
+`monitor=` object as they do in PsychoPy.
+
+!!! warning "Not a drop-in for everything"
+    Size a shape with `size=`, not `width=`/`height=`: this layer spells those
+    two `width_px=`/`height_px=`, and a few other parameters carry vstimd's unit
+    suffixes (`sf_cycles_per_px`, `phase_cycles`, `drift_speed_hz` on
+    `GratingStim`). `pos`, `size`, `ori`, `opacity`, the colour parameters and
+    the `set*` methods keep their PsychoPy names.
+
 !!! warning "Timing note"
-    The PsychoPy-compatible layer drives updates through Python round-trips and, in
-    v0.1, does **not** expose the animation or VTL systems. For experiments where
-    frame timing is critical, use the command API directly and move timing-critical
-    reactions into [animations](vtl-and-animations.md).
+    The PsychoPy-compatible layer drives updates through Python round-trips and
+    does **not** expose the animation or VTL systems. For experiments where
+    frame timing is critical, use the command API directly and move
+    timing-critical reactions into [animations](vtl-and-animations.md).
 
 ## Next
 

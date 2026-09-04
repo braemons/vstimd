@@ -31,8 +31,13 @@ class StimuliClient:
     Example::
 
         with Connection() as conn:
-            h = conn.stimuli.shapes.create_rect(pos_px=Vec2(0, 0), width_px=200, height_px=100,
-                                                color=Color(1, 0, 0))
+            h = conn.stimuli.shapes.create_rect(
+                position_px=Vec2(0, 0),
+                params=RectParams(
+                    width_px=200, height_px=100,
+                    appearance=ShapeAppearance(fill_color=Color(1, 0, 0)),
+                ),
+            )
             conn.stimuli.set_enabled(h, False)
             conn.stimuli.delete(h)
     """

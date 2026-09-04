@@ -54,20 +54,34 @@ acknowledges, and a server error is raised as a typed exception (see
 
 | Namespace | What it does | Key methods |
 |---|---|---|
-| `conn.stimuli` | Generic per-stimulus commands | `set_position`, `set_rotation`, `set_fill_color`, `set_alpha`, `set_enabled`, `set_name`, `delete`, `query`, `bring_to_front`, `send_to_back`, `swap_draw_order` |
+| `conn.stimuli` | Generic per-stimulus commands | `set_position`, `set_rotation`, `set_fill_color`, `set_alpha`, `set_enabled`, `set_name`, `delete`, `query` (plus `bring_to_front`, `send_to_back`, `swap_draw_order` — [not yet accepted by the server](#draw-order)) |
 | `conn.stimuli.shapes` | Create/mutate shapes | `create_rect`, `create_circle`, `create_ellipse`, `set_rect_size`, `set_circle_diameter`, `set_ellipse_size`, `set_draw_mode`, `set_outline_color`, `set_outline_width` |
 | `conn.stimuli.grating` | Create/mutate gratings | `create_grating`, `set_phase`, `set_sf`, `set_contrast`, `set_waveform`, `set_mask`, `set_drift_speed`, `set_drift_angle`, `set_fore_color`, … (opacity: use `conn.stimuli.set_alpha`) |
 | `conn.stimuli.text` | Create/mutate text | `create_text`, `set_text`, `set_text_color` |
 | `conn.stimuli.dots` | Create/mutate [dot fields](../stimuli/random-dots.md) | `create_dots`, `set_direction`, `set_speed`, `set_coherence`, `set_dot_count`, `set_dot_size`, `set_dot_color`, `set_aperture`, `set_field_size`, `set_dot_lifetime`, `set_seed` |
-| `conn.system` | Scene-wide + queries | `set_background`, `set_all_enabled`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_deferred_mode`, `list_stimuli`, `query_server_info`, `wait_for_frames`, `wait_until` |
+| `conn.system` | Scene-wide + queries | `set_background`, `set_all_enabled`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_deferred_mode`, `list_stimuli`, `query_server_info`, `wait_for_frames`, `wait_for_frame`, `wait_until`, `shutdown` |
 | `conn.animations` | On-device animations | `create_flash`, `create_flicker`, `create_move_along_path_2d`, `create_couple_visibility_to_trigger_line`, `arm`, `disarm`, `cancel`, `query`, … |
-| `conn.vtl` | Virtual Trigger Lines | `set_line_name`, `set_line`, `toggle_line`, `list_lines` |
+| `conn.vtl` | Virtual Trigger Lines | `set_line_name`, `set_line`, `toggle_line`, `set_bank`, `clear_latches`, `list_lines` |
 | `conn.scene_config` | Save/load scenes | `save`, `load`, `list_scene_configs`, `retrieve`, `upload` |
 | `conn.conditions` | [Protocol steps](../concepts/conditions.md) | `set`, `declare`, `list_conditions`, `set_stimulus_conditions`, `set_animation_conditions` |
 
 The method list above is a map, not an exhaustive signature reference — the
 authoritative signatures and docstrings live in the source under
 [`client/python/vstimd/`](https://github.com/braemons/vstimd/tree/main/client/python/vstimd).
+
+### Draw order
+
+Stimuli draw in **scene order, later over earlier**, so the order you create
+them in is the order they stack — which is how two overlapping dot fields
+resolve predictably in the
+[figure-ground tutorial](../tutorials/figure-ground-rdk.md). Draw order is saved
+with the scene.
+
+!!! warning "Reordering after creation is not implemented"
+    `bring_to_front`, `send_to_back` and `swap_draw_order` exist in the client
+    and on the wire, but the server refuses all three with `NotSupportedError`.
+    Until they land, control stacking by creating stimuli in the order you want
+    them drawn, or by deleting and recreating the one that has to move.
 
 ## Stimulus types
 
@@ -116,7 +130,7 @@ on past a command the server refused.
 | `WrongTargetError` | A system command was sent to a stimulus handle (or vice versa) |
 | `CreationFailedError` | The server could not create the stimulus |
 | `InvalidArgumentError` | A field value is out of range or invalid |
-| `NotSupportedError` | The command is not supported in this build/config |
+| `NotSupportedError` | The command is not supported in this build or config, or is on the wire but not yet implemented on the server — polygons and the draw-order commands raise this today |
 | `NotReadyError` | Server still initialising — retry after the first frame |
 | `ConfigNotFoundError`, `ConfigIoError`, `ConfigFormatError`, `ConfigVersionError`, `ConfigAlreadyExistsError` | Config save/load failures |
 | `UnknownServerError` | Unexpected server-side error, or a code this client predates |
@@ -163,10 +177,22 @@ often a one-line import swap:
 from vstimd.psychopy import visual
 
 win  = visual.Window(address="tcp://stimulus-pc:5555")
-rect = visual.Rect(win, width=0.5, height=0.25, fillColor="red")
+rect = visual.Rect(win, size=(300, 150), pos=(0, 0), fillColor="red")
 rect.draw()
 win.flip()
 ```
+
+`Window` defaults to `units="pix"`; `norm`, `deg` and `cm` also work, the last
+two needing a `monitor=` object as in PsychoPy.
+
+!!! warning "Not a drop-in for everything"
+    Size a shape with `size=`, not `width=`/`height=` — this layer spells those
+    two `width_px=`/`height_px=`. `GratingStim` likewise carries vstimd's unit
+    suffixes on `sf_cycles_per_px`, `phase_cycles`, `drift_speed_hz` and
+    `drift_angle_deg`. Everything else — `pos`, `size`, `ori`, `radius`,
+    `opacity`, the colour parameters, `setPos`/`setOri`/`setColor` and friends —
+    keeps its PsychoPy name, and unsupported PsychoPy parameters (`texRes`,
+    `interpolate`, `anchor`, …) are accepted and ignored rather than raising.
 
 !!! warning "Timing note"
     The PsychoPy-compatible layer drives updates through Python round-trips and does
@@ -189,7 +215,6 @@ uv run examples/text_demo.py            # text rendering
 ## Other clients
 
 - **C# / Bonsai** — supported over the same wire protocol.
-- **MATLAB** — *planned; not yet available* (see
-  [`client/matlab/`](https://github.com/braemons/vstimd/tree/main/client/matlab)).
+- **MATLAB** — *planned; not yet available.*
 - **Roll your own** — any language that can speak ZMQ + protobuf works; see the
   [wire protocol](../developer/protocol.md).

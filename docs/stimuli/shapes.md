@@ -82,10 +82,11 @@ when it is conceptually one, so the saved config says what you meant.
 
 !!! warning "Not yet implemented on the server"
     `create_polygon` and `set_polygon_vertices` exist in the Python client and
-    on the wire, but the server refuses both with `UNIMPLEMENTED`: `Polygon`
-    has a proto value and no scene representation. The parameters below are
-    what it will take when it lands; until then, an outlined path has to be
-    built from rects.
+    on the wire, but the server refuses both — `NotSupportedError` in Python,
+    from an `ERROR_CODE_NOT_SUPPORTED` reply saying *"CreatePolygon is not yet
+    implemented"*. `Polygon` has a proto value and no scene representation. The
+    parameters below are what it will take when it lands; until then, an
+    outlined path has to be built from rects.
 
 ```python
 conn.stimuli.shapes.create_polygon(position_px=Vec2(0, 0), params=PolygonParams(...))

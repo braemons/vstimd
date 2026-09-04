@@ -1,7 +1,5 @@
 # Triggers & animations
 
-<span class="wip-badge">WIP</span>
-
 This is the **frame-accurate, on-device** path. Where the [command API](command-api.md)
 runs one round-trip per change, the trigger/animation path uploads a small
 declarative behaviour *ahead of time* and lets the render loop execute it in
@@ -79,8 +77,18 @@ conn.animations.arm(flash)   # armed with no trigger → starts on the next fram
 ```
 
 The stimulus is shown for exactly 10 frames and then hidden — timed by the render
-loop, not by your script. Durations can be given in frames or milliseconds
-(converted using the measured refresh rate).
+loop, not by your script.
+
+!!! note "Frames are the unit; milliseconds are a convenience"
+    A duration can be given as `duration_frames=` or `duration_ms=`, but the
+    server only ever counts frames. `duration_ms` is converted **in the client**,
+    by rounding up against the rig's **nominal** refresh rate
+    (`query_server_info().frame_rate_hz`) — never the measured one, so the same
+    script yields the same frame count on every run of the same rig.
+
+    Prefer frames when the number matters. A display can only change on a frame
+    boundary, so a duration that is not a whole number of frames does not exist,
+    and saying `10` is more honest than saying `166` and letting it round.
 
 ## 3. React to an external trigger
 
@@ -170,9 +178,11 @@ conn.animations.create_enable_on_trigger_edge(trial_start, target,
 # Flicker on/off (e.g. 2 frames on, 2 off), optionally for a fixed total:
 conn.animations.create_flicker(target, on_frames=2, off_frames=2, total_frames=120)
 
-# Move along a per-frame path, or along waypoints at a constant speed:
-conn.animations.create_move_along_path_2d(target, x=[...], y=[...])
-conn.animations.create_move_along_segments_2d(target, x=[0, 300], y=[0, 0],
+# Move along a per-frame path (one coordinate pair per frame):
+conn.animations.create_move_along_path_2d(target, x_px=[...], y_px=[...])
+
+# …or along waypoints at a constant speed, the server working out the frames:
+conn.animations.create_move_along_segments_2d(target, x_px=[0, 300], y_px=[0, 0],
                                               speed_px_per_sec=400)
 
 # Read position from a shared-memory float array each frame (closed-loop):
@@ -189,6 +199,13 @@ conn.animations.create_external_position_2d(target, shm_name="/vstimd_pos_myobj"
 All of them accept the same `start_trigger` / `*_action_mask` / `cancel_trigger`
 options as `flash`, so any of them can be armed on a hardware edge and can emit
 markers.
+
+`create_move_along_segments_2d` converts your `speed_px_per_sec` into a frame
+count using the rig's **nominal** refresh rate, so 400 px/s is 400 px/s on a
+60 Hz panel and on a 144 Hz one — the sweep takes a different number of frames,
+the motion does not. It is the nominal rate rather than the measured one on
+purpose: the measurement jitters, and a jittering divisor would move the
+stimulus differently on every run of the same config.
 
 `VtlPolarity` picks which level counts as asserted — `ACTIVE_HIGH` shows the
 stimulus while the line is HIGH, `ACTIVE_LOW` while it is LOW (what you want for
@@ -276,7 +293,7 @@ live state.
 
 ## Next
 
-- **[Build the demos yourself](../tutorials/index.md)** — six worked scripts that put the
+- **[Build the demos yourself](../tutorials/index.md)** — seven worked scripts that put the
   command API and this page together, starting with
   [gratings armed on trigger lines and saved as a config](../tutorials/gratings-triggers-config.md).
 - **[Integrating recording systems](recording-integration.md)** — wiring VTL output

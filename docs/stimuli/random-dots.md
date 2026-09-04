@@ -19,6 +19,45 @@ with Connection() as conn:
     ))
 ```
 
+## Parameters
+
+`DotsParams` — everything about the field except the dots themselves. As
+everywhere else, a numeric field left at `0` means *"use the server's
+default"*, with two deliberate exceptions noted below.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `field_width_px` | `0.0` → 800 px | Width of the rectangle dots live in and wrap around. Invisible — see [The field is not the aperture](#the-field-is-not-the-aperture). |
+| `field_height_px` | `0.0` → 600 px | Field height. |
+| `dot_count` | `0` → 200 | Number of dots in the field. A count, not a density — it is the number a methods section quotes; `dots_for_density` converts. |
+| `aperture` | a `Rect` the size of the field | Where dots are *visible*. See [Aperture](#aperture) below. |
+| `dot_size_px` | `0.0` → 6 px | Dot **diameter**, never a radius. |
+| `dot_color` | white | RGBA in 0–1. |
+| `dot_color_alt` | `None` | A second colour, assigned per dot at birth with probability ½ — Psychtoolbox's `bwSameTrial`. `None` gives a single-colour field. |
+| `dot_shape` | `DotShape.ROUND` | `ROUND`, or `SQUARE` for Psychtoolbox's `dot_type=0`. |
+| `direction_deg` | `0.0` | Direction of coherent motion, CCW, 0° = right — the same convention as `rotation_deg`. Psychtoolbox angles are mirrored; see [Porting](#porting-from-psychtoolbox). |
+| `speed_px_per_s` | `None` → 100 | Coherent speed, per **second**. Typed `float \| None` because `0.0` is a legitimate value — a static field. |
+| `coherence` | `None` → 1.0 | Fraction of dots carrying the coherent direction, `[0, 1]`. Also `float \| None`, because `0.0` means pure noise. Clamped server-side. |
+| `signal_rule` | `SignalRule.SAME` | Whether a dot's signal/noise role is fixed for its life. See [Motion rules](#motion-rules). |
+| `noise_rule` | `NoiseRule.DIRECTION` | How a noise dot moves. |
+| `reinsertion` | `Reinsertion.WRAP` | What happens to a dot leaving the field. |
+| `dot_lifetime_frames` | `0` (infinite) | Frames before a dot is reborn. PsychoPy spells infinite `-1`; `lifetime_from_psychopy` translates. |
+| `seed` | `0` | The RNG seed. **Record it** — see [Reproducibility](#reproducibility). |
+
+There is no `rotation_deg` on a dot field: a field of dots has no orientation of
+its own, only a `direction_deg` on its motion.
+
+### Aperture
+
+| Field | Default | Meaning |
+|---|---|---|
+| `shape` | `ApertureShape.RECT` | `RECT` or `CIRCLE`. For `CIRCLE`, `width_px` is the **diameter** and `height_px` is ignored. |
+| `width_px` | `0.0` → the field width | Full extent, never a half-extent. |
+| `height_px` | `0.0` → the field height | Full extent. |
+| `offset_px` | `Vec2(0, 0)` | Aperture centre relative to the stimulus position, which is the field centre. |
+| `invert` | `False` | Draw *outside* the shape instead of inside. This one flag is the whole of "background dots, everywhere but the figure". |
+| `clip` | `ApertureClip.DOT_CENTER` | How the edge cuts a dot — see [Clipping](#clipping-dot_center-vs-pixel). |
+
 ## The field is not the aperture
 
 Two separate things, and keeping them separate is what makes the second family of
@@ -259,8 +298,9 @@ the intended size or mirrored about the horizontal. Do them once, at the boundar
 with the helpers in `vstimd.stimuli`:
 
 **Sizes are radii there and diameters here.** Every size in vstimd is a full extent
-(see [Coordinate system](../concepts/coordinate-system.md)). A Psychtoolbox `dotSize = 1.5` is a
-*radius* — the dot is 3° across — and `R = 45/2` is a circle 45° across.
+(see [Stimuli](index.md#two-conventions-that-hold-everywhere)). A Psychtoolbox
+`dotSize = 1.5` is a *radius* — the dot is 3° across — and `R = 45/2` is a circle
+45° across.
 
 ```python
 from vstimd.stimuli import diameter_from_radius

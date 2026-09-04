@@ -1,7 +1,5 @@
 # Integrating recording systems
 
-<span class="wip-badge">WIP</span>
-
 The reason to put stimulus rendering on a dedicated device with real trigger lines
 is that electrophysiology and imaging rigs already run on **TTL logic**. They
 record incoming TTLs alongside neural data, and emit TTLs to drive cameras, lasers,
@@ -63,13 +61,14 @@ frame. Wire that output pin into a spare digital input on your acquisition syste
 
 ```python
 from vstimd import Connection, VtlHandle, VtlKind, VtlEdge, StartAction, FinalAction
+from vstimd.stimuli import CircleParams, Vec2
 
 with Connection("tcp://stimulus-pc:5555") as conn:
     conn.vtl.set_line_name(bank=0, bit=0, kind=VtlKind.OUTPUT, name="stim_onset")
     stim_onset = VtlHandle.named("stim_onset", VtlKind.OUTPUT)
 
     target = conn.stimuli.shapes.create_circle(
-        position_px=(0, 0),
+        position_px=Vec2(0, 0),
         params=CircleParams(diameter_px=200),
     )
     conn.stimuli.set_enabled(target, False)
