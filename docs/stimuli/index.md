@@ -8,7 +8,7 @@ together in runnable scenes.
 
 | Page | Types |
 |---|---|
-| [Shapes](shapes.md) | `Rect`, `Circle`, `Ellipse`, `Polygon` — flat coloured geometry, fill and outline |
+| [Shapes](shapes.md) | `Rect`, `Circle`, `Ellipse` — flat coloured geometry, fill and outline (plus `Polygon`, not yet implemented) |
 | [Gratings](gratings.md) | `Grating` — a masked, drifting sinusoidal (or square, saw, triangle) carrier |
 | [Text](text.md) | `Text` — laid-out glyphs, with an optional box and border |
 | [Random dot kinematograms](random-dots.md) | `Dots` — moving dot fields, coherence, and motion-defined figures |

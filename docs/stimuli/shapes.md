@@ -80,6 +80,13 @@ when it is conceptually one, so the saved config says what you meant.
 
 ## Polygon
 
+!!! warning "Not yet implemented on the server"
+    `create_polygon` and `set_polygon_vertices` exist in the Python client and
+    on the wire, but the server refuses both with `UNIMPLEMENTED`: `Polygon`
+    has a proto value and no scene representation. The parameters below are
+    what it will take when it lands; until then, an outlined path has to be
+    built from rects.
+
 ```python
 conn.stimuli.shapes.create_polygon(position_px=Vec2(0, 0), params=PolygonParams(...))
 ```
@@ -97,7 +104,7 @@ conn.stimuli.shapes.create_polygon(position_px=Vec2(0, 0), params=PolygonParams(
 | `conn.stimuli.shapes.set_rect_size(handle, width_px, height_px)` | Rect geometry. |
 | `conn.stimuli.shapes.set_circle_diameter(handle, diameter_px)` | Circle geometry. |
 | `conn.stimuli.shapes.set_ellipse_size(handle, width_px, height_px)` | Ellipse geometry. |
-| `conn.stimuli.shapes.set_polygon_vertices(handle, vertices_px)` | The whole vertex list, replaced in one call. `close_shape` is fixed at create time. |
+| `conn.stimuli.shapes.set_polygon_vertices(handle, vertices_px)` | The whole vertex list, replaced in one call. Refused by the server for now, like `create_polygon`. |
 | `conn.stimuli.shapes.set_draw_mode(handle, draw_mode)` | Fill / outline / both. |
 | `conn.stimuli.shapes.set_outline_color(handle, color)` | Outline colour. |
 | `conn.stimuli.shapes.set_outline_width(handle, width_px)` | Outline stroke width. |

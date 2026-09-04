@@ -80,7 +80,7 @@ Creating a stimulus returns a **handle** you pass to later commands. Positions a
 | Rectangle | `conn.stimuli.shapes.create_rect(...)` | [Shapes](../stimuli/shapes.md#rect) |
 | Circle | `conn.stimuli.shapes.create_circle(...)` | [Shapes](../stimuli/shapes.md#circle) |
 | Ellipse | `conn.stimuli.shapes.create_ellipse(...)` | [Shapes](../stimuli/shapes.md#ellipse) |
-| Polygon | `conn.stimuli.shapes.create_polygon(...)` | [Shapes](../stimuli/shapes.md#polygon) |
+| Polygon | `conn.stimuli.shapes.create_polygon(...)` — refused by the server for now | [Shapes](../stimuli/shapes.md#polygon) |
 | Grating | `conn.stimuli.grating.create_grating(...)` | [Gratings](../stimuli/gratings.md) |
 | Text | `conn.stimuli.text.create_text(...)` | [Text](../stimuli/text.md) |
 | Random dots | `conn.stimuli.dots.create_dots(...)` | [Random dot kinematograms](../stimuli/random-dots.md) |
