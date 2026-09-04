@@ -36,6 +36,8 @@ dots fill the screen while being visible only *outside* a circle, and its figure
 dots only inside the same circle — one field, one aperture, one `invert`:
 
 ```python
+from dataclasses import replace
+
 circle = Aperture(shape=ApertureShape.CIRCLE, width_px=900, offset_px=rf_center)
 ground = conn.stimuli.dots.create_dots(params=replace(
     common, aperture=replace(circle, invert=True), direction_deg=0.0, seed=1))

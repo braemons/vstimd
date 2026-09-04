@@ -46,11 +46,20 @@ pub struct Dots {
     dir_unit: Vec<[f32; 2]>,
     is_signal: Vec<bool>,
     use_alt_color: Vec<bool>,
+    /// **One stream per dot**, not one for the field.
+    ///
+    /// A single shared stream, walked in index order, would make a dot's
+    /// trajectory depend on *when* the field was resized: growing it consumes the
+    /// draws the surviving dots would otherwise have taken, so every one of them
+    /// moves differently from that frame on. That defeats the property the whole
+    /// stimulus rests on. With a stream per dot, dot `i` is a function of the
+    /// field seed, `i`, and how long it has lived — and touching any other dot
+    /// cannot reach it.
+    rng: Vec<DotsRng>,
 
     /// Frames advanced since the field was seeded. The sample at frame N is a
     /// function of `(seed, N)`; this is the N.
     frame: u64,
-    rng: DotsRng,
     /// The seed the arrays were built from, so that setting a new one reseeds.
     seeded_with: u64,
 }
@@ -98,8 +107,8 @@ impl Dots {
             dir_unit: Vec::new(),
             is_signal: Vec::new(),
             use_alt_color: Vec::new(),
+            rng: Vec::new(),
             frame: 0,
-            rng: DotsRng::new(0),
             seeded_with: 0,
         };
         s.reseed();
@@ -112,51 +121,71 @@ impl Dots {
     ///
     /// Every path that has to put the stimulus back to its start goes through
     /// here: creation, a config load, a seed change, and `reset_dynamic_state`.
+    ///
+    /// Births the whole *capacity*, not just the live count, so that every slot the
+    /// arrays hold is a valid dot. A slot that is merely not live yet is one a
+    /// `SetDotCount` can promote at any moment, including at a deferred flip on the
+    /// render thread, where there is no opportunity to initialize it.
     pub fn reseed(&mut self) {
         let p = self.params.live;
         self.seeded_with = p.seed;
-        self.rng = DotsRng::new(p.seed);
         self.frame = 0;
-        let n = p.dot_count as usize;
-        self.pos_px.resize(n.max(self.pos_px.len()), [0.0, 0.0]);
-        self.dir_unit.resize(n.max(self.dir_unit.len()), [1.0, 0.0]);
-        self.is_signal.resize(n.max(self.is_signal.len()), true);
-        self.use_alt_color.resize(n.max(self.use_alt_color.len()), false);
-        for i in 0..n {
-            Self::birth(&mut self.rng, &mut self.pos_px, &mut self.dir_unit,
-                        &mut self.is_signal, &mut self.use_alt_color, i, &p);
+        let capacity = (p.dot_count as usize).max(self.pos_px.len());
+        self.resize_arrays(capacity);
+        for i in 0..capacity {
+            self.rng[i] = DotsRng::for_dot(p.seed, i);
         }
+        self.birth_range(0, capacity, &p);
     }
 
-    /// Grow the arrays so `count` dots fit, birthing any that are new.
+    fn resize_arrays(&mut self, capacity: usize) {
+        self.pos_px.resize(capacity, [0.0, 0.0]);
+        self.dir_unit.resize(capacity, [1.0, 0.0]);
+        self.is_signal.resize(capacity, true);
+        self.use_alt_color.resize(capacity, false);
+        self.rng.resize_with(capacity, || DotsRng::new(0));
+    }
+
+    /// Grow the arrays so `count` dots fit, seeding and birthing the new slots.
     ///
-    /// Called from the ZMQ thread when `dot_count` rises. Capacity never shrinks:
-    /// a field that went 500 → 100 → 500 would otherwise pay an allocation on the
-    /// way back up, possibly at a deferred flip on the render thread.
+    /// Called from the ZMQ thread when `dot_count` rises. Capacity never shrinks: a
+    /// field that went 500 → 100 → 500 would otherwise pay an allocation on the way
+    /// back up, possibly at a deferred flip on the render thread.
+    ///
+    /// This does not disturb a single existing dot. Each new slot is seeded from
+    /// `(seed, index)` and drawn from its own stream, so growing the field is
+    /// invisible to the dots already in it — which is the point of the per-dot
+    /// streams and the reason this may be called mid-trial at all.
     fn ensure_capacity(&mut self, count: usize) {
         if count <= self.pos_px.len() {
             return;
         }
         let p = self.params.live;
         let old = self.pos_px.len();
-        self.pos_px.resize(count, [0.0, 0.0]);
-        self.dir_unit.resize(count, [1.0, 0.0]);
-        self.is_signal.resize(count, true);
-        self.use_alt_color.resize(count, false);
+        self.resize_arrays(count);
         for i in old..count {
-            Self::birth(&mut self.rng, &mut self.pos_px, &mut self.dir_unit,
-                        &mut self.is_signal, &mut self.use_alt_color, i, &p);
+            self.rng[i] = DotsRng::for_dot(p.seed, i);
+        }
+        self.birth_range(old, count, &p);
+    }
+
+    /// Birth every dot in `from..to`. Allocation-free: the arrays are already
+    /// sized, which is what lets `flip` call it on the render thread.
+    fn birth_range(&mut self, from: usize, to: usize, p: &DotsParams) {
+        for i in from..to.min(self.pos_px.len()) {
+            Self::birth(&mut self.rng[i], &mut self.pos_px, &mut self.dir_unit,
+                        &mut self.is_signal, &mut self.use_alt_color, i, p);
         }
     }
 
     /// Place dot `i` at a fresh uniform position with a fresh role, direction and
-    /// colour.
+    /// colour, drawing from that dot's own stream.
     ///
     /// All four draws happen unconditionally, even when the parameters make some of
     /// them unused (a noise direction at `coherence = 1`, an alternate colour with
-    /// no `dot_color_alt`). A birth therefore consumes a fixed number of RNG outputs
-    /// whatever the parameters are, which is what keeps the stream position a
-    /// function of the frame index rather than of the values drawn.
+    /// no `dot_color_alt`). A birth therefore consumes a fixed number of outputs
+    /// whatever the parameters are, which keeps a dot's stream position a function
+    /// of how many frames it has lived rather than of the values it drew.
     ///
     /// An associated function taking the arrays rather than `&mut self`, because the
     /// callers already hold `&mut` on the field they are walking.
@@ -189,9 +218,9 @@ impl Dots {
     /// Integration handles that as what it physically is, a change of velocity.
     ///
     /// Determinism is unaffected: #120 asks that frame N be a function of the config
-    /// and N, not that it be computable in closed form. The RNG is seeded once and
-    /// advanced only here, in dot-index order, and the step comes from the *nominal*
-    /// refresh rate. The one thing this costs is seeking: a replay steps from frame
+    /// and N, not that it be computable in closed form. Each dot walks its own
+    /// stream, seeded once from `(seed, index)` and advanced only here, and the step
+    /// comes from the *nominal* refresh rate. The one thing this costs is seeking: a replay steps from frame
     /// 0, exactly as the grating's `phase_accum_cycles` already does.
     ///
     /// Allocation-free — the arrays are sized before the render thread ever sees
@@ -221,13 +250,13 @@ impl Dots {
 
         for i in 0..n {
             if reborn_group == Some(i % life.max(1)) {
-                Self::birth(&mut self.rng, &mut self.pos_px, &mut self.dir_unit,
+                Self::birth(&mut self.rng[i], &mut self.pos_px, &mut self.dir_unit,
                             &mut self.is_signal, &mut self.use_alt_color, i, &p);
                 continue;
             }
 
             if p.signal_rule == SignalRule::Different {
-                self.is_signal[i] = self.rng.chance(p.coherence);
+                self.is_signal[i] = self.rng[i].chance(p.coherence);
             }
 
             let dir = if self.is_signal[i] {
@@ -237,11 +266,11 @@ impl Dots {
                     NoiseRule::Position => {
                         // Not motion at all: the dot reappears somewhere else.
                         self.pos_px[i] =
-                            [self.rng.f32_range(-hw, hw), self.rng.f32_range(-hh, hh)];
+                            [self.rng[i].f32_range(-hw, hw), self.rng[i].f32_range(-hh, hh)];
                         continue;
                     }
                     NoiseRule::Direction => self.dir_unit[i],
-                    NoiseRule::Walk => self.rng.unit_vector(),
+                    NoiseRule::Walk => self.rng[i].unit_vector(),
                 }
             };
 
@@ -256,8 +285,8 @@ impl Dots {
                         y = wrap(y, hh);
                     }
                     Reinsertion::Respawn => {
-                        x = self.rng.f32_range(-hw, hw);
-                        y = self.rng.f32_range(-hh, hh);
+                        x = self.rng[i].f32_range(-hw, hw);
+                        y = self.rng[i].f32_range(-hh, hh);
                     }
                 }
             }
@@ -329,17 +358,36 @@ impl Dots {
     /// Replace the whole parameter block, reseeding if the seed changed.
     pub fn set_params(&mut self, deferred: bool, params: DotsParams) {
         self.ensure_capacity(params.dot_count as usize);
+        let before = self.live_count();
         self.params.set(deferred, params);
-        if !deferred && params.seed != self.seeded_with {
-            self.reseed();
+        if !deferred {
+            if params.seed != self.seeded_with {
+                self.reseed();
+            } else {
+                self.birth_range(before, self.live_count(), &params);
+            }
         }
     }
 
-    /// Grow the field. Capacity is taken immediately even in deferred mode — see
-    /// [`ensure_capacity`](Self::ensure_capacity).
+    /// Set how many dots are live.
+    ///
+    /// Capacity is taken immediately even in deferred mode — see
+    /// [`ensure_capacity`](Self::ensure_capacity) — so the flip that raises the live
+    /// count never allocates on the render thread.
+    ///
+    /// Dots that become live *now* are born now, at a fresh position, rather than
+    /// resuming wherever they were when the count last dropped: a dot that appears
+    /// is a new dot, and one restored to a position it held ten seconds ago would
+    /// be a visible artifact. Dots that will become live at a deferred flip are
+    /// born there instead, by [`flip`](Self::flip).
     pub fn set_dot_count(&mut self, deferred: bool, dot_count: u32) {
         self.ensure_capacity(dot_count as usize);
+        let before = self.live_count();
         self.with_params(deferred, |p| p.dot_count = dot_count);
+        if !deferred {
+            let p = self.params.live;
+            self.birth_range(before, self.live_count(), &p);
+        }
     }
 
     pub fn set_direction(&mut self, deferred: bool, direction_deg: f32) {
@@ -395,9 +443,20 @@ impl Dots {
         self.config.params.make_copy();
     }
 
+    /// Promote the deferred parameters, birthing any dot the new `dot_count` makes
+    /// live.
+    ///
+    /// Runs on the render thread, so it must not allocate — and does not:
+    /// `set_dot_count` took the capacity when the command arrived, and
+    /// [`birth_range`](Self::birth_range) only writes into slots that already exist.
+    /// Without this a raised `dot_count` would flip in dots holding whatever state
+    /// they had when the count last dropped.
     pub fn flip(&mut self) {
         self.config.transform.flip();
+        let before = self.live_count();
         self.config.params.flip();
+        let p = self.params.live;
+        self.birth_range(before, self.live_count(), &p);
     }
 }
 
@@ -752,6 +811,111 @@ mod tests {
         assert_eq!(d.pos_px.len(), 5000, "the allocation must already have happened");
         d.flip();
         assert_eq!(d.live_count(), 5000);
+    }
+
+    /// **Growing the field must not disturb the dots already in it.**
+    ///
+    /// This is what the per-dot RNG streams buy. Under one shared stream walked in
+    /// index order, birthing the new dots consumed the draws the existing ones
+    /// would have taken, so every dot in the field moved differently from that
+    /// frame on — and the sample stopped being a function of the seed and the frame
+    /// index, becoming a function of when a `SetDotCount` happened to arrive.
+    #[test]
+    fn growing_the_field_does_not_move_the_dots_already_in_it() {
+        let run = |grow_at: Option<usize>| {
+            let mut d = field(params(|p| {
+                p.dot_count = 50;
+                p.coherence = 0.5; // noise dots draw per frame — the sensitive case
+                p.noise_rule = NoiseRule::Walk;
+                p.seed = 21;
+            }));
+            for f in 0..20 {
+                if grow_at == Some(f) {
+                    d.set_dot_count(false, 500);
+                }
+                d.advance(HZ);
+            }
+            d.positions()[..50].to_vec()
+        };
+        assert_eq!(
+            run(None),
+            run(Some(10)),
+            "a mid-trial SetDotCount moved the dots that were already there"
+        );
+    }
+
+    /// And the same for a growth that lands at a deferred flip.
+    #[test]
+    fn a_deferred_growth_does_not_move_the_dots_already_in_it() {
+        let run = |grow: bool| {
+            let mut d = field(params(|p| {
+                p.dot_count = 50;
+                p.coherence = 0.5;
+                p.noise_rule = NoiseRule::Walk;
+                p.seed = 22;
+            }));
+            for f in 0..20 {
+                if grow && f == 10 {
+                    d.make_copy();
+                    d.set_dot_count(true, 500);
+                    d.flip();
+                }
+                d.advance(HZ);
+            }
+            d.positions()[..50].to_vec()
+        };
+        assert_eq!(run(false), run(true));
+    }
+
+    /// A dot that becomes live is a *new* dot: it appears at a fresh position in
+    /// the field, not at whatever stale one it held when the count last dropped.
+    #[test]
+    fn dots_that_become_live_are_born_not_resumed() {
+        let mut d = field(params(|p| { p.dot_count = 200; p.speed_px_per_s = 300.0; }));
+        d.set_dot_count(false, 20);
+        for _ in 0..60 {
+            d.advance(HZ);
+        }
+        let stale = d.positions().to_vec();
+        d.set_dot_count(false, 200);
+        let now = d.positions();
+        assert_eq!(&now[..20], &stale[..], "the live dots must be left alone");
+        assert!(
+            now[20..].iter().all(|p| p[0].abs() <= 400.0 && p[1].abs() <= 300.0),
+            "a newly live dot must be inside the field"
+        );
+    }
+
+    /// The same, through a deferred flip — the path with no chance to allocate.
+    #[test]
+    fn a_deferred_count_rise_births_at_the_flip() {
+        let mut d = field(params(|p| p.dot_count = 200));
+        d.set_dot_count(false, 20);
+        let capacity_before = d.pos_px.len();
+        d.make_copy();
+        d.set_dot_count(true, 200);
+        assert_eq!(d.live_count(), 20, "not yet");
+        d.flip();
+        assert_eq!(d.live_count(), 200);
+        assert_eq!(d.pos_px.len(), capacity_before, "the flip must not allocate");
+        // Every dot the flip made live is somewhere sensible, not at the origin
+        // default the arrays were sized with.
+        let at_origin = d.positions()[20..].iter().filter(|p| **p == [0.0, 0.0]).count();
+        assert_eq!(at_origin, 0, "a dot flipped in without being born");
+    }
+
+    /// Reseeding births the whole capacity, not just the live count, so a slot that
+    /// a later `SetDotCount` promotes is never a slot that was left as zeroes.
+    #[test]
+    fn reseed_births_the_whole_capacity() {
+        let mut d = field(params(|p| p.dot_count = 300));
+        d.set_dot_count(false, 10);
+        d.set_seed(31); // reseeds with a live count of 10 and a capacity of 300
+        d.set_dot_count(false, 300);
+        assert!(
+            d.positions().iter().all(|p| *p != [0.0, 0.0]),
+            "a promoted slot was never born"
+        );
     }
 
     /// Shrinking and regrowing keeps the capacity, so the second growth is free.

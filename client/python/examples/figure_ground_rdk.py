@@ -137,18 +137,24 @@ def main() -> None:
                            direction_deg=figure_dir, seed=2),
         )
 
-        # params{1..4}: which field moves coherently, and which is drawn at all.
-        # `*DotIntensity = 0` in the original means "omit this field", which here
-        # is the shared enable rather than a colour of black.
+        # params{1..4} of the original. They differ in which field is *drawn* —
+        # `figureDotIntensity = 0` and `backgroundDotIntensity = 0` mean "omit this
+        # field", which here is the shared enable — and in which directions the
+        # drawn fields take.
+        #
+        #   params{1}  both drawn        the figure is defined by direction alone
+        #   params{2}  background = 0    figure only, on an empty background
+        #   params{3}  figure = 0        background only: a "hole" where the figure was
+        #   params{4}  both = 0          blank
         conditions = [
-            ("both fields move — the figure is defined by direction alone",
+            ("both fields drawn — the figure is defined by direction alone",
              (True, figure_dir), (True, background_dir)),
-            ("figure only — the background is static",
-             (True, figure_dir), (True, background_dir * 0.0)),
-            ("background only — a moving 'hole' where the figure was",
-             (True, 0.0), (True, background_dir)),
-            ("neither — a static field, the blank control",
-             (True, 0.0), (True, 0.0)),
+            ("figure only — the background field is omitted",
+             (True, figure_dir), (False, background_dir)),
+            ("background only — a 'hole' where the figure was",
+             (False, figure_dir), (True, figure_dir)),
+            ("neither — the blank control",
+             (False, figure_dir), (False, background_dir)),
         ]
         try:
             for label, (fig_on, fig_dir), (bg_on, bg_dir) in conditions:

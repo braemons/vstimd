@@ -23,6 +23,22 @@ const PCG_MULT: u64 = 6364136223846793005;
 const PCG_INC: u64 = 1442695040888963407;
 
 impl DotsRng {
+    /// The stream belonging to one dot of a field.
+    ///
+    /// Each dot draws from its own stream rather than from a shared one walked in
+    /// index order, so that touching one dot cannot move any other dot's position
+    /// in the stream. That is what makes dot `i`'s state a function of the field
+    /// seed, `i`, and how long the dot has lived — and nothing else. A single
+    /// shared stream would make it depend on *when* a `SetDotCount` arrived,
+    /// because growing the field consumed draws that the surviving dots would
+    /// otherwise have taken.
+    ///
+    /// The index is mixed through SplitMix64 before it meets the seed, so that
+    /// adjacent dots get independent streams for the same reason adjacent seeds do.
+    pub fn for_dot(seed: u64, index: usize) -> Self {
+        Self::new(seed ^ splitmix64(index as u64).rotate_left(32))
+    }
+
     /// Seed the generator, whitening through SplitMix64 first.
     pub fn new(seed: u64) -> Self {
         let mut rng = Self { state: splitmix64(seed) };
@@ -122,6 +138,28 @@ mod tests {
         // consecutive PCG seeds are.
         let spread = sorted[sorted.len() - 1] - sorted[0];
         assert!(spread > u32::MAX / 8, "adjacent seeds gave a clustered stream");
+    }
+
+    /// Adjacent dots of the same field must not be correlated — dot 0 and dot 1 of
+    /// seed 7 are two independent samples, not one sample and its neighbour.
+    #[test]
+    fn adjacent_dots_get_independent_streams() {
+        let first: Vec<u32> = (0..8).map(|i| DotsRng::for_dot(7, i).next_u32()).collect();
+        let mut sorted = first.clone();
+        sorted.sort_unstable();
+        sorted.dedup();
+        assert_eq!(sorted.len(), first.len(), "two dots of one field collided");
+        assert!(sorted[sorted.len() - 1] - sorted[0] > u32::MAX / 8, "clustered");
+    }
+
+    /// The same dot of the same field is the same stream, however the field got to
+    /// that size. This is the property a `SetDotCount` must not disturb.
+    #[test]
+    fn a_dots_stream_depends_only_on_seed_and_index() {
+        let a: Vec<u32> = (0..4).map(|_| DotsRng::for_dot(3, 99).next_u32()).collect();
+        assert!(a.iter().all(|v| *v == a[0]));
+        assert_ne!(DotsRng::for_dot(3, 99).next_u32(), DotsRng::for_dot(4, 99).next_u32());
+        assert_ne!(DotsRng::for_dot(3, 99).next_u32(), DotsRng::for_dot(3, 98).next_u32());
     }
 
     #[test]

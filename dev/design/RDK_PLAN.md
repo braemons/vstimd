@@ -384,7 +384,19 @@ Family A has landed. What exists:
   13 Python unit, 8 e2e cases (`DOTS-01`…`DOTS-08`).
 - Docs: `docs/concepts/random-dots.md`.
 
-Two decisions changed under test, both because a test made a defect concrete:
+Three decisions changed after the design was written, each because a defect was made
+concrete — two by a test, one by review:
+
+- **The RNG is one stream per dot, not one per field.** As first written, all dots
+  drew from a single stream walked in index order, which made growing the field
+  consume the draws the surviving dots would have taken: every dot in the field moved
+  differently from that frame on, and the sample became a function of *when* a
+  `SetDotCount` arrived rather than of the seed and the frame index. Dot `i` now draws
+  from `DotsRng::for_dot(seed, i)`, so touching one dot cannot reach any other. The
+  same defect had two consequences downstream — a raised `dot_count` left the newly
+  live dots holding stale state, at creation and again at a deferred flip — which the
+  split also fixes, since every slot in the capacity is a born dot and
+  `birth_range` re-births exactly the ones that become live.
 
 - **`speed_px_per_s` and `coherence` carry field presence.** They were on the
   zero-means-default convention, which made `coherence = 0` — a field of pure noise,
