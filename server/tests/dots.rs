@@ -431,3 +431,95 @@ fn a_mid_trial_direction_switch_is_continuous() {
         assert!((d[1] - step).abs() < 1e-3, "expected +{step} px up, got {}", d[1]);
     }
 }
+
+// ── The direction convention ──────────────────────────────────────────────────
+
+/// Every angle in vstimd is CCW degrees with 0° = right, and a dot field is no
+/// exception. This pins the three places that convention has to agree, because
+/// each of them arrives at it by different arithmetic and nothing but a test
+/// connects them: `Transform2D::angle_deg` (documented), the grating's
+/// `drift_angle_deg` (projected against the stripe orientation in
+/// `grating_phase_inc`), and the dot field's `direction_deg` (a unit vector in
+/// `DotsParams::direction_unit`).
+///
+/// A mismatch here is the kind that renders — a stimulus drifting the wrong way is
+/// still a stimulus — so it would be found by eye or not at all.
+#[test]
+fn dots_and_grating_measure_angles_in_the_same_frame() {
+    use vstimd::scene::DotsParams;
+    use vstimd::scene::stimulus::grating::{Grating, GratingParams, grating_phase_inc};
+
+    // The dot field steps along (cos θ, sin θ) — 0° right, 90° up.
+    for deg in [0.0f32, 45.0, 90.0, 180.0, 270.0] {
+        let [x, y] = DotsParams { direction_deg: deg, ..Default::default() }.direction_unit();
+        let r = deg.to_radians();
+        assert!((x - r.cos()).abs() < 1e-6 && (y - r.sin()).abs() < 1e-6, "at {deg}°");
+    }
+
+    // The grating measures `drift_angle_deg` in that same frame: an uncoupled drift
+    // along the stripe orientation advances at full rate, and one at right angles
+    // to it does not advance at all. If the two used opposite senses of "CCW", this
+    // is where it would show.
+    let uncoupled = |grating_deg: f32, drift_deg: f32| {
+        let g = Grating::new(
+            [0.0, 0.0],
+            grating_deg,
+            [200.0, 200.0],
+            GratingParams {
+                drift_speed_hz: 1.0,
+                drift_coupled: false,
+                drift_angle_deg: drift_deg,
+                ..Default::default()
+            },
+        );
+        grating_phase_inc(&g, 60.0)
+    };
+    let coupled = Grating::new(
+        [0.0, 0.0],
+        30.0,
+        [200.0, 200.0],
+        GratingParams { drift_speed_hz: 1.0, drift_coupled: true, ..Default::default() },
+    );
+    let full = grating_phase_inc(&coupled, 60.0);
+
+    assert!((uncoupled(30.0, 30.0) - full).abs() < 1e-6, "aligned drift is full rate");
+    assert!(uncoupled(30.0, 120.0).abs() < 1e-6, "perpendicular drift does not advance");
+    // 90° apart in the *other* rotational sense is equally perpendicular, so the
+    // test above cannot tell the two senses apart on its own. This one can: at 60°
+    // the projection is +½ of full rate, and it would be −½ under a mirrored frame.
+    assert!(
+        (uncoupled(0.0, 60.0) - full * 0.5).abs() < 1e-6,
+        "a 60° offset projects to +half rate, not minus"
+    );
+    let [x, _] = DotsParams { direction_deg: 60.0, ..Default::default() }.direction_unit();
+    assert!((x - 0.5).abs() < 1e-6, "and the dot field agrees on the sign of that projection");
+}
+
+/// 90° is *up*, in the same sense the shapes are drawn.
+///
+/// The whole stack maps a pixel `y` to clip `y` without negating — `render::tess`'s
+/// `px_to_ndc`, the grating vertex shader, and `dots.wgsl` alike — and the text path
+/// fixes clip `+1` as the top of the screen. So a positive `y` step is upward, which
+/// is what `Transform2D` documents and what a Psychtoolbox `3*pi/2` has to become.
+#[test]
+fn ninety_degrees_moves_dots_toward_positive_y() {
+    let mut scene = SceneState::new();
+    let h = create_dots(
+        &mut scene,
+        proto::DotsParams {
+            dot_count: 32,
+            coherence: Some(1.0),
+            direction_deg: 90.0,
+            speed_px_per_s: Some(60.0),
+            seed: 11,
+            ..Default::default()
+        },
+        [0.0, 0.0],
+    );
+    let before = positions(&scene, h);
+    advance(&mut scene, 1, 60.0);
+    for (b, a) in before.iter().zip(positions(&scene, h)) {
+        assert!((a[0] - b[0]).abs() < 1e-4, "90° must not move a dot sideways");
+        assert!((a[1] - b[1] - 1.0).abs() < 1e-4, "90° must move a dot toward +y");
+    }
+}
