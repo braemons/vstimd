@@ -30,6 +30,9 @@ pub use render_state::RenderState;
 pub mod render_frame;
 pub use render_frame::{ReadbackTarget, render_frame};
 
+pub mod screenshot;
+pub use screenshot::Screenshotter;
+
 /// Render-loop steps shared by all backends (keys, overlay input, VTL).
 pub(crate) mod frame_loop;
 
