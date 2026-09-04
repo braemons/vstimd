@@ -8,7 +8,7 @@ import { Connection, VtlHandle } from "../src/index.js";
 
 // Backend web port from playwright.config.ts. Reset the scene before each test
 // (the --null server persists across tests) using the same client, node-side.
-const BACKEND = "ws://127.0.0.1:8138";
+const BACKEND = process.env.SMOKE_BACKEND ?? "ws://127.0.0.1:8138";
 
 test.beforeEach(async () => {
   const conn = await Connection.connect(BACKEND);

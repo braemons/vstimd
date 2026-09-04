@@ -18,8 +18,6 @@
 //! Keyboard handling and the egui overlay are otherwise exactly the DRM
 //! backend's, via the shared helpers in `render::frame_loop`.
 
-use ash::vk;
-
 use crate::log_buffer::LogBuffer;
 use crate::render::backend::BackendData;
 use crate::input::console_input::{InputState, active_vt};
@@ -27,9 +25,9 @@ use crate::render::frame_loop::{self, KeyOutcome};
 use crate::render::render_frame;
 use crate::render::render_state::RenderState;
 use crate::system_info::{ClockSource, SystemInfo};
-use crate::render::vk::VkContext;
+use crate::render::vk::Readback;
 use crate::render::{
-    ReadbackTarget, RenderTarget, SceneRenderer, StimulusDisplayInfo, TextRenderer, UiRenderer,
+    RenderTarget, SceneRenderer, StimulusDisplayInfo, TextRenderer, UiRenderer,
 };
 use crate::timing::FrameTiming;
 
@@ -189,95 +187,6 @@ impl EvdiBackend {
                     submit_us
                 );
             }
-        }
-    }
-}
-
-// ── Readback ─────────────────────────────────────────────────────────────────
-
-/// A persistent host-visible staging buffer that `render_frame` copies the
-/// rendered swapchain image into (see `ReadbackTarget`), before it presents.
-/// Sized with `evdi`'s row pitch (not a tightly-packed `width * 4`) so the
-/// result can be handed to `EvdiOutput::present` unmodified.
-struct Readback {
-    device: ash::Device,
-    memory: vk::DeviceMemory,
-    mapped: *mut u8,
-    size: usize,
-    target: ReadbackTarget,
-}
-
-impl Readback {
-    fn new(ctx: &VkContext, pitch: usize, height: u32) -> Self {
-        let device = ctx.device.clone();
-        let size = pitch * height as usize;
-
-        let buffer = unsafe {
-            device
-                .create_buffer(
-                    &vk::BufferCreateInfo::default()
-                        .size(size as vk::DeviceSize)
-                        .usage(vk::BufferUsageFlags::TRANSFER_DST)
-                        .sharing_mode(vk::SharingMode::EXCLUSIVE),
-                    None,
-                )
-                .expect("failed to create evdi readback buffer")
-        };
-        let reqs = unsafe { device.get_buffer_memory_requirements(buffer) };
-        let mem_props =
-            unsafe { ctx.instance.get_physical_device_memory_properties(ctx.physical_device) };
-        let mem_type = (0..mem_props.memory_type_count)
-            .find(|&i| {
-                (reqs.memory_type_bits & (1 << i)) != 0
-                    && mem_props.memory_types[i as usize].property_flags.contains(
-                        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
-                    )
-            })
-            .expect("no HOST_VISIBLE|HOST_COHERENT memory for evdi readback buffer");
-        let memory = unsafe {
-            device
-                .allocate_memory(
-                    &vk::MemoryAllocateInfo::default()
-                        .allocation_size(reqs.size)
-                        .memory_type_index(mem_type),
-                    None,
-                )
-                .expect("failed to allocate evdi readback memory")
-        };
-        unsafe {
-            device.bind_buffer_memory(buffer, memory, 0).expect("bind readback memory");
-        }
-        let mapped = unsafe {
-            device
-                .map_memory(memory, 0, size as vk::DeviceSize, vk::MemoryMapFlags::empty())
-                .expect("failed to map evdi readback memory") as *mut u8
-        };
-
-        Self {
-            device,
-            memory,
-            mapped,
-            size,
-            target: ReadbackTarget {
-                buffer,
-                row_length_texels: (pitch / 4) as u32,
-            },
-        }
-    }
-
-    /// A view of the staging buffer as of the last `render_frame` call that
-    /// was given `Some(&self.target)`. `render_frame` waits for its copy to
-    /// land on the GPU before returning, so this is always current.
-    fn frame(&self) -> &[u8] {
-        unsafe { std::slice::from_raw_parts(self.mapped, self.size) }
-    }
-}
-
-impl Drop for Readback {
-    fn drop(&mut self) {
-        unsafe {
-            self.device.destroy_buffer(self.target.buffer, None);
-            self.device.free_memory(self.memory, None);
         }
     }
 }

@@ -40,6 +40,9 @@ DEMO_SCRIPTS = [
      "a white fixation dot in the centre and a line of explanatory text"),
     ("DEMO-02", "drifting_grating", "drifting_grating",
      "a masked grating patch drifting steadily, with a fixation dot on top"),
+    ("DEMO-02b", "figure_ground_rdk", "figure_ground_rdk",
+     "two random-dot fields split by a circle and its complement, "
+     "the figure drifting up and the ground drifting right"),
     ("DEMO-03", "gratings_triggered", "gratings_triggered",
      "two gratings, 45° and 135°, each waiting on its own trigger line, "
      "plus a fixation dot and a caption of their own"),
@@ -217,7 +220,7 @@ def _run_demo_script(
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
 @pytest.mark.onscreen(
-    "DEMO-01…06",
+    "DEMO-01…06 (+02b)",
     "each tutorial demo scene, built by its own script and then held on screen "
     "— the per-demo id and caption are set once the scene is built",
     deferred=True,

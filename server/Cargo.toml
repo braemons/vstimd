@@ -49,6 +49,7 @@ zeromq     = "0.4"
 axum         = { version = "0.8", features = ["ws"], optional = true }
 futures-util = { version = "0.3", optional = true }
 rust-embed   = { version = "8", features = ["mime-guess"], optional = true }
+png = "0.18.1"
 
 # Linux-only dependencies for DRM/console mode and Wayland support
 [target.'cfg(target_os = "linux")'.dependencies]

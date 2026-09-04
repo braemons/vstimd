@@ -164,6 +164,94 @@ fn the_condition_gate_leaves_the_operators_enabled_flag_alone() {
     assert!(!visible(&sc, h));
 }
 
+/// One of every constructible stimulus type, created the way a client creates
+/// them, as `(type name, handle)`.
+///
+/// `Polygon` is absent because `CreatePolygon` is refused by `ipc/dispatch` —
+/// it has a wire value and no scene representation. The 3-D types are absent
+/// for the mirror reason: they exist in the scene taxonomy and own no wire
+/// value yet. Both will need a row here on the day they become constructible,
+/// which is what the count assertion below is for.
+fn add_one_of_every_type(sc: &mut SceneState) -> Vec<(&'static str, u32)> {
+    let creates: Vec<request::Body> = vec![
+        request::Body::CreateRect(proto::CreateRectRequest::default()),
+        request::Body::CreateCircle(proto::CreateCircleRequest::default()),
+        request::Body::CreateEllipse(proto::CreateEllipseRequest::default()),
+        request::Body::CreateGrating(proto::CreateGratingRequest::default()),
+        request::Body::CreateText(proto::CreateTextRequest::default()),
+        request::Body::CreateDots(proto::CreateDotsRequest::default()),
+    ];
+    creates
+        .into_iter()
+        .map(|body| {
+            let r = send(sc, sys(), body);
+            assert!(is_ok(&r), "create failed: {}", r.error);
+            let handle = r.handle as u32;
+            (sc.stimuli[&handle].stimulus.type_name(), handle)
+        })
+        .collect()
+}
+
+/// The condition gate is a property of every stimulus, not of the ones that
+/// happened to exist when conditions were written.
+///
+/// It lives on `StimulusFlags`, above the body, and `apply_conditions` walks
+/// every entry regardless of type — so this holds by construction. It is
+/// asserted anyway because "by construction" is exactly the kind of claim that
+/// stops being true when a body type grows its own visibility path.
+#[test]
+fn every_stimulus_type_carries_the_condition_gate() {
+    let mut sc = SceneState::new();
+    let stimuli = add_one_of_every_type(&mut sc);
+
+    let mut names: Vec<&str> = stimuli.iter().map(|(name, _)| *name).collect();
+    names.sort_unstable();
+    assert_eq!(
+        names,
+        ["Circle", "Dots", "Ellipse", "Grating", "Rect", "Text"],
+        "a stimulus type became constructible without being covered here",
+    );
+
+    for (name, h) in &stimuli {
+        assert!(is_ok(&set_stimulus_conditions(&mut sc, *h, vec![1])), "{name}");
+    }
+
+    set_condition(&mut sc, 0);
+    for (name, h) in &stimuli {
+        assert!(!visible(&sc, *h), "{name} is visible outside its condition");
+    }
+    set_condition(&mut sc, 1);
+    for (name, h) in &stimuli {
+        assert!(visible(&sc, *h), "{name} is hidden inside its condition");
+    }
+}
+
+/// Membership and the gate it implies are reported back for every type, so a
+/// client can see which protocol step a stimulus belongs to whatever it is.
+#[test]
+fn every_stimulus_type_reports_its_condition_membership() {
+    let mut sc = SceneState::new();
+    let stimuli = add_one_of_every_type(&mut sc);
+    for (_, h) in &stimuli {
+        set_stimulus_conditions(&mut sc, *h, vec![2]);
+    }
+    set_condition(&mut sc, 2);
+
+    for (name, h) in &stimuli {
+        let r = send(
+            &mut sc,
+            request::Target::Stimulus(*h),
+            request::Body::QueryStimulus(proto::QueryStimulusRequest {}),
+        );
+        assert!(is_ok(&r), "{name}: {}", r.error);
+        let Some(proto::response::Body::StimulusInfo(info)) = r.body else {
+            panic!("{name}: query returned no stimulus body");
+        };
+        assert_eq!(info.condition_indices, vec![2], "{name}");
+        assert!(info.condition_enabled, "{name}");
+    }
+}
+
 // ── Names ─────────────────────────────────────────────────────────────────────
 
 #[test]

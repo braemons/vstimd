@@ -91,6 +91,34 @@ fn command_summary(req: &proto::Request) -> String {
                 c.params.as_ref().map_or("", |p| p.text.as_str()),
             )
         }
+        Some(request::Body::CreateDots(c)) => {
+            let p = c.params.as_ref();
+            let (x, y) = placement_pos(c.placement.as_ref());
+            format!(
+                "CreateDots n={} coh={:.2} dir={:.1}° pos_px=({x:.1},{y:.1})",
+                p.map_or(0, |p| p.dot_count),
+                p.and_then(|p| p.coherence).unwrap_or(1.0),
+                p.map_or(0.0, |p| p.direction_deg),
+            )
+        }
+        Some(request::Body::SetDotsDirection(c)) => {
+            format!("SetDotsDirection({:.1}°)", c.direction_deg)
+        }
+        Some(request::Body::SetDotsSpeed(c)) => {
+            format!("SetDotsSpeed({:.1} px/s)", c.speed_px_per_s)
+        }
+        Some(request::Body::SetDotsCoherence(c)) => format!("SetDotsCoherence({:.2})", c.coherence),
+        Some(request::Body::SetDotsCount(c)) => format!("SetDotsCount({})", c.dot_count),
+        Some(request::Body::SetDotsSize(c)) => format!("SetDotsSize({:.1})", c.dot_size_px),
+        Some(request::Body::SetDotsColor(_)) => "SetDotsColor".into(),
+        Some(request::Body::SetDotsAperture(_)) => "SetDotsAperture".into(),
+        Some(request::Body::SetDotsFieldSize(c)) => {
+            format!("SetDotsFieldSize({:.0}×{:.0})", c.width_px, c.height_px)
+        }
+        Some(request::Body::SetDotsLifetime(c)) => {
+            format!("SetDotsLifetime({} frames)", c.dot_lifetime_frames)
+        }
+        Some(request::Body::SetDotsSeed(c)) => format!("SetDotsSeed({})", c.seed),
         Some(request::Body::SetText(c)) => format!("SetText({:?})", c.text),
         Some(request::Body::SetTextColor(_)) => "SetTextColor".into(),
         Some(request::Body::SetGratingPhase(c)) => format!("SetGratingPhase({:.3})", c.phase_cycles),
@@ -235,6 +263,7 @@ impl SceneState {
             request::Body::CreateEllipse(cmd) => self.cmd_create_ellipse(cmd),
             request::Body::CreateGrating(cmd) => self.cmd_create_grating(cmd),
             request::Body::CreateText(cmd) => self.cmd_create_text(cmd),
+            request::Body::CreateDots(cmd) => self.cmd_create_dots(cmd),
             request::Body::CreatePolygon(_) => err(
                 proto::ErrorCode::NotSupported,
                 "CreatePolygon is not yet implemented",
@@ -304,6 +333,7 @@ impl SceneState {
             | request::Body::CreateEllipse(_)
             | request::Body::CreateGrating(_)
             | request::Body::CreateText(_)
+            | request::Body::CreateDots(_)
             | request::Body::CreatePolygon(_)
             | request::Body::SetBackground(_)
             | request::Body::SetDeferredMode(_)
@@ -370,6 +400,16 @@ impl SceneState {
             }
             request::Body::SetGratingForeColor(cmd) => self.cmd_set_grating_fore_color(handle, cmd),
             request::Body::SetGratingBackColor(cmd) => self.cmd_set_grating_back_color(handle, cmd),
+            request::Body::SetDotsDirection(cmd) => self.cmd_set_dots_direction(handle, cmd),
+            request::Body::SetDotsSpeed(cmd) => self.cmd_set_dots_speed(handle, cmd),
+            request::Body::SetDotsCoherence(cmd) => self.cmd_set_dots_coherence(handle, cmd),
+            request::Body::SetDotsCount(cmd) => self.cmd_set_dots_count(handle, cmd),
+            request::Body::SetDotsSize(cmd) => self.cmd_set_dots_size(handle, cmd),
+            request::Body::SetDotsColor(cmd) => self.cmd_set_dots_color(handle, cmd),
+            request::Body::SetDotsAperture(cmd) => self.cmd_set_dots_aperture(handle, cmd),
+            request::Body::SetDotsFieldSize(cmd) => self.cmd_set_dots_field_size(handle, cmd),
+            request::Body::SetDotsLifetime(cmd) => self.cmd_set_dots_lifetime(handle, cmd),
+            request::Body::SetDotsSeed(cmd) => self.cmd_set_dots_seed(handle, cmd),
             request::Body::SetText(cmd) => self.cmd_set_text(handle, cmd),
             request::Body::SetTextColor(cmd) => self.cmd_set_text_color(handle, cmd),
             request::Body::SetPolygonVertices(_) => err(

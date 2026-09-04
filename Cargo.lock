@@ -4126,6 +4126,7 @@ dependencies = [
  "lyon_tessellation",
  "naga",
  "nvml-wrapper",
+ "png",
  "prost",
  "prost-build",
  "rand 0.10.1",

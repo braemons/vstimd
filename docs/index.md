@@ -26,6 +26,8 @@ conventional command-based stimulus software.
       PsychoPy / Psychtoolbox / MWorks, and how it fuses with ephys and imaging.
     - **[How vstimd works](concepts/how-vstimd-works.md)** — how setup (command / config APIs) and
       trigger-driven execution fit together.
+    - **[Stimuli](stimuli/index.md)** — every stimulus type vstimd can draw, and
+      what each of its parameters means.
     - **[Build the demos yourself](tutorials/index.md)** — hands-on tutorials that
       rebuild each shipped demo scene, script by script.
 
@@ -106,11 +108,14 @@ entirely inside the server**, staying synchronised to the display and to DAQ mar
 
 | Type | Description |
 |---|---|
-| Rectangle | Axis-aligned filled rectangle with optional outline |
-| Circle | Filled circle |
+| Rectangle | Filled rectangle with optional outline, rotatable about its centre |
+| Circle | Filled circle, sized by diameter |
 | Ellipse | Filled ellipse |
-| Grating | Analytical sinusoidal grating with aperture masks and drift |
-| Text | Rendered text with configurable font, size, colour, and anchor |
+| Grating | Analytical sinusoidal (or square, saw, triangle) carrier with aperture masks and server-side drift |
+| Text | Laid-out glyphs with configurable font, size, colour, anchor and an optional backing box |
+| Random dots | Dot fields with coherence, noise rules, dot lifetime, and an aperture separate from the field — classic and motion-defined-figure RDKs |
+
+Every parameter of every type is documented under **[Stimuli](stimuli/index.md)**.
 
 ## Driving it from a client
 
@@ -139,7 +144,7 @@ entirely inside the server**, staying synchronised to the display and to DAQ mar
     from vstimd.psychopy import visual
 
     win = visual.Window(address="tcp://stimulus-pc:5555")
-    rect = visual.Rect(win, width=0.5, height=0.25, fillColor="red")
+    rect = visual.Rect(win, size=(200, 100), fillColor="red")
     rect.draw()
     win.flip()
     ```

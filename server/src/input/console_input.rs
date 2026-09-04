@@ -230,6 +230,11 @@ impl InputState {
             match code {
                 1 if pressed => { app_keys.push(AppKey::Escape); continue; } // KEY_ESC
                 41 if pressed => { app_keys.push(AppKey::ToggleOverlay); continue; } // KEY_GRAVE
+                // KEY_F12 / KEY_SYSRQ (PrintScreen). Before the F-key arm
+                // below, which would otherwise swallow F12 as a group that
+                // does not exist. Ctrl+Alt+F12 is a VT switch and already
+                // `continue`d above, so it cannot reach here.
+                88 | 99 if pressed => { app_keys.push(AppKey::Screenshot); continue; }
                 59..=68 | 87 | 88 if pressed => {
                     let n = match code { 87 => 11, 88 => 12, _ => (code - 58) as u8 };
                     if let Some(group) = OverlayGroup::from_fkey(n) {

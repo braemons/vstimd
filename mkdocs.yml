@@ -112,10 +112,17 @@ nav:
       - Conditions: concepts/conditions.md
       - Saving & loading: concepts/saving-loading.md
       - Integrating recording systems: concepts/recording-integration.md
+  - Stimuli:
+      - Overview: stimuli/index.md
+      - Shapes: stimuli/shapes.md
+      - Gratings: stimuli/gratings.md
+      - Text: stimuli/text.md
+      - Random dot kinematograms: stimuli/random-dots.md
   - Tutorials:
       - Overview: tutorials/index.md
       - First light: tutorials/first-light.md
       - Drifting grating: tutorials/drifting-grating.md
+      - Figure-ground RDK: tutorials/figure-ground-rdk.md
       - Gratings, triggers & a saved config: tutorials/gratings-triggers-config.md
       - Moving target: tutorials/moving-target.md
       - Photodiode & flicker: tutorials/photodiode-flicker.md

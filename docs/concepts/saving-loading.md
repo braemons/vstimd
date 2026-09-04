@@ -177,5 +177,5 @@ accumulate, as a nudge to clean up.
   API alongside the command API, ahead of trigger-driven execution.
 - **[Deferred mode](deferred-mode.md)** — atomic frame flips for coordinated changes.
 - **[Conditions](conditions.md)** — switching protocol steps without reloading the scene.
-- **[Build the demos yourself](../tutorials/index.md)** — six scripts that each
+- **[Build the demos yourself](../tutorials/index.md)** — seven scripts that each
   end by saving the scene they built.
