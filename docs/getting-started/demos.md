@@ -13,6 +13,7 @@ a starting point you can edit and re-save under your own name.
 ```console
 $ vstimd-client scene-config list
 demos/drifting_grating
+demos/figure_ground_rdk
 demos/first_light
 demos/gratings_triggered
 demos/moving_target
@@ -51,12 +52,13 @@ self-describing.
 |---|---|---|
 | `demos/first_light` | Centre dot and four corner squares — the display is being driven, edge to edge | — |
 | `demos/drifting_grating` | Full-field sinusoidal grating, 0.01 cyc/px, drifting at 4 cyc/s | — |
+| `demos/figure_ground_rdk` | Two full-screen random-dot fields split by a circular aperture and its exact complement — a figure defined by direction alone, no luminance/density/texture cue | — |
 | `demos/gratings_triggered` | Two masked gratings (45°, 135°) at the centre, each flashed for 2 s by its own input pin | in 11, 12 → out 36/37, 38/40 |
 | `demos/moving_target` | Target sweeping left→right at 600 px/s, looping forever | out 36 each sweep |
 | `demos/photodiode_flicker` | Photodiode patch inverting every frame, plus a 5 Hz full-field flicker | — |
 | `demos/trigger_gate` | Square-wave patch visible exactly while an input pin is HIGH | in 7 |
 
-The three demos that need no trigger start running the moment they are loaded.
+The four demos that need no trigger start running the moment they are loaded.
 
 ## Triggers: what to wire up
 
@@ -128,6 +130,7 @@ the scripts are a better starting point for your own scene than a JSON file is.
 |---|---|---|
 | `demos/first_light` | [First light](../tutorials/first-light.md) | `examples/demos/first_light.py` |
 | `demos/drifting_grating` | [Drifting grating](../tutorials/drifting-grating.md) | `examples/demos/drifting_grating.py` |
+| `demos/figure_ground_rdk` | — | `examples/demos/figure_ground_rdk.py` |
 | `demos/gratings_triggered` | [Gratings, triggers & a saved config](../tutorials/gratings-triggers-config.md) | `examples/demos/gratings_triggered.py` |
 | `demos/moving_target` | [Moving target](../tutorials/moving-target.md) | `examples/demos/moving_target.py` |
 | `demos/photodiode_flicker` | [Photodiode & flicker](../tutorials/photodiode-flicker.md) | `examples/demos/photodiode_flicker.py` |

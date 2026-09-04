@@ -1,0 +1,212 @@
+{
+  "version": 5,
+  "scene": {
+    "background": [
+      0.5,
+      0.5,
+      0.5,
+      1.0
+    ],
+    "default_fill": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "default_outline": [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ],
+    "photodiode": {
+      "enabled": false,
+      "lit": false,
+      "flicker": false,
+      "position": 0
+    },
+    "stimuli": {
+      "1": {
+        "id": "d3701007-0000-4000-8000-000000000001",
+        "name": "ground",
+        "stimulus": {
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
+          },
+          "body": {
+            "type": "Dots",
+            "transform": {
+              "pos_px": [
+                0.0,
+                0.0
+              ],
+              "angle_deg": 0.0
+            },
+            "params": {
+              "field_size_px": [
+                1920.0,
+                1080.0
+              ],
+              "dot_count": 900,
+              "aperture": {
+                "shape": "Circle",
+                "size_px": [
+                  500.0,
+                  500.0
+                ],
+                "offset_px": [
+                  0.0,
+                  0.0
+                ],
+                "invert": true,
+                "clip": "DotCenter"
+              },
+              "dot_size_px": 8.0,
+              "dot_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "dot_color_alt": null,
+              "dot_shape": "Round",
+              "direction_deg": 0.0,
+              "speed_px_per_s": 200.0,
+              "coherence": 1.0,
+              "signal_rule": "Same",
+              "noise_rule": "Direction",
+              "reinsertion": "Wrap",
+              "dot_lifetime_frames": 0,
+              "seed": 1
+            }
+          }
+        }
+      },
+      "2": {
+        "id": "d3701007-0000-4000-8000-000000000002",
+        "name": "figure",
+        "stimulus": {
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
+          },
+          "body": {
+            "type": "Dots",
+            "transform": {
+              "pos_px": [
+                0.0,
+                0.0
+              ],
+              "angle_deg": 0.0
+            },
+            "params": {
+              "field_size_px": [
+                1920.0,
+                1080.0
+              ],
+              "dot_count": 900,
+              "aperture": {
+                "shape": "Circle",
+                "size_px": [
+                  500.0,
+                  500.0
+                ],
+                "offset_px": [
+                  0.0,
+                  0.0
+                ],
+                "invert": false,
+                "clip": "DotCenter"
+              },
+              "dot_size_px": 8.0,
+              "dot_color": [
+                1.0,
+                1.0,
+                1.0,
+                1.0
+              ],
+              "dot_color_alt": null,
+              "dot_shape": "Round",
+              "direction_deg": 90.0,
+              "speed_px_per_s": 200.0,
+              "coherence": 1.0,
+              "signal_rule": "Same",
+              "noise_rule": "Direction",
+              "reinsertion": "Wrap",
+              "dot_lifetime_frames": 0,
+              "seed": 2
+            }
+          }
+        }
+      },
+      "3": {
+        "id": "d3701007-0000-4000-8000-000000000003",
+        "name": "explanation",
+        "stimulus": {
+          "common": {
+            "flags": {
+              "enabled": true,
+              "protected": false
+            },
+            "opacity": 1.0
+          },
+          "body": {
+            "type": "Text",
+            "transform": {
+              "pos_px": [
+                0.0,
+                -340.0
+              ],
+              "angle_deg": 0.0
+            },
+            "params": {
+              "color": [
+                0.9,
+                0.9,
+                0.9,
+                1.0
+              ],
+              "fill_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.65
+              ],
+              "border_color": [
+                0.0,
+                0.0,
+                0.0,
+                0.0
+              ],
+              "flip_horiz": false
+            },
+            "box_size_px": [
+              1500.0,
+              320.0
+            ],
+            "text_live": "demos/figure_ground_rdk — a figure defined by motion alone\n\nTwo full-screen dot fields: one inside a 500 px circle, one outside it —\nthe exact complement, so together they cover the whole screen with no gap\nor overlap in where each field is *allowed* to be seen. The figure drifts up,\nthe ground drifts right. Freeze either field alone and there is nothing to see:\nthe circle exists only in how the dots move, never in their density or colour.\nRuns on load — no trigger.",
+            "font_family": "",
+            "letter_height_px": 24.0,
+            "anchor": "Center",
+            "language_style": "Ltr"
+          }
+        }
+      }
+    },
+    "next_stim_handle": 4,
+    "animations": {},
+    "next_anim_handle": 1
+  },
+  "io": {
+    "vtl": {
+      "names": []
+    }
+  }
+}
