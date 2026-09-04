@@ -59,6 +59,33 @@ form cue* — visible in a single freeze-frame, which is precisely what the stim
 exists to avoid. Use `PIXEL` when the aperture is meant to be seen, as in a classic
 RDK behind a hard circular window.
 
+## Appearance
+
+`dot_size_px` is a **diameter**, like every size in vstimd. `dot_shape` is
+`DotShape.ROUND` (the default) or `DotShape.SQUARE` — Psychtoolbox's
+`dot_type=0`. `dot_color` is the field's colour; `dot_color_alt`, left `None`
+for a single-colour field, assigns a second colour to each dot at birth with
+probability ½ — Psychtoolbox's `bwSameTrial`.
+
+## Mutating a live field
+
+Every `DotsParams` field a trial might change between draws has a matching
+setter on `conn.stimuli.dots`, so a running field can be steered without
+recreating it:
+
+| Setter | Changes |
+|---|---|
+| `set_direction(handle, direction_deg)` | Direction of coherent motion — applied as a change of *velocity* from wherever the dots currently are, not a jump back onto a line through their birth positions. This is what makes a mid-trial direction switch (Psychtoolbox's `noFigureFrames`) expressible. |
+| `set_speed(handle, speed_px_per_s)` | Coherent speed. |
+| `set_coherence(handle, coherence)` | Fraction of dots carrying the coherent direction. |
+| `set_dot_count(handle, dot_count)` | Number of dots in the field. |
+| `set_dot_size(handle, dot_size_px)` | Dot diameter. |
+| `set_dot_color(handle, color, color_alt=None)` | Both colours together — omitting `color_alt` clears it. |
+| `set_aperture(handle, aperture)` | The whole `Aperture`, replaced in one call. |
+| `set_field_size(handle, width_px, height_px)` | The field rectangle. |
+| `set_dot_lifetime(handle, dot_lifetime_frames)` | Frames before a dot is reborn. |
+| `set_seed(handle, seed)` | Reseeds the field: redraws the sample and restarts it at frame 0. Never deferred — a seed is not a value that can be half-applied. |
+
 ## Reproducibility
 
 **The sample is a function of `seed` and the frame index alone.** Replaying a saved
@@ -148,3 +175,7 @@ a methods section quotes and the number the config has to record.
 figure-ground stimulus, including the four protocol conditions, with every
 conversion above done at the boundary and commented. `dev/design/RDK_PLAN.md` records
 the design and the reading of the original that produced it.
+
+For the smaller, shipped-demo version of the same idea, built up call by call, see
+the **[Figure-ground RDK tutorial](../tutorials/figure-ground-rdk.md)**, which rebuilds
+`demos/figure_ground_rdk` from an empty scene.

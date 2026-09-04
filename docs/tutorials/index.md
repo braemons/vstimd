@@ -1,7 +1,7 @@
 # Build the demos yourself
 
 The [demo scenes](../getting-started/demos.md) are ordinary configs, so every
-one of them is something you could have built from a client. These six pages do
+one of them is something you could have built from a client. These pages do
 exactly that: each takes one shipped demo apart and rebuilds it from an empty
 scene with the Python command API, then saves the result under a name of your
 own.
@@ -17,6 +17,7 @@ into it with no client attached.
 |---|---|---|
 | [First light](first-light.md) | `demos/first_light` | shapes, text, the scene as a unit |
 | [Drifting grating](drifting-grating.md) | `demos/drifting_grating` | gratings, and motion the server owns |
+| [Figure-ground RDK](figure-ground-rdk.md) | `demos/figure_ground_rdk` | random dot kinematograms, the field/aperture split, a figure defined by motion alone |
 | [Gratings, triggers & a saved config](gratings-triggers-config.md) | `demos/gratings_triggered` | arming stimuli against input lines, marking onsets on output lines, saving and booting into the result |
 | [Moving target](moving-target.md) | `demos/moving_target` | path animations, looping, one pulse per repeat |
 | [Photodiode & flicker](photodiode-flicker.md) | `demos/photodiode_flicker` | frame-counted timing, the photodiode patch |

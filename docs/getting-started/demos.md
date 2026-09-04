@@ -130,7 +130,7 @@ the scripts are a better starting point for your own scene than a JSON file is.
 |---|---|---|
 | `demos/first_light` | [First light](../tutorials/first-light.md) | `examples/demos/first_light.py` |
 | `demos/drifting_grating` | [Drifting grating](../tutorials/drifting-grating.md) | `examples/demos/drifting_grating.py` |
-| `demos/figure_ground_rdk` | — | `examples/demos/figure_ground_rdk.py` |
+| `demos/figure_ground_rdk` | [Figure-ground RDK](../tutorials/figure-ground-rdk.md) | `examples/demos/figure_ground_rdk.py` |
 | `demos/gratings_triggered` | [Gratings, triggers & a saved config](../tutorials/gratings-triggers-config.md) | `examples/demos/gratings_triggered.py` |
 | `demos/moving_target` | [Moving target](../tutorials/moving-target.md) | `examples/demos/moving_target.py` |
 | `demos/photodiode_flicker` | [Photodiode & flicker](../tutorials/photodiode-flicker.md) | `examples/demos/photodiode_flicker.py` |
