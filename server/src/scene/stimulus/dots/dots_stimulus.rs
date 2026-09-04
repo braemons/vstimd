@@ -44,7 +44,14 @@ pub struct Dots {
     // command arrives, and the flip only changes how many of them are used.
     pos_px: Vec<[f32; 2]>,
     dir_unit: Vec<[f32; 2]>,
-    is_signal: Vec<bool>,
+    /// Each dot's fixed uniform draw in `[0, 1)`, **not** its resolved role. A dot
+    /// carries the signal this frame when its roll is below the *current*
+    /// `coherence`, so a live `SetCoherence` moves dots across the threshold at
+    /// once — without it, a role drawn at birth would never change under an
+    /// infinite lifetime and `SignalRule::Same`, and stepping coherence would have
+    /// no visible effect (DOTS-02). Under `SignalRule::Different` the roll is
+    /// redrawn every frame.
+    signal_roll: Vec<f32>,
     use_alt_color: Vec<bool>,
     /// **One stream per dot**, not one for the field.
     ///
@@ -105,7 +112,7 @@ impl Dots {
             config,
             pos_px: Vec::new(),
             dir_unit: Vec::new(),
-            is_signal: Vec::new(),
+            signal_roll: Vec::new(),
             use_alt_color: Vec::new(),
             rng: Vec::new(),
             frame: 0,
@@ -141,7 +148,7 @@ impl Dots {
     fn resize_arrays(&mut self, capacity: usize) {
         self.pos_px.resize(capacity, [0.0, 0.0]);
         self.dir_unit.resize(capacity, [1.0, 0.0]);
-        self.is_signal.resize(capacity, true);
+        self.signal_roll.resize(capacity, 0.0);
         self.use_alt_color.resize(capacity, false);
         self.rng.resize_with(capacity, || DotsRng::new(0));
     }
@@ -174,7 +181,7 @@ impl Dots {
     fn birth_range(&mut self, from: usize, to: usize, p: &DotsParams) {
         for i in from..to.min(self.pos_px.len()) {
             Self::birth(&mut self.rng[i], &mut self.pos_px, &mut self.dir_unit,
-                        &mut self.is_signal, &mut self.use_alt_color, i, p);
+                        &mut self.signal_roll, &mut self.use_alt_color, i, p);
         }
     }
 
@@ -187,13 +194,18 @@ impl Dots {
     /// whatever the parameters are, which keeps a dot's stream position a function
     /// of how many frames it has lived rather than of the values it drew.
     ///
+    /// The signal/noise role is stored as its raw uniform draw, not resolved
+    /// against `coherence` here: the role is re-derived every frame in
+    /// [`advance`](Self::advance) so that a live `SetCoherence` takes effect at
+    /// once.
+    ///
     /// An associated function taking the arrays rather than `&mut self`, because the
     /// callers already hold `&mut` on the field they are walking.
     fn birth(
         rng: &mut DotsRng,
         pos_px: &mut [[f32; 2]],
         dir_unit: &mut [[f32; 2]],
-        is_signal: &mut [bool],
+        signal_roll: &mut [f32],
         use_alt_color: &mut [bool],
         i: usize,
         p: &DotsParams,
@@ -202,7 +214,7 @@ impl Dots {
         let hh = p.field_size_px[1] * 0.5;
         pos_px[i] = [rng.f32_range(-hw, hw), rng.f32_range(-hh, hh)];
         dir_unit[i] = rng.unit_vector();
-        is_signal[i] = rng.chance(p.coherence);
+        signal_roll[i] = rng.f32_01();
         use_alt_color[i] = rng.chance(0.5);
     }
 
@@ -251,15 +263,18 @@ impl Dots {
         for i in 0..n {
             if reborn_group == Some(i % life.max(1)) {
                 Self::birth(&mut self.rng[i], &mut self.pos_px, &mut self.dir_unit,
-                            &mut self.is_signal, &mut self.use_alt_color, i, &p);
+                            &mut self.signal_roll, &mut self.use_alt_color, i, &p);
                 continue;
             }
 
             if p.signal_rule == SignalRule::Different {
-                self.is_signal[i] = self.rng[i].chance(p.coherence);
+                self.signal_roll[i] = self.rng[i].f32_01();
             }
 
-            let dir = if self.is_signal[i] {
+            // Resolved against the *current* coherence every frame, so a live
+            // `SetCoherence` moves dots across the threshold at once.
+            let is_signal = self.signal_roll[i] < p.coherence;
+            let dir = if is_signal {
                 signal_dir
             } else {
                 match p.noise_rule {
@@ -704,6 +719,40 @@ mod tests {
             .count();
         let fraction = signal as f32 / 4000.0;
         assert!((fraction - 0.25).abs() < 0.03, "signal fraction {fraction}, wanted ~0.25");
+    }
+
+    /// A live `SetCoherence` changes how the field moves *now* — even with an
+    /// infinite lifetime and `SignalRule::Same`, where no dot is ever reborn. The
+    /// role is re-derived from the current coherence every frame, so stepping it
+    /// down turns signal dots into noise dots on the spot (DOTS-02).
+    #[test]
+    fn set_coherence_takes_effect_without_a_rebirth() {
+        let signal_fraction = |d: &mut Dots| {
+            let before = d.positions().to_vec();
+            d.advance(HZ);
+            before
+                .iter()
+                .zip(d.positions())
+                .filter(|(b, a)| (a[0] - b[0] - 1.0).abs() < 1e-3 && (a[1] - b[1]).abs() < 1e-3)
+                .count() as f32
+                / before.len() as f32
+        };
+        let mut d = field(params(|p| {
+            p.dot_count = 4000;
+            p.coherence = 1.0;
+            p.direction_deg = 0.0;
+            p.speed_px_per_s = 60.0;
+            p.noise_rule = NoiseRule::Direction;
+            p.dot_lifetime_frames = 0; // infinite — nothing is ever reborn
+            p.signal_rule = SignalRule::Same;
+        }));
+        assert!((signal_fraction(&mut d) - 1.0).abs() < 0.01);
+
+        d.set_coherence(false, 0.25);
+        assert!((signal_fraction(&mut d) - 0.25).abs() < 0.03, "coherence change was ignored");
+
+        d.set_coherence(false, 0.0);
+        assert!(signal_fraction(&mut d) < 0.02, "still moving coherently at coherence 0");
     }
 
     // ── The aperture ──────────────────────────────────────────────────────────

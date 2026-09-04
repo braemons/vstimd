@@ -67,25 +67,40 @@ def test_create_dots(conn: Connection, stage: Stage) -> None:
 
 @pytest.mark.onscreen(
     "DOTS-02",
-    "the same dot field with coherence stepped 1.0 → 0.5 → 0.0: it goes from "
-    "every dot moving right together, to half of them, to none — a boil with no "
-    "net direction",
+    "three dot fields side by side, coherence 1.0 / 0.5 / 0.0 left to right: the "
+    "left field moves rightward as one, the middle is half signal and half boil, "
+    "the right has no net direction at all. Then each is stepped down live — the "
+    "motion must actually change, not just the reported value",
 )
 def test_dots_coherence(conn: Connection, stage: Stage) -> None:
-    handle = conn.stimuli.dots.create_dots(
-        params=DotsParams(
-            field_width_px=500, field_height_px=500, dot_count=300, dot_size_px=8,
-            aperture=Aperture(shape=ApertureShape.CIRCLE, width_px=500),
-            speed_px_per_s=150.0, coherence=1.0, noise_rule=NoiseRule.DIRECTION, seed=2,
-        ),
-    )
-    for coherence in (1.0, 0.5, 0.0):
+    info = conn.system.query_server_info()
+    third = info.width_px / 3.0
+
+    def make(x: float, coherence: float) -> int:
+        return conn.stimuli.dots.create_dots(
+            position_px=Vec2(x, 0.0),
+            params=DotsParams(
+                field_width_px=third * 0.9, field_height_px=third * 0.9,
+                dot_count=200, dot_size_px=8,
+                aperture=Aperture(shape=ApertureShape.CIRCLE, width_px=third * 0.9),
+                speed_px_per_s=150.0, coherence=coherence,
+                noise_rule=NoiseRule.DIRECTION, seed=2,
+            ),
+        )
+
+    handles = [make(-third, 1.0), make(0.0, 0.5), make(third, 0.0)]
+    stage.step("coherence 1.0 / 0.5 / 0.0, left to right")
+
+    # Step each field's coherence down live and confirm the query agrees.
+    for handle, coherence in zip(handles, (0.5, 0.0, 0.0)):
         conn.stimuli.dots.set_coherence(handle, coherence)
-        info = conn.stimuli.query(handle)
-        assert isinstance(info.params, DotsParams)
-        assert info.params.coherence == pytest.approx(coherence, abs=0.01)
-        stage.step(f"coherence = {coherence}")
-    conn.stimuli.delete(handle)
+        q = conn.stimuli.query(handle)
+        assert isinstance(q.params, DotsParams)
+        assert q.params.coherence == pytest.approx(coherence, abs=0.01)
+    stage.step("each field stepped down live — all three now at 0.5 / 0.0 / 0.0")
+
+    for handle in handles:
+        conn.stimuli.delete(handle)
 
 
 @pytest.mark.onscreen(
