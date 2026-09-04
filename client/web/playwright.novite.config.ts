@@ -11,6 +11,11 @@ const UI_PORT = 4174;
 const REPO_ROOT = new URL("../..", import.meta.url).pathname;
 const STORAGE_DIR = mkdtempSync(join(tmpdir(), "vstimd-novite-"));
 
+// The suite also talks to the backend node-side (smoke.spec.ts resets the scene
+// between tests). Point it at *this* config's backend, not the Vite config's --
+// the config file is evaluated in every worker, so the workers see it too.
+process.env.SMOKE_BACKEND ??= `ws://127.0.0.1:${VSTIMD_WEB_PORT}`;
+
 export default defineConfig({
   testDir: "./playwright",
   timeout: 30_000,
