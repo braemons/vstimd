@@ -13,6 +13,12 @@ pub enum AppKey {
     HideGroup(OverlayGroup),
     /// Spawn demo stimuli (only acted on when the overlay is hidden).
     D,
+    /// Save the next rendered frame as a PNG (F12 / PrintScreen).
+    ///
+    /// Belongs here rather than in a backend because a rig running on bare
+    /// DRM has no window manager to ask for a screenshot, and it is exactly
+    /// that frame — the one on the panel — worth capturing.
+    Screenshot,
     /// Ctrl+Alt+Fn — forward to the kernel as a VT switch.
     SwitchVt(u16),
     /// Ctrl+Q — quit the process (DRM mode has no window manager to send a

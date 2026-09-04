@@ -48,6 +48,11 @@ impl DrmBackend {
 /// the VT is returned to text mode only after Vulkan has fully released the
 /// display hardware.
 struct DrmRenderLoopData {
+    /// Pending screenshot, if any. On a bare-metal rig there is no window
+    /// manager to ask for one, so this is the only way to capture the frame
+    /// that is actually on the panel. Declared before `rs`: a pending capture
+    /// owns a Vulkan buffer, so it must drop before `rs` tears the device down.
+    shot: crate::render::Screenshotter,
     rs: RenderState,
     vtl: Option<Arc<Mutex<VtlState>>>,
     input: InputState,
@@ -249,6 +254,7 @@ impl DrmRenderLoopData {
         };
 
         Self {
+            shot: crate::render::Screenshotter::new(),
             rs,
             vtl,
             input,
@@ -333,8 +339,10 @@ impl DrmRenderLoopData {
             for key in app_keys {
                 // The VT guard holds the VT in VT_PROCESS mode, so a switch
                 // has to go through it for the release handshake.
-                if let KeyOutcome::SwitchVt(n) = frame_loop::apply_app_key(key, &mut self.rs) {
-                    self.vt_guard.switch_to(n);
+                match frame_loop::apply_app_key(key, &mut self.rs) {
+                    KeyOutcome::SwitchVt(n) => self.vt_guard.switch_to(n),
+                    KeyOutcome::Screenshot => self.shot.request(&crate::render::screenshot::default_dir()),
+                    KeyOutcome::Handled => {}
                 }
             }
 
@@ -393,13 +401,12 @@ impl DrmRenderLoopData {
             // 4. Render: build overlay UI, tessellate scene, record Vulkan
             //    commands, submit to GPU, present to display.
             //    The frame prepared here will become visible at the next vblank.
-            render_frame(
-                &mut self.rs,
-                screen_clock,
-                egui_raw_input,
-                self.vtl.as_deref(),
-                None,
-            );
+            // Split the borrow so the readback target (from `shot`) and the
+            // render state can be held at once.
+            let Self { rs, shot, vtl, .. } = &mut self;
+            let readback = shot.begin(&rs.ctx);
+            render_frame(rs, screen_clock, egui_raw_input, vtl.as_deref(), readback);
+            shot.finish(&rs.ctx);
 
         }
         // When the loop exits, `self` is consumed and fields drop in

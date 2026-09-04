@@ -25,6 +25,10 @@ pub(crate) enum KeyOutcome {
     /// so the switch needs an explicit release handshake), while a backend
     /// that owns no VT can ignore it or forward it directly.
     SwitchVt(u16),
+    /// A screenshot was requested. Backend-specific because the staging
+    /// buffer must be handed to that backend's own `render_frame` call —
+    /// see [`crate::render::Screenshotter`].
+    Screenshot,
 }
 
 /// Apply one app-level key that means the same thing in every backend.
@@ -59,6 +63,7 @@ pub(crate) fn apply_app_key(key: AppKey, rs: &mut RenderState) -> KeyOutcome {
             }
         }
         AppKey::SwitchVt(n) => return KeyOutcome::SwitchVt(n),
+        AppKey::Screenshot => return KeyOutcome::Screenshot,
         // Demo spawn only when the overlay is hidden, so 'd' types into
         // dialog fields while the overlay is up.
         AppKey::D => {

@@ -64,6 +64,9 @@ struct WinitRenderLoopData {
     // `rs` (all Vulkan resources) and `egui_winit` must drop BEFORE `window`,
     // because they hold surface handles and wl_surface proxies into the window
     // that become dangling once the window is destroyed.
+    /// Before `rs`: a pending capture owns a Vulkan buffer and its own cloned
+    /// `ash::Device` handle, so it has to drop before `rs` tears the device down.
+    shot: crate::render::Screenshotter,
     rs: RenderState,
     vtl: Option<Arc<Mutex<VtlState>>>,
     egui_winit: egui_winit::State,
@@ -162,6 +165,7 @@ impl WinitRenderLoopData {
         };
 
         Self {
+            shot: crate::render::Screenshotter::new(),
             rs,
             vtl,
             egui_winit,
@@ -212,13 +216,13 @@ impl WinitRenderLoopData {
         // 2. Render: build overlay UI, tessellate scene, record Vulkan commands,
         //    submit to GPU, present to display.
         //    The frame prepared here will become visible at the next vblank.
-        let (tick, platform_output) = render_frame(
-            &mut self.rs,
-            None,
-            egui_raw_input,
-            self.vtl.as_deref(),
-            None,
-        );
+        // Split the borrow so the readback target (owned by `shot`) and the
+        // mutable render state can be held across the same call.
+        let Self { rs, shot, vtl, .. } = &mut *self;
+        let readback = shot.begin(&rs.ctx);
+        let (tick, platform_output) =
+            render_frame(rs, None, egui_raw_input, vtl.as_deref(), readback);
+        shot.finish(&rs.ctx);
 
 
         // 3. Forward egui platform output (cursor changes, clipboard, etc.).
@@ -375,6 +379,14 @@ impl ApplicationHandler for WinitEventHandler {
                             if let Some(id) = m.focused() { m.surrender_focus(id); }
                         });
                     }
+                }
+                return;
+            }
+            // F12 / PrintScreen — save the frame. Handled here with the other
+            // global hotkeys so a focused overlay text field cannot swallow it.
+            if matches!(key, KeyCode::F12 | KeyCode::PrintScreen) {
+                if let Some(data) = &mut self.render_data {
+                    data.shot.request(&crate::render::screenshot::default_dir());
                 }
                 return;
             }

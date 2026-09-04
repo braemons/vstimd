@@ -2,6 +2,7 @@ syntax = "proto3";
 package vstimd.v1;
 
 import "vstimd/v1/stimuli/circle.proto";
+import "vstimd/v1/stimuli/dots.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
 import "vstimd/v1/stimuli/grating.proto";
 import "vstimd/v1/stimuli/polygon.proto";
@@ -23,6 +24,7 @@ message StimulusParams {
     GratingParams grating = 4;
     TextParams text = 5;
     PolygonParams polygon = 6;
+    DotsParams dots = 7;
   }
 }
 

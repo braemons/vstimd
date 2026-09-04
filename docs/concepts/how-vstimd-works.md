@@ -1,7 +1,5 @@
 # How vstimd works: setup, then triggers
 
-<span class="wip-badge">WIP</span>
-
 Most stimulus systems are **command-driven**: your script issues a draw call and a
 frame appears, over and over, in lockstep with your code. vstimd is built the other
 way round. Its centre of gravity is a **trigger-driven execution model**: you load
@@ -66,7 +64,7 @@ That job belongs to the trigger framework below.
 
 A whole scene — stimuli, animations, background, **and** the VTL line map — can be saved
 to and loaded from a **versioned JSON config file** on the device (via the command API's
-`config` namespace, or the web UI). A rig can boot straight into a known stimulus
+`scene_config` namespace, or the web UI). A rig can boot straight into a known stimulus
 configuration with **no client connected at all**. See
 [Saving & loading scenes](saving-loading.md).
 

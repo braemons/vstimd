@@ -141,25 +141,35 @@ packaging](../developer/building.md).
 
 ## Python client
 
-Requires Python ≥ 3.12 and [uv](https://docs.astral.sh/uv/).
+This is all you need on your experiment PC — no checkout, no Rust, no server.
+Requires Python ≥ 3.12. The distribution is `vstimd-client`; the import package
+is `vstimd`.
+
+```sh
+pip install vstimd-client        # or: uv add vstimd-client
+```
+
+That also installs the [`vstimd-client` command-line tool](../client/cli.md),
+and mDNS discovery works out of the box — `zeroconf` is a plain dependency, so
+`vstimd-client discover` finds rigs with no Avahi installed locally.
+
+!!! note "Pre-releases while the project is in alpha"
+    Until `0.1.0` is final the only versions on PyPI are release candidates, and
+    the command above installs the newest of them — pip and uv fall back to
+    pre-releases when nothing stable satisfies the request. Once a final release
+    exists that same command gives you the stable version, and opting back into
+    candidates needs `pip install --pre vstimd-client` (or
+    `uv add --prerelease allow vstimd-client`).
+
+To work from a source checkout instead — with [uv](https://docs.astral.sh/uv/):
 
 ```sh
 cd client/python
 uv sync
+make proto          # the protobuf stubs are generated, not committed
 ```
 
-To install into an existing environment:
-
-```sh
-pip install ./client/python
-```
-
-The `discover` extra adds pure-Python mDNS so `vstimd-client discover` can find
-rigs without Avahi installed locally:
-
-```sh
-pip install './client/python[discover]'
-```
+Full reference: **[Python client](../client/python.md)**.
 
 ## MATLAB client (planned)
 
