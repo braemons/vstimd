@@ -110,9 +110,14 @@ nav:
       - Coordinate system: concepts/coordinate-system.md
       - Deferred mode: concepts/deferred-mode.md
       - Conditions: concepts/conditions.md
-      - Random dot kinematograms: concepts/random-dots.md
       - Saving & loading: concepts/saving-loading.md
       - Integrating recording systems: concepts/recording-integration.md
+  - Stimuli:
+      - Overview: stimuli/index.md
+      - Shapes: stimuli/shapes.md
+      - Gratings: stimuli/gratings.md
+      - Text: stimuli/text.md
+      - Random dot kinematograms: stimuli/random-dots.md
   - Tutorials:
       - Overview: tutorials/index.md
       - First light: tutorials/first-light.md

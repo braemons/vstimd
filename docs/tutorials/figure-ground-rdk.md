@@ -7,7 +7,7 @@ by motion alone: nothing in any single frame — not density, not colour, not a
 drawn edge — tells you where the figure is. Freeze the frame and it vanishes.
 Let it run and the circle appears, made of nothing but which way the dots go.
 
-See [Random dot kinematograms](../concepts/random-dots.md) for the concepts
+See [Random dot kinematograms](../stimuli/random-dots.md) for the concepts
 this tutorial puts to use — the field/aperture split, `invert`, and why
 `ApertureClip.DOT_CENTER` matters here specifically.
 
@@ -102,7 +102,7 @@ boundary still looks ragged — just with the other field winning the overlap.
     motion-defined figure. `DOT_CENTER` tests only a dot's *centre* against the
     aperture and then draws it whole, so the boundary is exactly as ragged as
     the dot positions are, and only visible once the two fields are moving
-    differently. See [Random dot kinematograms](../concepts/random-dots.md#clipping-dot_center-vs-pixel).
+    differently. See [Random dot kinematograms](../stimuli/random-dots.md#clipping-dot_center-vs-pixel).
 
 ## 5. Caption and save
 
@@ -145,7 +145,7 @@ Saved as 'my_figure_ground_rdk' — the figure is moving the moment it loads.
 
 ## Next
 
-- **[Random dot kinematograms](../concepts/random-dots.md)** — the concepts
+- **[Random dot kinematograms](../stimuli/random-dots.md)** — the concepts
   page this tutorial builds on, including porting from Psychtoolbox and
   converting to/from degrees of visual angle.
 - **[Drifting grating](drifting-grating.md)** — another stimulus that moves

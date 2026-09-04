@@ -56,9 +56,11 @@ with Connection() as conn:
     print(rect)                            # a StimulusHandle
 ```
 
-The available stimulus types are rectangles, circles, ellipses, gratings, and
-text. Each has a matching `create_*` and its own shape/appearance commands — see
-the [Python client reference](../client/python.md).
+The available stimulus types are rectangles, circles, ellipses, polygons,
+gratings, text and random dot fields. Each has a matching `create_*` and its own
+params — see **[Stimuli](../stimuli/index.md)** for every parameter of every
+type, and the [Python client reference](../client/python.md) for the command
+surface.
 
 ## 3. Mutate and query
 

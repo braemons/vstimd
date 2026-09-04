@@ -58,6 +58,7 @@ acknowledges, and a server error is raised as a typed exception (see
 | `conn.stimuli.shapes` | Create/mutate shapes | `create_rect`, `create_circle`, `create_ellipse`, `set_rect_size`, `set_circle_diameter`, `set_ellipse_size`, `set_draw_mode`, `set_outline_color`, `set_outline_width` |
 | `conn.stimuli.grating` | Create/mutate gratings | `create_grating`, `set_phase`, `set_sf`, `set_contrast`, `set_waveform`, `set_mask`, `set_drift_speed`, `set_drift_angle`, `set_fore_color`, … (opacity: use `conn.stimuli.set_alpha`) |
 | `conn.stimuli.text` | Create/mutate text | `create_text`, `set_text`, `set_text_color` |
+| `conn.stimuli.dots` | Create/mutate [dot fields](../stimuli/random-dots.md) | `create_dots`, `set_direction`, `set_speed`, `set_coherence`, `set_dot_count`, `set_dot_size`, `set_dot_color`, `set_aperture`, `set_field_size`, `set_dot_lifetime`, `set_seed` |
 | `conn.system` | Scene-wide + queries | `set_background`, `set_all_enabled`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_deferred_mode`, `list_stimuli`, `query_server_info`, `wait_for_frames`, `wait_until` |
 | `conn.animations` | On-device animations | `create_flash`, `create_flicker`, `create_move_along_path_2d`, `create_couple_visibility_to_trigger_line`, `arm`, `disarm`, `cancel`, `query`, … |
 | `conn.vtl` | Virtual Trigger Lines | `set_line_name`, `set_line`, `toggle_line`, `list_lines` |
@@ -74,13 +75,15 @@ Creating a stimulus returns a **handle** you pass to later commands. Positions a
 **pixels from the screen centre, Y up** (see
 [Coordinate system](../concepts/coordinate-system.md)); colours are RGBA in 0–1.
 
-| Type | Create with |
-|---|---|
-| Rectangle | `conn.stimuli.shapes.create_rect(...)` |
-| Circle | `conn.stimuli.shapes.create_circle(...)` |
-| Ellipse | `conn.stimuli.shapes.create_ellipse(...)` |
-| Grating | `conn.stimuli.grating.create_grating(...)` |
-| Text | `conn.stimuli.text.create_text(...)` |
+| Type | Create with | Parameters |
+|---|---|---|
+| Rectangle | `conn.stimuli.shapes.create_rect(...)` | [Shapes](../stimuli/shapes.md#rect) |
+| Circle | `conn.stimuli.shapes.create_circle(...)` | [Shapes](../stimuli/shapes.md#circle) |
+| Ellipse | `conn.stimuli.shapes.create_ellipse(...)` | [Shapes](../stimuli/shapes.md#ellipse) |
+| Polygon | `conn.stimuli.shapes.create_polygon(...)` | [Shapes](../stimuli/shapes.md#polygon) |
+| Grating | `conn.stimuli.grating.create_grating(...)` | [Gratings](../stimuli/gratings.md) |
+| Text | `conn.stimuli.text.create_text(...)` | [Text](../stimuli/text.md) |
+| Random dots | `conn.stimuli.dots.create_dots(...)` | [Random dot kinematograms](../stimuli/random-dots.md) |
 
 ```python
 from vstimd import Connection

@@ -26,6 +26,8 @@ conventional command-based stimulus software.
       PsychoPy / Psychtoolbox / MWorks, and how it fuses with ephys and imaging.
     - **[How vstimd works](concepts/how-vstimd-works.md)** — how setup (command / config APIs) and
       trigger-driven execution fit together.
+    - **[Stimuli](stimuli/index.md)** — every stimulus type vstimd can draw, and
+      what each of its parameters means.
     - **[Build the demos yourself](tutorials/index.md)** — hands-on tutorials that
       rebuild each shipped demo scene, script by script.
 
