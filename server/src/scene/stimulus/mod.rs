@@ -1,3 +1,4 @@
+pub mod dots;
 pub mod grating;
 mod mesh3d;
 mod shape;
@@ -11,6 +12,10 @@ pub mod text;
 mod transform2d;
 mod transform3d;
 
+pub use dots::{
+    Aperture, ApertureClip, ApertureShape, DotShape, Dots, DotsConfig, DotsParams, NoiseRule,
+    Reinsertion, SignalRule,
+};
 pub use grating::{Grating, GratingMask, GratingParams, Waveform};
 pub use mesh3d::{Mesh3d, Mesh3dGeometry, MeshKey};
 pub use shape::{Shape, ShapeGeometry};

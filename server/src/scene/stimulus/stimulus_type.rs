@@ -27,6 +27,7 @@ pub enum StimulusType {
     Circle,
     Grating,
     Text,
+    Dots,
 
     // ── 3-D — no wire value yet; dev/3D_ROADMAP.md §10.2 reserves 20–29 ──
     Cube3D,
@@ -45,6 +46,7 @@ impl StimulusType {
             Self::Circle => "Circle",
             Self::Grating => "Grating",
             Self::Text => "Text",
+            Self::Dots => "Dots",
             Self::Cube3D => "Cube3D",
             Self::Sphere3D => "Sphere3D",
             Self::Plane3D => "Plane3D",
@@ -66,12 +68,13 @@ mod tests {
     /// `WRONG_STIMULUS_TYPE` message ambiguous about what the client actually sent.
     #[test]
     fn type_names_are_unique() {
-        const ALL: [StimulusType; 8] = [
+        const ALL: [StimulusType; 9] = [
             StimulusType::Rect,
             StimulusType::Ellipse,
             StimulusType::Circle,
             StimulusType::Grating,
             StimulusType::Text,
+            StimulusType::Dots,
             StimulusType::Cube3D,
             StimulusType::Sphere3D,
             StimulusType::Plane3D,

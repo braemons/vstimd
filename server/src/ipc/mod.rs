@@ -11,6 +11,7 @@ mod condition_commands;
 mod scene_config_commands;
 mod convert;
 mod dispatch;
+mod dots_commands;
 mod grating_commands;
 mod scene_commands;
 mod shape_commands;

@@ -23,6 +23,7 @@
 
 mod animation;
 mod condition;
+mod dots;
 mod grating;
 mod text;
 mod vtl;
@@ -33,6 +34,9 @@ pub(super) use animation::{
 pub(super) use condition::{
     condition_action_from_proto, condition_action_to_proto, condition_from_proto,
     condition_to_proto,
+};
+pub(super) use dots::{
+    aperture_from_proto, dots_params_from_proto, dots_params_to_proto,
 };
 pub(super) use grating::{
     grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,
@@ -81,6 +85,7 @@ pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusTyp
         SceneStimulusType::Circle => proto::StimulusType::Circle,
         SceneStimulusType::Grating => proto::StimulusType::Grating,
         SceneStimulusType::Text => proto::StimulusType::Text,
+        SceneStimulusType::Dots => proto::StimulusType::Dots,
         // Phase B: dev/3D_ROADMAP.md §10.2 reserves wire values 20–29 for these.
         // Unreachable until a command constructs a `Mesh3d`, and reporting one of
         // the 2-D values instead would be a lie a client could not detect.

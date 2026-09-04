@@ -8,6 +8,7 @@ from vstimd._proto.vstimd.v1.stimuli import (
 )
 from vstimd.response import ServerResponse
 
+from .dots_client import DotsClient
 from .grating_client import GratingClient
 from .shapes_client import ShapesClient, _SendFn
 from .text_client import TextClient
@@ -25,6 +26,7 @@ class StimuliClient:
     * ``shapes`` — :class:`~vstimd.stimuli.ShapesClient`: rect, circle, ellipse, polygon
     * ``grating`` — :class:`~vstimd.stimuli.GratingClient`: grating stimuli
     * ``text`` — :class:`~vstimd.stimuli.TextClient`: text stimuli
+    * ``dots`` — :class:`~vstimd.stimuli.DotsClient`: random dot kinematograms
 
     Example::
 
@@ -39,6 +41,7 @@ class StimuliClient:
         self.shapes = ShapesClient(send)
         self.grating = GratingClient(send)
         self.text = TextClient(send)
+        self.dots = DotsClient(send)
         self._send = send
 
     # ── Generic mutations ──────────────────────────────────────────────────────

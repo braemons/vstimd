@@ -9,6 +9,7 @@ pub mod vk_render_pipeline;
 pub mod vk_text_atlas;
 pub mod vk_text_pipeline;
 
+pub use crate::scene::stimulus::dots::VkDotsPipeline;
 pub use crate::scene::stimulus::grating::VkGratingPipeline;
 pub use cache::SceneCache;
 pub use egui::VkEguiRenderer;

@@ -1,57 +1,80 @@
+//! The dot pipeline: one instanced unit quad per dot.
+//!
+//! A dot field is a few hundred to a few thousand identical quads that differ only
+//! in position, so the whole field is one instanced draw: a shared unit quad in the
+//! vertex buffer, and a per-stimulus instance buffer of [`DotInstance`] rewritten
+//! each frame. Round dots come out of a distance test in the fragment shader, so
+//! there is no texture and no per-dot mesh.
+
 use crate::render::Vertex;
 use crate::render::vk::VkMesh;
 
-// ── Push-constant layout for the grating pipeline ────────────────────────────
+// ── Instance data ─────────────────────────────────────────────────────────────
 
-/// Must match the `PushConstants` struct in `shaders/grating.wgsl` (std430).
+/// One dot, as the instance buffer carries it.
 ///
-/// Layout (96 bytes):
-///   offset  0: screen_half     [f32; 2]
-///   offset  8: center_px       [f32; 2]
-///   offset 16: half_size       [f32; 2]
-///   offset 24: sf_cycles_per_px              f32
-///   offset 28: phase_cycles           f32
-///   offset 32: ori_rad         f32
-///   offset 36: contrast        f32
-///   offset 40: global_opacity  f32      ← global alpha multiplier
-///   offset 44: _pad_color      u32      ← padding (vec4 requires 16-byte alignment)
-///   offset 48: fore_color      [f32; 4] ← rgba peak colour
-///   offset 64: back_color      [f32; 4] ← rgba trough colour
-///   offset 80: waveform        u32
-///   offset 84: mask_type       u32
-///   offset 88: mask_param      f32   (SD for gauss; fringe width for raisedCos; 0 = use default)
-///   offset 92: _pad            u32
+/// Twelve bytes: everything else about a dot — its size, its two colours, the
+/// aperture — is the same for every dot in the field and travels in the push
+/// constants instead. `alt_color` is a flag rather than an RGBA precisely so this
+/// stays small, since it is the only thing rewritten every frame.
 #[repr(C)]
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct GratingPushConstants {
-    pub screen_half: [f32; 2],
-    pub center_px: [f32; 2],
-    pub half_size: [f32; 2],
-    pub sf_cycles_per_px: f32,
-    pub phase_cycles: f32,
-    pub ori_rad: f32,
-    pub contrast: f32,
-    pub global_opacity: f32,
-    pub _pad_color: u32,
-    pub fore_color: [f32; 4], // rgba peak colour
-    pub back_color: [f32; 4], // rgba trough colour
-    pub waveform: u32,
-    pub mask_type: u32,
-    pub mask_param: f32,
-    pub _pad: u32,
+#[derive(Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct DotInstance {
+    /// Field-local pixels, origin at the field centre.
+    pub pos_px: [f32; 2],
+    /// 0 → `dot_color`, 1 → `dot_color_alt`. A float rather than an integer
+    /// attribute because it is consumed as a `mix` factor.
+    pub alt_color: f32,
 }
 
-// ── Grating pipeline ──────────────────────────────────────────────────────────
+// ── Push constants ────────────────────────────────────────────────────────────
 
-pub struct VkGratingPipeline {
+/// Must match the `PushConstants` struct in `shaders/dots.wgsl` (std430).
+///
+/// Everything here is per *field*: the instance buffer carries only what differs
+/// between dots. Layout (96 bytes):
+///   offset  0: screen_half        [f32; 2]
+///   offset  8: field_center_px    [f32; 2] ← the stimulus position, screen space
+///   offset 16: aperture_offset_px [f32; 2] ← field-local, as `Aperture` stores it
+///   offset 24: aperture_half      [f32; 2] ← half-extents: halving is a shader detail
+///   offset 32: dot_radius_px      f32      ← half of `dot_size_px`, likewise
+///   offset 36: dot_shape          u32      ← 0 Round, 1 Square
+///   offset 40: aperture_shape     u32      ← 0 Rect, 1 Circle
+///   offset 44: aperture_invert    u32
+///   offset 48: clip_per_pixel     u32      ← 0 when the CPU already culled by centre
+///   offset 52: global_opacity     f32
+///   offset 56: _pad               [u32; 2] ← vec4 wants 16-byte alignment
+///   offset 64: dot_color          [f32; 4]
+///   offset 80: alt_color          [f32; 4]
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct DotsPushConstants {
+    pub screen_half: [f32; 2],
+    pub field_center_px: [f32; 2],
+    pub aperture_offset_px: [f32; 2],
+    pub aperture_half: [f32; 2],
+    pub dot_radius_px: f32,
+    pub dot_shape: u32,
+    pub aperture_shape: u32,
+    pub aperture_invert: u32,
+    pub clip_per_pixel: u32,
+    pub global_opacity: f32,
+    pub _pad: [u32; 2],
+    pub dot_color: [f32; 4],
+    pub alt_color: [f32; 4],
+}
+
+// ── Pipeline ──────────────────────────────────────────────────────────────────
+
+pub struct VkDotsPipeline {
     pub pipeline: ash::vk::Pipeline,
     pub layout: ash::vk::PipelineLayout,
-    /// Unit quad [-1,1]×[-1,1] shared by all grating draw calls.
-    /// The vertex shader positions it per-grating via push constants.
+    /// Unit quad [-1,1]² shared by every dot of every field; the vertex shader
+    /// scales it to `dot_radius_px` and offsets it by the instance position.
     pub quad: VkMesh,
 }
 
-impl VkGratingPipeline {
+impl VkDotsPipeline {
     pub fn new(
         device: &ash::Device,
         instance: &ash::Instance,
@@ -59,7 +82,7 @@ impl VkGratingPipeline {
         render_pass: ash::vk::RenderPass,
         polygon_mode: ash::vk::PolygonMode,
     ) -> Self {
-        let spv_bytes = include_bytes!(concat!(env!("OUT_DIR"), "/grating.spv"));
+        let spv_bytes = include_bytes!(concat!(env!("OUT_DIR"), "/dots.spv"));
         let spv_u32: Vec<u32> = spv_bytes
             .chunks_exact(4)
             .map(|c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]))
@@ -68,7 +91,7 @@ impl VkGratingPipeline {
         let shader_module = unsafe {
             device
                 .create_shader_module(&shader_info, None)
-                .expect("grating: shader module")
+                .expect("dots: shader module")
         };
 
         let entry_vs = c"vs_main";
@@ -84,35 +107,39 @@ impl VkGratingPipeline {
                 .name(entry_fs),
         ];
 
-        // Vertex input — same layout as the solid pipeline.
-        let binding = ash::vk::VertexInputBindingDescription::default()
-            .binding(0)
-            .stride(std::mem::size_of::<Vertex>() as u32)
-            .input_rate(ash::vk::VertexInputRate::VERTEX);
+        // Two bindings: the shared quad per vertex, the dots per instance.
+        let bindings = [
+            ash::vk::VertexInputBindingDescription::default()
+                .binding(0)
+                .stride(std::mem::size_of::<Vertex>() as u32)
+                .input_rate(ash::vk::VertexInputRate::VERTEX),
+            ash::vk::VertexInputBindingDescription::default()
+                .binding(1)
+                .stride(std::mem::size_of::<DotInstance>() as u32)
+                .input_rate(ash::vk::VertexInputRate::INSTANCE),
+        ];
         let attributes = [
+            // Quad corner, as [-1,1]² in `position.xy`.
             ash::vk::VertexInputAttributeDescription::default()
                 .location(0)
                 .binding(0)
                 .format(ash::vk::Format::R32G32B32_SFLOAT)
                 .offset(0),
+            // Per-instance dot centre.
             ash::vk::VertexInputAttributeDescription::default()
                 .location(1)
-                .binding(0)
-                .format(ash::vk::Format::R32G32B32_SFLOAT)
-                .offset(12),
+                .binding(1)
+                .format(ash::vk::Format::R32G32_SFLOAT)
+                .offset(0),
+            // Per-instance colour selector.
             ash::vk::VertexInputAttributeDescription::default()
                 .location(2)
-                .binding(0)
-                .format(ash::vk::Format::R32G32_SFLOAT)
-                .offset(24),
-            ash::vk::VertexInputAttributeDescription::default()
-                .location(3)
-                .binding(0)
-                .format(ash::vk::Format::R32G32B32A32_SFLOAT)
-                .offset(32),
+                .binding(1)
+                .format(ash::vk::Format::R32_SFLOAT)
+                .offset(8),
         ];
         let vertex_input = ash::vk::PipelineVertexInputStateCreateInfo::default()
-            .vertex_binding_descriptions(std::slice::from_ref(&binding))
+            .vertex_binding_descriptions(&bindings)
             .vertex_attribute_descriptions(&attributes);
 
         let input_assembly = ash::vk::PipelineInputAssemblyStateCreateInfo::default()
@@ -148,17 +175,16 @@ impl VkGratingPipeline {
         let blend_state = ash::vk::PipelineColorBlendStateCreateInfo::default()
             .attachments(std::slice::from_ref(&blend_attachment));
 
-        // Push constant range covers the full GratingPushConstants struct.
         let push_range = ash::vk::PushConstantRange::default()
             .stage_flags(ash::vk::ShaderStageFlags::VERTEX | ash::vk::ShaderStageFlags::FRAGMENT)
             .offset(0)
-            .size(std::mem::size_of::<GratingPushConstants>() as u32);
+            .size(std::mem::size_of::<DotsPushConstants>() as u32);
         let layout_info = ash::vk::PipelineLayoutCreateInfo::default()
             .push_constant_ranges(std::slice::from_ref(&push_range));
         let layout = unsafe {
             device
                 .create_pipeline_layout(&layout_info, None)
-                .expect("grating: pipeline layout")
+                .expect("dots: pipeline layout")
         };
 
         let pipeline_info = ash::vk::GraphicsPipelineCreateInfo::default()
@@ -176,7 +202,7 @@ impl VkGratingPipeline {
         let pipeline = unsafe {
             device
                 .create_graphics_pipelines(ash::vk::PipelineCache::null(), &[pipeline_info], None)
-                .expect("grating: graphics pipeline")[0]
+                .expect("dots: graphics pipeline")[0]
         };
 
         unsafe { device.destroy_shader_module(shader_module, None) };
@@ -184,11 +210,7 @@ impl VkGratingPipeline {
         let mem_props = unsafe { instance.get_physical_device_memory_properties(physical_device) };
         let quad = VkMesh::unit_quad(device, &mem_props);
 
-        Self {
-            pipeline,
-            layout,
-            quad,
-        }
+        Self { pipeline, layout, quad }
     }
 
     pub fn destroy(&self, device: &ash::Device) {
