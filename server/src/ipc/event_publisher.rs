@@ -20,10 +20,13 @@
 //! # Why the render thread cannot touch this
 //!
 //! It publishes from its own thread, fed by a bounded channel, and **the render
-//! side never blocks and never allocates for a subscriber**. `try_send` is
-//! synchronous and non-blocking even though the channel is `tokio`'s, which is
-//! exactly why that channel was chosen; when it finds the channel full it drops
-//! the event and counts it: a frame is due in 8 ms
+//! side never blocks and never allocates for a subscriber**. Not approximately:
+//! the topic crosses the channel as a `&'static str` and the protobuf `Event`
+//! (whose `topic` is a `String`) is assembled on the publisher thread, so the
+//! calling thread does an atomic increment, a clock read and a move. `try_send`
+//! is synchronous and non-blocking even though the channel is `tokio`'s, which
+//! is exactly why that channel was chosen; when it finds the channel full it
+//! drops the event and counts it: a frame is due in 8 ms
 //! and a socket is not a reason to miss it. PUB drops for a slow subscriber by
 //! design and this extends the same rule inwards, so the worst a wedged
 //! subscriber can cost is events, never a frame.
@@ -78,8 +81,25 @@ pub struct EventPublisher {
     inner: Option<Arc<Inner>>,
 }
 
+/// What crosses the channel: the event's parts, not the encoded event.
+///
+/// The topic is a `&'static str` and stays one all the way to the socket, and
+/// the protobuf `Event` is *built* on the publisher thread rather than by the
+/// caller. Both exist so that the render thread allocates nothing at all —
+/// `Event.topic` is a `String` and constructing it here would be two heap
+/// allocations per event, taken on the one thread that must never make a
+/// syscall it did not choose. The only call site today is a dropped frame,
+/// which is precisely the moment the render thread is already late.
+struct Outgoing {
+    topic: &'static str,
+    sequence: u64,
+    monotonic_us: u64,
+    frame: u64,
+    payload: proto::event::Payload,
+}
+
 struct Inner {
-    sender: tokio::sync::mpsc::Sender<(String, proto::Event)>,
+    sender: tokio::sync::mpsc::Sender<Outgoing>,
     sequence: AtomicU64,
     dropped_events: AtomicU64,
     started: std::time::Instant,
@@ -122,7 +142,7 @@ impl EventPublisher {
     /// uncertainty of whatever measured it. It is also the join key a consumer
     /// uses to attribute an event to a trial, which is what lets this server
     /// have no trial concept at all.
-    fn publish(&self, topic: &str, frame: u64, payload: proto::event::Payload) {
+    fn publish(&self, topic: &'static str, frame: u64, payload: proto::event::Payload) {
         let Some(inner) = self.inner.as_ref() else {
             return;
         };
@@ -130,14 +150,16 @@ impl EventPublisher {
         // subscriber can see. A sequence that only counted what got out would
         // make the loss invisible, which is the one thing PUB must not be.
         let sequence = inner.sequence.fetch_add(1, Ordering::Relaxed) + 1;
-        let event = proto::Event {
+        let outgoing = Outgoing {
+            topic,
             sequence,
+            // `Instant::elapsed` is a vDSO read, not a syscall, and the only
+            // clock the render thread is allowed to touch here.
             monotonic_us: inner.started.elapsed().as_micros() as u64,
             frame,
-            topic: topic.to_owned(),
-            payload: Some(payload),
+            payload,
         };
-        if inner.sender.try_send((topic.to_owned(), event)).is_err() {
+        if inner.sender.try_send(outgoing).is_err() {
             inner.dropped_events.fetch_add(1, Ordering::Relaxed);
         }
     }
@@ -282,7 +304,7 @@ pub fn spawn_event_publisher(
 
 async fn publish_loop(
     addr: &str,
-    mut receiver: tokio::sync::mpsc::Receiver<(String, proto::Event)>,
+    mut receiver: tokio::sync::mpsc::Receiver<Outgoing>,
     mut shutdown: tokio::sync::oneshot::Receiver<()>,
 ) {
     use zeromq::{Socket, SocketSend};
@@ -313,10 +335,20 @@ async fn publish_loop(
             next = receiver.recv() => next,
         };
         // Every sender is gone: the render loop has finished.
-        let Some((topic, event)) = next else { return };
+        let Some(out) = next else { return };
+
+        // Built here, off the render thread: this is where the `String` and the
+        // encode buffer are allowed to be allocated.
+        let event = proto::Event {
+            sequence: out.sequence,
+            monotonic_us: out.monotonic_us,
+            frame: out.frame,
+            topic: out.topic.to_owned(),
+            payload: Some(out.payload),
+        };
 
         // Two frames: the topic is what SUB filters on without decoding.
-        let mut message = zeromq::ZmqMessage::from(topic.into_bytes());
+        let mut message = zeromq::ZmqMessage::from(out.topic.as_bytes().to_vec());
         message.push_back(event.encode_to_vec().into());
         if let Err(e) = socket.send(message).await {
             log::warn!("vstimd: event publish failed: {e}");

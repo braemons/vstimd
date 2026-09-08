@@ -798,9 +798,11 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 > scene-config, the commands applied and the frame each landed on, and the VTL
 > input edges per frame.
 >
-> ### The one real gap
+> ### What is missing, exactly
 >
-> **Commands are not recorded.** `ipc/dispatch.rs` builds a `command_summary`
+> Three things, of which one has design in it and two are wiring.
+>
+> **1. Commands are not recorded.** `ipc/dispatch.rs` builds a `command_summary`
 > and hands it to `log::debug!` as human-readable text. That is not a record —
 > it cannot be replayed, and it is off in production.
 >
@@ -812,9 +814,35 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 > command on frame 100 in one replay and 101 in the next, and that is exactly
 > the silent divergence §2 warns about.
 >
-> The VTL half is nearly there: `EventPublisher::vtl_line_changed` exists but is
-> not yet called from `advance_frame`, so input edges are not published today.
-> Wiring it is small; recording commands is the piece with design in it.
+> And the frame index is not merely unrecorded, it is currently *unreachable*
+> from the applying thread: `next_present_id` is a `Cell` on the render
+> context and `timing.frame_index` is inside `RenderState`, neither of which the
+> ZMQ thread can see. Command recording therefore needs one shared `AtomicU64`
+> that the render thread stores each frame and the ZMQ thread reads while it
+> holds the scene write lock. Record the index of the **next frame to be
+> rendered** — the first frame that shows the effect — because that is the
+> number a replay needs, and fix it in one place so the two threads cannot
+> disagree about the off-by-one. Ordering within one inter-frame window is
+> already settled by `Event.sequence`.
+>
+> The payload needs no new schema: a command *is* a `proto.Request`, so the
+> event carries the request bytes. What must never be recorded is the
+> `command_summary` string — a summary is for a person reading a log, and a
+> record that has been through prose cannot be replayed.
+>
+> **2. VTL input edges are not published.** `EventPublisher::vtl_line_changed`
+> exists but is not called from `advance_frame`. This is not optional for
+> replay: animations *branch* on input edges, so without them a replay of the
+> same commands produces a different scene. Wiring is small.
+>
+> **3. There is no anchor to the starting scene-config.** A stream of commands
+> is meaningless without the state they were applied to. `server.started`
+> should carry the loaded config's identity and a hash of its contents, so a
+> replay fails loudly against the wrong config instead of quietly producing a
+> different stimulus.
+>
+> `frame.presented` is *not* on this list. It is timing evidence, and a replay
+> that needed it would be a replay that had a wall-clock in it.
 >
 > ### What will never replay bit-identically, and why that is fine
 >
