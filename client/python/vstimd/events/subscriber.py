@@ -8,6 +8,7 @@ from typing import Any
 
 import zmq  # type: ignore[import]
 
+from vstimd._proto import service_pb2
 from vstimd._proto.vstimd.v1 import events_pb2
 
 #: The port vstimd publishes on by default. The command port plus one.
@@ -31,6 +32,24 @@ class Topic:
     VTL_EDGE = "vtl.edge"
     ANIMATION_STATE = "animation.state"
     SERVER_STARTED = "server.started"
+    COMMAND_APPLIED = "command.applied"
+
+
+def decode_command(applied: events_pb2.CommandApplied) -> service_pb2.Request:
+    """The command inside a ``command.applied`` event.
+
+    ``CommandApplied.request`` is raw bytes rather than an embedded message, so
+    events.proto need not import the whole command surface and a subscriber that
+    only counts commands never decodes one. This is the other half of that
+    bargain, for a subscriber that wants to read them.
+
+    A replayer generally does **not** need this: the bytes can be sent straight
+    back at a server's command socket without ever being decoded, which is the
+    other reason they are bytes.
+    """
+    request = service_pb2.Request()
+    request.ParseFromString(applied.request)
+    return request
 
 
 class ServerRestarted(RuntimeError):

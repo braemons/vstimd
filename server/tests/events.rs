@@ -249,3 +249,124 @@ async fn server_started_is_at_frame_zero() {
     drop(shutdown);
     thread.join().ok();
 }
+
+// ── The command record ────────────────────────────────────────────────────────
+//
+// These go through `SceneState::handle_request` rather than calling the
+// publisher directly, because the thing under test is not "can an event carry
+// bytes" — it is that dispatch records *every* command, on the frame the scene
+// said, with the bytes intact. A test that published by hand would pass with
+// the recording removed from dispatch entirely.
+
+fn create_rect(w: f32, h: f32) -> proto::Request {
+    proto::Request {
+        target: Some(proto::request::Target::System(proto::SystemTarget {})),
+        body: Some(proto::request::Body::CreateRect(proto::CreateRectRequest {
+            params: Some(proto::RectParams { width_px: w, height_px: h, ..Default::default() }),
+            ..Default::default()
+        })),
+    }
+}
+
+#[tokio::test]
+async fn a_command_is_recorded_with_the_bytes_that_arrived() {
+    let port = free_port();
+    let (publisher, _thread, _shutdown) = ipc::spawn_event_publisher(
+        &format!("tcp://127.0.0.1:{port}"),
+        "test".into(),
+        "0".into(),
+    );
+    let mut socket = subscriber(port, ipc::event_publisher::topic::COMMAND_APPLIED).await;
+
+    let mut scene = vstimd::scene::SceneState::new();
+    scene.runtime.events = publisher;
+    scene.runtime.next_render_frame = 71;
+
+    let request = create_rect(100.0, 50.0);
+    let response = scene.handle_request(request.clone(), None);
+    assert_eq!(response.code, proto::ErrorCode::Ok as i32);
+
+    let (topic, event) = next_event(&mut socket).await;
+    assert_eq!(topic, ipc::event_publisher::topic::COMMAND_APPLIED);
+    // The frame the *scene* said, not one the publisher invented.
+    assert_eq!(event.frame, 71);
+    let Some(proto::event::Payload::CommandApplied(applied)) = event.payload else {
+        panic!("wrong payload: {event:?}");
+    };
+    assert!(applied.accepted);
+    assert_eq!(applied.response_handle, response.handle);
+    assert_eq!(applied.error_code, 0);
+    // Round-trips: what a replayer sends back at a command socket is byte-for-byte
+    // what arrived, which is why this is `bytes` and not a rendered summary.
+    assert_eq!(applied.request, request.encode_to_vec());
+    assert_eq!(proto::Request::decode(applied.request.as_ref()).unwrap(), request);
+}
+
+/// A refused command changed nothing — but a replay in which it *succeeds* has
+/// diverged, and only the record makes that detectable instead of silent.
+#[tokio::test]
+async fn a_refused_command_is_recorded_too_and_carries_its_error() {
+    let port = free_port();
+    let (publisher, _thread, _shutdown) = ipc::spawn_event_publisher(
+        &format!("tcp://127.0.0.1:{port}"),
+        "test".into(),
+        "0".into(),
+    );
+    let mut socket = subscriber(port, ipc::event_publisher::topic::COMMAND_APPLIED).await;
+
+    let mut scene = vstimd::scene::SceneState::new();
+    scene.runtime.events = publisher;
+
+    // Handle 9999 does not exist.
+    let request = proto::Request {
+        target: Some(proto::request::Target::Stimulus(9999)),
+        body: Some(proto::request::Body::Delete(proto::DeleteRequest {})),
+    };
+    let response = scene.handle_request(request.clone(), None);
+    assert_ne!(response.code, proto::ErrorCode::Ok as i32);
+
+    let (_, event) = next_event(&mut socket).await;
+    let Some(proto::event::Payload::CommandApplied(applied)) = event.payload else {
+        panic!("wrong payload: {event:?}");
+    };
+    assert!(!applied.accepted);
+    assert_eq!(applied.error_code, response.code);
+    assert_eq!(applied.request, request.encode_to_vec());
+}
+
+/// Two commands in the same inter-frame window carry the same frame, and the
+/// order between them is `Event.sequence` — there is nothing else it could be,
+/// and a replayer needs that to be true rather than to be hoped for.
+#[tokio::test]
+async fn commands_in_one_frame_window_are_ordered_by_sequence() {
+    let port = free_port();
+    let (publisher, _thread, _shutdown) = ipc::spawn_event_publisher(
+        &format!("tcp://127.0.0.1:{port}"),
+        "test".into(),
+        "0".into(),
+    );
+    let mut socket = subscriber(port, ipc::event_publisher::topic::COMMAND_APPLIED).await;
+
+    let mut scene = vstimd::scene::SceneState::new();
+    scene.runtime.events = publisher;
+    scene.runtime.next_render_frame = 5;
+
+    scene.handle_request(create_rect(10.0, 10.0), None);
+    scene.handle_request(create_rect(20.0, 20.0), None);
+
+    let (_, first) = next_event(&mut socket).await;
+    let (_, second) = next_event(&mut socket).await;
+    assert_eq!((first.frame, second.frame), (5, 5));
+    assert!(second.sequence > first.sequence);
+}
+
+/// A server with no event stream must not pay to encode a command it will not
+/// publish — and, more importantly, must take exactly the same code path.
+#[test]
+fn a_disabled_publisher_records_nothing_and_changes_no_behaviour() {
+    let mut scene = vstimd::scene::SceneState::new();
+    assert!(!scene.runtime.events.is_enabled());
+    let response = scene.handle_request(create_rect(100.0, 50.0), None);
+    assert_eq!(response.code, proto::ErrorCode::Ok as i32);
+    assert!(response.handle > 0);
+}

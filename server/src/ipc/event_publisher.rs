@@ -68,6 +68,7 @@ pub mod topic {
     pub const VTL_EDGE: &str = "vtl.edge";
     pub const ANIMATION_STATE: &str = "animation.state";
     pub const SERVER_STARTED: &str = "server.started";
+    pub const COMMAND_APPLIED: &str = "command.applied";
 }
 
 /// The render thread's handle on the event stream.
@@ -232,6 +233,38 @@ impl EventPublisher {
             proto::event::Payload::AnimationStateChanged(proto::AnimationStateChanged {
                 handle,
                 state: state as i32,
+            }),
+        );
+    }
+
+    /// A command was dispatched against the scene at `frame`.
+    ///
+    /// **Not published from the render thread**, unlike everything else here:
+    /// this is called from the ZMQ or web thread while it holds the scene write
+    /// lock, which is exactly the thread that already owns the allocation of
+    /// decoding the request. Encoding it again to record it costs that thread,
+    /// never the frame clock — and the caller checks [`Self::is_enabled`] first
+    /// so a server with no event stream does not pay for the encode at all.
+    ///
+    /// `frame` is the first frame that will render with this applied; see
+    /// `SceneRuntimeState::next_render_frame` for why only the applying thread
+    /// can know it.
+    pub fn command_applied(
+        &self,
+        frame: u64,
+        request: Vec<u8>,
+        accepted: bool,
+        response_handle: i32,
+        error_code: i32,
+    ) {
+        self.publish(
+            topic::COMMAND_APPLIED,
+            frame,
+            proto::event::Payload::CommandApplied(proto::CommandApplied {
+                request,
+                accepted,
+                response_handle,
+                error_code,
             }),
         );
     }

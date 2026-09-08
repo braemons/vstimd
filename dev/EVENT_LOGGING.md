@@ -800,9 +800,12 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 >
 > ### What is missing, exactly
 >
-> Three things, of which one has design in it and two are wiring.
+> Three things, of which one had design in it and two are wiring. **The first is
+> now done** — see `command.applied` in events.proto and the tests in
+> `server/tests/events.rs`; the description below is kept because it is why the
+> record has the shape it has.
 >
-> **1. Commands are not recorded.** `ipc/dispatch.rs` builds a `command_summary`
+> **1. ~~Commands are not recorded.~~ (done)** `ipc/dispatch.rs` builds a `command_summary`
 > and hands it to `log::debug!` as human-readable text. That is not a record —
 > it cannot be replayed, and it is off in production.
 >
@@ -814,16 +817,20 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 > command on frame 100 in one replay and 101 in the next, and that is exactly
 > the silent divergence §2 warns about.
 >
-> And the frame index is not merely unrecorded, it is currently *unreachable*
-> from the applying thread: `next_present_id` is a `Cell` on the render
-> context and `timing.frame_index` is inside `RenderState`, neither of which the
-> ZMQ thread can see. Command recording therefore needs one shared `AtomicU64`
-> that the render thread stores each frame and the ZMQ thread reads while it
-> holds the scene write lock. Record the index of the **next frame to be
-> rendered** — the first frame that shows the effect — because that is the
-> number a replay needs, and fix it in one place so the two threads cannot
-> disagree about the off-by-one. Ordering within one inter-frame window is
-> already settled by `Event.sequence`.
+> And the frame index was not merely unrecorded, it was *unreachable* from the
+> applying thread: `next_present_id` is a `Cell` on the render context and
+> `timing.frame_index` is inside `RenderState`, neither of which the ZMQ thread
+> can see.
+>
+> It is now `SceneRuntimeState::next_render_frame`, and no atomic was needed:
+> the render thread already takes the scene write lock for tessellation, and a
+> command already takes it to apply. One field under a lock both threads must
+> hold anyway is exact where two atomics would only have been nearly so. It is
+> stored in exactly one place — during tessellation for frame N, set to N+1 —
+> and that single assignment is right in both windows, because a command that
+> arrives before it reads the previous frame's value, which is the same
+> expression one frame back. Ordering within one inter-frame window is settled
+> by `Event.sequence`.
 >
 > The payload needs no new schema: a command *is* a `proto.Request`, so the
 > event carries the request bytes. What must never be recorded is the

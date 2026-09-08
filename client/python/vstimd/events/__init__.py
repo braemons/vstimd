@@ -22,6 +22,13 @@ from vstimd.events.subscriber import (
     EventSubscriber,
     ServerRestarted,
     Topic,
+    decode_command,
 )
 
-__all__ = ["Event", "EventSubscriber", "ServerRestarted", "Topic"]
+__all__ = [
+    "Event",
+    "EventSubscriber",
+    "ServerRestarted",
+    "Topic",
+    "decode_command",
+]

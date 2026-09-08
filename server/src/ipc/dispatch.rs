@@ -2,6 +2,8 @@
 //! sub-dispatchers it fans out to, plus the one-line request summary the
 //! command log records.
 
+use prost::Message;
+
 use super::response::{err, ok_ack};
 use crate::proto;
 use crate::proto::request;
@@ -214,6 +216,17 @@ impl SceneState {
         };
         let log_summary = command_summary(&req);
 
+        // Encoded before dispatch, because `req.body` is moved into the match
+        // below — and only when something is listening, so a server with no
+        // event stream does not pay for the encode. The bytes are the command
+        // itself, not the summary above: the summary is for a person reading
+        // the overlay, and prose cannot be replayed.
+        let recorded = self
+            .runtime
+            .events
+            .is_enabled()
+            .then(|| (self.runtime.next_render_frame, req.encode_to_vec()));
+
         let response = match req.body {
             None => err(proto::ErrorCode::InvalidArgument, "empty request body"),
             Some(body) => match req.target {
@@ -230,6 +243,17 @@ impl SceneState {
             response.code == proto::ErrorCode::Ok as i32,
             response.handle,
         );
+
+        if let Some((frame, bytes)) = recorded {
+            let accepted = response.code == proto::ErrorCode::Ok as i32;
+            self.runtime.events.command_applied(
+                frame,
+                bytes,
+                accepted,
+                response.handle,
+                if accepted { 0 } else { response.code },
+            );
+        }
 
         if response.code == proto::ErrorCode::Ok as i32 {
             if log_handle == 0 {

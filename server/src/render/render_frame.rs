@@ -174,6 +174,14 @@ pub fn render_frame(
             sc.apply_flip();
         }
         sc.runtime.frame_count += 1;
+        // Stamped here, under the write lock, and this is the only place it is
+        // written. Tessellation for `this_present_id` is happening now, so this
+        // frame's content is already decided: any command that gets the lock
+        // from here until the next tessellation first appears one frame later.
+        // A command that landed *before* this store read the previous value,
+        // which was this same expression one frame back — so both windows are
+        // right, from one assignment.
+        sc.runtime.next_render_frame = this_present_id + 1;
         let _ = sc.runtime.frame_notifier.send(sc.runtime.frame_count);
         sc.runtime.screen_size = Some(screen_size);
         sc.runtime.frame_rate_hz = fps;

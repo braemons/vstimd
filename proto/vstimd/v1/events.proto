@@ -90,6 +90,7 @@ message Event {
     VtlLineChanged vtl_line_changed = 12;
     AnimationStateChanged animation_state_changed = 13;
     ServerStarted server_started = 14;
+    CommandApplied command_applied = 15;
   }
 }
 
@@ -104,6 +105,7 @@ message Event {
 //   vtl.edge             VtlLineChanged
 //   animation.state      AnimationStateChanged
 //   server.started       ServerStarted
+//   command.applied      CommandApplied
 //
 // **A subscriber must tolerate topics it does not know.** New event types will
 // be added, and a client that treats an unrecognised topic or an unset
@@ -179,6 +181,49 @@ message AnimationStateChanged {
   }
   State state = 2;
   // The frame it happened on is `Event.frame`.
+}
+
+// A command was dispatched against the scene, and the frame it landed on.
+//
+// **This is the record a replay is reconstructed from, and it is on the event
+// stream for the same reason everything else is: a fact the server observed,
+// stated to whoever is listening.** It is not a second command channel and
+// nothing may be waited on here — the answer to a command is the reply on the
+// REP socket, which the caller already has before this is published.
+//
+// **Why the frame is the interesting field.** A command arrives on the ZMQ (or
+// web) thread and is applied under the scene write lock *between* two frames.
+// Which frame it first affects is therefore a scheduling outcome, not something
+// the client chose: the same script run twice can land a command on frame 100
+// and then on frame 101. `Event.frame` here is the first frame that renders
+// with the command applied, resolved at application time, and it is the whole
+// reason this cannot be reconstructed afterwards from a timestamp.
+//
+// **Rejected commands are published too** (`accepted = false`). A command that
+// was refused changed nothing, so a replay skips it — but a replay in which it
+// *succeeds* has diverged from the run being replayed, and only recording the
+// refusal makes that detectable rather than silent.
+message CommandApplied {
+  // The command exactly as it arrived: an encoded `vstimd.v1.Request`.
+  //
+  // Bytes rather than an embedded message so that this file does not have to
+  // import the whole command surface, and so a subscriber that only wants to
+  // count commands need not decode them. **Never a rendered summary.** vstimd
+  // keeps a human-readable command log for the overlay; that is for a person
+  // reading it, and text that has been through prose cannot be replayed.
+  bytes request = 1;
+
+  // Whether the scene accepted it. False means the scene is unchanged.
+  bool accepted = 2;
+
+  // The handle the reply carried — the new stimulus for a create command, 0
+  // otherwise. Recorded because a replay allocates handles itself and this is
+  // what lets it check that it allocated the same ones.
+  int32 response_handle = 3;
+
+  // `vstimd.v1.ErrorCode` as an int, 0 when accepted. Kept as a plain int for
+  // the same reason `request` is bytes: no import of the command surface.
+  int32 error_code = 4;
 }
 
 // The server began publishing.

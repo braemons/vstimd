@@ -58,6 +58,26 @@ pub struct SceneRuntimeState {
     pub frame_count: u64,
     /// Notifies the ZMQ thread whenever `frame_count` advances.
     pub frame_notifier: std::sync::Arc<tokio::sync::watch::Sender<u64>>,
+    /// The first frame index that a command applied *now* would appear on.
+    ///
+    /// Stored by the render thread during tessellation, while it holds the same
+    /// write lock a command needs, and read by the ZMQ or web thread while it
+    /// holds that lock to apply one. The lock is what makes this exact: the two
+    /// threads can never see it mid-update, so there is one answer to "which
+    /// frame did that land on" rather than two threads guessing.
+    ///
+    /// It has to be recorded at application time and cannot be reconstructed
+    /// afterwards — a command lands between two frames, so which frame it first
+    /// affects is a scheduling outcome, and the same script run twice can put it
+    /// on frame 100 and then on 101.
+    ///
+    /// Zero until something renders: the null loop and the unit tests never set
+    /// it, and neither is replaying anything.
+    pub next_render_frame: u64,
+    /// Where command records go. [`EventPublisher::disabled`] unless the server
+    /// started an event stream, and disabled is not a degraded mode — it is what
+    /// every test and `--no-events` uses, with the same code path.
+    pub events: crate::ipc::EventPublisher,
     /// Reusable buffer for the per-frame animation-handle snapshot in
     /// [`SceneState::advance_animations`]. Kept here so its allocation is reused
     /// across frames instead of being reallocated each tick.
@@ -83,6 +103,8 @@ impl SceneRuntimeState {
             server_start: std::time::Instant::now(),
             frame_count: 0,
             frame_notifier: std::sync::Arc::new(tx),
+            next_render_frame: 0,
+            events: crate::ipc::EventPublisher::disabled(),
             anim_scratch: Vec::new(),
         }
     }

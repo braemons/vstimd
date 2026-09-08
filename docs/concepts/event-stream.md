@@ -82,6 +82,7 @@ Topics are hierarchical and dot-separated, so a prefix means what it looks like:
 | `vtl.edge` | `VtlLineChanged` |
 | `animation.state` | `AnimationStateChanged` |
 | `server.started` | `ServerStarted` |
+| `command.applied` | `CommandApplied` |
 
 `"frame."` takes both frame events; `""` takes everything.
 
@@ -120,6 +121,42 @@ you were holding — sequence and **both clocks** — belongs to a different run
 the server. Discard them: they are small integers that look perfectly reasonable
 next to the new ones, which is exactly why this is a message and not a footnote.
 `EventSubscriber` raises `ServerRestarted` rather than letting it pass.
+
+## The command record
+
+Every command that reaches the scene — over ZMQ or from the web surface — is
+published as `command.applied`, carrying the request bytes exactly as they
+arrived and, on the envelope, **the frame it first appears on**.
+
+That frame is the reason this exists on the stream at all. A command is applied
+under the scene write lock *between* two frames, so which frame it lands on is a
+scheduling outcome rather than something the client chose: the same script run
+twice can put a command on frame 100 and then on frame 101. vstimd resolves it
+at application time, while it holds the lock. Nothing downstream can reconstruct
+it afterwards from a timestamp, and a replay built on a guess would diverge
+silently — the one failure mode worth building a whole record to avoid.
+
+`request` is `bytes`, not an embedded message, for two reasons. events.proto
+does not have to import the entire command surface to describe an event about
+it; and a subscriber that only counts commands, or that replays them by sending
+them back at a command socket, never has to decode one. If you do want to read
+them, `vstimd.events.decode_command` does it.
+
+```python
+for event in events:
+    if event.kind == "command_applied":
+        request = decode_command(event.payload)
+        print(event.frame, request.WhichOneof("body"))
+```
+
+**Refused commands are published too**, with `accepted = False` and the error
+code. A refused command changed nothing, so a replay skips it — but a replay in
+which it *succeeds* has diverged from the run it is reproducing, and only
+recording the refusal makes that detectable rather than silent.
+
+What is never published is the human-readable command summary vstimd keeps for
+its overlay. That is for a person reading a log; text that has been through
+prose cannot be replayed.
 
 ## What it does *not* carry
 

@@ -199,6 +199,12 @@ fn main() {
     // for the drop-count report at shutdown. Cloning is an Arc bump.
     let events_for_report = events.clone();
 
+    // The scene needs its own handle so that `handle_request` can record the
+    // command it just applied. Both command paths reach it — ZMQ and the web
+    // surface — because a scene changed from the browser is a scene changed,
+    // and a replay missing it would diverge without saying so.
+    scene.write().expect("scene lock poisoned").runtime.events = events.clone();
+
     // Embedded web control surface (HTTP + WebSocket). Shares the scene/vtl Arcs
     // and reuses handle_request — no per-frame render cost. Compiled in only with
     // the `web` Cargo feature; gated at runtime by rig-config `[web].enabled`
