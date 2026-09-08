@@ -18,6 +18,7 @@ Which means the two failure modes are yours to handle, and both are here:
 """
 
 from vstimd.events.subscriber import (
+    DEFAULT_EVENT_PORT,
     Event,
     EventSubscriber,
     ServerRestarted,
@@ -26,6 +27,7 @@ from vstimd.events.subscriber import (
 )
 
 __all__ = [
+    "DEFAULT_EVENT_PORT",
     "Event",
     "EventSubscriber",
     "ServerRestarted",
