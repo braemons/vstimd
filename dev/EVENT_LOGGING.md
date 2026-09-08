@@ -800,10 +800,10 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 >
 > ### What is missing, exactly
 >
-> Three things, of which one had design in it and two are wiring. **The first is
-> now done** — see `command.applied` in events.proto and the tests in
-> `server/tests/events.rs`; the description below is kept because it is why the
-> record has the shape it has.
+> Three things were missing. **Two are now done** — `command.applied` and
+> `vtl.edge`, both in events.proto with tests in `server/tests/events.rs`. The
+> descriptions are kept below because they are why each has the shape it has.
+> **One remains, and it is the smallest: the scene-config anchor (3).**
 >
 > **1. ~~Commands are not recorded.~~ (done)** `ipc/dispatch.rs` builds a `command_summary`
 > and hands it to `log::debug!` as human-readable text. That is not a record —
@@ -837,12 +837,18 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 > `command_summary` string — a summary is for a person reading a log, and a
 > record that has been through prose cannot be replayed.
 >
-> **2. VTL input edges are not published.** `EventPublisher::vtl_line_changed`
-> exists but is not called from `advance_frame`. This is not optional for
-> replay: animations *branch* on input edges, so without them a replay of the
-> same commands produces a different scene. Wiring is small.
+> **2. ~~VTL input edges are not published.~~ (done)** Not optional for replay:
+> animations *branch* on input edges, so without them a replay of the same
+> commands produces a different scene. `advance_frame` now states both
+> directions — inputs because a replay needs them, outputs because an end-to-end
+> test on real hardware can put a scope on the same lines and compare.
 >
-> **3. There is no anchor to the starting scene-config.** A stream of commands
+> Published from inside the scene write lock rather than the VTL one, so the
+> frame comes from the same `next_render_frame` a command is stamped with: one
+> lock, one frame number, no chance of the two records disagreeing about which
+> frame an edge and a command shared.
+>
+> **3. There is no anchor to the starting scene-config.** *(still open)* A stream of commands
 > is meaningless without the state they were applied to. `server.started`
 > should carry the loaded config's identity and a hash of its contents, so a
 > replay fails loudly against the wrong config instead of quietly producing a
@@ -850,6 +856,36 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 >
 > `frame.presented` is *not* on this list. It is timing evidence, and a replay
 > that needed it would be a replay that had a wall-clock in it.
+>
+> ### So: what is still missing, in full
+>
+> **The anchor, and nothing else in the stream.** `ServerStarted` should carry
+> the identity of the loaded scene-config and a hash of its contents. Without
+> it a recording says what was *done* but not what it was done *to*, and a
+> replay against a config that has since been edited produces a different
+> stimulus while reporting success — the exact failure this whole record exists
+> to make impossible. It is a small change and it needs one decision: what the
+> hash is taken over, since the config is JSON and re-serialising it must not
+> move the hash. Hash the bytes as loaded from disk.
+>
+> Two things outside the stream are also still missing, and they are not
+> vstimd's:
+>
+> * **Nothing writes the file.** The events are published; no component
+>   subscribes with `topic=""` and appends them anywhere. Either triald writes
+>   it (keeping vstimd's "I know nobody" property intact) or vstimd gets a
+>   `--record <path>` flag for standalone use, which is most of the time. Both,
+>   probably — they are not in tension.
+> * **Nothing replays it.** A replayer is small, and smaller than it looks:
+>   `command.applied` carries the request bytes, so it sends them back at a
+>   command socket without decoding, waiting on the frame counter to reach each
+>   event's `frame`. That it can be written this way is the test of whether the
+>   record is the right shape.
+>
+> And one thing that is *not* missing, though it looks like it should be:
+> **nothing needs to record the RNG.** `dots_rng` is seekable by construction —
+> dot `i` at frame N is a function of the seed, `i` and N alone — so the config's
+> seed is the whole of it.
 >
 > ### What will never replay bit-identically, and why that is fine
 >
