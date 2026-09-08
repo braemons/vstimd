@@ -769,6 +769,80 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 
 ## 11. Replay Mode
 
+> **Is deterministic replay from a scene-config plus an event file actually
+> feasible? Yes — for the scene, which is the thing that matters — and the
+> architecture already carries most of what it needs.** This box is an audit of
+> the code as it stands, so the design below can be read against it.
+>
+> ### What is already deterministic, and not by accident
+>
+> **The scene is frame-driven, with no wall-clock anywhere in it.**
+> `frame_loop::advance_frame` drains the VTL once, advances every animation by
+> exactly one frame, and commits outputs — all in frame units.
+> `Animation::FlashForNFrames`, `on_frames`, `off_frames`, `total_frames`: not a
+> millisecond among them. The only `Instant` in `scene/` is `server_start`, read
+> solely to answer a status query. **A dropped frame does not advance the scene
+> twice** — the previous frame simply stayed on screen an extra vblank — so the
+> scene's state sequence is independent of how well the GPU kept up.
+>
+> **The RNG is a frozen part of the file format, and it is seekable.**
+> `dots_rng.rs` is in-tree on purpose, with a test vector at the bottom, so the
+> output stream cannot change when a dependency does. Two decisions there go
+> further than replay strictly needs: `unit_vector` draws from the angle rather
+> than by rejection sampling, and `chance` draws even when `p` is 0 or 1 — both
+> so that **the stream position at frame N depends on N alone**. Dot `i` at
+> frame N is therefore computable without replaying frames 0..N-1, which is the
+> difference between replay and *seekable* replay.
+>
+> So the scene state at frame N is a pure function of: the starting
+> scene-config, the commands applied and the frame each landed on, and the VTL
+> input edges per frame.
+>
+> ### The one real gap
+>
+> **Commands are not recorded.** `ipc/dispatch.rs` builds a `command_summary`
+> and hands it to `log::debug!` as human-readable text. That is not a record —
+> it cannot be replayed, and it is off in production.
+>
+> This is the whole of what is missing, and it is worth being precise about why
+> it is not free: a command arrives on the ZMQ thread and is applied under the
+> write lock *between* two frames. **Which frame it landed on is a scheduling
+> outcome**, not something the client chose. So the log must record the frame at
+> application time — reconstructing it from a timestamp afterwards would put a
+> command on frame 100 in one replay and 101 in the next, and that is exactly
+> the silent divergence §2 warns about.
+>
+> The VTL half is nearly there: `EventPublisher::vtl_line_changed` exists but is
+> not yet called from `advance_frame`, so input edges are not published today.
+> Wiring it is small; recording commands is the piece with design in it.
+>
+> ### What will never replay bit-identically, and why that is fine
+>
+> Pixels. GPU rasterisation differs across hardware, drivers and float
+> behaviour; text differs if fonts differ. **That is not what an experiment
+> needs.** The question a replay answers is "was this the same stimulus
+> sequence", which is scene state indexed by frame — and that is reproducible.
+> A pixel-exact claim would additionally require the same GPU, and would still
+> not survive a driver update.
+>
+> Likewise wall-clock timing: a replay on a different rig drops different
+> frames. `frame.dropped` in the event stream is what tells you *the original
+> run's* pacing, which is a fact about that session and not something to
+> reproduce.
+>
+> ### The short version
+>
+> | | |
+> |---|---|
+> | scene state per frame | **reproducible**, and seekable |
+> | which frame a stimulus was on | **reproducible** |
+> | exact pixels | no, and not worth pursuing |
+> | wall-clock timing and frame drops | recorded, not reproduced |
+>
+> Needed to get there: record commands with their application frame, publish VTL
+> input edges, and write the log. Nothing has to be undone first.
+
+
 ### 11.1 Invocation
 
 ```
