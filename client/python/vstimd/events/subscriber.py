@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import dataclasses
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from typing import Any
 
 import zmq  # type: ignore[import]
@@ -80,8 +80,25 @@ class Event:
 
     @property
     def sequence(self) -> int:
-        """Where this sits in the stream. See :attr:`missed_before`."""
+        """Where this sits in the whole stream.
+
+        Orders any two events against each other, including across topics. It is
+        *not* the number to check for loss unless you subscribed to everything —
+        see :attr:`topic_sequence`.
+        """
         return self.message.sequence
+
+    @property
+    def topic_sequence(self) -> int:
+        """Where this sits among events of its own topic.
+
+        **The counter loss is measured on**, and the reason filtering is free:
+        a subscriber that asked for one topic makes holes in
+        :attr:`sequence` by asking for less, and cannot tell those from events
+        ZeroMQ discarded for it. This one is exact for any subscription, and is
+        what :attr:`missed_before` is computed from.
+        """
+        return self.message.topic_sequence
 
     @property
     def frame(self) -> int:
@@ -136,7 +153,18 @@ class EventSubscriber:
 
         with EventSubscriber("rig.local", topic=Topic.FRAME_DROPPED) as events:
             for event in events:
-                print(event.payload.frame, event.payload.count)
+                print(event.frame, event.payload.count)
+
+    **Subscribe to what you need and nothing else.** `topic` takes one prefix or
+    several, and the filtering happens in ZeroMQ before a message is queued for
+    you -- so a subscriber that only wants frame loss never pays to receive, let
+    alone decode, a heartbeat at the refresh rate::
+
+        EventSubscriber(rig, topic=[Topic.FRAME_DROPPED, Topic.VTL_EDGE])
+
+    The default is everything, which is right for a recorder and wrong for
+    anything that has work to do: a subscriber that falls behind loses events
+    silently, and the cheapest way not to fall behind is not to ask for them.
     """
 
     def __init__(
@@ -144,16 +172,26 @@ class EventSubscriber:
         host: str = "127.0.0.1",
         port: int = DEFAULT_EVENT_PORT,
         *,
-        topic: str = Topic.ALL,
+        topic: str | Sequence[str] = Topic.ALL,
         context: zmq.Context | None = None,
     ) -> None:
         self._owns_context = context is None
         self._context = context if context is not None else zmq.Context.instance()
         self._socket = self._context.socket(zmq.SUB)
         self._socket.connect(f"tcp://{host}:{port}")
-        self._socket.setsockopt_string(zmq.SUBSCRIBE, topic)
+        self.topics: tuple[str, ...] = (topic,) if isinstance(topic, str) else tuple(topic)
+        if not self.topics:
+            # An empty list is almost certainly a filter built from an empty
+            # config, and a SUB socket with no subscription receives nothing at
+            # all -- silently, looking exactly like a rig that is not running.
+            raise ValueError(
+                "no topics: pass Topic.ALL to receive everything, "
+                "not an empty list, which receives nothing"
+            )
+        for prefix in self.topics:
+            self._socket.setsockopt_string(zmq.SUBSCRIBE, prefix)
 
-        self._expected_sequence: int | None = None
+        self._expected: dict[str, int] = {}
         self._instance_id: str | None = None
         self.gaps = 0
         """Events lost to this subscriber since it connected.
@@ -195,22 +233,31 @@ class EventSubscriber:
     # -- the two things a PUB stream makes your problem -------------------------
 
     def _account_for(self, topic: str, message: events_pb2.Event) -> Event:
-        missed = self._missed_before(message.sequence)
-        self._expected_sequence = message.sequence + 1
+        missed = self._missed_before(topic, message.topic_sequence)
+        self._expected[topic] = message.topic_sequence + 1
         if message.WhichOneof("payload") == "server_started":
             self._check_instance(message.server_started.instance_id)
         return Event(topic=topic, message=message, missed_before=missed)
 
-    def _missed_before(self, sequence: int) -> int:
-        """How many events were lost immediately before this one.
+    def _missed_before(self, topic: str, topic_sequence: int) -> int:
+        """How many events of this topic were lost immediately before this one.
 
-        The first event sets the baseline rather than reporting everything
-        published before the subscriber existed as a gap: a subscriber that
-        joined at sequence 4000 did not *miss* 3999 events, it was not there.
+        **Counted per topic, and that is the whole subtlety of filtering.**
+        `Event.sequence` numbers the entire stream, so a subscriber that asked
+        for one topic sees 2, 4, 7 — holes it made itself by asking for less,
+        indistinguishable from events ZMQ discarded on its behalf. A loss signal
+        that cries wolf on every filtered subscriber is one nobody reads, so the
+        count that matters is `topic_sequence`, which is exact for any
+        subscription.
+
+        The first event of a topic sets that topic's baseline rather than
+        reporting everything published before the subscriber existed: one that
+        joined at 4000 did not *miss* 3999 events, it was not there.
         """
-        if self._expected_sequence is None:
+        expected = self._expected.get(topic)
+        if expected is None:
             return 0
-        missed = max(0, sequence - self._expected_sequence)
+        missed = max(0, topic_sequence - expected)
         self.gaps += missed
         return missed
 
@@ -221,7 +268,7 @@ class EventSubscriber:
         if instance_id != self._instance_id:
             was, self._instance_id = self._instance_id, instance_id
             # The counters restart with the process, so anything held is stale.
-            self._expected_sequence = None
+            self._expected.clear()
             raise ServerRestarted(
                 f"the event stream is now server run {instance_id!r}, was {was!r}: "
                 f"sequence numbers, the monotonic clock and frame indices have all "

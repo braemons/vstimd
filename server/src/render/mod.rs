@@ -34,7 +34,10 @@ pub mod screenshot;
 pub use screenshot::Screenshotter;
 
 /// Render-loop steps shared by all backends (keys, overlay input, VTL).
-pub(crate) mod frame_loop;
+// `pub` rather than `pub(crate)` so an integration test can drive a real frame:
+// the per-frame VTL drain is where input edges reach both the animations and
+// the event stream, and testing it through the render loop would need a GPU.
+pub mod frame_loop;
 
 pub(crate) mod demo;
 pub(crate) use demo::spawn_demo_stimuli;

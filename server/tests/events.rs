@@ -167,6 +167,7 @@ async fn a_vtl_edge_carries_the_frame_it_was_drained_at() {
     let mut socket = subscriber(port, "vtl.").await;
 
     publisher.vtl_line_changed(
+        1,
         7,
         proto::VtlEdge::Rising,
         proto::VirtualTriggerLineKind::Output,
@@ -179,7 +180,7 @@ async fn a_vtl_edge_carries_the_frame_it_was_drained_at() {
     let proto::event::Payload::VtlLineChanged(changed) = event.payload.unwrap() else {
         panic!("wrong payload");
     };
-    assert_eq!(changed.line, 7);
+    assert_eq!((changed.bank, changed.bit), (1, 7));
     assert_eq!(changed.edge(), proto::VtlEdge::Rising);
 
     drop(shutdown);
@@ -369,4 +370,220 @@ fn a_disabled_publisher_records_nothing_and_changes_no_behaviour() {
     let response = scene.handle_request(create_rect(100.0, 50.0), None);
     assert_eq!(response.code, proto::ErrorCode::Ok as i32);
     assert!(response.handle > 0);
+}
+
+// ── VTL edges ─────────────────────────────────────────────────────────────────
+
+/// The masks a frame drains expand to one event per line that actually changed.
+///
+/// The render thread has bitmasks, not a list, and this is where the two meet.
+/// Bank and bit are kept as the address because that is how every other VTL
+/// message on this wire is written — a flat "line number" would be a second
+/// address space for the same hardware.
+#[tokio::test]
+async fn vtl_masks_expand_to_one_event_per_changed_line() {
+    let port = free_port();
+    let (publisher, thread, shutdown) =
+        ipc::spawn_event_publisher(&format!("tcp://0.0.0.0:{port}"), "i".into(), "0.2.0".into());
+    let mut socket = subscriber(port, "vtl.").await;
+
+    // Bank 0 bits 0 and 3 rose; bank 1 bit 5 fell.
+    let rising = [0b1001u64, 0, 0, 0];
+    let falling = [0u64, 1 << 5, 0, 0];
+    publisher.vtl_edges(
+        42,
+        proto::VirtualTriggerLineKind::Input,
+        &rising,
+        &falling,
+    );
+
+    let mut seen = Vec::new();
+    for _ in 0..3 {
+        let (_, event) = next_event(&mut socket).await;
+        assert_eq!(event.frame, 42, "every edge belongs to the frame it drained on");
+        let Some(proto::event::Payload::VtlLineChanged(c)) = event.payload else {
+            panic!("wrong payload");
+        };
+        assert_eq!(c.kind, proto::VirtualTriggerLineKind::Input as i32);
+        seen.push((c.bank, c.bit, c.edge));
+    }
+    // Rising before falling, ascending within a mask — not because a consumer
+    // may rely on the order (they share a frame and are simultaneous), but
+    // because an unstable order here would make every test of this flaky.
+    let rise = proto::VtlEdge::Rising as i32;
+    let fall = proto::VtlEdge::Falling as i32;
+    assert_eq!(seen, vec![(0, 0, rise), (0, 3, rise), (1, 5, fall)]);
+
+    drop(shutdown);
+    thread.join().ok();
+}
+
+/// A frame in which nothing changed publishes nothing — which is nearly every
+/// frame, and the reason this can be called unconditionally at 120 Hz.
+#[tokio::test]
+async fn a_quiet_frame_publishes_no_vtl_events() {
+    let port = free_port();
+    let (publisher, thread, shutdown) =
+        ipc::spawn_event_publisher(&format!("tcp://0.0.0.0:{port}"), "i".into(), "0.2.0".into());
+    let mut socket = subscriber(port, "").await;
+
+    let quiet = [0u64; 4];
+    for frame in 1..=5 {
+        publisher.vtl_edges(frame, proto::VirtualTriggerLineKind::Input, &quiet, &quiet);
+        publisher.vtl_edges(frame, proto::VirtualTriggerLineKind::Output, &quiet, &quiet);
+    }
+    // If any of those had published, it would arrive before this.
+    publisher.frame_dropped(6, 1);
+
+    let (topic, _) = next_event(&mut socket).await;
+    assert_eq!(topic, "frame.dropped", "a quiet frame said nothing");
+
+    drop(shutdown);
+    thread.join().ok();
+}
+
+/// A subscriber takes the topics it cares about and no others — several at
+/// once, filtered at the socket rather than after decoding.
+///
+/// This is the shape triald uses: it wants frame loss and nothing else, and
+/// must not pay for a presented-frame heartbeat it will never read.
+#[tokio::test]
+async fn several_topics_can_be_selected_and_the_rest_stay_out() {
+    let port = free_port();
+    let (publisher, thread, shutdown) =
+        ipc::spawn_event_publisher(&format!("tcp://0.0.0.0:{port}"), "i".into(), "0.2.0".into());
+
+    let mut socket = zeromq::SubSocket::new();
+    socket
+        .connect(&format!("tcp://127.0.0.1:{port}"))
+        .await
+        .unwrap();
+    socket.subscribe("frame.dropped").await.unwrap();
+    socket.subscribe("vtl.").await.unwrap();
+    tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+
+    publisher.frame_presented(1, 8333);
+    publisher.frame_dropped(2, 1);
+    publisher.frame_presented(3, 8333);
+    publisher.vtl_line_changed(
+        0,
+        1,
+        proto::VtlEdge::Rising,
+        proto::VirtualTriggerLineKind::Input,
+        4,
+    );
+    publisher.frame_presented(5, 8333);
+
+    let (first, _) = next_event(&mut socket).await;
+    let (second, _) = next_event(&mut socket).await;
+    assert_eq!(
+        (first.as_str(), second.as_str()),
+        ("frame.dropped", "vtl.edge"),
+        "the presented frames never reached this subscriber"
+    );
+
+    drop(shutdown);
+    thread.join().ok();
+}
+
+// ── Through a real frame ──────────────────────────────────────────────────────
+//
+// The tests above drive the publisher. This one drives `advance_frame` over a
+// real VTL segment in shared memory — the seam where an input edge reaches both
+// the animations and the stream — because a publisher that works and a frame
+// loop that never calls it would pass everything above.
+
+fn vtl_segment() -> std::sync::Arc<std::sync::Mutex<vstimd::vtl_state::VtlState>> {
+    use std::collections::hash_map::DefaultHasher;
+    use std::hash::{Hash, Hasher};
+    let mut h = DefaultHasher::new();
+    std::thread::current().id().hash(&mut h);
+    let name = format!("/vtl_events_test_{}_{:x}", std::process::id(), h.finish());
+    let owner = vtl::VtlOwner::create(&name, 1, 1).expect("VtlOwner::create");
+    std::sync::Arc::new(std::sync::Mutex::new(vstimd::vtl_state::VtlState::new(owner)))
+}
+
+#[tokio::test]
+async fn a_real_frame_publishes_the_input_edge_it_drained() {
+    let port = free_port();
+    let (publisher, thread, shutdown) =
+        ipc::spawn_event_publisher(&format!("tcp://0.0.0.0:{port}"), "i".into(), "0.2.0".into());
+    let mut socket = subscriber(port, "vtl.edge").await;
+
+    let vtl = vtl_segment();
+    let scene = std::sync::Arc::new(std::sync::RwLock::new(vstimd::scene::SceneState::new()));
+    {
+        let mut sc = scene.write().unwrap();
+        sc.runtime.events = publisher;
+        // As the render thread would have left it after tessellating frame 76.
+        sc.runtime.next_render_frame = 77;
+    }
+
+    // Frame one: settle the VTL's edge detection against the initial state, so
+    // the rise below is the only edge in flight.
+    vstimd::render::frame_loop::advance_frame(Some(&vtl), &scene);
+
+    // Something outside pulls input line (0, 2) high — a lever, a photodiode,
+    // statemachined. Drained at the start of the next frame.
+    vtl.lock().unwrap().owner().set_input_state(0, 1 << 2);
+    vstimd::render::frame_loop::advance_frame(Some(&vtl), &scene);
+
+    let (topic, event) = next_event(&mut socket).await;
+    assert_eq!(topic, "vtl.edge");
+    assert_eq!(
+        event.frame, 77,
+        "the frame the edge was drained at, which is the frame it can affect"
+    );
+    let Some(proto::event::Payload::VtlLineChanged(c)) = event.payload else {
+        panic!("wrong payload");
+    };
+    assert_eq!((c.bank, c.bit), (0, 2));
+    assert_eq!(c.edge, proto::VtlEdge::Rising as i32);
+    assert_eq!(
+        c.kind,
+        proto::VirtualTriggerLineKind::Input as i32,
+        "an input edge: this is what the animations branched on"
+    );
+
+    drop(shutdown);
+    thread.join().ok();
+}
+
+/// Each topic counts its own events, which is what makes filtering free.
+///
+/// `sequence` numbers the whole stream, so a subscriber that asked for one
+/// topic sees holes it made itself and cannot tell them from events ZMQ
+/// discarded for it. A loss signal that cries wolf on every filtered subscriber
+/// is one nobody reads.
+#[tokio::test]
+async fn each_topic_counts_its_own_so_a_filter_does_not_look_like_loss() {
+    let port = free_port();
+    let (publisher, thread, shutdown) =
+        ipc::spawn_event_publisher(&format!("tcp://0.0.0.0:{port}"), "i".into(), "0.2.0".into());
+    let mut socket = subscriber(port, "frame.dropped").await;
+
+    // Interleaved, so the global sequence of the drops is 2, 4, 6 — not 1, 2, 3.
+    for frame in 1..=3 {
+        publisher.frame_presented(frame, 8333);
+        publisher.frame_dropped(frame, 1);
+    }
+
+    let mut global = Vec::new();
+    let mut per_topic = Vec::new();
+    for _ in 0..3 {
+        let (topic, event) = next_event(&mut socket).await;
+        assert_eq!(topic, "frame.dropped");
+        global.push(event.sequence);
+        per_topic.push(event.topic_sequence);
+    }
+    // `server.started` is sequence 1, so the drops land on the even numbers.
+    assert_eq!(global, vec![3, 5, 7], "the whole stream is still counted");
+    assert_eq!(
+        per_topic,
+        vec![1, 2, 3],
+        "unbroken within the topic — this subscriber lost nothing"
+    );
+
+    drop(shutdown);
+    thread.join().ok();
 }

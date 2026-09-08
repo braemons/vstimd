@@ -49,6 +49,20 @@ message Event {
   // actually needs.
   uint64 sequence = 1;
 
+  // Monotonic from 1 **within this topic**, and the only sequence a filtered
+  // subscriber can use.
+  //
+  // `sequence` counts the whole stream, so a subscriber that asked for one
+  // topic sees 2, 4, 7 — holes it made itself by asking for less. It cannot
+  // tell those from events ZMQ dropped on its behalf, and a loss signal that
+  // cries wolf on every filtered subscriber is a loss signal nobody reads.
+  //
+  // So: check `topic_sequence` per topic, which is exact for any subscription
+  // (`Event.topic` says which counter an event belongs to). `sequence` remains
+  // the right one for a subscriber taking everything, and orders any two events
+  // against each other.
+  uint64 topic_sequence = 5;
+
   // Server-side monotonic clock, in microseconds since the server started.
   //
   // Not wall-clock, and deliberately: this is the same clock the frame timings
@@ -159,8 +173,21 @@ message FramePresented {
 // Reuses `VtlEdge` and `VirtualTriggerLineKind` from vtl.proto rather than
 // spelling rising/falling and input/output as bools, so a client that already
 // arms animations on edges reads this in the vocabulary it has.
+// Published for **both** directions, which `kind` distinguishes: an input edge
+// is what the animations branched on this frame, an output edge is what the
+// scene emitted. A replay needs the inputs, because animations branch on them
+// and the same commands with different inputs are a different stimulus; an
+// end-to-end test on real hardware wants the outputs, because they are what it
+// can also see on a scope.
+//
+// Addressed as `(bank, bit)`, the same way every other VTL message on this wire
+// is. **No name is carried**, even though lines can be named: a name is
+// runtime-mutable state, and repeating it in every event would be a second copy
+// free to drift from the registry. A consumer that wants names calls
+// `ListVirtualTriggerLines` once and keeps the map.
 message VtlLineChanged {
-  uint32 line = 1;
+  uint32 bank = 1;
+  uint32 bit = 4;
   VtlEdge edge = 2;
   VirtualTriggerLineKind kind = 3;
   // The frame at whose start this was drained is `Event.frame`.

@@ -118,7 +118,7 @@ pub(crate) fn overlay_raw_input(
 /// pulses, so `pulses` starts this frame empty and collects only what the
 /// animations mark now — that one-frame life is what keeps an event mark an
 /// edge rather than a line that latches HIGH on the first trial.
-pub(crate) fn advance_frame(vtl: Option<&Arc<Mutex<VtlState>>>, scene: &Arc<RwLock<SceneState>>) {
+pub fn advance_frame(vtl: Option<&Arc<Mutex<VtlState>>>, scene: &Arc<RwLock<SceneState>>) {
     let (input_edges, output_edges, mut levels, mut pulses) = vtl
         .map(|v| {
             let mut g = v.lock().expect("vtl lock poisoned");
@@ -129,14 +129,39 @@ pub(crate) fn advance_frame(vtl: Option<&Arc<Mutex<VtlState>>>, scene: &Arc<RwLo
         })
         .unwrap_or_default();
 
-    scene
-        .write()
-        .expect("scene lock poisoned")
-        .advance_animations(
-            &input_edges,
-            &output_edges,
-            &mut VtlOutputs { levels: &mut levels, pulses: &mut pulses },
-        );
+    let mut sc = scene.write().expect("scene lock poisoned");
+
+    // Stated before anything reacts to them, and from here rather than from the
+    // VTL block above because the frame index lives on the scene — under the
+    // same write lock a command takes to apply, which is what makes one frame
+    // number true for both threads. `next_render_frame` is this frame: it was
+    // stored during the previous frame's tessellation, and tessellation for
+    // this one has not run yet.
+    //
+    // Input edges are not diagnostics. Animations *branch* on them, so a replay
+    // of the same commands without them is a different stimulus. Outputs are
+    // here too because an end-to-end test on real hardware can put a scope on
+    // the same lines and compare.
+    let frame = sc.runtime.next_render_frame;
+    sc.runtime.events.vtl_edges(
+        frame,
+        crate::proto::VirtualTriggerLineKind::Input,
+        &input_edges.rising,
+        &input_edges.falling,
+    );
+    sc.runtime.events.vtl_edges(
+        frame,
+        crate::proto::VirtualTriggerLineKind::Output,
+        &output_edges.rising,
+        &output_edges.falling,
+    );
+
+    sc.advance_animations(
+        &input_edges,
+        &output_edges,
+        &mut VtlOutputs { levels: &mut levels, pulses: &mut pulses },
+    );
+    drop(sc);
 
     if let Some(v) = vtl {
         v.lock()

@@ -84,7 +84,14 @@ Topics are hierarchical and dot-separated, so a prefix means what it looks like:
 | `server.started` | `ServerStarted` |
 | `command.applied` | `CommandApplied` |
 
-`"frame."` takes both frame events; `""` takes everything.
+`"frame."` takes both frame events; `""` takes everything. Several can be taken
+at once, and **a consumer with work to do should take only what it needs** —
+filtering happens inside ZeroMQ, before a message is queued for you, so the
+cheapest heartbeat is the one you never receive:
+
+```python
+EventSubscriber(rig, topic=[Topic.FRAME_DROPPED, Topic.VTL_EDGE])
+```
 
 **Ignore topics you do not recognise.** More will be added, and a client that
 treated an unknown topic or an unset `payload` as an error would break on a
@@ -98,17 +105,25 @@ If your subscriber cannot keep up, ZeroMQ discards messages for it silently.
 That is the correct behaviour for a renderer — the frame clock must never wait
 on a socket — but it means **a gap is invisible unless you look for one**.
 
-`Event.sequence` is what you look for. It is monotonic from 1, and it is
-assigned *before* the message is queued, so an event lost anywhere — a slow
-subscriber, or vstimd's own internal queue under load — leaves a hole you can
-see.
+A sequence number is what you look for. It is assigned *before* the message is
+queued, so an event lost anywhere — a slow subscriber, or vstimd's own internal
+queue under load — leaves a hole you can see.
 
-```python
-if event.sequence != expected:
-    missing = event.sequence - expected
-    # You cannot recover them. Decide what that means for the window they span.
-expected = event.sequence + 1
-```
+There are two, and **which one you check depends on what you subscribed to**:
+
+| | counts | check it when |
+|---|---|---|
+| `sequence` | the whole stream | you subscribed to everything |
+| `topic_sequence` | events of that one topic | always correct, including when you filtered |
+
+`sequence` numbers every event vstimd publishes, so a subscriber that asked for
+`frame.dropped` sees 3, 5, 7 — holes it made itself by asking for less, and
+indistinguishable from events ZeroMQ discarded on its behalf. Checking it after
+filtering reports loss on a stream that lost nothing, and **a loss signal that
+cries wolf is one nobody reads**. `topic_sequence` is exact for any subscription.
+
+`EventSubscriber` does this for you, per topic — `event.missed_before` and the
+running `events.gaps`.
 
 Where a count matters, **prefer differencing an absolute number over counting
 events**. `FrameDropped.total_since_start` is there for exactly this: it is

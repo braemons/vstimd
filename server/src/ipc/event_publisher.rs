@@ -71,6 +71,37 @@ pub mod topic {
     pub const COMMAND_APPLIED: &str = "command.applied";
 }
 
+/// A topic, as the publisher addresses one internally.
+///
+/// An enum rather than the bare string because every topic keeps its **own**
+/// sequence counter, and an enum indexes an array where a string would need a
+/// lookup on the render thread. Adding a topic is then a compile error until it
+/// has a name and a counter, which is the point.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum Topic {
+    FrameDropped,
+    FramePresented,
+    VtlEdge,
+    AnimationState,
+    ServerStarted,
+    CommandApplied,
+}
+
+impl Topic {
+    const COUNT: usize = 6;
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::FrameDropped => topic::FRAME_DROPPED,
+            Self::FramePresented => topic::FRAME_PRESENTED,
+            Self::VtlEdge => topic::VTL_EDGE,
+            Self::AnimationState => topic::ANIMATION_STATE,
+            Self::ServerStarted => topic::SERVER_STARTED,
+            Self::CommandApplied => topic::COMMAND_APPLIED,
+        }
+    }
+}
+
 /// The render thread's handle on the event stream.
 ///
 /// Cheap to clone and safe to hold anywhere. Every method is non-blocking and
@@ -92,8 +123,9 @@ pub struct EventPublisher {
 /// syscall it did not choose. The only call site today is a dropped frame,
 /// which is precisely the moment the render thread is already late.
 struct Outgoing {
-    topic: &'static str,
+    topic: Topic,
     sequence: u64,
+    topic_sequence: u64,
     monotonic_us: u64,
     frame: u64,
     payload: proto::event::Payload,
@@ -102,6 +134,9 @@ struct Outgoing {
 struct Inner {
     sender: tokio::sync::mpsc::Sender<Outgoing>,
     sequence: AtomicU64,
+    /// One counter per topic, so a subscriber that filtered can still detect
+    /// its own loss — see `Event.topic_sequence`.
+    topic_sequences: [AtomicU64; Topic::COUNT],
     dropped_events: AtomicU64,
     started: std::time::Instant,
     total_frame_drops: AtomicU64,
@@ -143,7 +178,7 @@ impl EventPublisher {
     /// uncertainty of whatever measured it. It is also the join key a consumer
     /// uses to attribute an event to a trial, which is what lets this server
     /// have no trial concept at all.
-    fn publish(&self, topic: &'static str, frame: u64, payload: proto::event::Payload) {
+    fn publish(&self, topic: Topic, frame: u64, payload: proto::event::Payload) {
         let Some(inner) = self.inner.as_ref() else {
             return;
         };
@@ -151,9 +186,12 @@ impl EventPublisher {
         // subscriber can see. A sequence that only counted what got out would
         // make the loss invisible, which is the one thing PUB must not be.
         let sequence = inner.sequence.fetch_add(1, Ordering::Relaxed) + 1;
+        let topic_sequence =
+            inner.topic_sequences[topic as usize].fetch_add(1, Ordering::Relaxed) + 1;
         let outgoing = Outgoing {
             topic,
             sequence,
+            topic_sequence,
             // `Instant::elapsed` is a vDSO read, not a syscall, and the only
             // clock the render thread is allowed to touch here.
             monotonic_us: inner.started.elapsed().as_micros() as u64,
@@ -179,7 +217,7 @@ impl EventPublisher {
             .fetch_add(u64::from(count), Ordering::Relaxed)
             + u64::from(count);
         self.publish(
-            topic::FRAME_DROPPED,
+            Topic::FrameDropped,
             frame,
             proto::event::Payload::FrameDropped(proto::FrameDropped {
                 count,
@@ -191,7 +229,7 @@ impl EventPublisher {
     /// A frame reached the screen.
     pub fn frame_presented(&self, frame: u64, since_previous_us: u32) {
         self.publish(
-            topic::FRAME_PRESENTED,
+            Topic::FramePresented,
             frame,
             proto::event::Payload::FramePresented(proto::FramePresented { since_previous_us }),
         );
@@ -204,20 +242,53 @@ impl EventPublisher {
     /// account of it.
     pub fn vtl_line_changed(
         &self,
-        line: u32,
+        bank: u32,
+        bit: u32,
         edge: proto::VtlEdge,
         kind: proto::VirtualTriggerLineKind,
         frame: u64,
     ) {
         self.publish(
-            topic::VTL_EDGE,
+            Topic::VtlEdge,
             frame,
             proto::event::Payload::VtlLineChanged(proto::VtlLineChanged {
-                line,
+                bank,
+                bit,
                 edge: edge as i32,
                 kind: kind as i32,
             }),
         );
+    }
+
+    /// Publish every edge in one frame's drained masks, rising then falling.
+    ///
+    /// Takes the bitmasks rather than a collected list because this is called
+    /// from the render thread once per frame: iterating set bits with
+    /// `trailing_zeros` allocates nothing, and on the overwhelmingly common
+    /// frame where nothing changed it is four `if mask != 0` tests.
+    pub fn vtl_edges(
+        &self,
+        frame: u64,
+        kind: proto::VirtualTriggerLineKind,
+        rising: &[u64],
+        falling: &[u64],
+    ) {
+        if !self.is_enabled() {
+            return;
+        }
+        for (edge, masks) in [
+            (proto::VtlEdge::Rising, rising),
+            (proto::VtlEdge::Falling, falling),
+        ] {
+            for (bank, mask) in masks.iter().enumerate() {
+                let mut remaining = *mask;
+                while remaining != 0 {
+                    let bit = remaining.trailing_zeros();
+                    remaining &= remaining - 1;
+                    self.vtl_line_changed(bank as u32, bit, edge, kind, frame);
+                }
+            }
+        }
     }
 
     /// An armed animation changed state.
@@ -228,7 +299,7 @@ impl EventPublisher {
         frame: u64,
     ) {
         self.publish(
-            topic::ANIMATION_STATE,
+            Topic::AnimationState,
             frame,
             proto::event::Payload::AnimationStateChanged(proto::AnimationStateChanged {
                 handle,
@@ -258,7 +329,7 @@ impl EventPublisher {
         error_code: i32,
     ) {
         self.publish(
-            topic::COMMAND_APPLIED,
+            Topic::CommandApplied,
             frame,
             proto::event::Payload::CommandApplied(proto::CommandApplied {
                 request,
@@ -273,7 +344,7 @@ impl EventPublisher {
         // Frame 0: nothing has been presented yet, and this is the event that
         // tells a subscriber the frame axis has restarted anyway.
         self.publish(
-            topic::SERVER_STARTED,
+            Topic::ServerStarted,
             0,
             proto::event::Payload::ServerStarted(proto::ServerStarted {
                 instance_id,
@@ -310,6 +381,7 @@ pub fn spawn_event_publisher(
         inner: Some(Arc::new(Inner {
             sender,
             sequence: AtomicU64::new(0),
+            topic_sequences: std::array::from_fn(|_| AtomicU64::new(0)),
             dropped_events: AtomicU64::new(0),
             started: std::time::Instant::now(),
             total_frame_drops: AtomicU64::new(0),
@@ -374,14 +446,15 @@ async fn publish_loop(
         // encode buffer are allowed to be allocated.
         let event = proto::Event {
             sequence: out.sequence,
+            topic_sequence: out.topic_sequence,
             monotonic_us: out.monotonic_us,
             frame: out.frame,
-            topic: out.topic.to_owned(),
+            topic: out.topic.as_str().to_owned(),
             payload: Some(out.payload),
         };
 
         // Two frames: the topic is what SUB filters on without decoding.
-        let mut message = zeromq::ZmqMessage::from(out.topic.as_bytes().to_vec());
+        let mut message = zeromq::ZmqMessage::from(out.topic.as_str().as_bytes().to_vec());
         message.push_back(event.encode_to_vec().into());
         if let Err(e) = socket.send(message).await {
             log::warn!("vstimd: event publish failed: {e}");

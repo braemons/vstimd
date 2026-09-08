@@ -15,14 +15,25 @@ from vstimd.events import EventSubscriber, ServerRestarted, Topic
 
 
 def an_event(sequence: int, *, frame: int = 1, count: int = 1) -> events_pb2.Event:
-    event = events_pb2.Event(sequence=sequence, topic=Topic.FRAME_DROPPED, frame=frame)
+    # `topic_sequence` tracks `sequence` here because these events are the only
+    # topic in flight. Loss is accounted per topic -- see
+    # test_event_subscription.py for why, and for the filtered case where the
+    # two numbers come apart.
+    event = events_pb2.Event(
+        sequence=sequence,
+        topic_sequence=sequence,
+        topic=Topic.FRAME_DROPPED,
+        frame=frame,
+    )
     event.frame_dropped.count = count
     event.frame_dropped.total_since_start = count
     return event
 
 
 def a_start(sequence: int, instance_id: str) -> events_pb2.Event:
-    event = events_pb2.Event(sequence=sequence, topic=Topic.SERVER_STARTED)
+    event = events_pb2.Event(
+        sequence=sequence, topic_sequence=sequence, topic=Topic.SERVER_STARTED
+    )
     event.server_started.instance_id = instance_id
     event.server_started.version = "0.2.0"
     return event
@@ -32,7 +43,7 @@ class Offline(EventSubscriber):
     """A subscriber with no socket, so the accounting can be driven by hand."""
 
     def __init__(self) -> None:  # noqa: D107 - deliberately does not call super
-        self._expected_sequence = None
+        self._expected = {}
         self._instance_id = None
         self.gaps = 0
 
