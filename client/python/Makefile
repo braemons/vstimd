@@ -2,7 +2,7 @@ PROTO_SRC  := $(shell find ../../proto -name '*.proto' | sort)
 PROTO_OUT  := vstimd/_proto
 
 .PHONY: build publish proto test test-e2e-visible test-e2e-interactive \
-        test-e2e-null typecheck docs clean
+        test-e2e-null test-e2e-events typecheck docs clean
 
 # Extra arguments for the e2e targets, e.g. make test-e2e-visible PYTEST_ARGS="-k grating"
 PYTEST_ARGS ?=
@@ -39,6 +39,12 @@ test-e2e-interactive: proto
 
 test-e2e-null: proto
 	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v $(PYTEST_ARGS)
+
+# The event stream against a real server with a real frame clock. Separate from
+# test-e2e-null because it needs an event port of its own, and because it is the
+# only suite here that would notice a frame index that never moved.
+test-e2e-events: proto
+	uv run --group dev pytest tests/event_stream -v $(PYTEST_ARGS)
 
 typecheck: proto
 	uv run --group dev ty check
