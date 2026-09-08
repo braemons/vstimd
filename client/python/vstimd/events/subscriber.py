@@ -60,6 +60,40 @@ class Event:
     """
 
     @property
+    def sequence(self) -> int:
+        """Where this sits in the stream. See :attr:`missed_before`."""
+        return self.message.sequence
+
+    @property
+    def frame(self) -> int:
+        """The display's frame index when this was stated.
+
+        **The clock a trial is measured on**, and the join key. Microseconds are
+        continuous and a display is not: a stimulus is on screen for a whole
+        number of refreshes, so "which frame" is exact where "which microsecond"
+        carries the uncertainty of whatever measured it.
+
+        Note the frame when a trial is configured and again when it ends, and
+        everything stated between the two belongs to that trial. vstimd never
+        learns what a trial is; you own the join because you are the only side
+        that knows.
+
+        Zero before the first frame is presented, which in practice means only
+        ``server.started``. Restarts with the server -- see
+        :class:`ServerRestarted`.
+        """
+        return self.message.frame
+
+    @property
+    def monotonic_us(self) -> int:
+        """Microseconds since the server started. The other clock.
+
+        Orders this event against anything else on the stream, including events
+        that fall on the same frame.
+        """
+        return self.message.monotonic_us
+
+    @property
     def kind(self) -> str:
         """Which payload is set, or ``""`` for one this client does not know.
 

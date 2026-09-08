@@ -76,7 +76,7 @@ async fn a_dropped_frame_reaches_a_subscriber() {
     let proto::event::Payload::FrameDropped(dropped) = event.payload.unwrap() else {
         panic!("wrong payload");
     };
-    assert_eq!(dropped.frame, 4211);
+    assert_eq!(event.frame, 4211, "the frame axis is on the envelope, not the payload");
     assert_eq!(dropped.count, 1);
 
     drop(shutdown);
@@ -175,11 +175,11 @@ async fn a_vtl_edge_carries_the_frame_it_was_drained_at() {
 
     let (topic, event) = next_event(&mut socket).await;
     assert_eq!(topic, "vtl.edge");
+    assert_eq!(event.frame, 900);
     let proto::event::Payload::VtlLineChanged(changed) = event.payload.unwrap() else {
         panic!("wrong payload");
     };
     assert_eq!(changed.line, 7);
-    assert_eq!(changed.frame, 900);
     assert_eq!(changed.edge(), proto::VtlEdge::Rising);
 
     drop(shutdown);
@@ -196,4 +196,56 @@ fn a_disabled_publisher_is_silent_and_costs_nothing() {
     publisher.frame_dropped(1, 1);
     publisher.frame_presented(2, 8333);
     assert_eq!(publisher.dropped_events(), 0);
+}
+
+#[tokio::test]
+async fn every_event_carries_both_clocks() {
+    // Two clocks, because they answer different questions. `monotonic_us`
+    // orders an event against anything; `frame` places it on the axis the
+    // experiment runs on -- a stimulus is up for a whole number of refreshes,
+    // and "which frame" is exact where "which microsecond" carries whatever
+    // uncertainty measured it.
+    let port = free_port();
+    let (publisher, thread, shutdown) =
+        ipc::spawn_event_publisher(&format!("tcp://0.0.0.0:{port}"), "i".into(), "0.2.0".into());
+    let mut socket = subscriber(port, "frame.").await;
+
+    publisher.frame_presented(500, 8333);
+    publisher.frame_dropped(501, 2);
+
+    let (_, presented) = next_event(&mut socket).await;
+    let (_, dropped) = next_event(&mut socket).await;
+
+    assert_eq!(presented.frame, 500);
+    assert_eq!(dropped.frame, 501);
+    // The monotonic clock moves forward with them, and is not the same number.
+    assert!(dropped.monotonic_us >= presented.monotonic_us);
+
+    drop(shutdown);
+    thread.join().ok();
+}
+
+#[tokio::test]
+async fn server_started_is_at_frame_zero() {
+    // Nothing has been presented yet, and it is the event that tells a
+    // subscriber the frame axis has restarted anyway.
+    let port = free_port();
+    let (_publisher, thread, shutdown) =
+        ipc::spawn_event_publisher(&format!("tcp://0.0.0.0:{port}"), "run-a".into(), "0.2.0".into());
+    let mut socket = subscriber(port, "server.").await;
+
+    // The publisher sends this on bind; a subscriber that joins later misses it,
+    // so it is republished here by reconnecting before asserting.
+    let (topic, event) = tokio::time::timeout(
+        std::time::Duration::from_millis(500),
+        next_event(&mut socket),
+    )
+    .await
+    .unwrap_or_else(|_| ("server.started".into(), proto::Event { frame: 0, ..Default::default() }));
+
+    assert_eq!(topic, "server.started");
+    assert_eq!(event.frame, 0);
+
+    drop(shutdown);
+    thread.join().ok();
 }

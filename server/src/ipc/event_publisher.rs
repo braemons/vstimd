@@ -114,7 +114,15 @@ impl EventPublisher {
             .map_or(0, |i| i.dropped_events.load(Ordering::Relaxed))
     }
 
-    fn publish(&self, topic: &str, payload: proto::event::Payload) {
+    /// Publish one event, stamped with both clocks.
+    ///
+    /// `frame` is the display's frame index, and it is a *clock* rather than a
+    /// detail of any one payload: microseconds are continuous and a display is
+    /// not, so "which frame" is exact where "which microsecond" carries the
+    /// uncertainty of whatever measured it. It is also the join key a consumer
+    /// uses to attribute an event to a trial, which is what lets this server
+    /// have no trial concept at all.
+    fn publish(&self, topic: &str, frame: u64, payload: proto::event::Payload) {
         let Some(inner) = self.inner.as_ref() else {
             return;
         };
@@ -125,6 +133,7 @@ impl EventPublisher {
         let event = proto::Event {
             sequence,
             monotonic_us: inner.started.elapsed().as_micros() as u64,
+            frame,
             topic: topic.to_owned(),
             payload: Some(payload),
         };
@@ -148,8 +157,8 @@ impl EventPublisher {
             + u64::from(count);
         self.publish(
             topic::FRAME_DROPPED,
+            frame,
             proto::event::Payload::FrameDropped(proto::FrameDropped {
-                frame,
                 count,
                 total_since_start: total,
             }),
@@ -160,10 +169,8 @@ impl EventPublisher {
     pub fn frame_presented(&self, frame: u64, since_previous_us: u32) {
         self.publish(
             topic::FRAME_PRESENTED,
-            proto::event::Payload::FramePresented(proto::FramePresented {
-                frame,
-                since_previous_us,
-            }),
+            frame,
+            proto::event::Payload::FramePresented(proto::FramePresented { since_previous_us }),
         );
     }
 
@@ -181,11 +188,11 @@ impl EventPublisher {
     ) {
         self.publish(
             topic::VTL_EDGE,
+            frame,
             proto::event::Payload::VtlLineChanged(proto::VtlLineChanged {
                 line,
                 edge: edge as i32,
                 kind: kind as i32,
-                frame,
             }),
         );
     }
@@ -199,17 +206,20 @@ impl EventPublisher {
     ) {
         self.publish(
             topic::ANIMATION_STATE,
+            frame,
             proto::event::Payload::AnimationStateChanged(proto::AnimationStateChanged {
                 handle,
                 state: state as i32,
-                frame,
             }),
         );
     }
 
     fn server_started(&self, instance_id: String, version: String) {
+        // Frame 0: nothing has been presented yet, and this is the event that
+        // tells a subscriber the frame axis has restarted anyway.
         self.publish(
             topic::SERVER_STARTED,
+            0,
             proto::event::Payload::ServerStarted(proto::ServerStarted {
                 instance_id,
                 version,

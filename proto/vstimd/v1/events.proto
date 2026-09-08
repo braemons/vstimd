@@ -57,6 +57,28 @@ message Event {
   // the offset, which is a problem it can only solve on its side.
   uint64 monotonic_us = 2;
 
+  // The display's frame index when this was stated. **The second clock, and
+  // the one that matters for a trial.**
+  //
+  // Microseconds are continuous and the display is not: a stimulus is on screen
+  // for a whole number of refreshes, and "which frame" is exact where "which
+  // microsecond" carries the uncertainty of whatever measured it. So an event
+  // is timestamped twice — `monotonic_us` orders it against anything, `frame`
+  // places it on the axis the experiment actually runs on.
+  //
+  // **This is the join key, and it is why vstimd needs no trial concept.** A
+  // consumer notes the frame when it configures a trial and again when the
+  // trial ends; everything stated between the two belongs to that trial. The
+  // consumer owns the join because it is the only side that knows what a trial
+  // is.
+  //
+  // Zero before the first frame has been presented, which in practice means
+  // only `ServerStarted`.
+  //
+  // Restarts with the process, like `sequence` and `monotonic_us` — see
+  // `ServerStarted`.
+  uint64 frame = 4;
+
   // The topic this was published under, repeated inside the message so a
   // decoded event is self-describing when it has been logged or forwarded and
   // the framing is gone.
@@ -98,10 +120,8 @@ message Event {
 // disqualifies the trial is the consumer's decision -- vstimd states the fact
 // and judges nothing.
 message FrameDropped {
-  // The frame this was noticed *before*: `count` vblanks were missed in the
-  // interval ending here. Same axis as `FramePresented.frame`.
-  uint64 frame = 1;
-  // How many vblanks were missed. 1 is the ordinary case.
+  // How many vblanks were missed in the interval ending at `Event.frame`.
+  // 1 is the ordinary case.
   uint32 count = 2;
   // Drops since the server started, so a subscriber that joined late, or
   // missed events, still has an absolute number to difference against.
@@ -119,9 +139,10 @@ message FrameDropped {
 // consumer needs to place an external signal, and a liveness signal that
 // distinguishes "no drops" from "vstimd stopped rendering".
 message FramePresented {
-  uint64 frame = 1;
   // Microseconds since the previous presented frame, measured at vblank. The
   // number to look at when asking whether a rig is pacing correctly.
+  //
+  // Which frame this is, is `Event.frame`.
   uint32 since_previous_us = 2;
 }
 
@@ -140,8 +161,7 @@ message VtlLineChanged {
   uint32 line = 1;
   VtlEdge edge = 2;
   VirtualTriggerLineKind kind = 3;
-  // The frame at whose start this was drained, which is the join key.
-  uint64 frame = 4;
+  // The frame at whose start this was drained is `Event.frame`.
 }
 
 // An armed animation started or ended.
@@ -158,15 +178,16 @@ message AnimationStateChanged {
     STATE_DONE = 3;
   }
   State state = 2;
-  uint64 frame = 3;
+  // The frame it happened on is `Event.frame`.
 }
 
 // The server began publishing.
 //
 // **Published once, on bind, and it is how a subscriber learns it has
-// reconnected to a *different* run.** `Event.sequence` restarts from 1 and the
-// monotonic clock restarts with it, so a consumer holding numbers from before
-// this event is holding numbers from another server. Frame indices restart too.
+// reconnected to a *different* run.** `Event.sequence` restarts from 1, and so
+// do both clocks: `monotonic_us` and `frame`. A consumer holding either from
+// before this event is holding a number from another server, and both are small
+// integers that look perfectly reasonable next to the new ones.
 message ServerStarted {
   // Identifies this run. A subscriber that sees a new one must discard any
   // frame index or sequence number it was holding.

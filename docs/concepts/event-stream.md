@@ -31,23 +31,47 @@ be contention on the one path a frame clock cannot afford.
 ## Reading it
 
 ```python
-import zmq
-from vstimd.v1 import events_pb2
+from vstimd.events import EventSubscriber, Topic
 
-socket = zmq.Context().socket(zmq.SUB)
-socket.connect("tcp://rig.local:5556")
-socket.setsockopt_string(zmq.SUBSCRIBE, "frame.dropped")   # "" for everything
+with EventSubscriber("rig.local", topic=Topic.FRAME_DROPPED) as events:
+    for event in events:
+        print(event.frame, event.payload.count, event.missed_before)
+```
 
-while True:
-    topic, payload = socket.recv_multipart()
-    event = events_pb2.Event()
-    event.ParseFromString(payload)
-    print(event.sequence, event.frame_dropped.frame, event.frame_dropped.count)
+`EventSubscriber` handles the two traps below for you. Raw, it is two ZeroMQ
+frames and a protobuf decode:
+
+```python
+topic, payload = socket.recv_multipart()
+event = events_pb2.Event()
+event.ParseFromString(payload)
 ```
 
 Each message is two frames: `[topic][encoded Event]`. The topic frame is what
 ZeroMQ filters on without decoding anything, so a subscriber that only cares
 about frame loss does not pay for every presented frame.
+
+## Two clocks
+
+Every event is timestamped twice, on the envelope rather than in any payload —
+so *every* event is placeable, including ones whose payload has no time of its
+own.
+
+| | |
+|---|---|
+| `monotonic_us` | microseconds since the server started. Orders an event against anything, including others on the same frame. |
+| `frame` | the display's frame index when it was stated. |
+
+**`frame` is the one a trial is measured on.** Microseconds are continuous and a
+display is not: a stimulus is on screen for a whole number of refreshes, so
+"which frame" is exact where "which microsecond" carries the uncertainty of
+whatever measured it.
+
+Neither is wall-clock, deliberately. A consumer that needs wall-clock has its own
+and its own uncertainty about the offset, which is a problem only it can solve —
+and the reason a rig puts its onset markers on
+[TTL lines](recording-integration.md) recorded by the acquisition system's own
+clock instead.
 
 Topics are hierarchical and dot-separated, so a prefix means what it looks like:
 
@@ -92,16 +116,18 @@ correct across a gap, and counting messages is not.
 ### A restart resets everything
 
 `ServerStarted` carries an `instance_id`. When you see a new one, every number
-you were holding — sequence, frame index, the monotonic clock — belongs to a
-different run of the server. Discard them.
+you were holding — sequence and **both clocks** — belongs to a different run of
+the server. Discard them: they are small integers that look perfectly reasonable
+next to the new ones, which is exactly why this is a message and not a footnote.
+`EventSubscriber` raises `ServerRestarted` rather than letting it pass.
 
 ## What it does *not* carry
 
 **No trial ever appears in this stream, and none ever will.** vstimd renders;
-what counts as a trial is the decision authority's business. The events carry a
-**frame index**, and a consumer that wants per-trial numbers notes the frame when
-it configures a trial and again when the trial ends, and owns the join — it is
-the only side that knows what a trial is.
+what counts as a trial is the decision authority's business. Every event carries
+`frame`, and a consumer that wants per-trial numbers notes it when it configures
+a trial and again when the trial ends, and owns the join — it is the only side
+that knows what a trial is.
 
 That is what lets vstimd stay usefully ignorant. It has no trial concept to keep
 in sync, no session state to get wrong, and no way to mislabel data it never

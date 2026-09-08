@@ -15,8 +15,7 @@ from vstimd.events import EventSubscriber, ServerRestarted, Topic
 
 
 def an_event(sequence: int, *, frame: int = 1, count: int = 1) -> events_pb2.Event:
-    event = events_pb2.Event(sequence=sequence, topic=Topic.FRAME_DROPPED)
-    event.frame_dropped.frame = frame
+    event = events_pb2.Event(sequence=sequence, topic=Topic.FRAME_DROPPED, frame=frame)
     event.frame_dropped.count = count
     event.frame_dropped.total_since_start = count
     return event
@@ -138,5 +137,15 @@ def test_a_known_payload_is_reachable_without_naming_the_field_twice():
     events = Offline()
     received = events.feed(an_event(1, frame=4211, count=2))
     assert received.kind == "frame_dropped"
-    assert received.payload.frame == 4211
     assert received.payload.count == 2
+
+
+def test_the_frame_is_on_the_envelope_because_it_is_a_clock():
+    """Two clocks, and this is the one a trial is measured on. It is on the
+    envelope rather than in each payload so *every* event is placeable on the
+    frame axis, including ones whose payload has no frame of its own."""
+    events = Offline()
+    received = events.feed(an_event(1, frame=4211))
+
+    assert received.frame == 4211
+    assert not hasattr(received.payload, "frame")
