@@ -51,6 +51,7 @@ impl EvdiBackend {
             vtl,
             host_info,
             overlay_scale,
+            events,
             ..
         } = self.data;
 
@@ -100,6 +101,7 @@ impl EvdiBackend {
             // interval (see `Pacing::AveragedRate`) — a real shortfall is
             // still reported, ordinary jitter is not.
             timing: FrameTiming::new_rate_averaged(display_info.refresh_hz),
+            events,
             system_info,
             display_info,
             ctx,

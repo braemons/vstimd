@@ -891,6 +891,15 @@ pub fn render_frame(
     let warming_up = rs.timing.stats.is_warming_up();
     let dropped_frames = rs.timing.stats.on_present(vblank_time);
     if dropped_frames > 0 && !warming_up {
+        // Stated, not judged: whether a trial that lost a frame is still a
+        // trial is the decision authority's call, and this server has no idea
+        // what a trial is. Non-blocking and allocation-free on the render side;
+        // see ipc::event_publisher for why it can never cost a frame.
+        //
+        // Warming up is excluded for the same reason it is excluded from the
+        // log: the first frames after a swapchain comes up are not drops, and a
+        // consumer told they were would flag every session's first trial.
+        rs.events.frame_dropped(this_present_id, dropped_frames);
         log::warn!(
             "vstimd: {} dropped frame(s) before frame {} \
              [tess={}µs fence={}µs acquire={}µs record={}µs submit={}µs]",

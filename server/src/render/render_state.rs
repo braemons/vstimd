@@ -18,6 +18,10 @@ pub struct RenderState {
     pub text: TextRenderer,
     pub ui: Option<UiRenderer>,
     pub timing: FrameTiming,
+    /// Where observations go. Disabled by default and disabled in every test:
+    /// the render path must not have two shapes depending on whether anybody
+    /// could be listening. See `ipc::event_publisher`.
+    pub events: crate::ipc::EventPublisher,
     pub system_info: SystemInfo,
     pub display_info: StimulusDisplayInfo,
     pub ctx: crate::render::vk::VkContext,

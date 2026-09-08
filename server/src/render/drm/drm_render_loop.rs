@@ -140,6 +140,7 @@ impl DrmRenderLoopData {
             display_pref,
             clock_pref,
             rig_config_path,
+            events,
         } = data;
         check_device_permissions();
 
@@ -248,6 +249,7 @@ impl DrmRenderLoopData {
             text,
             ui: Some(ui),
             timing: FrameTiming::new(display_info.refresh_hz),
+            events,
             system_info,
             display_info,
             ctx,

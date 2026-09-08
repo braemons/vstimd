@@ -610,6 +610,45 @@ pub struct MessengerConfig {
 
 ## 9. ZeroMQ Event Publication
 
+> **Shipped in 0.2, and narrower than this section describes.** A PUB socket
+> exists now — `server/src/ipc/event_publisher.rs`,
+> `proto/vstimd/v1/events.proto`, `--event-port` / `--no-events` — carrying what
+> the renderer *saw*: frame drops, presented frames, VTL edges, animation state.
+> It is not the logging-and-replay system below, and it deliberately does not
+> wait for one. What follows still describes the intended whole; this box says
+> where the built part differs and why.
+>
+> **Protobuf, not FlatBuffers.** vstimd's whole wire is already protobuf and
+> every client has generated types for it; the stream is one message per drop,
+> not per frame, so zero-copy buys nothing here. A second IDL would mean a
+> second codegen step and a second set of bindings in every client for a feature
+> that is a handful of small messages. **If replay-grade logging later needs
+> FlatBuffers for the file, that is a decision about the file** — a different
+> artifact with different constraints — and the two can coexist.
+>
+> **Topics are names, not a level byte.** §9.3's level filter answers "how
+> important is this"; the consumer that exists answers "did this trial lose a
+> frame", which is a question about *what happened*. So the topic frame is
+> `frame.dropped`, `vtl.edge` and so on, hierarchical and dot-separated, and a
+> prefix means what it looks like. A level can still be added alongside.
+>
+> **The port is 5556**, as §9.1 says. `--event-port`, not `--zmq-pub-addr`: the
+> bind address is already `0.0.0.0` for the command socket and a second way to
+> spell an address is a second thing to get wrong.
+>
+> **Back-pressure is as §9.4 describes, and extended inwards.** PUB drops for a
+> slow subscriber; so does the bounded channel between the render thread and the
+> publisher. A frame is due in 8 ms and a socket is not a reason to miss it.
+> What is *not* silent is the loss: `Event.sequence` is assigned before the
+> queue, so a dropped event leaves a hole a subscriber can see. §9.4 says "the
+> file is the authoritative record" — there is no file yet, so until there is,
+> **the sequence number is the only way a subscriber knows it missed
+> something**, and that is why it exists.
+>
+> **What is not in the built version:** the file, replay, verbosity levels, the
+> messenger thread, SQLite, and any event that is a *command* rather than an
+> observation. See `braemons/vstimd#145`.
+
 ### 9.1 Socket type and addressing
 
 A **ZMQ PUB socket** on a separate port from the REP control socket (default `tcp://*:5556`,

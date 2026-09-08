@@ -1,0 +1,175 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/vtl.proto";
+
+// What the renderer saw, broadcast to whoever is listening.
+//
+// **vstimd learns about nobody.** These go out on a PUB socket: subscribing is
+// connecting, unsubscribing is disconnecting, and the server has no list, no
+// setting naming a consumer, and no way to tell whether one exists. A rig with
+// nothing subscribed renders exactly the same, which is what vstimd does most
+// of the time -- it is always on, for alignment, display checks and luminance,
+// with no session running at all.
+//
+// That is not indifference, it is the only thing a renderer can honestly
+// promise. It cannot know whether a consumer exists, or should, or is running a
+// session, so **only a consumer can tell "not yet" from "never"** and the
+// deadline belongs to whoever is waiting. The same rule statemachined follows;
+// see the braemons/contracts repo, INTERACTIONS.md section 2.
+//
+// **This is not the REP socket.** Commands stay there, request and response,
+// dispatched under a write lock on the scene. Events are a second socket
+// because a stream on the command path would be contention on the one path that
+// must not stall -- and because PUB *drops* for a slow subscriber, which is the
+// correct behaviour here: the frame clock never waits on a socket.
+//
+// **The frame index is the join key, and vstimd stays trial-blind.** Nothing
+// here mentions a trial, and nothing ever will: vstimd renders, and what counts
+// as a trial is the decision authority's business. A consumer notes the frame
+// index when it configures a trial and again when it ends, and owns the join --
+// it is the only side that knows what a trial is.
+
+// ── The envelope ──────────────────────────────────────────────────────────────
+
+// One published event. Every message on the PUB socket is one of these.
+//
+// Sent as two ZMQ frames: `[topic][encoded Event]`. ZMQ SUB filters on a byte
+// prefix, so the topic frame is what lets a subscriber ask for the events it
+// cares about at the socket instead of decoding everything. See `topic` below.
+message Event {
+  // Monotonic, from 1, never reset while the server runs.
+  //
+  // **This is how a subscriber detects its own gap, and it is not decoration.**
+  // PUB drops silently for a subscriber that cannot keep up -- unlike a
+  // lossless stream, nothing tells it so. A break in this sequence is the only
+  // signal that something was missed. A consumer that needs certainty rather
+  // than detection should treat a gap as "assume the worst about the window it
+  // spans" and, if that is not enough, ask on the REP socket for the counter it
+  // actually needs.
+  uint64 sequence = 1;
+
+  // Server-side monotonic clock, in microseconds since the server started.
+  //
+  // Not wall-clock, and deliberately: this is the same clock the frame timings
+  // are measured on, so two events are comparable to each other exactly. A
+  // consumer that needs wall-clock has its own and its own uncertainty about
+  // the offset, which is a problem it can only solve on its side.
+  uint64 monotonic_us = 2;
+
+  // The topic this was published under, repeated inside the message so a
+  // decoded event is self-describing when it has been logged or forwarded and
+  // the framing is gone.
+  string topic = 3;
+
+  oneof payload {
+    FrameDropped frame_dropped = 10;
+    FramePresented frame_presented = 11;
+    VtlLineChanged vtl_line_changed = 12;
+    AnimationStateChanged animation_state_changed = 13;
+    ServerStarted server_started = 14;
+  }
+}
+
+// ── Topics ────────────────────────────────────────────────────────────────────
+//
+// A subscriber sets a prefix with ZMQ_SUBSCRIBE; "" takes everything. The names
+// are hierarchical and dot-separated so a prefix means what it looks like:
+// "frame." takes both frame events, "frame.dropped" takes one.
+//
+//   frame.dropped        FrameDropped
+//   frame.presented      FramePresented
+//   vtl.edge             VtlLineChanged
+//   animation.state      AnimationStateChanged
+//   server.started       ServerStarted
+//
+// **A subscriber must tolerate topics it does not know.** New event types will
+// be added, and a client that treats an unrecognised topic or an unset
+// `payload` as an error would break on a server upgrade it had no reason to
+// care about. Ignore what you do not recognise.
+
+// ── Payloads ──────────────────────────────────────────────────────────────────
+
+// The GPU missed a deadline: the previous stimulus was on screen for an extra
+// vblank.
+//
+// **The event a decision authority actually wants.** A trial whose stimulus was
+// shown for one refresh too long has a timing error in it, and whether that
+// disqualifies the trial is the consumer's decision -- vstimd states the fact
+// and judges nothing.
+message FrameDropped {
+  // The frame this was noticed *before*: `count` vblanks were missed in the
+  // interval ending here. Same axis as `FramePresented.frame`.
+  uint64 frame = 1;
+  // How many vblanks were missed. 1 is the ordinary case.
+  uint32 count = 2;
+  // Drops since the server started, so a subscriber that joined late, or
+  // missed events, still has an absolute number to difference against.
+  //
+  // **Prefer differencing this over counting events.** It is correct across a
+  // gap in `Event.sequence`; counting events is not.
+  uint64 total_since_start = 3;
+}
+
+// A frame reached the screen. The heartbeat of the stream.
+//
+// **Not published for every frame by default** -- 120 of these a second is a
+// lot of traffic to state something a consumer can infer -- see the server's
+// `--event-frame-interval`. What it is for is the frame-index-to-time mapping a
+// consumer needs to place an external signal, and a liveness signal that
+// distinguishes "no drops" from "vstimd stopped rendering".
+message FramePresented {
+  uint64 frame = 1;
+  // Microseconds since the previous presented frame, measured at vblank. The
+  // number to look at when asking whether a rig is pacing correctly.
+  uint32 since_previous_us = 2;
+}
+
+// A virtual trigger line changed, as the server saw it at frame start.
+//
+// The slow-bus *record* of something that already happened on the fast bus.
+// **Nothing may wait on this**: the TTL edge is what carries the timing, this
+// is what carries the account of it, and a consumer treating this as a trigger
+// would have reinvented the thing the VTL exists to avoid — a host round trip
+// in the path of something that has to be frame-accurate.
+//
+// Reuses `VtlEdge` and `VirtualTriggerLineKind` from vtl.proto rather than
+// spelling rising/falling and input/output as bools, so a client that already
+// arms animations on edges reads this in the vocabulary it has.
+message VtlLineChanged {
+  uint32 line = 1;
+  VtlEdge edge = 2;
+  VirtualTriggerLineKind kind = 3;
+  // The frame at whose start this was drained, which is the join key.
+  uint64 frame = 4;
+}
+
+// An armed animation started or ended.
+//
+// Onset and offset as the server understands them, which is what makes "when
+// was the stimulus up" answerable from the stream without a consumer modelling
+// the scene.
+message AnimationStateChanged {
+  uint64 handle = 1;
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_ARMED = 1;
+    STATE_RUNNING = 2;
+    STATE_DONE = 3;
+  }
+  State state = 2;
+  uint64 frame = 3;
+}
+
+// The server began publishing.
+//
+// **Published once, on bind, and it is how a subscriber learns it has
+// reconnected to a *different* run.** `Event.sequence` restarts from 1 and the
+// monotonic clock restarts with it, so a consumer holding numbers from before
+// this event is holding numbers from another server. Frame indices restart too.
+message ServerStarted {
+  // Identifies this run. A subscriber that sees a new one must discard any
+  // frame index or sequence number it was holding.
+  string instance_id = 1;
+  string version = 2;
+}

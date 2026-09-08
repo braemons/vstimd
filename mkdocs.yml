@@ -111,6 +111,7 @@ nav:
       - Deferred mode: concepts/deferred-mode.md
       - Conditions: concepts/conditions.md
       - Saving & loading: concepts/saving-loading.md
+      - The event stream: concepts/event-stream.md
       - Integrating recording systems: concepts/recording-integration.md
   - Stimuli:
       - Overview: stimuli/index.md
