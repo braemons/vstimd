@@ -1,0 +1,228 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/color.proto";
+import "vstimd/v1/stimuli/identity.proto";
+import "vstimd/v1/transform.proto";
+
+// ── Dot-field enumerations ────────────────────────────────────────────────────
+
+enum DotShape {
+  DOT_SHAPE_UNSPECIFIED = 0;
+  DOT_SHAPE_ROUND       = 1;  // default
+  DOT_SHAPE_SQUARE      = 2;  // what Psychtoolbox's dot_type=0 gives
+}
+
+enum ApertureShape {
+  APERTURE_SHAPE_UNSPECIFIED = 0;
+  APERTURE_SHAPE_RECT        = 1;  // default
+  APERTURE_SHAPE_CIRCLE      = 2;
+}
+
+// How the aperture edge cuts a dot.
+enum ApertureClip {
+  APERTURE_CLIP_UNSPECIFIED = 0;
+  // A dot is drawn whole when its centre is inside, and not at all when it is
+  // outside, so dots overhang the edge uncut. The default, and what a
+  // motion-defined figure wants: cutting dots at the boundary draws a crisp
+  // outline of the aperture, which is a static form cue.
+  APERTURE_CLIP_DOT_CENTER  = 1;
+  // A dot is cut at the aperture edge, per pixel. For a classic RDK whose hard
+  // aperture is meant to be seen.
+  APERTURE_CLIP_PIXEL       = 2;
+}
+
+// Is a dot's signal/noise role fixed, or redrawn every frame?
+// PsychoPy's `signalDots`; one half of the Scase, Braddick & Raymond (1996)
+// taxonomy. Kept orthogonal to NoiseRule because the two are independent
+// choices and papers report them independently.
+enum SignalRule {
+  SIGNAL_RULE_UNSPECIFIED = 0;
+  SIGNAL_RULE_SAME        = 1;  // roles fixed for the dot's life (default)
+  SIGNAL_RULE_DIFFERENT   = 2;  // roles redrawn every frame
+}
+
+// How a noise dot moves. PsychoPy's `noiseDots`.
+enum NoiseRule {
+  NOISE_RULE_UNSPECIFIED = 0;
+  NOISE_RULE_POSITION    = 1;  // a fresh uniform position every frame
+  NOISE_RULE_DIRECTION   = 2;  // a random but constant direction (default)
+  NOISE_RULE_WALK        = 3;  // a fresh random direction every frame
+}
+
+// What happens to a dot that leaves the field.
+enum Reinsertion {
+  REINSERTION_UNSPECIFIED = 0;
+  // Re-enter from the opposite edge, holding density exactly constant. The
+  // default: with the field separate from the aperture, the wrap boundary is not
+  // a visible boundary, so it leaks no edge cue.
+  REINSERTION_WRAP        = 1;
+  REINSERTION_RESPAWN     = 2;  // reappear at a uniform random position
+}
+
+// ── Aperture ──────────────────────────────────────────────────────────────────
+
+// Where dots are *visible* — a separate thing from the field they live in.
+//
+// Conflating the two is invisible for a Newsome-style RDK, where the aperture is
+// the field, and fatal for a figure-ground one: its background dots must fill the
+// screen while being visible only outside a circle, and its figure dots only
+// inside the same circle.
+message Aperture {
+  ApertureShape shape = 1;
+  // Full extents, never half-extents: width/height for RECT, and `width_px` is
+  // the DIAMETER for CIRCLE. Psychtoolbox scripts specify a radius; double it.
+  float width_px  = 2;  // (0 → the field size)
+  float height_px = 3;  // (0 → the field size); ignored for CIRCLE
+  // Aperture centre relative to the stimulus position, which is also the field
+  // centre. Lets one field be masked off-centre — a figure circle sits on the
+  // receptive field, not on the screen centre.
+  float offset_x_px = 4;
+  float offset_y_px = 5;
+  // Draw *outside* the shape instead of inside. This is the whole of "background
+  // dots, everywhere but the figure".
+  bool invert = 6;
+  ApertureClip clip = 7;
+}
+
+// ── Dot-field creation ────────────────────────────────────────────────────────
+
+// System command: create a random dot kinematogram.
+// Returns the new handle in Response.handle.
+//
+// The sample is a function of `params.seed` and the frame index alone: replaying
+// a saved config reproduces the stimulus, not merely one like it.
+message CreateDotsRequest {
+  StimulusIdentity identity  = 1;
+  // `placement.pos_px` is the centre of the *field*; the aperture is placed
+  // relative to it by `params.aperture.offset_*_px`. `placement.rotation_deg` is
+  // unused — a dot field has no orientation of its own, and the direction of
+  // motion is `params.direction_deg`.
+  Transform2D      placement = 2;
+  DotsParams       params    = 3;
+}
+
+// ── Dot-field mutations ───────────────────────────────────────────────────────
+//
+// Each returns WRONG_STIMULUS_TYPE if the handle is not a Dots stimulus.
+
+// Stimulus command: set the direction of coherent motion.
+message SetDotsDirectionRequest {
+  float direction_deg = 1;  // CCW, 0° = right
+}
+
+// Stimulus command: set the dot speed.
+//
+// Changing direction or speed is applied as a change of *velocity*, from wherever
+// the dots currently are — they do not jump back onto a line through their birth
+// positions. That is what makes a mid-trial direction switch (Psychtoolbox's
+// `noFigureFrames`) expressible.
+message SetDotsSpeedRequest {
+  float speed_px_per_s = 1;
+}
+
+// Stimulus command: set the fraction of dots carrying the coherent direction.
+message SetDotsCoherenceRequest {
+  float coherence = 1;  // [0, 1]
+}
+
+// Stimulus command: set how many dots the field holds.
+message SetDotsCountRequest {
+  uint32 dot_count = 1;
+}
+
+// Stimulus command: set the dot diameter.
+message SetDotsSizeRequest {
+  float dot_size_px = 1;  // diameter, not radius
+}
+
+// Stimulus command: set the dot colour(s).
+message SetDotsColorRequest {
+  Color dot_color = 1;
+  // Optional second colour, assigned to each dot at birth with probability ½ —
+  // Psychtoolbox's `bwSameTrial`. Absent gives a single-colour field.
+  optional Color dot_color_alt = 2;
+}
+
+// Stimulus command: set the aperture.
+message SetDotsApertureRequest {
+  Aperture aperture = 1;
+}
+
+// Stimulus command: set the field the dots live and wrap within.
+message SetDotsFieldSizeRequest {
+  float width_px  = 1;
+  float height_px = 2;
+}
+
+// Stimulus command: set the dot lifetime.
+message SetDotsLifetimeRequest {
+  uint32 dot_lifetime_frames = 1;  // 0 = infinite
+}
+
+// Stimulus command: reseed the field.
+//
+// Never deferred: a seed is not a value that can be half-applied — the sample it
+// describes either exists or does not — so this takes effect immediately and
+// restarts the field at frame 0 even in deferred mode.
+message SetDotsSeedRequest {
+  uint64 seed = 1;
+}
+
+// ── Dot-field query params ────────────────────────────────────────────────────
+
+// Used by both CreateDotsRequest and QueryStimulusResponse.params, so the
+// zero-means-default convention noted here is what a create reads and what a
+// query reports.
+message DotsParams {
+  // ── field: where dots live and wrap; invisible ──
+  float  field_width_px  = 1;  // (0 → default 800)
+  float  field_height_px = 2;  // (0 → default 600)
+  // How many dots the field holds. Stored rather than derived from a density,
+  // because this is the number a methods section quotes and the number the
+  // config has to record. Density is dot_count / (field area), and the Python
+  // client converts. (0 → default 200)
+  uint32 dot_count       = 3;
+
+  // ── aperture: where dots are visible ──
+  Aperture aperture = 4;
+
+  // ── appearance ──
+  float    dot_size_px   = 5;  // DIAMETER (0 → default 6)
+  Color    dot_color     = 6;  // (absent → white)
+  optional Color dot_color_alt = 7;
+  DotShape dot_shape     = 8;
+
+  // ── motion ──
+  float direction_deg = 9;  // CCW, 0° = right — the same convention as
+                            // rotation_deg and drift_angle_deg
+
+  // Per SECOND, not per frame: the step is resolved against the nominal refresh
+  // rate, so the same config moves the same way on rigs of different rates.
+  //
+  // `optional`, unlike the sizes above, because zero is a *meaningful* value here
+  // — a static dot field — and the zero-means-default convention would make it
+  // inexpressible. Absent → 100.
+  optional float speed_px_per_s = 10;
+
+  // Fraction of dots carrying the coherent direction, [0, 1]. Dimensionless.
+  //
+  // `optional` for the same reason: coherence 0 is a field of pure noise, which is
+  // a standard control condition, not an unset field. Absent → 1.
+  optional float coherence = 11;
+  SignalRule  signal_rule    = 12;
+  NoiseRule   noise_rule     = 13;
+  Reinsertion reinsertion    = 14;
+
+  // ── lifetime ──
+  // Frames a dot lives before rebirth. 0 = infinite (MWorks' convention);
+  // PsychoPy spells infinite as -1, which the Python client translates.
+  // Births are staggered uniformly by construction — a dot's lifetime group is
+  // its index modulo this — so a field never flickers in lockstep.
+  uint32 dot_lifetime_frames = 15;
+
+  // ── reproducibility ──
+  // The sample is a function of this and the frame index alone. Part of the
+  // config, not drawn at create time and forgotten.
+  uint64 seed = 16;
+}

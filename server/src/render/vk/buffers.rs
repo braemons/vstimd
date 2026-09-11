@@ -1,6 +1,6 @@
 use ash::vk;
 
-pub(super) fn find_memory_type(
+pub fn find_memory_type(
     mem_props: &vk::PhysicalDeviceMemoryProperties,
     filter: u32,
     flags: vk::MemoryPropertyFlags,
@@ -13,7 +13,7 @@ pub(super) fn find_memory_type(
     })
 }
 
-pub(super) fn alloc_upload_bytes(
+pub fn alloc_upload_bytes(
     mem_props: &vk::PhysicalDeviceMemoryProperties,
     device: &ash::Device,
     usage: vk::BufferUsageFlags,

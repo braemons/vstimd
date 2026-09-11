@@ -1,3 +1,4 @@
+use super::dots::Dots;
 use super::grating::Grating;
 use super::mesh3d::Mesh3d;
 use super::shape::Shape;
@@ -62,6 +63,9 @@ pub enum StimulusBody {
     Grating(Grating),
     /// → `text_pipeline`.
     Text(Text),
+    /// A random dot kinematogram → `dots_pipeline`. One instanced draw over a
+    /// shared unit quad; the dots are in an instance buffer, not a mesh.
+    Dots(Dots),
 
     // ── 3-D — placement in cm, world space, Y-up ──
     /// Cube / sphere / plane → `mesh3d_pipeline`. Placeholder; see
@@ -138,6 +142,7 @@ impl Stimulus {
             StimulusBody::Shape(s) => Some(&s.transform),
             StimulusBody::Grating(g) => Some(&g.transform),
             StimulusBody::Text(t) => Some(&t.transform),
+            StimulusBody::Dots(d) => Some(&d.transform),
             StimulusBody::Mesh3d(_) => None,
         }
     }
@@ -147,6 +152,7 @@ impl Stimulus {
             StimulusBody::Shape(s) => Some(&mut s.transform),
             StimulusBody::Grating(g) => Some(&mut g.config.transform),
             StimulusBody::Text(t) => Some(&mut t.config.transform),
+            StimulusBody::Dots(d) => Some(&mut d.config.transform),
             StimulusBody::Mesh3d(_) => None,
         }
     }
@@ -172,6 +178,13 @@ impl Stimulus {
     pub fn text(&self) -> Option<&Text> {
         match &self.body {
             StimulusBody::Text(t) => Some(t),
+            _ => None,
+        }
+    }
+
+    pub fn dots(&self) -> Option<&Dots> {
+        match &self.body {
+            StimulusBody::Dots(d) => Some(d),
             _ => None,
         }
     }
@@ -211,6 +224,9 @@ impl Stimulus {
         match &mut self.body {
             StimulusBody::Shape(_) | StimulusBody::Text(_) => {}
             StimulusBody::Grating(g) => g.reset_phase_accum(),
+            // Back to frame 0 of the sample the seed describes — without this a
+            // re-armed config would resume the dot field mid-trial.
+            StimulusBody::Dots(d) => d.reseed(),
             // No dynamic state yet — Phase B meshes are static placeholders.
             StimulusBody::Mesh3d(_) => {}
         }
@@ -225,6 +241,7 @@ impl Stimulus {
             StimulusBody::Shape(s) => s.make_copy(),
             StimulusBody::Grating(g) => g.make_copy(),
             StimulusBody::Text(t) => t.make_copy(),
+            StimulusBody::Dots(d) => d.make_copy(),
             StimulusBody::Mesh3d(m) => m.make_copy(),
         }
     }
@@ -236,6 +253,7 @@ impl Stimulus {
             StimulusBody::Shape(s) => s.flip(),
             StimulusBody::Grating(g) => g.flip(),
             StimulusBody::Text(t) => t.flip(),
+            StimulusBody::Dots(d) => d.flip(),
             StimulusBody::Mesh3d(m) => m.flip(),
         }
     }
@@ -296,6 +314,7 @@ impl Stimulus {
             StimulusBody::Shape(s) => s.geometry.live.stimulus_type(),
             StimulusBody::Grating(_) => StimulusType::Grating,
             StimulusBody::Text(_) => StimulusType::Text,
+            StimulusBody::Dots(_) => StimulusType::Dots,
             StimulusBody::Mesh3d(m) => m.geometry.live.stimulus_type(),
         }
     }
@@ -350,5 +369,11 @@ impl From<Text> for Stimulus {
 impl From<Mesh3d> for Stimulus {
     fn from(m: Mesh3d) -> Self {
         Self::new(StimulusBody::Mesh3d(m))
+    }
+}
+
+impl From<Dots> for Stimulus {
+    fn from(d: Dots) -> Self {
+        Self::new(StimulusBody::Dots(d))
     }
 }

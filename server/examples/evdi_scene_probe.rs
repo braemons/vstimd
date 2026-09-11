@@ -68,6 +68,9 @@ fn main() {
         display_pref: DisplayModePref::default(),
         clock_pref: None,
         rig_config_path: "(none — evdi_scene_probe)".to_string(),
+        // A probe publishes nothing: it is looking at a display, not running a
+        // session, and nothing could be subscribed to it.
+        events: vstimd::ipc::EventPublisher::disabled(),
     };
 
     let log_buffer = vstimd::log_buffer::install(

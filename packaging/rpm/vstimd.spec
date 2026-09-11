@@ -1,4 +1,9 @@
-Name:           vstimd
+# Matches [package.metadata.deb] name in server/Cargo.toml, and the Makefile's
+# DEB_NAME: the archive prefixes every package, and the release notes and
+# docs/developer/releasing.md both tell people to `dnf install
+# ./braemons-vstimd-*.rpm`. Nothing inside the package carries the prefix --
+# the binary, the unit and the user are plain `vstimd`.
+Name:           braemons-vstimd
 # Passed in at build time; the version is defined by the git tag and stamped by
 # the Makefile (see packaging/scripts/git-version.sh). Fatal when missing rather
 # than defaulting: an .rpm quietly claiming to be 0.0.0 is worse than no .rpm.
@@ -10,6 +15,12 @@ License:        AGPL-3.0-or-later
 URL:            https://github.com/braemons/vstimd
 
 BuildRequires:  systemd-rpm-macros
+# The .rpm shipped as plain `vstimd` up to v0.1.0-beta2, while the .deb was
+# already braemons-vstimd. Provides + Obsoletes is rpm's rename idiom, so
+# `dnf upgrade` replaces an installed `vstimd` instead of leaving two packages
+# owning the same files. Droppable once no rig is still on one of those.
+Provides:       vstimd = %{version}-%{release}
+Obsoletes:      vstimd < %{version}-%{release}
 Recommends:     avahi
 # Suggests, not Recommends: dnf installs weak dependencies by default, and a
 # Samba daemon with no vstimd shares configured (the stanzas ship as an example

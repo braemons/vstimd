@@ -492,8 +492,21 @@ vstimd_<session_id_short>_<YYYYMMDD_HHMMSS>.wllog
 
 Example: `vstimd_a3f2c1d8_20250614_143022.wllog`
 
-Written to `--log-dir` (default `./logs/`). The `.wllog` extension is application-specific
-and not shared with any other tool.
+Written to `--log-dir`. The `.wllog` extension is application-specific and not shared
+with any other tool.
+
+> **Where `--log-dir` points.** `dev/design/ASSET_STORE_PLAN.md` makes the *project* the
+> unit of storage on a rig — one directory per study holding its scene-configs, its
+> images and meshes, and its logs. Under that plan `--log-dir` defaults to
+> `<state-dir>/projects/<project>/logs/`, where `<project>` is the active project (default `default`,
+> set at boot via `--project` / rig-config, by `SetProject`, and implicitly on scene-config load). That keeps a study's stimuli
+> and the record of what it presented in one folder that can be copied off the rig
+> whole. A bare `./logs/` remains the fallback when no state dir is writable.
+>
+> Two things that plan deliberately leaves to *this* document: **retention** (logs are
+> the only file type that grows without bound, and nothing prunes them), and the fact
+> that logs are the only **write** target in a tree that is otherwise read-mostly — the
+> asset commands expose them as listable and downloadable but never uploadable.
 
 ### 6.4 Write buffering
 
@@ -580,7 +593,7 @@ event so the operator knows the log has gaps.
 
 ```rust
 pub struct MessengerConfig {
-    pub log_dir:              PathBuf,
+    pub log_dir:              PathBuf,       // <state-dir>/projects/<project>/logs (§6.3)
     pub log_level_file:       LogLevel,
     pub log_level_zmq:        LogLevel,
     pub log_level_sqlite:     LogLevel,
@@ -596,6 +609,45 @@ pub struct MessengerConfig {
 ---
 
 ## 9. ZeroMQ Event Publication
+
+> **Shipped in 0.2, and narrower than this section describes.** A PUB socket
+> exists now — `server/src/ipc/event_publisher.rs`,
+> `proto/vstimd/v1/events.proto`, `--event-port` / `--no-events` — carrying what
+> the renderer *saw*: frame drops, presented frames, VTL edges, animation state.
+> It is not the logging-and-replay system below, and it deliberately does not
+> wait for one. What follows still describes the intended whole; this box says
+> where the built part differs and why.
+>
+> **Protobuf, not FlatBuffers.** vstimd's whole wire is already protobuf and
+> every client has generated types for it; the stream is one message per drop,
+> not per frame, so zero-copy buys nothing here. A second IDL would mean a
+> second codegen step and a second set of bindings in every client for a feature
+> that is a handful of small messages. **If replay-grade logging later needs
+> FlatBuffers for the file, that is a decision about the file** — a different
+> artifact with different constraints — and the two can coexist.
+>
+> **Topics are names, not a level byte.** §9.3's level filter answers "how
+> important is this"; the consumer that exists answers "did this trial lose a
+> frame", which is a question about *what happened*. So the topic frame is
+> `frame.dropped`, `vtl.edge` and so on, hierarchical and dot-separated, and a
+> prefix means what it looks like. A level can still be added alongside.
+>
+> **The port is 5556**, as §9.1 says. `--event-port`, not `--zmq-pub-addr`: the
+> bind address is already `0.0.0.0` for the command socket and a second way to
+> spell an address is a second thing to get wrong.
+>
+> **Back-pressure is as §9.4 describes, and extended inwards.** PUB drops for a
+> slow subscriber; so does the bounded channel between the render thread and the
+> publisher. A frame is due in 8 ms and a socket is not a reason to miss it.
+> What is *not* silent is the loss: `Event.sequence` is assigned before the
+> queue, so a dropped event leaves a hole a subscriber can see. §9.4 says "the
+> file is the authoritative record" — there is no file yet, so until there is,
+> **the sequence number is the only way a subscriber knows it missed
+> something**, and that is why it exists.
+>
+> **What is not in the built version:** the file, replay, verbosity levels, the
+> messenger thread, SQLite, and any event that is a *command* rather than an
+> observation. See `braemons/vstimd#145`.
 
 ### 9.1 Socket type and addressing
 
@@ -716,6 +768,151 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 ---
 
 ## 11. Replay Mode
+
+> **Is deterministic replay from a scene-config plus an event file actually
+> feasible? Yes — for the scene, which is the thing that matters — and the
+> architecture already carries most of what it needs.** This box is an audit of
+> the code as it stands, so the design below can be read against it.
+>
+> ### What is already deterministic, and not by accident
+>
+> **The scene is frame-driven, with no wall-clock anywhere in it.**
+> `frame_loop::advance_frame` drains the VTL once, advances every animation by
+> exactly one frame, and commits outputs — all in frame units.
+> `Animation::FlashForNFrames`, `on_frames`, `off_frames`, `total_frames`: not a
+> millisecond among them. The only `Instant` in `scene/` is `server_start`, read
+> solely to answer a status query. **A dropped frame does not advance the scene
+> twice** — the previous frame simply stayed on screen an extra vblank — so the
+> scene's state sequence is independent of how well the GPU kept up.
+>
+> **The RNG is a frozen part of the file format, and it is seekable.**
+> `dots_rng.rs` is in-tree on purpose, with a test vector at the bottom, so the
+> output stream cannot change when a dependency does. Two decisions there go
+> further than replay strictly needs: `unit_vector` draws from the angle rather
+> than by rejection sampling, and `chance` draws even when `p` is 0 or 1 — both
+> so that **the stream position at frame N depends on N alone**. Dot `i` at
+> frame N is therefore computable without replaying frames 0..N-1, which is the
+> difference between replay and *seekable* replay.
+>
+> So the scene state at frame N is a pure function of: the starting
+> scene-config, the commands applied and the frame each landed on, and the VTL
+> input edges per frame.
+>
+> ### What is missing, exactly
+>
+> Three things were missing. **Two are now done** — `command.applied` and
+> `vtl.edge`, both in events.proto with tests in `server/tests/events.rs`. The
+> descriptions are kept below because they are why each has the shape it has.
+> **One remains, and it is the smallest: the scene-config anchor (3).**
+>
+> **1. ~~Commands are not recorded.~~ (done)** `ipc/dispatch.rs` builds a `command_summary`
+> and hands it to `log::debug!` as human-readable text. That is not a record —
+> it cannot be replayed, and it is off in production.
+>
+> This is the whole of what is missing, and it is worth being precise about why
+> it is not free: a command arrives on the ZMQ thread and is applied under the
+> write lock *between* two frames. **Which frame it landed on is a scheduling
+> outcome**, not something the client chose. So the log must record the frame at
+> application time — reconstructing it from a timestamp afterwards would put a
+> command on frame 100 in one replay and 101 in the next, and that is exactly
+> the silent divergence §2 warns about.
+>
+> And the frame index was not merely unrecorded, it was *unreachable* from the
+> applying thread: `next_present_id` is a `Cell` on the render context and
+> `timing.frame_index` is inside `RenderState`, neither of which the ZMQ thread
+> can see.
+>
+> It is now `SceneRuntimeState::next_render_frame`, and no atomic was needed:
+> the render thread already takes the scene write lock for tessellation, and a
+> command already takes it to apply. One field under a lock both threads must
+> hold anyway is exact where two atomics would only have been nearly so. It is
+> stored in exactly one place — during tessellation for frame N, set to N+1 —
+> and that single assignment is right in both windows, because a command that
+> arrives before it reads the previous frame's value, which is the same
+> expression one frame back. Ordering within one inter-frame window is settled
+> by `Event.sequence`.
+>
+> The payload needs no new schema: a command *is* a `proto.Request`, so the
+> event carries the request bytes. What must never be recorded is the
+> `command_summary` string — a summary is for a person reading a log, and a
+> record that has been through prose cannot be replayed.
+>
+> **2. ~~VTL input edges are not published.~~ (done)** Not optional for replay:
+> animations *branch* on input edges, so without them a replay of the same
+> commands produces a different scene. `advance_frame` now states both
+> directions — inputs because a replay needs them, outputs because an end-to-end
+> test on real hardware can put a scope on the same lines and compare.
+>
+> Published from inside the scene write lock rather than the VTL one, so the
+> frame comes from the same `next_render_frame` a command is stamped with: one
+> lock, one frame number, no chance of the two records disagreeing about which
+> frame an edge and a command shared.
+>
+> **3. There is no anchor to the starting scene-config.** *(still open)* A stream of commands
+> is meaningless without the state they were applied to. `server.started`
+> should carry the loaded config's identity and a hash of its contents, so a
+> replay fails loudly against the wrong config instead of quietly producing a
+> different stimulus.
+>
+> `frame.presented` is *not* on this list. It is timing evidence, and a replay
+> that needed it would be a replay that had a wall-clock in it.
+>
+> ### So: what is still missing, in full
+>
+> **The anchor, and nothing else in the stream.** `ServerStarted` should carry
+> the identity of the loaded scene-config and a hash of its contents. Without
+> it a recording says what was *done* but not what it was done *to*, and a
+> replay against a config that has since been edited produces a different
+> stimulus while reporting success — the exact failure this whole record exists
+> to make impossible. It is a small change and it needs one decision: what the
+> hash is taken over, since the config is JSON and re-serialising it must not
+> move the hash. Hash the bytes as loaded from disk.
+>
+> Two things outside the stream are also still missing, and they are not
+> vstimd's:
+>
+> * **Nothing writes the file.** The events are published; no component
+>   subscribes with `topic=""` and appends them anywhere. Either triald writes
+>   it (keeping vstimd's "I know nobody" property intact) or vstimd gets a
+>   `--record <path>` flag for standalone use, which is most of the time. Both,
+>   probably — they are not in tension.
+> * **Nothing replays it.** A replayer is small, and smaller than it looks:
+>   `command.applied` carries the request bytes, so it sends them back at a
+>   command socket without decoding, waiting on the frame counter to reach each
+>   event's `frame`. That it can be written this way is the test of whether the
+>   record is the right shape.
+>
+> And one thing that is *not* missing, though it looks like it should be:
+> **nothing needs to record the RNG.** `dots_rng` is seekable by construction —
+> dot `i` at frame N is a function of the seed, `i` and N alone — so the config's
+> seed is the whole of it.
+>
+> ### What will never replay bit-identically, and why that is fine
+>
+> Pixels. GPU rasterisation differs across hardware, drivers and float
+> behaviour; text differs if fonts differ. **That is not what an experiment
+> needs.** The question a replay answers is "was this the same stimulus
+> sequence", which is scene state indexed by frame — and that is reproducible.
+> A pixel-exact claim would additionally require the same GPU, and would still
+> not survive a driver update.
+>
+> Likewise wall-clock timing: a replay on a different rig drops different
+> frames. `frame.dropped` in the event stream is what tells you *the original
+> run's* pacing, which is a fact about that session and not something to
+> reproduce.
+>
+> ### The short version
+>
+> | | |
+> |---|---|
+> | scene state per frame | **reproducible**, and seekable |
+> | which frame a stimulus was on | **reproducible** |
+> | exact pixels | no, and not worth pursuing |
+> | wall-clock timing and frame drops | recorded, not reproduced |
+>
+> Needed to get there: record commands with their application frame, publish VTL
+> input edges, and write the log. Nothing has to be undone first.
+
 
 ### 11.1 Invocation
 

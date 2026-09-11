@@ -182,110 +182,13 @@ impl VkGratingPipeline {
         unsafe { device.destroy_shader_module(shader_module, None) };
 
         let mem_props = unsafe { instance.get_physical_device_memory_properties(physical_device) };
-        let quad = Self::create_quad(device, mem_props);
+        let quad = VkMesh::unit_quad(device, &mem_props);
 
         Self {
             pipeline,
             layout,
             quad,
         }
-    }
-
-    fn create_quad(
-        device: &ash::Device,
-        mem_props: ash::vk::PhysicalDeviceMemoryProperties,
-    ) -> VkMesh {
-        let n = [0.0f32, 0.0, 1.0];
-        let uv = [0.0f32; 2];
-        let verts: [Vertex; 4] = [
-            Vertex {
-                position: [-1.0, -1.0, 0.0],
-                normal: n,
-                uv,
-                color: crate::Color::TRANSPARENT,
-            },
-            Vertex {
-                position: [1.0, -1.0, 0.0],
-                normal: n,
-                uv,
-                color: crate::Color::TRANSPARENT,
-            },
-            Vertex {
-                position: [1.0, 1.0, 0.0],
-                normal: n,
-                uv,
-                color: crate::Color::TRANSPARENT,
-            },
-            Vertex {
-                position: [-1.0, 1.0, 0.0],
-                normal: n,
-                uv,
-                color: crate::Color::TRANSPARENT,
-            },
-        ];
-        let idxs: [u32; 6] = [0, 1, 2, 0, 2, 3];
-        let (vb, vm) = Self::alloc_buf(
-            device,
-            mem_props,
-            ash::vk::BufferUsageFlags::VERTEX_BUFFER,
-            bytemuck::cast_slice(&verts),
-        );
-        let (ib, im) = Self::alloc_buf(
-            device,
-            mem_props,
-            ash::vk::BufferUsageFlags::INDEX_BUFFER,
-            bytemuck::cast_slice(&idxs),
-        );
-        VkMesh::from_raw(vb, vm, ib, im, 6)
-    }
-
-    fn alloc_buf(
-        device: &ash::Device,
-        mem_props: ash::vk::PhysicalDeviceMemoryProperties,
-        usage: ash::vk::BufferUsageFlags,
-        data: &[u8],
-    ) -> (ash::vk::Buffer, ash::vk::DeviceMemory) {
-        let size = data.len() as ash::vk::DeviceSize;
-        let buf = unsafe {
-            device
-                .create_buffer(
-                    &ash::vk::BufferCreateInfo::default()
-                        .size(size)
-                        .usage(usage)
-                        .sharing_mode(ash::vk::SharingMode::EXCLUSIVE),
-                    None,
-                )
-                .expect("grating quad: create buffer")
-        };
-        let reqs = unsafe { device.get_buffer_memory_requirements(buf) };
-        let mem_type = (0..mem_props.memory_type_count)
-            .find(|&i| {
-                (reqs.memory_type_bits & (1 << i)) != 0
-                    && mem_props.memory_types[i as usize].property_flags.contains(
-                        ash::vk::MemoryPropertyFlags::HOST_VISIBLE
-                            | ash::vk::MemoryPropertyFlags::HOST_COHERENT,
-                    )
-            })
-            .expect("grating quad: no HOST_VISIBLE|HOST_COHERENT memory");
-        let mem = unsafe {
-            device
-                .allocate_memory(
-                    &ash::vk::MemoryAllocateInfo::default()
-                        .allocation_size(reqs.size)
-                        .memory_type_index(mem_type),
-                    None,
-                )
-                .expect("grating quad: allocate memory")
-        };
-        unsafe {
-            device.bind_buffer_memory(buf, mem, 0).unwrap();
-            let ptr = device
-                .map_memory(mem, 0, size, ash::vk::MemoryMapFlags::empty())
-                .expect("grating quad: map memory") as *mut u8;
-            std::ptr::copy_nonoverlapping(data.as_ptr(), ptr, data.len());
-            device.unmap_memory(mem);
-        }
-        (buf, mem)
     }
 
     pub fn destroy(&self, device: &ash::Device) {

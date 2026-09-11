@@ -14,4 +14,8 @@ enum StimulusType {
   STIMULUS_TYPE_GRATING     = 10;
   STIMULUS_TYPE_TEXT        = 11;
   STIMULUS_TYPE_POLYGON     = 12;
+  // Random dot kinematogram. Not 9: STIMULUS_TYPE_PARTICLE means the old C++
+  // CStimulusPart point cloud, which is a different thing that happens to be
+  // made of dots.
+  STIMULUS_TYPE_DOTS        = 13;
 }

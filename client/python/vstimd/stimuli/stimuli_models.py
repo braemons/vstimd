@@ -7,6 +7,7 @@ from typing import Union
 from vstimd._proto.vstimd.v1.stimuli import query_pb2, stimulus_type_pb2
 
 from .color import Color
+from .dots_models import DotsParams
 from .grating_models import GratingParams
 from .shapes_models import (
     CircleParams,
@@ -39,9 +40,12 @@ class StimulusType(Enum):
     GRATING = "grating"
     TEXT = "text"
     POLYGON = "polygon"
+    DOTS = "dots"
 
 
-StimulusParams = Union[RectParams, CircleParams, EllipseParams, GratingParams, TextParams, PolygonParams]
+StimulusParams = Union[
+    RectParams, CircleParams, EllipseParams, GratingParams, TextParams, PolygonParams, DotsParams
+]
 
 _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     stimulus_type_pb2.STIMULUS_TYPE_RECT: StimulusType.RECT,
@@ -50,6 +54,7 @@ _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     stimulus_type_pb2.STIMULUS_TYPE_GRATING: StimulusType.GRATING,
     stimulus_type_pb2.STIMULUS_TYPE_TEXT: StimulusType.TEXT,
     stimulus_type_pb2.STIMULUS_TYPE_POLYGON: StimulusType.POLYGON,
+    stimulus_type_pb2.STIMULUS_TYPE_DOTS: StimulusType.DOTS,
 }
 
 
@@ -110,6 +115,8 @@ class StimulusInfo:
             )
         elif shape_which == "grating":
             params = GratingParams.from_proto(proto.params.grating)
+        elif shape_which == "dots":
+            params = DotsParams.from_proto(proto.params.dots)
         elif shape_which == "text":
             params = TextParams.from_proto(proto.params.text)
         elif shape_which == "polygon":

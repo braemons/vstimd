@@ -1,7 +1,7 @@
 # Build the demos yourself
 
 The [demo scenes](../getting-started/demos.md) are ordinary configs, so every
-one of them is something you could have built from a client. These six pages do
+one of them is something you could have built from a client. These pages do
 exactly that: each takes one shipped demo apart and rebuilds it from an empty
 scene with the Python command API, then saves the result under a name of your
 own.
@@ -17,6 +17,7 @@ into it with no client attached.
 |---|---|---|
 | [First light](first-light.md) | `demos/first_light` | shapes, text, the scene as a unit |
 | [Drifting grating](drifting-grating.md) | `demos/drifting_grating` | gratings, and motion the server owns |
+| [Figure-ground RDK](figure-ground-rdk.md) | `demos/figure_ground_rdk` | random dot kinematograms, the field/aperture split, a figure defined by motion alone |
 | [Gratings, triggers & a saved config](gratings-triggers-config.md) | `demos/gratings_triggered` | arming stimuli against input lines, marking onsets on output lines, saving and booting into the result |
 | [Moving target](moving-target.md) | `demos/moving_target` | path animations, looping, one pulse per repeat |
 | [Photodiode & flicker](photodiode-flicker.md) | `demos/photodiode_flicker` | frame-counted timing, the photodiode patch |
@@ -60,7 +61,7 @@ the same, which is how they are tested.
 
 ## What every script does first
 
-Three things repeat in all six, so they live in
+Three things repeat in all seven, so they live in
 `examples/demos/_common.py` rather than in each script.
 
 **Start from nothing.** `clear_all` takes the animations and the stimuli
@@ -113,9 +114,10 @@ months later.
 !!! note "Sizes are full sizes everywhere"
     `RectParams(width_px=80, height_px=80)` makes an 80 × 80 px square, and the
     saved JSON records `"size_px": [80.0, 80.0]`. Gratings and ellipses store
-    `size` the same way, so a demo config can be read straight off as the
-    arguments to pass. Circles are no exception: they take a `diameter`, not a
-    radius, so every stimulus is sized the same way.
+    `size_px` the same way, so a demo config can be read straight off as the
+    arguments to pass. Circles are no exception: they record a `diameter_px`,
+    not a radius, so every stimulus is sized the same way — see
+    [Stimuli](../stimuli/index.md#two-conventions-that-hold-everywhere).
 
 !!! note "The photodiode patch has no command yet"
     `demos/photodiode_flicker` and `demos/gratings_triggered` switch on the

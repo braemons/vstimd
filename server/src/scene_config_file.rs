@@ -274,6 +274,7 @@ pub const DEMO_CONFIGS: &[(&str, &str)] = &[
     ("moving_target", include_str!("../config/demos/moving_target.config.json")),
     ("photodiode_flicker", include_str!("../config/demos/photodiode_flicker.config.json")),
     ("trigger_gate", include_str!("../config/demos/trigger_gate.config.json")),
+    ("figure_ground_rdk", include_str!("../config/demos/figure_ground_rdk.config.json")),
 ];
 
 /// Sidecar recording the fingerprint of each demo file this server wrote, so a

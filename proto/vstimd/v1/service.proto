@@ -4,6 +4,7 @@ package vstimd.v1;
 import "vstimd/v1/animations.proto";
 import "vstimd/v1/conditions.proto";
 import "vstimd/v1/stimuli/circle.proto";
+import "vstimd/v1/stimuli/dots.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
 import "vstimd/v1/stimuli/grating.proto";
 import "vstimd/v1/stimuli/polygon.proto";
@@ -75,6 +76,7 @@ message Request {
     CreateGratingRequest create_grating = 13;
     CreateTextRequest create_text = 14;
     CreatePolygonRequest create_polygon = 15;
+    CreateDotsRequest create_dots = 16;
 
     // ── Generic stimulus mutations (stimulus target only) ───────────────────
     SetEnabledRequest set_enabled = 30;
@@ -113,6 +115,18 @@ message Request {
 
     // ── Polygon-specific mutations (stimulus target only) ───────────────────
     SetPolygonVerticesRequest set_polygon_vertices = 63;
+
+    // ── Dots-specific mutations (stimulus target only) ──────────────────────
+    SetDotsDirectionRequest set_dots_direction = 140;
+    SetDotsSpeedRequest set_dots_speed = 141;
+    SetDotsCoherenceRequest set_dots_coherence = 142;
+    SetDotsCountRequest set_dots_count = 143;
+    SetDotsSizeRequest set_dots_size = 144;
+    SetDotsColorRequest set_dots_color = 145;
+    SetDotsApertureRequest set_dots_aperture = 146;
+    SetDotsFieldSizeRequest set_dots_field_size = 147;
+    SetDotsLifetimeRequest set_dots_lifetime = 148;
+    SetDotsSeedRequest set_dots_seed = 149;
 
     // ── System mutations (system target only) ───────────────────────────────
     SwapDrawOrderRequest swap_draw_order = 74;

@@ -2,6 +2,7 @@
 //! info, and the stimulus query/list payloads.
 
 use super::convert::{
+    dots_params_to_proto,
     grating_params_to_proto, nonempty, parse_version, shape_appearance_to_proto,
     stimulus_type_to_proto, text_params_to_proto,
 };
@@ -190,6 +191,9 @@ impl SceneState {
             StimulusBody::Text(t) => text_params_to_proto(t)
                 .shape
                 .expect("text_params_to_proto always sets a shape"),
+            StimulusBody::Dots(d) => dots_params_to_proto(d)
+                .shape
+                .expect("dots_params_to_proto always sets a shape"),
             // Unreachable: no command constructs a `Mesh3d` yet. Phase B owes the
             // `Sphere3DParams`/`Cube3DParams` oneof arms and a `transform_3d` arm on
             // the `placement` oneof — neither exists in the proto today, so there is

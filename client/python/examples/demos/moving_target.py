@@ -64,8 +64,11 @@ def main() -> None:
 
         # ── The sweep ─────────────────────────────────────────────────────────
         # `move_along_segments_2d` takes waypoints and a speed, and the server
-        # converts that into a per-frame step using the *measured* frame rate —
-        # so 600 px/s is 600 px/s on a 60 Hz and on a 144 Hz display alike.
+        # converts that into a per-frame step using the rig's *nominal* frame
+        # rate — so 600 px/s is 600 px/s on a 60 Hz and on a 144 Hz display
+        # alike. Nominal and not measured on purpose: the measurement jitters,
+        # and this is recomputed every tick, so a measured divisor would sweep
+        # at a slightly different speed on every run of the same config.
         #
         #   RESTART                    — begin the sweep again on completion,
         #                                which is what makes it loop forever

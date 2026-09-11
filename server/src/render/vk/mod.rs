@@ -3,15 +3,18 @@ pub mod vk_instance;
 pub use vk_instance::create_vk_instance;
 pub mod cache;
 pub mod egui;
+pub mod readback;
 pub mod vk_context;
 pub mod vk_mesh;
 pub mod vk_render_pipeline;
 pub mod vk_text_atlas;
 pub mod vk_text_pipeline;
 
+pub use crate::scene::stimulus::dots::VkDotsPipeline;
 pub use crate::scene::stimulus::grating::VkGratingPipeline;
 pub use cache::SceneCache;
 pub use egui::VkEguiRenderer;
+pub use readback::Readback;
 pub use vk_context::{VkContext, build_context};
 pub use vk_mesh::VkMesh;
 pub use vk_render_pipeline::VkPipeline;

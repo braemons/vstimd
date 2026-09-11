@@ -176,6 +176,35 @@ fn main() {
         &format!("tcp://0.0.0.0:{}", args.zmq_port),
     );
 
+    // The event stream: a second socket, PUB, carrying what the renderer saw.
+    // Separate from the command socket because a request has an addressee and a
+    // deadline and an observation has neither -- and because a stream on the
+    // command path would be contention on the one path that must not stall.
+    //
+    // The server learns about nobody: subscribing is connecting. A rig with
+    // nothing subscribed renders exactly the same, which is what this daemon
+    // does most of the time. See ipc::event_publisher.
+    let (events, event_thread, event_shutdown) = if args.events_enabled {
+        let (publisher, thread, shutdown) = vstimd::ipc::spawn_event_publisher(
+            &format!("tcp://0.0.0.0:{}", args.event_port),
+            instance_id(),
+            env!("CARGO_PKG_VERSION").to_string(),
+        );
+        (publisher, Some(thread), Some(shutdown))
+    } else {
+        log::info!("vstimd: event stream disabled");
+        (vstimd::ipc::EventPublisher::disabled(), None, None)
+    };
+    // BackendData moves the publisher into the render loop; this clone is only
+    // for the drop-count report at shutdown. Cloning is an Arc bump.
+    let events_for_report = events.clone();
+
+    // The scene needs its own handle so that `handle_request` can record the
+    // command it just applied. Both command paths reach it — ZMQ and the web
+    // surface — because a scene changed from the browser is a scene changed,
+    // and a replay missing it would diverge without saying so.
+    scene.write().expect("scene lock poisoned").runtime.events = events.clone();
+
     // Embedded web control surface (HTTP + WebSocket). Shares the scene/vtl Arcs
     // and reuses handle_request — no per-frame render cost. Compiled in only with
     // the `web` Cargo feature; gated at runtime by rig-config `[web].enabled`
@@ -232,6 +261,7 @@ fn main() {
         display_pref,
         clock_pref,
         rig_config_path: args.rig_config.clone(),
+        events,
     };
     let zmq_port = args.zmq_port;
     let on_ready = move || {
@@ -292,6 +322,25 @@ fn main() {
     drop(zmq_shutdown);
     zmq_thread.join().ok();
 
+    // The event stream last: a subscriber watching a shutdown should see the
+    // frames that led to it.
+    if let Some(shutdown) = event_shutdown {
+        // A non-zero count means a subscriber wedged hard enough to fill the
+        // queue, and the resulting gaps are in *every* subscriber's sequence
+        // numbers rather than only the slow one's. Worth saying once.
+        let dropped = events_for_report.dropped_events();
+        if dropped > 0 {
+            log::warn!(
+                "vstimd: dropped {dropped} event(s) because the publisher fell behind; \
+                 subscribers will see gaps in Event.sequence"
+            );
+        }
+        drop(shutdown);
+    }
+    if let Some(thread) = event_thread {
+        thread.join().ok();
+    }
+
     if let Some(reason) = vstimd::process::shutdown::fatal_reason() {
         log::error!("vstimd: exiting after fatal error: {reason}");
         std::process::exit(1);
@@ -314,6 +363,13 @@ struct Args {
     explicit_windowed: bool,
     verbose: bool,
     zmq_port: u16,
+    /// Whether to publish the event stream at all. On by default: a PUB socket
+    /// with no subscribers costs one bind and nothing per frame, and a rig where
+    /// the stream is off by default is a rig where somebody debugging it has to
+    /// restart the daemon first.
+    events_enabled: bool,
+    /// Port for the PUB event stream. The command port plus one by default.
+    event_port: u16,
     /// `Some(false)` if `--no-web` was passed; otherwise `None` (use rig-config).
     #[cfg_attr(not(feature = "web"), allow(dead_code))]
     web_enabled: Option<bool>,
@@ -545,6 +601,8 @@ fn parse_args() -> Args {
     let mut null = false;
     let mut evdi = false;
     let mut zmq_port = vstimd::ipc::DEFAULT_ZMQ_PORT;
+    let mut events_enabled = true;
+    let mut event_port = vstimd::ipc::DEFAULT_EVENT_PORT;
     let mut web_enabled: Option<bool> = None;
     let mut web_port: Option<u16> = None;
     let mut rig_config  = rig_config::DEFAULT_PATH.to_string();
@@ -595,6 +653,13 @@ fn parse_args() -> Args {
             "--zmq-port" => {
                 zmq_port = args.next().and_then(|s| s.parse::<u16>().ok()).unwrap_or_else(|| {
                     eprintln!("vstimd: --zmq-port requires a numeric port argument");
+                    std::process::exit(1);
+                });
+            }
+            "--no-events" => events_enabled = false,
+            "--event-port" => {
+                event_port = args.next().and_then(|s| s.parse::<u16>().ok()).unwrap_or_else(|| {
+                    eprintln!("vstimd: --event-port requires a numeric port argument");
                     std::process::exit(1);
                 });
             }
@@ -668,6 +733,8 @@ fn parse_args() -> Args {
         explicit_windowed,
         verbose,
         zmq_port,
+        events_enabled,
+        event_port,
         web_enabled,
         web_port,
         rig_config,
@@ -682,6 +749,20 @@ fn parse_args() -> Args {
 /// Install SIGTERM/SIGINT handlers that set the shared shutdown flag.
 /// Called once before any render path so the handler is active during
 /// Vulkan init (which can take several seconds on DRM hardware).
+/// Identifies one run of the server, so a subscriber that reconnects can tell it
+/// has attached to a *different* one.
+///
+/// Sequence numbers, the monotonic clock and frame indices all restart when the
+/// process does, so a consumer holding numbers from before a restart is holding
+/// numbers from another server. Published once, in `ServerStarted`.
+fn instance_id() -> String {
+    let since_epoch = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_nanos())
+        .unwrap_or(0);
+    format!("{}-{:x}", std::process::id(), since_epoch)
+}
+
 fn install_signal_handlers() {
     #[cfg(target_os = "linux")]
     {
@@ -768,7 +849,9 @@ fn print_usage() {
     eprintln!("      --null                No rendering; ZMQ server only (also: VSTIMD_NULL=1)");
     eprintln!("      --evdi                Render on a DisplayLink (evdi) output directly, no compositor.");
     eprintln!("                            Auxiliary/status display only -- not for stimulus timing.");
-    eprintln!("      --zmq-port <N>        ZMQ REP server port (default: 5555)");
+    eprintln!("      --zmq-port <N>        ZMQ REP command port (default: 5555)");
+    eprintln!("      --event-port <N>      ZMQ PUB event stream port (default: 5556)");
+    eprintln!("      --no-events           Do not publish the event stream at all");
     eprintln!("      --no-web              Disable the embedded web control surface");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
     eprintln!("      --overlay-scale <N>   Scale factor for the egui overlay UI (default: 1.0)");

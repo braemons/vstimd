@@ -10,10 +10,10 @@ matters at that point — is the display being driven, edge to edge?
 This page builds it from an empty scene.
 
 !!! info "Prerequisites"
-    A running server (`cargo run --release`, or `--null` for a headless check)
-    and the Python client (`cd client/python && uv sync`). If you have not met
-    handles and `create_*` yet, read [the command API](../concepts/command-api.md)
-    first.
+    A running server and the Python client (`pip install vstimd-client`) — see
+    [Installation](../getting-started/installation.md) for both. If you have not
+    met handles and `create_*` yet, read
+    [the command API](../concepts/command-api.md) first.
 
 ## 1. Clear the scene and set the background
 

@@ -1,0 +1,268 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/vtl.proto";
+
+// What the renderer saw, broadcast to whoever is listening.
+//
+// **vstimd learns about nobody.** These go out on a PUB socket: subscribing is
+// connecting, unsubscribing is disconnecting, and the server has no list, no
+// setting naming a consumer, and no way to tell whether one exists. A rig with
+// nothing subscribed renders exactly the same, which is what vstimd does most
+// of the time -- it is always on, for alignment, display checks and luminance,
+// with no session running at all.
+//
+// That is not indifference, it is the only thing a renderer can honestly
+// promise. It cannot know whether a consumer exists, or should, or is running a
+// session, so **only a consumer can tell "not yet" from "never"** and the
+// deadline belongs to whoever is waiting. The same rule statemachined follows;
+// see the braemons/contracts repo, INTERACTIONS.md section 2.
+//
+// **This is not the REP socket.** Commands stay there, request and response,
+// dispatched under a write lock on the scene. Events are a second socket
+// because a stream on the command path would be contention on the one path that
+// must not stall -- and because PUB *drops* for a slow subscriber, which is the
+// correct behaviour here: the frame clock never waits on a socket.
+//
+// **The frame index is the join key, and vstimd stays trial-blind.** Nothing
+// here mentions a trial, and nothing ever will: vstimd renders, and what counts
+// as a trial is the decision authority's business. A consumer notes the frame
+// index when it configures a trial and again when it ends, and owns the join --
+// it is the only side that knows what a trial is.
+
+// ── The envelope ──────────────────────────────────────────────────────────────
+
+// One published event. Every message on the PUB socket is one of these.
+//
+// Sent as two ZMQ frames: `[topic][encoded Event]`. ZMQ SUB filters on a byte
+// prefix, so the topic frame is what lets a subscriber ask for the events it
+// cares about at the socket instead of decoding everything. See `topic` below.
+message Event {
+  // Monotonic, from 1, never reset while the server runs.
+  //
+  // **This is how a subscriber detects its own gap, and it is not decoration.**
+  // PUB drops silently for a subscriber that cannot keep up -- unlike a
+  // lossless stream, nothing tells it so. A break in this sequence is the only
+  // signal that something was missed. A consumer that needs certainty rather
+  // than detection should treat a gap as "assume the worst about the window it
+  // spans" and, if that is not enough, ask on the REP socket for the counter it
+  // actually needs.
+  uint64 sequence = 1;
+
+  // Monotonic from 1 **within this topic**, and the only sequence a filtered
+  // subscriber can use.
+  //
+  // `sequence` counts the whole stream, so a subscriber that asked for one
+  // topic sees 2, 4, 7 — holes it made itself by asking for less. It cannot
+  // tell those from events ZMQ dropped on its behalf, and a loss signal that
+  // cries wolf on every filtered subscriber is a loss signal nobody reads.
+  //
+  // So: check `topic_sequence` per topic, which is exact for any subscription
+  // (`Event.topic` says which counter an event belongs to). `sequence` remains
+  // the right one for a subscriber taking everything, and orders any two events
+  // against each other.
+  uint64 topic_sequence = 5;
+
+  // Server-side monotonic clock, in microseconds since the server started.
+  //
+  // Not wall-clock, and deliberately: this is the same clock the frame timings
+  // are measured on, so two events are comparable to each other exactly. A
+  // consumer that needs wall-clock has its own and its own uncertainty about
+  // the offset, which is a problem it can only solve on its side.
+  uint64 monotonic_us = 2;
+
+  // The display's frame index when this was stated. **The second clock, and
+  // the one that matters for a trial.**
+  //
+  // Microseconds are continuous and the display is not: a stimulus is on screen
+  // for a whole number of refreshes, and "which frame" is exact where "which
+  // microsecond" carries the uncertainty of whatever measured it. So an event
+  // is timestamped twice — `monotonic_us` orders it against anything, `frame`
+  // places it on the axis the experiment actually runs on.
+  //
+  // **This is the join key, and it is why vstimd needs no trial concept.** A
+  // consumer notes the frame when it configures a trial and again when the
+  // trial ends; everything stated between the two belongs to that trial. The
+  // consumer owns the join because it is the only side that knows what a trial
+  // is.
+  //
+  // Zero before the first frame has been presented, which in practice means
+  // only `ServerStarted`.
+  //
+  // Restarts with the process, like `sequence` and `monotonic_us` — see
+  // `ServerStarted`.
+  uint64 frame = 4;
+
+  // The topic this was published under, repeated inside the message so a
+  // decoded event is self-describing when it has been logged or forwarded and
+  // the framing is gone.
+  string topic = 3;
+
+  oneof payload {
+    FrameDropped frame_dropped = 10;
+    FramePresented frame_presented = 11;
+    VtlLineChanged vtl_line_changed = 12;
+    AnimationStateChanged animation_state_changed = 13;
+    ServerStarted server_started = 14;
+    CommandApplied command_applied = 15;
+  }
+}
+
+// ── Topics ────────────────────────────────────────────────────────────────────
+//
+// A subscriber sets a prefix with ZMQ_SUBSCRIBE; "" takes everything. The names
+// are hierarchical and dot-separated so a prefix means what it looks like:
+// "frame." takes both frame events, "frame.dropped" takes one.
+//
+//   frame.dropped        FrameDropped
+//   frame.presented      FramePresented
+//   vtl.edge             VtlLineChanged
+//   animation.state      AnimationStateChanged
+//   server.started       ServerStarted
+//   command.applied      CommandApplied
+//
+// **A subscriber must tolerate topics it does not know.** New event types will
+// be added, and a client that treats an unrecognised topic or an unset
+// `payload` as an error would break on a server upgrade it had no reason to
+// care about. Ignore what you do not recognise.
+
+// ── Payloads ──────────────────────────────────────────────────────────────────
+
+// The GPU missed a deadline: the previous stimulus was on screen for an extra
+// vblank.
+//
+// **The event a decision authority actually wants.** A trial whose stimulus was
+// shown for one refresh too long has a timing error in it, and whether that
+// disqualifies the trial is the consumer's decision -- vstimd states the fact
+// and judges nothing.
+message FrameDropped {
+  // How many vblanks were missed in the interval ending at `Event.frame`.
+  // 1 is the ordinary case.
+  uint32 count = 2;
+  // Drops since the server started, so a subscriber that joined late, or
+  // missed events, still has an absolute number to difference against.
+  //
+  // **Prefer differencing this over counting events.** It is correct across a
+  // gap in `Event.sequence`; counting events is not.
+  uint64 total_since_start = 3;
+}
+
+// A frame reached the screen. The heartbeat of the stream.
+//
+// **Not published for every frame by default** -- 120 of these a second is a
+// lot of traffic to state something a consumer can infer -- see the server's
+// `--event-frame-interval`. What it is for is the frame-index-to-time mapping a
+// consumer needs to place an external signal, and a liveness signal that
+// distinguishes "no drops" from "vstimd stopped rendering".
+message FramePresented {
+  // Microseconds since the previous presented frame, measured at vblank. The
+  // number to look at when asking whether a rig is pacing correctly.
+  //
+  // Which frame this is, is `Event.frame`.
+  uint32 since_previous_us = 2;
+}
+
+// A virtual trigger line changed, as the server saw it at frame start.
+//
+// The slow-bus *record* of something that already happened on the fast bus.
+// **Nothing may wait on this**: the TTL edge is what carries the timing, this
+// is what carries the account of it, and a consumer treating this as a trigger
+// would have reinvented the thing the VTL exists to avoid — a host round trip
+// in the path of something that has to be frame-accurate.
+//
+// Reuses `VtlEdge` and `VirtualTriggerLineKind` from vtl.proto rather than
+// spelling rising/falling and input/output as bools, so a client that already
+// arms animations on edges reads this in the vocabulary it has.
+// Published for **both** directions, which `kind` distinguishes: an input edge
+// is what the animations branched on this frame, an output edge is what the
+// scene emitted. A replay needs the inputs, because animations branch on them
+// and the same commands with different inputs are a different stimulus; an
+// end-to-end test on real hardware wants the outputs, because they are what it
+// can also see on a scope.
+//
+// Addressed as `(bank, bit)`, the same way every other VTL message on this wire
+// is. **No name is carried**, even though lines can be named: a name is
+// runtime-mutable state, and repeating it in every event would be a second copy
+// free to drift from the registry. A consumer that wants names calls
+// `ListVirtualTriggerLines` once and keeps the map.
+message VtlLineChanged {
+  uint32 bank = 1;
+  uint32 bit = 4;
+  VtlEdge edge = 2;
+  VirtualTriggerLineKind kind = 3;
+  // The frame at whose start this was drained is `Event.frame`.
+}
+
+// An armed animation started or ended.
+//
+// Onset and offset as the server understands them, which is what makes "when
+// was the stimulus up" answerable from the stream without a consumer modelling
+// the scene.
+message AnimationStateChanged {
+  uint64 handle = 1;
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_ARMED = 1;
+    STATE_RUNNING = 2;
+    STATE_DONE = 3;
+  }
+  State state = 2;
+  // The frame it happened on is `Event.frame`.
+}
+
+// A command was dispatched against the scene, and the frame it landed on.
+//
+// **This is the record a replay is reconstructed from, and it is on the event
+// stream for the same reason everything else is: a fact the server observed,
+// stated to whoever is listening.** It is not a second command channel and
+// nothing may be waited on here — the answer to a command is the reply on the
+// REP socket, which the caller already has before this is published.
+//
+// **Why the frame is the interesting field.** A command arrives on the ZMQ (or
+// web) thread and is applied under the scene write lock *between* two frames.
+// Which frame it first affects is therefore a scheduling outcome, not something
+// the client chose: the same script run twice can land a command on frame 100
+// and then on frame 101. `Event.frame` here is the first frame that renders
+// with the command applied, resolved at application time, and it is the whole
+// reason this cannot be reconstructed afterwards from a timestamp.
+//
+// **Rejected commands are published too** (`accepted = false`). A command that
+// was refused changed nothing, so a replay skips it — but a replay in which it
+// *succeeds* has diverged from the run being replayed, and only recording the
+// refusal makes that detectable rather than silent.
+message CommandApplied {
+  // The command exactly as it arrived: an encoded `vstimd.v1.Request`.
+  //
+  // Bytes rather than an embedded message so that this file does not have to
+  // import the whole command surface, and so a subscriber that only wants to
+  // count commands need not decode them. **Never a rendered summary.** vstimd
+  // keeps a human-readable command log for the overlay; that is for a person
+  // reading it, and text that has been through prose cannot be replayed.
+  bytes request = 1;
+
+  // Whether the scene accepted it. False means the scene is unchanged.
+  bool accepted = 2;
+
+  // The handle the reply carried — the new stimulus for a create command, 0
+  // otherwise. Recorded because a replay allocates handles itself and this is
+  // what lets it check that it allocated the same ones.
+  int32 response_handle = 3;
+
+  // `vstimd.v1.ErrorCode` as an int, 0 when accepted. Kept as a plain int for
+  // the same reason `request` is bytes: no import of the command surface.
+  int32 error_code = 4;
+}
+
+// The server began publishing.
+//
+// **Published once, on bind, and it is how a subscriber learns it has
+// reconnected to a *different* run.** `Event.sequence` restarts from 1, and so
+// do both clocks: `monotonic_us` and `frame`. A consumer holding either from
+// before this event is holding a number from another server, and both are small
+// integers that look perfectly reasonable next to the new ones.
+message ServerStarted {
+  // Identifies this run. A subscriber that sees a new one must discard any
+  // frame index or sequence number it was holding.
+  string instance_id = 1;
+  string version = 2;
+}

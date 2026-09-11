@@ -86,6 +86,12 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                                     format!("d={}", diameter_px as i32)
                                 }
                             },
+                            // The field, not the aperture: it is the extent the
+                            // dots occupy, and the aperture is a mask over it.
+                            StimulusBody::Dots(d) => {
+                                format!("{} dots in {}", d.params.live.dot_count,
+                                        wh(d.params.live.field_size_px))
+                            }
                             StimulusBody::Mesh3d(_) => "3-D".to_string(),
                         };
                         let name_label = entry.name().to_string();

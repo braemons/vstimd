@@ -79,17 +79,36 @@ contract" that makes on-device reactions frame-accurate — see
 ## Scene state
 
 `SceneState` holds all stimulus data and is the only shared mutable state between
-threads. Stimuli are stored as a flat `IndexMap<u32, Stimulus>` where the key is the
-server-assigned handle returned to the client on creation.
+threads. Stimuli live in `config.stimuli`, an `IndexMap<u32, StimulusSceneEntry>`
+keyed by the server-assigned handle returned to the client on creation. `IndexMap`
+rather than `HashMap` because insertion order *is* draw order: stimuli draw in
+scene order, later over earlier.
 
-Each stimulus is a variant of the `Stimulus` enum — no trait objects, no heap
-allocation per stimulus. Shared fields (position, colour, enabled flag) are held in
-component structs (`Transform2D`, `ShapeAppearance`, `StimulusFlags`) composed into
-each variant.
+A `Stimulus` is `{ common, body }` — shared state (`StimulusCommon`: placement,
+flags, opacity) above a `StimulusBody` enum, with composition throughout rather
+than trait objects or inheritance. `StimulusBody` is the *renderer's* taxonomy,
+one arm per pipeline and cache (`Shape`, `Grating`, `Text`, `Mesh3d`); the
+finer user-facing names (`Rect`, `Circle`, …) live in the geometry enums and
+reach a client only through `scene::StimulusType`.
+
+### Deferred mode
+
+[Deferred mode](../concepts/deferred-mode.md) is implemented as staging copies
+rather than a command queue. `set_deferred_mode(active=true)` snapshots current
+stimulus state into per-field `*_copy` staging fields and routes subsequent
+writes there; the commit sets `runtime.pending_flip`, and the render loop
+promotes every staged field to live state at the top of the next frame, before
+tessellation (see the diagram above). The server is single-flip: one batch at a
+time, `runtime.deferred_mode` being the whole of that state.
+
+Ending or cancelling with nothing staged is a deliberate no-op — flipping stale
+copies would revert the scene — and `FinalAction::END_DEFERRED` applies exactly
+the same rule from `animation_advance.rs`, which is what lets an animation
+commit a batch on the frame it completes.
 
 !!! info "Design decisions"
-    - **Stimulus types** are a flat `enum` with composition — not trait objects or
-      inheritance.
+    - **Stimulus types** are `Stimulus { common, body }` with composition — not
+      trait objects or inheritance.
     - **2-D and 3-D coexist** in one frame: 3-D is rendered first, 2-D overlaid.
     - **`lib.rs`** exposes all modules as a library crate so integration tests in
       `server/tests/` can call `SceneState::handle_request` directly, without a GPU

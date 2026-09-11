@@ -52,6 +52,14 @@ See `docs/PLAN.md` for the full design and roadmap.
   all four. Dimensionless quantities (`contrast`, `opacity`, `mask_param`, `*_frames`)
   take no suffix, and the PsychoPy shim keeps PsychoPy's names (`pos`, `size`, `ori`,
   `sf`). Rotation is `rotation_deg` everywhere — never `orientation`, never `angle`
+- **A size is always a full extent, never a half-extent.** A circle is sized by its
+  `diameter_px`, not a radius; a patch by `size_px` = `[width, height]`, not by a
+  half-size. This holds in the proto, the scene, the config JSON, both clients and the
+  overlay, because a config that says `45` must mean the same 45 everywhere it is read.
+  Halving is a *shader* detail: `GratingPushConstants::half_size` is derived at upload
+  and is the only place a half-extent is allowed to exist. Porting from a package that
+  specifies radii (Psychtoolbox, most of the RDK literature) means doubling at the
+  boundary and saying so in the client
 - The config format *is* the runtime shape (no DTO). Types owning runtime state
   (`StimulusFlags`, `Grating`, `Text`) hide it behind a `serde` impl delegating to an inner
   `*Config`; GPU resources never live in the scene tree at all

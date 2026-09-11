@@ -23,6 +23,13 @@ pub struct BackendData {
     /// absent) — included in error messages so the user knows where to
     /// change a setting like `clock_pref`.
     pub rig_config_path: String,
+    /// Where the renderer's observations go, or nowhere.
+    ///
+    /// Every backend carries it because every backend can drop a frame, and the
+    /// render path must not have two shapes depending on whether anything could
+    /// be listening. `EventPublisher::disabled()` is the default and is what
+    /// every test uses; it is not a degraded mode.
+    pub events: crate::ipc::EventPublisher,
 }
 
 /// A rig-config display-mode preference, as loose match criteria against the

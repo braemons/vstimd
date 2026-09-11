@@ -15,7 +15,18 @@ startup (see [Architecture → Rendering backends](architecture.md#rendering-bac
 - **Desktop** — `VK_KHR_surface` via `winit` + `ash-window`.
 - **Null** — no display; ZMQ server only.
 
-Shaders are written in GLSL and compiled to SPIR-V at build time.
+Shaders are written in WGSL under `server/shaders/` and compiled to SPIR-V at
+build time by [`naga`](https://github.com/gfx-rs/wgpu/tree/trunk/naga), driven
+from `server/build.rs` — so a malformed shader is a build failure, not a runtime
+one.
+
+## Coordinate spaces
+
+Clients address 2-D stimuli in **pixels from the screen centre, Y up** (see
+[Coordinate system](../concepts/coordinate-system.md)). The vertex shaders
+convert that to Vulkan NDC at draw time, using the `screen_half` push constant,
+so NDC never appears in the scene tree, the wire protocol, or a config file — it
+exists only between the vertex shader's input and its output.
 
 ## Dependencies (DRM backend, Linux-only)
 
@@ -95,7 +106,7 @@ first became visible on.
 
 - DRM display discovery and mode selection (rig-config display mode is honoured)
 - Vulkan init via `VK_KHR_display` (Jetson) and via winit on desktop
-- Swapchain (FIFO), render pass, solid-colour and grating pipelines, text rendering
+- Swapchain (FIFO), render pass, solid-colour, grating and dots pipelines, text rendering
 - GPU buffer management
 - libinput keyboard/mouse handling; VT switching
 - Vsync-locked render loop with the vblank-source chain above
@@ -107,4 +118,8 @@ first became visible on.
 - Raspberry Pi 5 support (`VK_EXT_acquire_drm_display` via Mesa v3dv)
 - Textured pipeline for bitmap stimuli
 - Polygon stimulus (schema exists; renderer not finished)
+- Draw-order commands (`BringToFront`, `SendToBack`, `SwapDrawOrder`): the wire
+  messages exist and `dispatch.rs` refuses all three with `NotSupported`. Draw
+  order itself works — stimuli draw in scene order, later over earlier — there
+  is just no command to reorder them after creation
 - 3-D stimuli

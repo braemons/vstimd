@@ -273,6 +273,60 @@ fn drifting_grating_demo_drifts() {
     assert!(g.params.live.drift_speed_hz > 0.0, "the grating does not drift");
 }
 
+/// The figure-ground RDK's whole point is a complementary pair of apertures —
+/// same circle, one inverted — that differ only in `direction_deg`. Everything
+/// else the two fields share must actually be shared, or a size/count/speed
+/// mismatch would leak a non-motion cue at the boundary.
+#[test]
+fn figure_ground_rdk_is_a_complementary_pair_that_differs_only_in_direction() {
+    use vstimd::scene::stimulus::{ApertureClip, ApertureShape};
+
+    let (scene, _) = parse_config_json(demo("figure_ground_rdk")).unwrap();
+    let mut dots: Vec<_> = scene
+        .stimuli
+        .values()
+        .filter_map(|e| e.stimulus.dots().map(|d| (e.name(), d)))
+        .collect();
+    assert_eq!(dots.len(), 2, "expected exactly a figure and a ground field");
+    dots.sort_by_key(|(name, _)| *name);
+    let (ground_name, ground) = dots[0];
+    let (figure_name, figure) = dots[1];
+    assert_eq!((ground_name, figure_name), ("figure", "ground"));
+
+    let gp = ground.params.live;
+    let fp = figure.params.live;
+
+    // Same circle, opposite side of it.
+    assert_eq!(gp.aperture.shape, ApertureShape::Circle);
+    assert_eq!(fp.aperture.shape, ApertureShape::Circle);
+    assert_eq!(gp.aperture.size_px, fp.aperture.size_px);
+    assert_eq!(gp.aperture.offset_px, fp.aperture.offset_px);
+    assert_ne!(gp.aperture.invert, fp.aperture.invert, "both fields mask the same side");
+
+    // Dots overhang the boundary uncut — cutting them would draw the circle as a
+    // static form cue, exactly what a motion-defined figure must not have.
+    assert_eq!(gp.aperture.clip, ApertureClip::DotCenter);
+    assert_eq!(fp.aperture.clip, ApertureClip::DotCenter);
+
+    // Everything but direction is shared, so nothing but motion tells the two
+    // fields apart in a single frame.
+    assert_eq!(gp.field_size_px, fp.field_size_px);
+    assert_eq!(gp.dot_count, fp.dot_count);
+    assert_eq!(gp.dot_size_px, fp.dot_size_px);
+    assert_eq!(gp.dot_color, fp.dot_color);
+    assert_eq!(gp.speed_px_per_s, fp.speed_px_per_s);
+    assert_eq!(gp.coherence, fp.coherence);
+    assert_ne!(gp.direction_deg, fp.direction_deg, "figure and ground move the same way");
+    assert_ne!(gp.seed, fp.seed, "figure and ground share one RNG stream");
+
+    for e in scene.stimuli.values() {
+        if e.stimulus.dots().is_some() {
+            assert!(e.stimulus.flags().enabled, "a dot field starts hidden");
+        }
+    }
+    assert!(scene.animations.is_empty(), "the fields drift on their own, no animation needed");
+}
+
 /// End-to-end for the demo that motivated all this: load the file the way
 /// `config load` does, fire the input edge the way the overlay's ↑ button does,
 /// and check the grating actually appears, that the onset line pulses, and that

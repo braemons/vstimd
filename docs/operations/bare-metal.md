@@ -177,7 +177,14 @@ While the server is running:
 | **Shift+F1–F7** | Hide that overlay panel |
 | **Esc** | Clean exit |
 | **Alt+Enter** | Toggle fullscreen (desktop mode only) |
+| **F12** or **PrintScreen** | Save the presented frame as a PNG — the actual swapchain image, overlay included, on every backend that renders |
 | **Ctrl+Alt+F1–F12** | Switch VT (forwarded to the kernel, so you can return to a desktop) |
+
+Screenshots go to `$VSTIMD_SCREENSHOT_DIR`, or the working directory if that is
+unset — deliberately not under `--storage-dir`, whose only child is `projects/`.
+A rig on bare-metal DRM has no compositor and nothing else on the box to ask for
+a screenshot with, so this reads it out of vstimd's own Vulkan swapchain rather
+than depending on one existing.
 
 ---
 

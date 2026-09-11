@@ -71,7 +71,7 @@ that removes the address from the command line altogether:
 ```console
 $ vstimd-client info
 vstimd-client: using vstimd-a1b2c3 at tcp://vstimd-a1b2c3.local:5555
-version     0.4.1
+version     0.2.0
 ```
 
 !!! warning "Scripts should name their rig"
@@ -95,7 +95,7 @@ their own `--wait` deadline.
 
 ```console
 $ vstimd-client info
-version     0.4.1
+version     0.2.0
 resolution  1920x1080
 frame rate  60.00 Hz
 background  0.000 0.000 0.000 1.000

@@ -1,0 +1,126 @@
+{
+  "version": 1,
+  "updated": "2026-09-07T10:30:05",
+  "tests": {
+    "CFG-03": {
+      "status": "running",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_upload_and_list"
+    },
+    "DEMO-01\u202606 (+02b)": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_demo_script_rebuilds_shipped_demo[DEMO-03]"
+    },
+    "DOTS-01": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_create_dots"
+    },
+    "DOTS-02": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_dots_coherence"
+    },
+    "DOTS-03": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_dots_direction_changes_are_continuous"
+    },
+    "DOTS-04": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_dots_two_colors"
+    },
+    "DOTS-05": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_dots_shape"
+    },
+    "DOTS-06": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_dots_lifetime_does_not_flicker_in_lockstep"
+    },
+    "DOTS-07": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_dots_seed_reproduces"
+    },
+    "DOTS-08": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_figure_ground"
+    },
+    "ELLI-01": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_create_ellipse"
+    },
+    "ELLI-02": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_create_ellipse_with_angle"
+    },
+    "GRAT-01": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_create_grating"
+    },
+    "GRAT-02": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_grating_mutate_phase"
+    },
+    "GRAT-04": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_grating_mutate_contrast"
+    },
+    "GRAT-05": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_grating_mutate_waveform"
+    },
+    "GRAT-06": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_grating_set_mask"
+    },
+    "GRAT-07": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_grating_drift_speed"
+    },
+    "GRAT-08": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_grating_drift_decoupled"
+    },
+    "GRAT-09": {
+      "status": "passed",
+      "note": null,
+      "failure": "",
+      "node_id": "tests/e2e/test_e2e.py::test_grating_visual"
+    }
+  }
+}

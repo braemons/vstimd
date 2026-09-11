@@ -1,5 +1,21 @@
 from vstimd._handles import StimulusHandle
 
+from .dots_client import DotsClient
+from .dots_models import (
+    Aperture,
+    ApertureClip,
+    ApertureShape,
+    DotShape,
+    DotsParams,
+    NoiseRule,
+    Reinsertion,
+    SignalRule,
+    diameter_from_radius,
+    direction_from_ptb_rad,
+    dots_for_density,
+    lifetime_from_psychopy,
+    px_per_deg,
+)
 from .grating_client import GratingClient
 from .grating_models import GratingMask, GratingParams, GratingTexture
 from .shapes_client import ShapesClient
@@ -22,6 +38,7 @@ __all__ = [
     "StimuliClient",
     "ShapesClient",
     "GratingClient",
+    "DotsClient",
     "TextClient",
     "Color",
     "Vec2",
@@ -30,6 +47,19 @@ __all__ = [
     "GratingMask",
     "GratingParams",
     "GratingTexture",
+    "Aperture",
+    "ApertureClip",
+    "ApertureShape",
+    "DotShape",
+    "DotsParams",
+    "NoiseRule",
+    "Reinsertion",
+    "SignalRule",
+    "diameter_from_radius",
+    "direction_from_ptb_rad",
+    "dots_for_density",
+    "lifetime_from_psychopy",
+    "px_per_deg",
     "LanguageStyle",
     "PolygonParams",
     "RectParams",

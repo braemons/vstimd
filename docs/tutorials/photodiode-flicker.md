@@ -45,9 +45,10 @@ conn.animations.arm(flicker)
 Six frames on plus six off is a 12-frame period — 5 Hz at 60 Hz, and something
 else at any other refresh rate. That is the honest way to specify a flicker: the
 display can only change on frame boundaries, so a period that is not a whole
-number of frames does not exist. (`on_ms=`/`off_ms=` are available and convert
-using the server's measured rate, which is convenient and slightly less
-truthful.)
+number of frames does not exist. (`on_ms=`/`off_ms=` are available and are
+rounded up to whole frames in the client, against the rig's nominal refresh
+rate — convenient, and one step further from what you can quote in a methods
+section.)
 
 Omitting `total_frames` means it never stops. `StartAction.ENABLE` makes the
 first on-phase actually show the patch rather than assuming it is already
@@ -109,8 +110,19 @@ Photodiode patch on and inverting every frame.
   square wave at half the refresh rate (each full cycle is two frames). Missing
   or doubled cycles are dropped or repeated frames.
 - **The 5 Hz patch counts out.** Ten transitions per second, by eye.
-- **Compare against `frame_rate`.** `conn.system.query_server_info().frame_rate_hz`
-  is what vstimd measured. If the photodiode disagrees, believe the photodiode.
+- **Compare against the rate the rig claims.**
+  `conn.system.query_server_info().frame_rate_hz` is the **nominal** rate of the
+  display mode — what the panel says it does, and the number every duration on
+  this page is computed against. It is not a measurement, so it will not move
+  when the rig starts dropping frames. That is exactly why the photodiode is
+  worth taping down: it is the independent check. If the two disagree, believe
+  the photodiode.
+
+  For vstimd's own measurement — a rolling mean of actual frame durations, plus
+  a per-frame sparkline and a drop count — read the **Benchmarks** panel
+  (++f7++) on the device overlay. The Python client deliberately does not expose
+  it as a number to compute with: it jitters, so a duration derived from it
+  differs run to run.
 
 ## Try changing it
 

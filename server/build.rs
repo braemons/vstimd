@@ -42,6 +42,7 @@ fn main() {
         "../proto/vstimd/v1/stimuli/query.proto",
         "../proto/vstimd/v1/stimuli/rect.proto",
         "../proto/vstimd/v1/stimuli/circle.proto",
+                "../proto/vstimd/v1/stimuli/dots.proto",
         "../proto/vstimd/v1/stimuli/ellipse.proto",
         "../proto/vstimd/v1/stimuli/grating.proto",
         "../proto/vstimd/v1/stimuli/text.proto",
@@ -53,6 +54,7 @@ fn main() {
         "../proto/vstimd/v1/conditions.proto",
         "../proto/vstimd/v1/service.proto",
         "../proto/vstimd/v1/snapshot.proto",
+        "../proto/vstimd/v1/events.proto",
     ] {
         println!("cargo:rerun-if-changed={}", proto);
     }
@@ -69,6 +71,7 @@ fn main() {
                 "../proto/vstimd/v1/stimuli/query.proto",
                 "../proto/vstimd/v1/stimuli/rect.proto",
                 "../proto/vstimd/v1/stimuli/circle.proto",
+                "../proto/vstimd/v1/stimuli/dots.proto",
                 "../proto/vstimd/v1/stimuli/ellipse.proto",
                 "../proto/vstimd/v1/stimuli/grating.proto",
                 "../proto/vstimd/v1/stimuli/text.proto",
@@ -80,6 +83,7 @@ fn main() {
                 "../proto/vstimd/v1/conditions.proto",
                 "../proto/vstimd/v1/service.proto",
                 "../proto/vstimd/v1/snapshot.proto",
+                "../proto/vstimd/v1/events.proto",
             ],
             &["../proto/"],
         )
@@ -87,6 +91,7 @@ fn main() {
 
     compile_shader("shaders/solid.wgsl", "solid.spv");
     compile_shader("shaders/grating.wgsl", "grating.spv");
+    compile_shader("shaders/dots.wgsl", "dots.spv");
     compile_shader("shaders/text.wgsl", "text.spv");
     compile_shader("shaders/egui.wgsl", "egui.spv");
 }

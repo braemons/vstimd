@@ -11,6 +11,7 @@ mod condition_commands;
 mod scene_config_commands;
 mod convert;
 mod dispatch;
+mod dots_commands;
 mod grating_commands;
 mod scene_commands;
 mod shape_commands;
@@ -18,7 +19,9 @@ mod snapshot;
 mod text_commands;
 mod vtl_commands;
 
+pub mod event_publisher;
 pub mod response;
 pub mod zmq_server;
 
+pub use event_publisher::{DEFAULT_EVENT_PORT, EventPublisher, spawn_event_publisher};
 pub use zmq_server::{DEFAULT_ZMQ_PORT, spawn_zmq_thread};

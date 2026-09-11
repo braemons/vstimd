@@ -7,6 +7,7 @@ use crate::render::render_state::RenderState;
 use crate::render::tess::{self, tessellate_photodiode};
 use crate::render::vk::{TextPushConstants, TextVertex};
 use crate::scene::photodiode::PHOTODIODE_HANDLE;
+use crate::scene::stimulus::dots::build_dots_push_constants;
 use crate::scene::stimulus::grating::{build_grating_push_constants, grating_phase_inc};
 use crate::scene::stimulus::text::layout_and_rasterize;
 use crate::scene::stimulus::{DrawMode, StimulusBody};
@@ -150,6 +151,10 @@ pub fn render_frame(
         std::time::Instant::now()
     };
 
+    // Which frame-in-flight slot this frame owns. The fence for it was waited on
+    // in step 2, so the per-slot instance buffers are free to overwrite.
+    let frame_slot = rs.timing.frame_index % ctx.frames.len();
+
     // ── 4. Tessellate scene into GPU buffers ──────────────────────────────────
     let t_tess_start = std::time::Instant::now();
     {
@@ -169,6 +174,14 @@ pub fn render_frame(
             sc.apply_flip();
         }
         sc.runtime.frame_count += 1;
+        // Stamped here, under the write lock, and this is the only place it is
+        // written. Tessellation for `this_present_id` is happening now, so this
+        // frame's content is already decided: any command that gets the lock
+        // from here until the next tessellation first appears one frame later.
+        // A command that landed *before* this store read the previous value,
+        // which was this same expression one frame back — so both windows are
+        // right, from one assignment.
+        sc.runtime.next_render_frame = this_present_id + 1;
         let _ = sc.runtime.frame_notifier.send(sc.runtime.frame_count);
         sc.runtime.screen_size = Some(screen_size);
         sc.runtime.frame_rate_hz = fps;
@@ -190,6 +203,9 @@ pub fn render_frame(
             .stroke_meshes
             .retain(|h, _| sc.stimuli.contains_key(h));
         cache.text.meshes.retain(|h, _| sc.stimuli.contains_key(h));
+        cache
+            .dots
+            .retain(&ctx.device, |h| sc.stimuli.contains_key(&h));
 
         for (&handle, entry) in sc.stimuli.iter_mut() {
             // `flags` lives on the stimulus, above the kind, so read what the
@@ -202,6 +218,17 @@ pub fn render_frame(
                 StimulusBody::Grating(s) => {
                     if visible && s.params.live.drift_speed_hz != 0.0 {
                         s.phase_accum_cycles += grating_phase_inc(s, nominal_fps);
+                    }
+                }
+
+                // A dot field advances whether or not it is visible: the sample at
+                // frame N is a function of the seed and N, and skipping the update
+                // while hidden would make what a client sees on unhide depend on how
+                // long it was hidden for. Only the instance write is skipped.
+                StimulusBody::Dots(d) => {
+                    d.advance(nominal_fps);
+                    if visible {
+                        cache.dots.write(handle, frame_slot, &ctx.device, d);
                     }
                 }
 
@@ -355,6 +382,8 @@ pub fn render_frame(
     } else {
         &rs.scene_renderer.grating_pipeline
     };
+    // No wireframe twin — see `SceneRenderer::new`.
+    let dots_pipe = &rs.scene_renderer.dots_pipeline;
 
     // ── 6. Acquire swapchain image ────────────────────────────────────────────
     let t_acquire_start = std::time::Instant::now();
@@ -433,6 +462,7 @@ pub fn render_frame(
             None,
             Solid,
             Grating,
+            Dots,
             Text,
         }
         let mut bound = Bound::None;
@@ -479,6 +509,62 @@ pub fn render_frame(
                 );
                 ctx.device
                     .cmd_draw_indexed(cb, quad.index_count, 1, 0, 0, 0);
+            } else if let StimulusBody::Dots(d) = &stim.body {
+                // Nothing to draw when the aperture culled every dot — and binding
+                // the pipeline for a zero-instance draw would be pure overhead.
+                let Some(inst) = rs
+                    .scene_renderer
+                    .scene_cache
+                    .dots
+                    .get(*h, frame_slot)
+                    .filter(|b| b.instance_count > 0)
+                else {
+                    continue;
+                };
+                if bound != Bound::Dots {
+                    ctx.device.cmd_bind_pipeline(
+                        cb,
+                        vk::PipelineBindPoint::GRAPHICS,
+                        dots_pipe.pipeline,
+                    );
+                    ctx.device
+                        .cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+                    ctx.device
+                        .cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+                    ctx.device.cmd_bind_index_buffer(
+                        cb,
+                        dots_pipe.quad.index_buffer,
+                        0,
+                        vk::IndexType::UINT32,
+                    );
+                    bound = Bound::Dots;
+                }
+                // Binding 0 is the shared quad, binding 1 this field's dots. The
+                // instance buffer differs per stimulus, so this rebinds even when
+                // the pipeline is already bound.
+                ctx.device.cmd_bind_vertex_buffers(
+                    cb,
+                    0,
+                    &[dots_pipe.quad.vertex_buffer, inst.buffer],
+                    &[0, 0],
+                );
+                let pc =
+                    build_dots_push_constants(d, stim.opacity().live, screen_w, screen_h);
+                ctx.device.cmd_push_constants(
+                    cb,
+                    dots_pipe.layout,
+                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                    0,
+                    bytemuck::bytes_of(&pc),
+                );
+                ctx.device.cmd_draw_indexed(
+                    cb,
+                    dots_pipe.quad.index_count,
+                    inst.instance_count,
+                    0,
+                    0,
+                    0,
+                );
             } else if let StimulusBody::Text(t) = &stim.body {
                 if bound != Bound::Text {
                     ctx.device.cmd_bind_pipeline(
@@ -813,6 +899,15 @@ pub fn render_frame(
     let warming_up = rs.timing.stats.is_warming_up();
     let dropped_frames = rs.timing.stats.on_present(vblank_time);
     if dropped_frames > 0 && !warming_up {
+        // Stated, not judged: whether a trial that lost a frame is still a
+        // trial is the decision authority's call, and this server has no idea
+        // what a trial is. Non-blocking and allocation-free on the render side;
+        // see ipc::event_publisher for why it can never cost a frame.
+        //
+        // Warming up is excluded for the same reason it is excluded from the
+        // log: the first frames after a swapchain comes up are not drops, and a
+        // consumer told they were would flag every session's first trial.
+        rs.events.frame_dropped(this_present_id, dropped_frames);
         log::warn!(
             "vstimd: {} dropped frame(s) before frame {} \
              [tess={}µs fence={}µs acquire={}µs record={}µs submit={}µs]",

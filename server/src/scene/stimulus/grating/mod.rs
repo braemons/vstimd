@@ -1,7 +1,6 @@
 pub mod grating_params;
 pub mod grating_pipeline;
 pub mod grating_stimulus;
-pub mod grating_tess;
 
 pub use grating_params::{GratingMask, GratingParams, Waveform};
 pub use grating_pipeline::{GratingPushConstants, VkGratingPipeline};

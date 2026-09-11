@@ -44,8 +44,8 @@ scene you can debug.
 ```python
 sweep = conn.animations.create_move_along_segments_2d(
     target,
-    x=[-800.0, 800.0],
-    y=[0.0, 0.0],
+    x_px=[-800.0, 800.0],
+    y_px=[0.0, 0.0],
     speed_px_per_sec=600.0,
     name="sweep_left_to_right",
     final_action_mask=FinalAction.RESTART | FinalAction.FINAL_ACTION_TRIGGER_LINE,
@@ -55,9 +55,15 @@ conn.animations.arm(sweep)
 ```
 
 `move_along_segments_2d` takes piecewise-linear waypoints and a **speed**, and
-the server converts that into a per-frame step using its measured frame rate. So
-600 px/s is 600 px/s on a 60 Hz display and on a 144 Hz display — the number of
-frames the sweep takes differs, the motion does not.
+the server converts that into a per-frame step using the rig's **nominal** frame
+rate. So 600 px/s is 600 px/s on a 60 Hz display and on a 144 Hz display — the
+number of frames the sweep takes differs, the motion does not.
+
+The nominal rate, not the measured one, and deliberately so: the measurement
+jitters from frame to frame, and this conversion is redone on every tick, so a
+measured divisor would make the same saved config sweep at a slightly different
+speed on every run. A fixed property of the rig gives you a sweep you can
+reproduce.
 
 Its sibling `create_move_along_path_2d` takes one position **per frame**
 instead: full control, at the cost of having to know the frame rate yourself.

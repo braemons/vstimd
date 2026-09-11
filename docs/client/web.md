@@ -18,7 +18,7 @@ from any machine on the same network.
 The web UI is the no-code path to a running rig. It is meant for **online control and
 configuration** rather than scripted experiments:
 
-- inspect and toggle stimuli, background, and draw order live;
+- inspect and toggle stimuli and the background live;
 - watch scene state, animations, and Virtual Trigger Line activity in real time (it
   subscribes to a `/events` WebSocket that streams a full scene snapshot);
 - **save, load, and manage configs** on the device (see
