@@ -12,7 +12,7 @@ repository = "https://github.com/braemons/vstimd"
 default = ["web"]
 # Embedded HTTP + WebSocket control surface for the browser UI. Disable with
 # `--no-default-features` to drop axum/futures-util and compile out src/web.
-web = ["dep:axum", "dep:futures-util", "tokio/net", "tokio/macros"]
+web = ["dep:axum", "dep:futures-util", "dep:tower-http", "tokio/net", "tokio/macros"]
 # Bake the built React UI (client/web/dist) into the binary and serve it at `/`.
 # Requires the frontend to be built first: `cd client/web && npm run build`.
 # Opt-in so a plain `cargo build` does not depend on the frontend being built.
@@ -50,6 +50,10 @@ axum         = { version = "0.8", features = ["ws"], optional = true }
 futures-util = { version = "0.3", optional = true }
 rust-embed   = { version = "8", features = ["mime-guess"], optional = true }
 png = "0.18.1"
+# CORS on `/elements/` and the API: a console is served from somewhere else
+# entirely (docs/PLAN.md in the console repo), so nothing here may assume
+# same-origin -- the same reason statemachined and triald open it up.
+tower-http   = { version = "0.6", features = ["cors"], optional = true }
 
 # Linux-only dependencies for DRM/console mode and Wayland support
 [target.'cfg(target_os = "linux")'.dependencies]

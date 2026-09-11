@@ -7,7 +7,8 @@
   "scripts": {
     "gen": "buf generate",
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && vite build && npm run build:elements",
+    "build:elements": "vite build --config vite.elements.config.ts",
     "preview": "vite preview",
     "test:e2e": "vitest run",
     "test:e2e:watch": "vitest",

@@ -34,6 +34,7 @@ use axum::{
 use axum::response::Html;
 use futures_util::{SinkExt, StreamExt};
 use prost::Message as _;
+use tower_http::cors::CorsLayer;
 
 use crate::proto;
 use crate::scene::SceneState;
@@ -129,6 +130,12 @@ async fn web_loop(
         let r = r.fallback(static_handler);
         #[cfg(not(feature = "embed-ui"))]
         let r = r.route("/", get(index));
+        // `/elements/vstimd.js` is meant to be imported by a console served
+        // from somewhere else entirely (the console repo's docs/PLAN.md), so
+        // nothing here may assume same-origin -- open, matching statemachined
+        // and triald, and the rig-network-is-the-boundary decision both
+        // already made (their own PLAN.md §7).
+        let r = r.layer(CorsLayer::permissive());
         r.with_state(state)
     };
 
@@ -264,11 +271,21 @@ async fn static_handler(uri: axum::http::Uri) -> axum::response::Response {
     let path = uri.path().trim_start_matches('/');
     let path = if path.is_empty() { "index.html" } else { path };
     if let Some(file) = Assets::get(path) {
-        return (
+        let mut response = (
             [(header::CONTENT_TYPE, file.metadata.mimetype())],
             file.data,
         )
             .into_response();
+        // `/elements/vstimd.js` is a public contract another repo's console
+        // imports by URL; a browser holding yesterday's panel list against
+        // today's daemon is exactly the failure a cache header prevents.
+        // Matches statemachined's and triald's `/elements/` routes.
+        if path.starts_with("elements/") {
+            response
+                .headers_mut()
+                .insert(header::CACHE_CONTROL, "no-cache, must-revalidate".parse().unwrap());
+        }
+        return response;
     }
     // Unknown path → SPA fallback to index.html.
     match Assets::get("index.html") {
