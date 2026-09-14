@@ -14,12 +14,9 @@ use crate::render::vk::buffers::find_memory_type;
 /// Layout (128 bytes):
 ///   offset   0: view_proj   [[f32; 4]; 4]
 ///   offset  64: camera_pos  [f32; 3]   + _pad0 f32
-///   offset  80: ambient     [f32; 3]   + _pad1 f32   ← lighting, #71
-///   offset  96: sun_dir     [f32; 3]   + _pad2 f32   ← lighting, #71
-///   offset 112: sun_color   [f32; 3]   + _pad3 f32   ← lighting, #71
-///
-/// The lighting fields are declared now so the layout does not churn when #71
-/// starts reading them.
+///   offset  80: ambient     [f32; 3]   + _pad1 f32
+///   offset  96: sun_dir     [f32; 3]   + _pad2 f32   ← unit length
+///   offset 112: sun_color   [f32; 3]   + _pad3 f32
 #[repr(C)]
 #[derive(Clone, Copy, Default, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SceneUniform {
@@ -40,7 +37,7 @@ pub struct SceneUniform {
 ///   offset  0: model     [[f32; 4]; 4]
 ///   offset 64: albedo    [f32; 4]
 ///   offset 80: emissive  [f32; 3]
-///   offset 92: shading   u32          ← 0 = Unlit
+///   offset 92: shading   u32          ← 0 = Unlit, 1 = Phong
 ///
 /// No normal matrix: an inverse-transpose `mat3` is 48 bytes and would not fit,
 /// so the vertex shader derives it from `model`.

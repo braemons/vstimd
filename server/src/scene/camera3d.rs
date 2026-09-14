@@ -1,4 +1,5 @@
-//! The 3-D camera — a scene object, not render state (`dev/3D_ROADMAP.md` §1.4, §A.1).
+//! The 3-D camera and scene lighting — scene objects, not render state
+//! (`dev/3D_ROADMAP.md` §1.4, §A.1, §10.1).
 //!
 //! It lives in [`SceneConfig`](super::SceneConfig) as a `Deferred<Camera3D>`, so a
 //! batched camera + stimulus update flips on one frame like everything else, and a
@@ -86,6 +87,43 @@ impl Camera3D {
     }
 }
 
+/// Scene-wide lighting for `Phong` surfaces: one ambient term and one
+/// directional light (`dev/3D_ROADMAP.md` §10.1). `Unlit` surfaces ignore it,
+/// which is what keeps their luminance equal to a 2-D stimulus of the same colour.
+///
+/// Colours are linear RGB multipliers, not display colours — a sun of `[2, 2, 2]`
+/// is a brighter light, not an invalid one.
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct Lighting3D {
+    pub ambient_color: [f32; 3],
+    /// The direction the light travels, world space — *from* the sun. Any
+    /// non-zero length; [`Self::sun_direction_normalized`] is what the shader gets.
+    pub sun_direction: Vec3,
+    pub sun_color: [f32; 3],
+}
+
+impl Default for Lighting3D {
+    fn default() -> Self {
+        Self {
+            ambient_color: [0.1; 3],
+            sun_direction: Vec3::new(-0.5, -1.0, -0.3).normalize(),
+            sun_color: [1.0; 3],
+        }
+    }
+}
+
+impl Lighting3D {
+    /// Unit sun direction. A zero or non-finite vector — which a command refuses,
+    /// but a hand-edited scene-config can still hold — falls back to the default
+    /// direction instead of putting NaN into every lit pixel.
+    pub fn sun_direction_normalized(&self) -> Vec3 {
+        self.sun_direction
+            .try_normalize()
+            .unwrap_or(Self::default().sun_direction)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -154,5 +192,15 @@ mod tests {
         };
         let p = ndc(&cam, Vec3::new(5.0, 7.0, -50.0));
         assert!(p.x.abs() < 1e-5 && p.y.abs() < 1e-5, "{p}");
+    }
+
+    #[test]
+    fn zero_sun_direction_does_not_produce_nan() {
+        let l = Lighting3D {
+            sun_direction: Vec3::ZERO,
+            ..Default::default()
+        };
+        let d = l.sun_direction_normalized();
+        assert!(d.is_finite() && (d.length() - 1.0).abs() < 1e-5, "{d}");
     }
 }

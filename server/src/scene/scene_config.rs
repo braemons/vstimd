@@ -1,7 +1,7 @@
 use indexmap::IndexMap;
 
 use super::animation::AnimationEntry;
-use super::camera3d::Camera3D;
+use super::camera3d::{Camera3D, Lighting3D};
 use super::conditions::Conditions;
 use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
@@ -33,6 +33,14 @@ pub struct SceneConfig {
     /// pure 2-D scene-config is written exactly as it was before 3-D existed.
     #[serde(default, skip_serializing_if = "camera_is_default")]
     pub camera: Deferred<Camera3D>,
+    /// Lighting for `Phong` 3-D surfaces. Omitted on save when default, like the
+    /// camera.
+    #[serde(default, skip_serializing_if = "lighting_is_default")]
+    pub lighting: Deferred<Lighting3D>,
+}
+
+fn lighting_is_default(lighting: &Deferred<Lighting3D>) -> bool {
+    lighting.live == Lighting3D::default()
 }
 
 fn camera_is_default(camera: &Deferred<Camera3D>) -> bool {
@@ -52,6 +60,7 @@ impl Default for SceneConfig {
             next_anim_handle: 1,
             conditions: Conditions::default(),
             camera: Deferred::new(Camera3D::default()),
+            lighting: Deferred::new(Lighting3D::default()),
         }
     }
 }

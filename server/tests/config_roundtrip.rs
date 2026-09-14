@@ -384,3 +384,17 @@ fn camera_is_saved_only_when_moved() {
     let loaded: SceneConfig = serde_json::from_str(&json).unwrap();
     assert_eq!(loaded.camera.live, scene.camera.live);
 }
+
+/// Changed lighting is saved and restored; default lighting is omitted.
+#[test]
+fn lighting_is_saved_only_when_changed() {
+    let mut scene = SceneConfig::default();
+    assert!(!serde_json::to_string(&scene).unwrap().contains("\"lighting\""));
+
+    scene.lighting.live.ambient_color = [0.2, 0.1, 0.0];
+    scene.lighting.live.sun_direction = glam::Vec3::new(1.0, -1.0, 0.0);
+    scene.lighting.live.sun_color = [2.0, 2.0, 1.5];
+    let loaded: SceneConfig =
+        serde_json::from_str(&serde_json::to_string(&scene).unwrap()).unwrap();
+    assert_eq!(loaded.lighting.live, scene.lighting.live);
+}

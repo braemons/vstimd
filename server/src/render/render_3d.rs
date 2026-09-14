@@ -28,11 +28,15 @@ pub unsafe fn record_3d_pass(
     let extent = ctx.extent;
     let aspect = extent.width as f32 / extent.height.max(1) as f32;
     let camera = scene.camera.live;
+    let lighting = scene.lighting.live;
     mesh3d.uniforms.write(
         frame_slot,
         &SceneUniform {
             view_proj: camera.view_proj(aspect).to_cols_array_2d(),
             camera_pos: camera.position_cm.to_array(),
+            ambient: lighting.ambient_color,
+            sun_dir: lighting.sun_direction_normalized().to_array(),
+            sun_color: lighting.sun_color,
             ..Default::default()
         },
     );

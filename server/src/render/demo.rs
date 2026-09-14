@@ -16,7 +16,10 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             StimulusIdentity::new(Some("demo_circle".into())),
             Stimulus::from(Shape::new(
-                [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
+                [
+                    rng.random_range(-500.0..500.0),
+                    rng.random_range(-500.0..500.0),
+                ],
                 0.0,
                 ShapeAppearance {
                     fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
@@ -32,13 +35,18 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             StimulusIdentity::new(Some("demo_rect".into())),
             Stimulus::from(Shape::new(
-                [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
+                [
+                    rng.random_range(-500.0..500.0),
+                    rng.random_range(-500.0..500.0),
+                ],
                 30.0,
                 ShapeAppearance {
                     fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
                     ..Default::default()
                 },
-                ShapeGeometry::Rect { size_px: [240.0, 100.0] },
+                ShapeGeometry::Rect {
+                    size_px: [240.0, 100.0],
+                },
             )),
         ),
     );
@@ -90,23 +98,26 @@ pub(crate) fn spawn_demo_stimuli(
 /// renderer can be looked at. Run with `--no-web` — the web snapshot cannot
 /// describe a 3-D stimulus yet.
 ///
-/// A floor, a cube with a stretched box pushed through it, and a sphere, all in
-/// front of the default camera: one look checks depth, culling, non-uniform
-/// scale, winding of every primitive and that world +Y is screen up.
+/// A floor, a cube with a stretched box pushed through it, and a sphere
+/// stretched into an ellipsoid, all Phong-lit in front of the default camera:
+/// one look checks depth, culling, winding of every primitive, that world +Y is
+/// screen up, and — from the ellipsoid's terminator — the normal matrix.
 pub(crate) fn spawn_debug_3d_stimuli(
     scene: &std::sync::Arc<std::sync::RwLock<crate::scene::SceneState>>,
 ) {
     use crate::Color;
     use crate::scene::{
-        Material3D, Mesh3d, Mesh3dGeometry, Stimulus, StimulusIdentity, StimulusSceneEntry,
-        Transform3D,
+        Material3D, Mesh3d, Mesh3dGeometry, Shading3D, Stimulus, StimulusIdentity,
+        StimulusSceneEntry, Transform3D,
     };
     use glam::Vec3;
 
     let objects = [
         (
             "debug_floor",
-            Mesh3dGeometry::Plane { size_cm: [120.0, 200.0] },
+            Mesh3dGeometry::Plane {
+                size_cm: [120.0, 200.0],
+            },
             Vec3::new(0.0, -20.0, -100.0),
             Vec3::ZERO,
             Color::new(0.25, 0.25, 0.3, 1.0),
@@ -120,14 +131,20 @@ pub(crate) fn spawn_debug_3d_stimuli(
         ),
         (
             "debug_bar",
-            Mesh3dGeometry::Cube { size_cm: [30.0, 4.0, 4.0] },
+            Mesh3dGeometry::Cube {
+                size_cm: [30.0, 4.0, 4.0],
+            },
             Vec3::new(-2.0, 10.0, -70.0),
             Vec3::new(0.0, 0.0, 15.0),
             Color::new(0.9, 0.8, 0.2, 1.0),
         ),
         (
             "debug_sphere",
-            Mesh3dGeometry::Sphere { diameter_cm: 18.0, rings: 16, sectors: 32 },
+            Mesh3dGeometry::Sphere {
+                diameter_cm: 18.0,
+                rings: 16,
+                sectors: 32,
+            },
             Vec3::new(20.0, -5.0, -80.0),
             Vec3::ZERO,
             Color::new(0.2, 0.6, 0.9, 1.0),
@@ -136,15 +153,31 @@ pub(crate) fn spawn_debug_3d_stimuli(
     let mut sc = scene.write().expect("scene lock poisoned");
     for (name, geometry, position_cm, rotation_euler_deg, albedo) in objects {
         let h = sc.alloc_stim_handle();
+        let scale = if name == "debug_sphere" {
+            Vec3::new(1.0, 1.8, 1.0)
+        } else {
+            Vec3::ONE
+        };
         let mesh = Mesh3d::new(
-            Transform3D { position_cm, rotation_euler_deg, ..Default::default() },
-            Material3D { albedo, ..Default::default() },
+            Transform3D {
+                position_cm,
+                rotation_euler_deg,
+                scale,
+            },
+            Material3D {
+                albedo,
+                shading: Shading3D::Phong,
+                ..Default::default()
+            },
             geometry,
             None,
         );
         sc.stimuli.insert(
             h,
-            StimulusSceneEntry::new(StimulusIdentity::new(Some(name.into())), Stimulus::from(mesh)),
+            StimulusSceneEntry::new(
+                StimulusIdentity::new(Some(name.into())),
+                Stimulus::from(mesh),
+            ),
         );
     }
 }
