@@ -7,21 +7,20 @@ use crate::vtl_state::{VtlEdge, VtlBit};
 
 /// What an animation drives.
 ///
-/// A list of stimuli today. The 3-D camera is the candidate second variant: it
-/// is worth arming, triggering and cancelling exactly like any other animation,
-/// and duplicating that machinery for a camera-only animation type would be the
-/// worse trade (dev/3D_ROADMAP.md §11.1).
+/// The camera is a target rather than a sentinel stimulus handle: it arms,
+/// triggers and cancels like any other animation without claiming a handle a
+/// stimulus could one day be given (dev/3D_ROADMAP.md §11.1).
 ///
-/// It would not be a target for *every* animation, though. Only the kinds that
-/// drive a transform (`MoveAlongPath2D`, `MoveAlongSegments2D`,
-/// `ExternalPosition2D`) mean anything for a camera; the four that drive
-/// visibility have nothing to act on, and nor do the `ENABLE` / `DISABLE` /
-/// `RESTORE_VISIBILITY` action bits. Adding the variant means adding the rule that
-/// rejects those combinations at create time — see the roadmap.
+/// It is not a target for *every* animation. The visibility kinds have nothing to
+/// act on, and the 2-D motion kinds move in pixels, which mean nothing for a
+/// camera in centimetres — the same reason `Stimulus::move_to_2d` refuses a 3-D
+/// stimulus. [`Animation::drives_camera`] says which kinds take it; create
+/// refuses every other pairing.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind")]
 pub enum AnimationTarget {
     Stimuli { handles: Vec<u32> },
+    Camera,
 }
 
 impl AnimationTarget {
@@ -30,6 +29,7 @@ impl AnimationTarget {
     pub fn stimuli_mut(&mut self) -> &mut [u32] {
         match self {
             AnimationTarget::Stimuli { handles } => handles,
+            AnimationTarget::Camera => &mut [],
         }
     }
 
@@ -39,6 +39,7 @@ impl AnimationTarget {
     pub fn stimuli(&self) -> &[u32] {
         match self {
             AnimationTarget::Stimuli { handles } => handles,
+            AnimationTarget::Camera => &[],
         }
     }
 }
@@ -103,6 +104,25 @@ pub struct AnimationEntry {
     /// `config.conditions` by `SceneState::apply_conditions`, the same way
     /// `StimulusFlags::cond_enabled` is; not serialized.
     pub cond_enabled: bool,
+    /// Net distance a navigation animation has moved its target since it last
+    /// started, cm. Never wrapped: this is the number an experiment logs, while
+    /// the camera position it drives wraps into one corridor period. `f64`
+    /// because a session covers kilometres, where `f32` resolves only
+    /// millimetres. Zero for every other kind; not serialized.
+    pub distance_travelled_cm: f64,
+    /// The camera `(x, z)` a navigation animation is integrating, in `f64`,
+    /// with the position it last wrote. Narrowing to `f32` every frame and
+    /// reading it back accumulates rounding — millimetres over a session — so
+    /// the animation keeps its own copy and resyncs from the camera only when
+    /// something else has moved it. Not serialized.
+    pub nav_position_cm: Option<NavPosition>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct NavPosition {
+    pub x: f64,
+    pub z: f64,
+    pub written: glam::Vec3,
 }
 
 impl std::ops::Deref for AnimationEntry {
@@ -126,6 +146,8 @@ impl<'de> serde::Deserialize<'de> for AnimationEntry {
             config: AnimationConfig::deserialize(d)?,
             captured_user_enabled: None,
             cond_enabled: true,
+            distance_travelled_cm: 0.0,
+            nav_position_cm: None,
         })
     }
 }
@@ -152,6 +174,8 @@ impl AnimationEntry {
             },
             captured_user_enabled: None,
             cond_enabled: true,
+            distance_travelled_cm: 0.0,
+            nav_position_cm: None,
         }
     }
 

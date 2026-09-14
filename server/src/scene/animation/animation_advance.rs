@@ -149,6 +149,8 @@ pub(crate) fn advance_one(
 
                 if let Some(entry) = scene.config.animations.get_mut(&handle) {
                     entry.state = AnimState::Running { frame_counter: 0 };
+                    entry.distance_travelled_cm = 0.0;
+                    entry.nav_position_cm = None;
                 }
             }
         }
@@ -322,6 +324,21 @@ pub(crate) fn advance_one(
             //
             // External position is driven by an external process; never self-terminates.
             Animation::ExternalPosition2D { .. } => false,
+
+            Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm } => {
+                // Nominal rate, like MoveAlongSegments2D: a run must cover the same
+                // distance in the same number of frames every time (#120).
+                let step_cm = f64::from(*speed_cm_per_s)
+                    / f64::from(scene.runtime.nominal_frame_rate_hz.max(1.0));
+                let wrap = *wrap_period_cm;
+                let nav = entry.nav_position_cm;
+                let nav = advance_camera_along_forward(scene, nav, step_cm, wrap);
+                if let Some(entry) = scene.config.animations.get_mut(&handle) {
+                    entry.distance_travelled_cm += step_cm;
+                    entry.nav_position_cm = Some(nav);
+                }
+                false
+            }
         }
     };
 
@@ -349,6 +366,43 @@ pub(crate) fn advance_one(
         };
         finalize(handle, scene, &stim_handles, outputs, action, trigger_line, level_line, true, true);
     }
+}
+
+/// Move the camera `step_cm` along its horizontal forward direction, wrapping
+/// `z` into `[0, wrap_period_cm)` when given. Returns the new integration state.
+///
+/// The position is integrated in `f64` (`nav`) and only narrowed to write the
+/// camera, so the rendered position stays exact however far the camera goes.
+/// If the camera is not where this animation last left it — a `SetCamera`, say —
+/// integration restarts from where it now is.
+///
+/// The position is written to both the live and the staged camera: an animation
+/// is not a staged command, and a deferred block that flipped the stale staged
+/// position back in would jump the camera backwards. Every other camera field in
+/// the staged copy is left as the client staged it.
+fn advance_camera_along_forward(
+    scene: &mut SceneState,
+    nav: Option<super::NavPosition>,
+    step_cm: f64,
+    wrap_period_cm: Option<f32>,
+) -> super::NavPosition {
+    let camera = &mut scene.config.camera;
+    let current = camera.live.position_cm;
+    let (x, z) = match nav {
+        Some(n) if n.written == current => (n.x, n.z),
+        _ => (f64::from(current.x), f64::from(current.z)),
+    };
+    let yaw = f64::from(camera.live.yaw_deg).to_radians();
+    // Forward is -Z at yaw 0; positive yaw turns left, towards -X.
+    let x = x - yaw.sin() * step_cm;
+    let mut z = z - yaw.cos() * step_cm;
+    if let Some(period) = wrap_period_cm.filter(|p| *p > 0.0) {
+        z = z.rem_euclid(f64::from(period));
+    }
+    let written = glam::Vec3::new(x as f32, current.y, z as f32);
+    camera.live.position_cm = written;
+    camera.copy.position_cm = written;
+    super::NavPosition { x, z, written }
 }
 
 /// Cancel an animation: distinct from disarm. Applies the animation's

@@ -31,7 +31,8 @@ mod text;
 mod vtl;
 
 pub(super) use animation::{
-    animation_body_to_proto, animation_from_proto, vtl_edge_from_proto, vtl_edge_to_proto,
+    animation_body_to_proto, animation_from_proto, animation_target_from_proto,
+    animation_target_to_proto, vtl_edge_from_proto, vtl_edge_to_proto,
 };
 pub(super) use condition::{
     condition_action_from_proto, condition_action_to_proto, condition_from_proto,

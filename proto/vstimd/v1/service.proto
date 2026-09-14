@@ -182,6 +182,7 @@ message Request {
     ListAnimationsRequest list_animations = 104;
     QueryAnimationRequest query_animation = 105;
     CancelAnimationRequest cancel_animation = 106;
+    SetNavSpeedRequest set_nav_speed = 107;
 
     // ── Scene-config persistence (system target) ─────────────────────────────
     ListSceneConfigsRequest     list_scene_configs    = 110;

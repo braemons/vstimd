@@ -25,23 +25,17 @@ def _to_stimuli(s: Stimuli) -> list[StimulusHandle]:
 
 
 def _target_stimuli(params: animations_pb2.CreateAnimationRequest) -> list[int]:
-    """The stimulus handles out of an animation's target, or none.
-
-    Empty for a target that is not stimuli — no such target exists yet, but the
-    field is a oneof so that the 3-D camera can become one without a wire break.
-    """
+    """The stimulus handles out of an animation's target, or none — empty for a
+    camera animation."""
     if params.target.WhichOneof("target") != "stimuli":
         return []
     return list(params.target.stimuli.handles)
 
 
-def _target(stimuli: Stimuli) -> animations_pb2.AnimationTarget:
-    """Wrap stimulus handles as the animation's target.
-
-    Targets are a oneof on the wire because stimuli may not stay the only thing
-    an animation can drive — the 3-D camera is the candidate — though only the
-    animations that move something would accept one.
-    """
+def _target(stimuli: Stimuli | None) -> animations_pb2.AnimationTarget:
+    """Wrap stimulus handles as the animation's target; ``None`` is the camera."""
+    if stimuli is None:
+        return animations_pb2.AnimationTarget(camera=animations_pb2.AnimationCamera())
     return animations_pb2.AnimationTarget(
         stimuli=animations_pb2.AnimationStimuli(handles=_to_stimuli(stimuli)),
     )
@@ -183,13 +177,15 @@ class AnimationClient:
             condition_indices=tuple(r.condition_indices),
             condition_action=ConditionAction(r.condition_action),
             condition_enabled=r.condition_enabled,
+            camera=p.target.WhichOneof("target") == "camera",
+            distance_travelled_cm=r.distance_travelled_cm,
         )
 
     # ── Shared keyword args (passed through _make_req) ────────────────────────
 
     def _make_req(
         self,
-        stimuli: Stimuli,
+        stimuli: Stimuli | None,
         body_kwargs: dict,
         *,
         name: str,
@@ -552,6 +548,69 @@ class AnimationClient:
             cancel_action_trigger_line=cancel_action_trigger_line,
         )
         return self._create(req)
+
+    def create_linear_nav_3d(
+        self,
+        speed_cm_per_s: float,
+        *,
+        wrap_period_cm: float | None = None,
+        name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
+        start_trigger: Optional[VtlHandle] = None,
+        start_edge: VtlEdge = VtlEdge.RISING,
+        cancel_trigger: Optional[VtlHandle] = None,
+        cancel_edge: VtlEdge = VtlEdge.RISING,
+        cancel_action_mask: CancelAction = CancelAction(0),
+        cancel_action_trigger_line: Optional[VtlHandle] = None,
+    ) -> AnimationHandle:
+        """Move the 3-D camera straight ahead at ``speed_cm_per_s``, every frame.
+
+        The camera moves along its horizontal forward direction — its yaw, not
+        its pitch — and keeps its height. Negative speed moves backwards. The
+        animation never finishes on its own; cancel or disarm it.
+
+        With ``wrap_period_cm``, the camera's ``z`` wraps into
+        ``[0, wrap_period_cm)``, for an endless corridor built from geometry that
+        repeats with that period. :meth:`query` reports the true distance as
+        ``distance_travelled_cm``, which never wraps — log that, not the camera
+        position.
+
+        Change the speed with :meth:`set_nav_speed`. It is meant for scripted
+        changes, not for streaming a treadmill's speed every frame.
+
+        Raises:
+            InvalidArgumentError: a stimulus-only action bit (``ENABLE``,
+                ``DISABLE``, ``RESTORE_VISIBILITY``) was given.
+        """
+        req = self._make_req(
+            None, {
+                "linear_nav_3d": animations_pb2.LinearNav3D(
+                    speed_cm_per_s=speed_cm_per_s,
+                    wrap_period_cm=wrap_period_cm or 0.0,
+                ),
+            },
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=FinalAction(0),
+            final_action_trigger_line=None,
+            final_action_level_line=None,
+            start_trigger=start_trigger, start_edge=start_edge,
+            cancel_trigger=cancel_trigger, cancel_edge=cancel_edge,
+            cancel_action_mask=cancel_action_mask,
+            cancel_action_trigger_line=cancel_action_trigger_line,
+        )
+        return self._create(req)
+
+    def set_nav_speed(self, handle: AnimationHandle, speed_cm_per_s: float) -> ServerResponse:
+        """Change a :meth:`create_linear_nav_3d` animation's speed from the next frame."""
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            system=_sys(),
+            set_nav_speed=animations_pb2.SetNavSpeedRequest(
+                handle=handle, speed_cm_per_s=speed_cm_per_s
+            ),
+        )))
 
     # ── Internal ──────────────────────────────────────────────────────────────
 

@@ -225,6 +225,9 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::QueryCamera(_)) => "QueryCamera".into(),
         Some(request::Body::SetLighting(_)) => "SetLighting".into(),
         Some(request::Body::QueryLighting(_)) => "QueryLighting".into(),
+        Some(request::Body::SetNavSpeed(c)) => {
+            format!("SetNavSpeed({}, {:.1}cm/s)", c.handle, c.speed_cm_per_s)
+        }
         Some(request::Body::Shutdown(_)) => "Shutdown".into(),
         None => "?".into(),
     }
@@ -359,6 +362,7 @@ impl SceneState {
             request::Body::ArmAnimation(cmd) => self.cmd_arm_animation(cmd),
             request::Body::DisarmAnimation(cmd) => self.cmd_disarm_animation(cmd),
             request::Body::CancelAnimation(cmd) => self.cmd_cancel_animation(cmd, vtl),
+            request::Body::SetNavSpeed(cmd) => self.cmd_set_nav_speed(cmd),
             request::Body::DeleteAnimation(cmd) => self.cmd_delete_animation(cmd),
             request::Body::ListAnimations(_) => self.cmd_list_animations(),
             request::Body::QueryAnimation(cmd) => self.cmd_query_animation(cmd),
@@ -424,6 +428,7 @@ impl SceneState {
             | request::Body::ArmAnimation(_)
             | request::Body::DisarmAnimation(_)
             | request::Body::CancelAnimation(_)
+            | request::Body::SetNavSpeed(_)
             | request::Body::DeleteAnimation(_)
             | request::Body::ListAnimations(_)
             | request::Body::QueryAnimation(_)

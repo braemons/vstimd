@@ -143,3 +143,47 @@ def test_camera_and_lighting(conn: Connection, stage: Stage) -> None:
         conn.system.set_lighting(Lighting3D(sun_direction=Vec3(0, 0, 0)))
     stage.hold()
     conn.stimuli.delete(cube)
+
+
+@pytest.mark.onscreen(
+    "3D-06",
+    "a floor with spheres along it; the camera glides forward and the scene "
+    "loops every metre, with no visible jump",
+)
+def test_camera_navigation(conn: Connection, stage: Stage) -> None:
+    from vstimd.animations import AnimationState
+
+    floor = conn.stimuli.shapes3d.create_plane(
+        transform=Transform3D(position_cm=Vec3(0, -15, -200)),
+        params=Plane3DParams(size_cm=Vec2(100, 500), material=Material3D(albedo=Color(0.3, 0.3, 0.3))),
+    )
+    # One sphere per metre, so a 100 cm wrap is seamless.
+    balls = [
+        conn.stimuli.shapes3d.create_sphere(
+            transform=Transform3D(position_cm=Vec3(-25, -5, -100.0 * k)),
+            params=Sphere3DParams(diameter_cm=10, material=PHONG),
+        )
+        for k in range(0, 5)
+    ]
+    nav = conn.animations.create_linear_nav_3d(50.0, wrap_period_cm=100.0, name="nav")
+    conn.animations.arm(nav)
+    conn.system.wait_for_frames(30)
+    stage.hold(2.0)
+
+    details = conn.animations.query(nav)
+    assert details.camera and details.stimuli == ()
+    assert details.state == AnimationState.RUNNING
+    assert details.distance_travelled_cm > 0.0
+    cam = conn.system.query_camera()
+    assert 0.0 <= cam.position_cm.z < 100.0
+
+    conn.animations.set_nav_speed(nav, 0.0)
+    conn.system.wait_for_frames(2)
+    held = conn.animations.query(nav).distance_travelled_cm
+    conn.system.wait_for_frames(5)
+    assert conn.animations.query(nav).distance_travelled_cm == pytest.approx(held)
+
+    conn.animations.cancel(nav)
+    conn.animations.delete(nav)
+    for h in [*balls, floor]:
+        conn.stimuli.delete(h)

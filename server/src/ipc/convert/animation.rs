@@ -77,6 +77,12 @@ pub(crate) fn animation_body_to_proto(anim: &Animation) -> proto::create_animati
             x_offset_px: *x_offset_px,
             y_offset_px: *y_offset_px,
         }),
+        Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm } => {
+            PBody::LinearNav3d(proto::LinearNav3D {
+                speed_cm_per_s: *speed_cm_per_s,
+                wrap_period_cm: wrap_period_cm.unwrap_or(0.0),
+            })
+        }
     }
 }
 
@@ -166,9 +172,54 @@ pub(crate) fn animation_from_proto(
              https://github.com/braemons/vstimd/issues/84): the shared-memory \
              segment is never read, so the stimulus would not move",
         ))),
+        Some(PBody::LinearNav3d(c)) => {
+            if !c.speed_cm_per_s.is_finite() || !c.wrap_period_cm.is_finite() || c.wrap_period_cm < 0.0 {
+                return Err(Box::new(err(
+                    proto::ErrorCode::InvalidArgument,
+                    "LinearNav3D: speed_cm_per_s must be finite and wrap_period_cm finite and non-negative",
+                )));
+            }
+            Ok(Animation::LinearNav3D {
+                speed_cm_per_s: c.speed_cm_per_s,
+                wrap_period_cm: (c.wrap_period_cm > 0.0).then_some(c.wrap_period_cm),
+            })
+        }
         None => Err(Box::new(err(
             proto::ErrorCode::InvalidArgument,
             "animation body must be set",
         ))),
+    }
+}
+
+/// The request's target → the scene's. Absent means an empty stimulus list, as
+/// it always has.
+pub(crate) fn animation_target_from_proto(
+    target: Option<proto::AnimationTarget>,
+) -> crate::scene::animation::AnimationTarget {
+    use crate::scene::animation::AnimationTarget;
+    match target.and_then(|t| t.target) {
+        Some(proto::animation_target::Target::Stimuli(s)) => {
+            AnimationTarget::Stimuli { handles: s.handles }
+        }
+        Some(proto::animation_target::Target::Camera(_)) => AnimationTarget::Camera,
+        None => AnimationTarget::Stimuli { handles: Vec::new() },
+    }
+}
+
+pub(crate) fn animation_target_to_proto(
+    target: &crate::scene::animation::AnimationTarget,
+) -> proto::AnimationTarget {
+    use crate::scene::animation::AnimationTarget;
+    proto::AnimationTarget {
+        target: Some(match target {
+            AnimationTarget::Stimuli { handles } => {
+                proto::animation_target::Target::Stimuli(proto::AnimationStimuli {
+                    handles: handles.clone(),
+                })
+            }
+            AnimationTarget::Camera => {
+                proto::animation_target::Target::Camera(proto::AnimationCamera {})
+            }
+        }),
     }
 }

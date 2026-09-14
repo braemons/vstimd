@@ -42,6 +42,22 @@ pub enum Animation {
         x_offset_px: f32,
         y_offset_px: f32,
     },
+    /// Move the camera straight ahead at a constant speed — its horizontal
+    /// forward direction, so pitch tilts the view without flying the camera
+    /// into the floor. Never finishes on its own.
+    ///
+    /// With `wrap_period_cm`, the camera's `z` wraps into `[0, L)`: the endless
+    /// corridor is periodic geometry the camera circulates through, not geometry
+    /// that grows. The true distance is kept separately, unwrapped, in
+    /// `AnimationEntry::distance_travelled_cm`.
+    ///
+    /// Speed is set by command. Driving it from a treadmill is the input-device
+    /// work (#79), not a per-frame command stream.
+    LinearNav3D {
+        /// Negative moves backwards.
+        speed_cm_per_s: f32,
+        wrap_period_cm: Option<f32>,
+    },
 }
 
 impl Animation {
@@ -54,6 +70,13 @@ impl Animation {
             Self::MoveAlongPath2D { .. } => "MoveAlongPath2D",
             Self::MoveAlongSegments2D { .. } => "MoveAlongSegments2D",
             Self::ExternalPosition2D { .. } => "ExternalPosition2D",
+            Self::LinearNav3D { .. } => "LinearNav3D",
         }
+    }
+
+    /// Whether this kind drives the camera — the only kinds an
+    /// `AnimationTarget::Camera` accepts, and the only target they accept.
+    pub fn drives_camera(&self) -> bool {
+        matches!(self, Self::LinearNav3D { .. })
     }
 }
