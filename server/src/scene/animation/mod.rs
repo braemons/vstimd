@@ -4,13 +4,14 @@
 mod animation_action;
 mod animation_advance;
 mod animation_entry;
+pub mod animation_input;
 mod animation_kind;
 mod animation_state;
 
 pub use animation_action::{CancelAction, FinalAction, StartAction};
 pub(crate) use animation_advance::{advance_one, cancel_one};
-pub use animation_entry::{AnimationConfig, AnimationEntry, AnimationTarget};
-pub use animation_kind::Animation;
+pub use animation_entry::{AnimationConfig, AnimationEntry, AnimationTarget, NavPosition};
+pub use animation_kind::{Animation, AxisMap, AxisRef, CameraTarget, TransformChannel};
 pub use animation_state::AnimState;
 
 pub use crate::vtl_state::{VtlEdge, VtlBit, VtlPolarity};

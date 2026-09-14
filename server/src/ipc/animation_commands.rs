@@ -2,14 +2,15 @@
 //! in `convert::animation`, with every other conversion.
 
 use super::convert::{
-    animation_body_to_proto, animation_from_proto, condition_action_to_proto,
+    animation_body_to_proto, animation_from_proto, animation_target_from_proto,
+    animation_target_to_proto, condition_action_to_proto,
     output_vtl_bit_from_proto, vtl_bit_from_proto,
     vtl_bit_to_proto, vtl_edge_from_proto, vtl_edge_to_proto,
 };
 use super::response::{err, ok_ack, ok_body, ok_handle};
 use crate::proto;
 use crate::scene::animation::{
-    AnimState, AnimationEntry, CancelAction, FinalAction, StartAction,
+    AnimState, Animation, AnimationEntry, AnimationTarget, CancelAction, FinalAction, StartAction,
 };
 use crate::scene::SceneState;
 use crate::vtl_state::{VtlNameEntry, VtlState};
@@ -91,6 +92,19 @@ impl SceneState {
             Err(e) => return *e,
         };
 
+        let target = animation_target_from_proto(cmd.target);
+        if let Err(msg) = check_camera_pairing(&target, start_action, final_action, cancel_action)
+            .and_then(|()| {
+                crate::scene::animation::animation_input::check_animation(
+                    &target,
+                    &animation,
+                    &self.runtime.input,
+                )
+            })
+        {
+            return err(proto::ErrorCode::InvalidArgument, msg);
+        }
+
         let handle = self.alloc_anim_handle();
         self.config.animations.insert(
             handle,
@@ -98,13 +112,7 @@ impl SceneState {
                 config: crate::scene::animation::AnimationConfig {
                     name: cmd.name,
                     state: AnimState::Idle,
-                    target: crate::scene::animation::AnimationTarget::Stimuli {
-                        handles: cmd
-                            .target
-                            .and_then(|t| t.target)
-                            .map(|proto::animation_target::Target::Stimuli(s)| s.handles)
-                            .unwrap_or_default(),
-                    },
+                    target,
                     conditions: Vec::new(),
                     condition_action: crate::scene::ConditionAction::default(),
                     start_action,
@@ -120,6 +128,8 @@ impl SceneState {
                 },
                 captured_user_enabled: None,
                 cond_enabled: true,
+                distance_travelled_cm: 0.0,
+                nav_position_cm: None,
             },
         );
         ok_handle(handle)
@@ -249,6 +259,17 @@ impl SceneState {
             None => (None, 0),
         };
 
+        // The input device the animation reads, if it reads one.
+        let device_name = match &entry.animation {
+            Animation::DeviceDrivenTransform { device, .. } => Some(device.as_str()),
+            Animation::LinearNav3D { source: Some(s), .. } => Some(s.device.as_str()),
+            Animation::ExternalPosition2D { shm_name, .. } => Some(shm_name.as_str()),
+            _ => None,
+        };
+        let device = device_name.and_then(|n| {
+            crate::scene::animation::animation_input::find_device_opt(&self.runtime.input, n)
+        });
+
         let params = proto::CreateAnimationRequest {
             name: entry.name.clone(),
             start_action_mask: entry.start_action.bits() as u32,
@@ -262,11 +283,7 @@ impl SceneState {
             cancel_edge,
             cancel_action_mask: entry.cancel_action.bits() as u32,
             cancel_action_trigger_line: entry.cancel_action_trigger_line.map(vtl_bit_to_proto),
-            target: Some(proto::AnimationTarget {
-                target: Some(proto::animation_target::Target::Stimuli(
-                    proto::AnimationStimuli { handles: entry.target.stimuli().to_vec() },
-                )),
-            }),
+            target: Some(animation_target_to_proto(&entry.target)),
             body: Some(animation_body_to_proto(&entry.animation)),
         };
 
@@ -279,7 +296,56 @@ impl SceneState {
                 condition_indices: entry.conditions.clone(),
                 condition_action: condition_action_to_proto(entry.condition_action) as i32,
                 condition_enabled: entry.cond_enabled,
+                distance_travelled_cm: entry.distance_travelled_cm,
+                device_backend: device.map(|d| d.backend.label()).unwrap_or_default(),
+                device_stale: device.is_some_and(|d| d.stale),
             },
         ))
     }
+
+    pub(super) fn cmd_set_nav_speed(&mut self, cmd: proto::SetNavSpeedRequest) -> proto::Response {
+        let Some(entry) = self.config.animations.get_mut(&cmd.handle) else {
+            return err(
+                proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle),
+            );
+        };
+        if !cmd.speed_cm_per_s.is_finite() {
+            return err(proto::ErrorCode::InvalidArgument, "speed_cm_per_s must be finite");
+        }
+        match &mut entry.config.animation {
+            Animation::LinearNav3D { speed_cm_per_s, .. } => {
+                *speed_cm_per_s = cmd.speed_cm_per_s;
+                ok_ack()
+            }
+            other => err(
+                proto::ErrorCode::InvalidArgument,
+                format!("SetNavSpeed requires a LinearNav3D animation, got {}", other.type_name()),
+            ),
+        }
+    }
+}
+
+/// Action bits that act on stimuli have nothing to act on for a camera, so they
+/// are refused rather than silently ignored. Which kinds take the camera at all
+/// is `animation_input::check_animation`'s business.
+fn check_camera_pairing(
+    target: &AnimationTarget,
+    start_action: StartAction,
+    final_action: FinalAction,
+    cancel_action: CancelAction,
+) -> Result<(), String> {
+    let is_camera = matches!(target, AnimationTarget::Camera);
+    if is_camera {
+        let stimulus_bits = start_action.contains(StartAction::ENABLE)
+            || final_action.intersects(FinalAction::DISABLE | FinalAction::RESTORE_VISIBILITY)
+            || cancel_action.intersects(CancelAction::DISABLE | CancelAction::RESTORE_VISIBILITY);
+        if stimulus_bits {
+            return Err(
+                "ENABLE / DISABLE / RESTORE_VISIBILITY act on stimuli and cannot be used with a camera animation"
+                    .into(),
+            );
+        }
+    }
+    Ok(())
 }

@@ -25,11 +25,15 @@ mod animation;
 mod condition;
 mod dots;
 mod grating;
+mod input;
+mod mesh3d;
+mod scene3d;
 mod text;
 mod vtl;
 
 pub(super) use animation::{
-    animation_body_to_proto, animation_from_proto, vtl_edge_from_proto, vtl_edge_to_proto,
+    animation_body_to_proto, animation_from_proto, animation_target_from_proto,
+    animation_target_to_proto, vtl_edge_from_proto, vtl_edge_to_proto,
 };
 pub(super) use condition::{
     condition_action_from_proto, condition_action_to_proto, condition_from_proto,
@@ -41,6 +45,17 @@ pub(super) use dots::{
 pub(super) use grating::{
     grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,
 };
+pub(super) use input::input_device_to_proto;
+pub(super) use mesh3d::{
+    Mesh3dParts, Refusal, corridor3d_from_proto, cube_size_from_proto, cube3d_from_proto, material3d_from_proto,
+    mesh3d_params_to_proto, plane_size_from_proto, plane3d_from_proto,
+    sphere_diameter_from_proto, sphere3d_from_proto, transform3d_from_proto,
+    transform3d_to_proto,
+};
+pub(super) use scene3d::{
+    camera_zone_from_proto, camera_zone_to_proto, camera3d_from_proto, camera3d_to_proto,
+    lighting3d_from_proto, lighting3d_to_proto,
+};
 pub(super) use text::{anchor_from_str, language_style_from_proto, text_params_to_proto,
     text_render_params_from_proto};
 pub(super) use vtl::{
@@ -49,6 +64,7 @@ pub(super) use vtl::{
 
 use crate::Color;
 use crate::proto;
+use crate::scene::units::Pos2Px;
 use crate::scene::stimulus::{
     DrawMode as SceneDrawMode, ShapeAppearance, StimulusIdentity,
     StimulusType as SceneStimulusType,
@@ -86,12 +102,10 @@ pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusTyp
         SceneStimulusType::Grating => proto::StimulusType::Grating,
         SceneStimulusType::Text => proto::StimulusType::Text,
         SceneStimulusType::Dots => proto::StimulusType::Dots,
-        // Phase B: dev/3D_ROADMAP.md §10.2 reserves wire values 20–29 for these.
-        // Unreachable until a command constructs a `Mesh3d`, and reporting one of
-        // the 2-D values instead would be a lie a client could not detect.
-        SceneStimulusType::Cube3D | SceneStimulusType::Sphere3D | SceneStimulusType::Plane3D => {
-            unimplemented!("Phase B: STIMULUS_TYPE_CUBE_3D / _SPHERE_3D / _PLANE_3D")
-        }
+        SceneStimulusType::Cube3D => proto::StimulusType::Cube3d,
+        SceneStimulusType::Sphere3D => proto::StimulusType::Sphere3d,
+        SceneStimulusType::Plane3D => proto::StimulusType::Plane3d,
+        SceneStimulusType::Corridor3D => proto::StimulusType::Corridor3d,
     }
 }
 
@@ -166,12 +180,12 @@ pub(super) fn shape_appearance_from_proto(
 ///
 /// Absent, or absent `pos_px`, means the screen centre at 0° — the same default the
 /// bare `center`/`angle_deg` fields gave before placement was a message.
-pub(super) fn placement_from_proto(placement: Option<proto::Transform2D>) -> ([f32; 2], f32) {
+pub(super) fn placement_from_proto(placement: Option<proto::Transform2D>) -> (Pos2Px, f32) {
     let Some(t) = placement else {
-        return ([0.0, 0.0], 0.0);
+        return (Pos2Px::ORIGIN, 0.0);
     };
     let pos_px = t.pos_px.unwrap_or_default();
-    ([pos_px.x, pos_px.y], t.rotation_deg)
+    (Pos2Px::new(pos_px.x, pos_px.y), t.rotation_deg)
 }
 
 /// A create request's `identity` → the scene's, minting the id.
@@ -228,18 +242,14 @@ mod stimulus_type_tests {
             (SceneStimulusType::Circle, proto::StimulusType::Circle, "Circle"),
             (SceneStimulusType::Grating, proto::StimulusType::Grating, "Grating"),
             (SceneStimulusType::Text, proto::StimulusType::Text, "Text"),
+            (SceneStimulusType::Cube3D, proto::StimulusType::Cube3d, "Cube3D"),
+            (SceneStimulusType::Sphere3D, proto::StimulusType::Sphere3d, "Sphere3D"),
+            (SceneStimulusType::Plane3D, proto::StimulusType::Plane3d, "Plane3D"),
+            (SceneStimulusType::Corridor3D, proto::StimulusType::Corridor3d, "Corridor3D"),
         ] {
             assert_eq!(stimulus_type_to_proto(scene), wire, "wire value for {name}");
             assert_eq!(scene.type_name(), name);
         }
-    }
-
-    /// A 3-D type has no wire value yet, and must refuse rather than report a 2-D one
-    /// — a client cannot tell a wrong type from a right one.
-    #[test]
-    #[should_panic(expected = "Phase B")]
-    fn three_d_types_have_no_wire_value_yet() {
-        let _ = stimulus_type_to_proto(SceneStimulusType::Cube3D);
     }
 }
 

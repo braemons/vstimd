@@ -11,7 +11,7 @@ fn make_rect_entry() -> StimulusSceneEntry {
     StimulusSceneEntry::new(
         StimulusIdentity::new(Some("test_rect".into())),
         Stimulus::from(Shape::new(
-            [100.0, -50.0],
+            vstimd::scene::Pos2Px([100.0, -50.0]),
             45.0,
             ShapeAppearance {
                 fill_color: vstimd::Color::new(1.0, 0.5, 0.0, 1.0),
@@ -27,7 +27,7 @@ fn make_circle_entry() -> StimulusSceneEntry {
         StimulusIdentity::new(Some("test_circle".into())),
         {
             let mut stim = Stimulus::from(Shape::new(
-                [-200.0, 300.0],
+                vstimd::scene::Pos2Px([-200.0, 300.0]),
                 0.0,
                 ShapeAppearance {
                     fill_color: vstimd::Color::new(0.0, 0.0, 1.0, 1.0),
@@ -67,7 +67,7 @@ fn roundtrip_rect_stimulus() {
     assert_eq!(entry.name(), "test_rect");
     let rect = entry.stimulus.shape().expect("expected rect");
     assert_eq!(entry.stimulus.type_name(), "Rect");
-    assert_eq!(rect.transform.live.pos_px, [100.0, -50.0]);
+    assert_eq!(rect.transform.live.pos_px, vstimd::scene::Pos2Px([100.0, -50.0]));
     assert!((rect.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
 }
 
@@ -320,4 +320,80 @@ fn a_config_without_the_level_line_field_still_loads() {
     let mut scene = SceneState::new();
     scene.load_snapshot(snap, LoadMode::Replace);
     assert!(scene.animations.values().next().unwrap().final_action_level_line.is_none());
+}
+
+/// The 3-D stimulus types survive the config JSON exactly — geometry,
+/// placement, material and texture path.
+#[test]
+fn roundtrip_3d_stimuli_through_json() {
+    use vstimd::scene::{Material3D, Mesh3d, Mesh3dGeometry, Shading3D, StimulusBody, Transform3D};
+
+    let mut scene = SceneConfig::default();
+    let sphere = Mesh3d::new(
+        Transform3D {
+            position_cm: vstimd::scene::Pos3Cm::new(0.0, 10.0, -60.0),
+            rotation_deg: glam::Vec3::new(30.0, -10.0, 5.0),
+            scale: glam::Vec3::new(1.0, 2.0, 1.0),
+        },
+        Material3D {
+            albedo: vstimd::Color::new(0.2, 0.4, 0.6, 1.0),
+            emissive: [0.1, 0.0, 0.0],
+            shading: Shading3D::Phong,
+        },
+        Mesh3dGeometry::Sphere { diameter_cm: 12.0, rings: 16, sectors: 32 },
+        Some("textures/earth.png".into()),
+    );
+    let cube = Mesh3d::new(
+        Transform3D::default(),
+        Material3D::default(),
+        Mesh3dGeometry::Cube { size_cm: [20.0, 10.0, 5.0] },
+        None,
+    );
+    for (h, m) in [(1, sphere.clone()), (2, cube.clone())] {
+        scene.stimuli.insert(
+            h,
+            StimulusSceneEntry::new(StimulusIdentity::new(None), Stimulus::from(m)),
+        );
+    }
+
+    let json = serde_json::to_string(&scene).unwrap();
+    let loaded: SceneConfig = serde_json::from_str(&json).unwrap();
+    for (h, want) in [(1, &sphere), (2, &cube)] {
+        let StimulusBody::Mesh3d(got) = &loaded.stimuli[&h].stimulus.body else {
+            panic!("stimulus {h} is not a Mesh3d after the round trip");
+        };
+        assert_eq!(got.transform.live, want.transform.live);
+        assert_eq!(got.material.live, want.material.live);
+        assert_eq!(got.geometry.live, want.geometry.live);
+        assert_eq!(got.texture_path, want.texture_path);
+    }
+    assert_eq!(loaded.camera.live, scene.camera.live);
+}
+
+/// A moved camera is saved; a default one is omitted, so 2-D configs are unchanged.
+#[test]
+fn camera_is_saved_only_when_moved() {
+    let mut scene = SceneConfig::default();
+    let json = serde_json::to_string(&scene).unwrap();
+    assert!(!json.contains("\"camera\""), "{json}");
+
+    scene.camera.live.position_cm = vstimd::scene::Pos3Cm::new(0.0, 5.0, 100.0);
+    scene.camera.live.yaw_deg = 45.0;
+    let json = serde_json::to_string(&scene).unwrap();
+    let loaded: SceneConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(loaded.camera.live, scene.camera.live);
+}
+
+/// Changed lighting is saved and restored; default lighting is omitted.
+#[test]
+fn lighting_is_saved_only_when_changed() {
+    let mut scene = SceneConfig::default();
+    assert!(!serde_json::to_string(&scene).unwrap().contains("\"lighting\""));
+
+    scene.lighting.live.ambient_color = [0.2, 0.1, 0.0];
+    scene.lighting.live.sun_direction = glam::Vec3::new(1.0, -1.0, 0.0);
+    scene.lighting.live.sun_color = [2.0, 2.0, 1.5];
+    let loaded: SceneConfig =
+        serde_json::from_str(&serde_json::to_string(&scene).unwrap()).unwrap();
+    assert_eq!(loaded.lighting.live, scene.lighting.live);
 }

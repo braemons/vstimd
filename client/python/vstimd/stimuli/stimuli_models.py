@@ -9,6 +9,13 @@ from vstimd._proto.vstimd.v1.stimuli import query_pb2, stimulus_type_pb2
 from .color import Color
 from .dots_models import DotsParams
 from .grating_models import GratingParams
+from .shapes3d_models import (
+    Corridor3DParams,
+    Cube3DParams,
+    Plane3DParams,
+    Sphere3DParams,
+    Transform3D,
+)
 from .shapes_models import (
     CircleParams,
     EllipseParams,
@@ -41,10 +48,24 @@ class StimulusType(Enum):
     TEXT = "text"
     POLYGON = "polygon"
     DOTS = "dots"
+    CUBE_3D = "cube3d"
+    SPHERE_3D = "sphere3d"
+    PLANE_3D = "plane3d"
+    CORRIDOR_3D = "corridor3d"
 
 
 StimulusParams = Union[
-    RectParams, CircleParams, EllipseParams, GratingParams, TextParams, PolygonParams, DotsParams
+    RectParams,
+    CircleParams,
+    EllipseParams,
+    GratingParams,
+    TextParams,
+    PolygonParams,
+    DotsParams,
+    Cube3DParams,
+    Sphere3DParams,
+    Plane3DParams,
+    Corridor3DParams,
 ]
 
 _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
@@ -55,6 +76,10 @@ _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     stimulus_type_pb2.STIMULUS_TYPE_TEXT: StimulusType.TEXT,
     stimulus_type_pb2.STIMULUS_TYPE_POLYGON: StimulusType.POLYGON,
     stimulus_type_pb2.STIMULUS_TYPE_DOTS: StimulusType.DOTS,
+    stimulus_type_pb2.STIMULUS_TYPE_CUBE_3D: StimulusType.CUBE_3D,
+    stimulus_type_pb2.STIMULUS_TYPE_SPHERE_3D: StimulusType.SPHERE_3D,
+    stimulus_type_pb2.STIMULUS_TYPE_PLANE_3D: StimulusType.PLANE_3D,
+    stimulus_type_pb2.STIMULUS_TYPE_CORRIDOR_3D: StimulusType.CORRIDOR_3D,
 }
 
 
@@ -69,8 +94,8 @@ class StimulusInfo:
     text stimulus, which have no such thing.
 
     ``pos_px`` and ``rotation_deg`` come from the 2-D placement. They are ``None``
-    for a stimulus placed in 3-D space, which reports a 3-D transform instead
-    (none exist yet — see dev/3D_ROADMAP.md).
+    for a stimulus placed in 3-D space, which reports ``transform_3d`` instead —
+    and that is ``None`` for a 2-D stimulus.
     """
 
     stimulus_type: StimulusType
@@ -90,6 +115,8 @@ class StimulusInfo:
     #: Condition-level enable: False while the active condition excludes it.
     #: Independent of ``enabled``, which a condition switch never touches.
     condition_enabled: bool = True
+    #: World-space placement of a 3-D stimulus; ``None`` for a 2-D one.
+    transform_3d: Transform3D | None = None
 
     @classmethod
     def from_proto(cls, proto: query_pb2.QueryStimulusResponse) -> StimulusInfo:
@@ -125,10 +152,19 @@ class StimulusInfo:
                 close_shape=proto.params.polygon.close_shape,
                 appearance=_appearance_or_default(proto.params.polygon),
             )
+        elif shape_which == "cube_3d":
+            params = Cube3DParams.from_proto(proto.params.cube_3d)
+        elif shape_which == "sphere_3d":
+            params = Sphere3DParams.from_proto(proto.params.sphere_3d)
+        elif shape_which == "plane_3d":
+            params = Plane3DParams.from_proto(proto.params.plane_3d)
+        elif shape_which == "corridor_3d":
+            params = Corridor3DParams.from_proto(proto.params.corridor_3d)
         else:
             params = None
 
         is_2d = proto.WhichOneof("placement") == "transform_2d"
+        is_3d = proto.WhichOneof("placement") == "transform_3d"
         return cls(
             stimulus_type=_STIMULUS_TYPE_MAP.get(
                 proto.stimulus_type, StimulusType.UNKNOWN
@@ -144,6 +180,7 @@ class StimulusInfo:
             draw_order=proto.draw_order,
             condition_indices=list(proto.condition_indices),
             condition_enabled=proto.condition_enabled,
+            transform_3d=Transform3D.from_proto(proto.transform_3d) if is_3d else None,
         )
 
     # ── Shape appearance, reached through the params ──────────────────────────

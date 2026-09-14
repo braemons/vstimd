@@ -91,6 +91,51 @@ pub(in crate::render::overlay_ui) fn system_panel(
             ui.add_enabled(false, egui::Button::new("Wireframe: n/a"));
         }
     });
+
+    input_devices(ui, scene);
+}
+
+/// The rig's input devices: which backend is live — so nobody runs an
+/// experiment on the keyboard by accident — whether it is stale, and each
+/// axis' current reading.
+fn input_devices(ui: &mut egui::Ui, scene: &Arc<RwLock<SceneState>>) {
+    let Ok(sc) = scene.try_read() else { return };
+    let devices = &sc.runtime.input.devices;
+    if devices.is_empty() {
+        return;
+    }
+    ui.separator();
+    ui.label("Input devices");
+    for d in devices {
+        let (color, state) = if !d.is_connected() {
+            (egui::Color32::RED, "not connected")
+        } else if d.stale {
+            (egui::Color32::RED, "STALE")
+        } else {
+            (egui::Color32::from_rgb(80, 200, 80), "live")
+        };
+        let backend = d.backend.label();
+        let backend_color = if !matches!(d.backend, crate::input::devices::Backend::Shm { .. }) {
+            egui::Color32::YELLOW
+        } else {
+            ui.visuals().text_color()
+        };
+        ui.horizontal(|ui| {
+            ui.label(format!("{}:", d.name));
+            ui.colored_label(backend_color, backend);
+            ui.colored_label(color, state);
+            if d.torn_reads > 0 {
+                ui.label(format!("torn {}", d.torn_reads));
+            }
+        });
+        for (i, axis) in d.axes.iter().enumerate() {
+            let f = d.frame[i];
+            ui.monospace(format!(
+                "    {:<12} {:?}  {:>10.3}  Δ {:>8.3}",
+                axis.name, axis.semantic, f.value, f.delta
+            ));
+        }
+    }
 }
 
 pub(in crate::render::overlay_ui) fn frame_timing(

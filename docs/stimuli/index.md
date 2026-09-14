@@ -12,6 +12,7 @@ together in runnable scenes.
 | [Gratings](gratings.md) | `Grating` — a masked, drifting sinusoidal (or square, saw, triangle) carrier |
 | [Text](text.md) | `Text` — laid-out glyphs, with an optional box and border |
 | [Random dot kinematograms](random-dots.md) | `Dots` — moving dot fields, coherence, and motion-defined figures |
+| [3-D shapes](3d.md) | `Cube3D`, `Sphere3D`, `Plane3D` — objects in a lit 3-D world seen through a camera, drawn under the 2-D stimuli |
 
 ## What every stimulus has
 

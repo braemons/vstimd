@@ -4,10 +4,16 @@ from typing import Callable
 
 from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2, system_pb2
+from vstimd._proto.vstimd.v1 import input_pb2, scene3d_pb2
 from vstimd._proto.vstimd.v1 import color_pb2
 from vstimd.response import ServerResponse
 from vstimd.stimuli.color import Color
+from .zones_models import CameraZone, CameraZoneStatus
 from .system_models import (
+    Camera3D,
+    InputDeviceInfo,
+    Lighting3D,
+    CapturedFrame,
     DeferredModeStatus,
     ServerInfo,
     ServerVersion,
@@ -188,6 +194,111 @@ class SystemClient:
         while resp.frame_count < frame_count:
             resp = self.wait_for_frames(frame_count - resp.frame_count)
         return resp
+
+    # ── Input devices ────────────────────────────────────────────────────────
+
+    def list_input_devices(self) -> list[InputDeviceInfo]:
+        """The rig's input devices, with live backend, staleness and axis readings.
+
+        Check ``stale`` before and during a session: a stale treadmill means its
+        reader process has stopped, and the camera it drives is standing still.
+        """
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            list_input_devices=input_pb2.ListInputDevicesRequest(),
+        ))
+        return [InputDeviceInfo.from_proto(d) for d in resp.input_device_list.devices]
+
+    # ── 3-D scene ────────────────────────────────────────────────────────────
+
+    def set_camera(self, camera: Camera3D) -> ServerResponse:
+        """Replace the camera 3-D stimuli are seen through. Respects deferred mode.
+
+        Raises:
+            InvalidArgumentError: a field is out of range (``fov_y_deg`` outside
+                (0, 180), ``near_cm`` not below ``far_cm``, …).
+        """
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            set_camera=scene3d_pb2.SetCameraRequest(camera=camera.to_proto()),
+        )))
+
+    def query_camera(self) -> Camera3D:
+        """The camera as currently on screen."""
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            query_camera=scene3d_pb2.QueryCameraRequest(),
+        ))
+        return Camera3D.from_proto(resp.camera)
+
+    def set_camera_zones(self, zones: list[CameraZone]) -> ServerResponse:
+        """Replace every camera zone; ``[]`` removes them all. See :class:`CameraZone`.
+
+        Raises:
+            InvalidArgumentError: an output line, a line or name used twice, or
+                an inverted range.
+        """
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            set_camera_zones=scene3d_pb2.SetCameraZonesRequest(zones=[z.to_proto() for z in zones]),
+        )))
+
+    def list_camera_zones(self) -> list[CameraZoneStatus]:
+        """Every camera zone, and whether the camera was inside it last frame."""
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            list_camera_zones=scene3d_pb2.ListCameraZonesRequest(),
+        ))
+        return [
+            CameraZoneStatus(CameraZone.from_proto(z.zone), z.inside)
+            for z in resp.camera_zone_list.zones
+        ]
+
+    def set_lighting(self, lighting: Lighting3D) -> ServerResponse:
+        """Replace the scene lighting. Respects deferred mode.
+
+        Raises:
+            InvalidArgumentError: ``sun_direction`` is zero.
+        """
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            set_lighting=scene3d_pb2.SetLightingRequest(lighting=lighting.to_proto()),
+        )))
+
+    def query_lighting(self) -> Lighting3D:
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            query_lighting=scene3d_pb2.QueryLightingRequest(),
+        ))
+        return Lighting3D.from_proto(resp.lighting)
+
+    # ── Frame capture ────────────────────────────────────────────────────────
+
+    def capture_frame(self) -> CapturedFrame:
+        """Capture the next presented frame as a PNG.
+
+        The frame includes every command acknowledged before this call, and
+        is read back from the server's own swapchain — exactly what went to
+        the display, overlay included. Takes about one frame plus the readback.
+
+        Example::
+
+            conn.system.capture_frame().save("frame.png")
+
+        Raises:
+            NotSupportedError: the server renders nothing to capture (null
+                renderer, evdi).
+            NotReadyError: no frame was rendered within a few seconds, e.g.
+                a minimised window. Retrying is safe.
+        """
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            capture_frame=system_pb2.CaptureFrameRequest(),
+        )
+        f = self._send(req).captured_frame
+        return CapturedFrame(
+            png=f.png, width_px=f.width_px, height_px=f.height_px, frame=f.frame
+        )
 
     def wait_until(self, server_time_ns: int) -> ServerResponse:
         """Block until the server's monotonic clock reaches `server_time_ns`."""

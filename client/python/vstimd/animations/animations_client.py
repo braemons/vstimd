@@ -9,6 +9,7 @@ from vstimd._proto.vstimd.v1 import animations_pb2, vtl_pb2
 from vstimd.conditions import ConditionAction
 from vstimd.response import ServerResponse
 from vstimd.vtl import VtlHandle
+from .device_models import AxisMap, AxisRef
 from .animations_models import AnimationDetails, AnimationInfo, AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
 from vstimd.stimuli import RectParams, ShapeAppearance
 
@@ -25,23 +26,17 @@ def _to_stimuli(s: Stimuli) -> list[StimulusHandle]:
 
 
 def _target_stimuli(params: animations_pb2.CreateAnimationRequest) -> list[int]:
-    """The stimulus handles out of an animation's target, or none.
-
-    Empty for a target that is not stimuli — no such target exists yet, but the
-    field is a oneof so that the 3-D camera can become one without a wire break.
-    """
+    """The stimulus handles out of an animation's target, or none — empty for a
+    camera animation."""
     if params.target.WhichOneof("target") != "stimuli":
         return []
     return list(params.target.stimuli.handles)
 
 
-def _target(stimuli: Stimuli) -> animations_pb2.AnimationTarget:
-    """Wrap stimulus handles as the animation's target.
-
-    Targets are a oneof on the wire because stimuli may not stay the only thing
-    an animation can drive — the 3-D camera is the candidate — though only the
-    animations that move something would accept one.
-    """
+def _target(stimuli: Stimuli | None) -> animations_pb2.AnimationTarget:
+    """Wrap stimulus handles as the animation's target; ``None`` is the camera."""
+    if stimuli is None:
+        return animations_pb2.AnimationTarget(camera=animations_pb2.AnimationCamera())
     return animations_pb2.AnimationTarget(
         stimuli=animations_pb2.AnimationStimuli(handles=_to_stimuli(stimuli)),
     )
@@ -183,13 +178,17 @@ class AnimationClient:
             condition_indices=tuple(r.condition_indices),
             condition_action=ConditionAction(r.condition_action),
             condition_enabled=r.condition_enabled,
+            camera=p.target.WhichOneof("target") == "camera",
+            distance_travelled_cm=r.distance_travelled_cm,
+            device_backend=r.device_backend,
+            device_stale=r.device_stale,
         )
 
     # ── Shared keyword args (passed through _make_req) ────────────────────────
 
     def _make_req(
         self,
-        stimuli: Stimuli,
+        stimuli: Stimuli | None,
         body_kwargs: dict,
         *,
         name: str,
@@ -504,10 +503,6 @@ class AnimationClient:
         self,
         stimuli: Stimuli,
         shm_name: str,
-        # NOT IMPLEMENTED — the server refuses this with NotSupportedError. The
-        # shared-memory segment is never read, so an accepted animation would
-        # report success and never move the stimulus. See
-        # https://github.com/braemons/vstimd/issues/84.
         *,
         x_offset_px: float = 0.0,
         y_offset_px: float = 0.0,
@@ -524,13 +519,16 @@ class AnimationClient:
         cancel_action_mask: CancelAction = CancelAction(0),
         cancel_action_trigger_line: Optional[VtlHandle] = None,
     ) -> AnimationHandle:
-        """Read stimulus position from a POSIX shared memory float array each frame.
+        """Set stimulus position every frame from a rig-config input device.
 
-        .. warning::
+        ``shm_name`` names the device — its rig-config name (``"eye_tracker"``) or
+        its segment (``"/vstimd_gaze"``). Its first two axes must be absolute; they
+        give the position in pixels after the rig-config's scale, plus the
+        offsets. While the device is stale the stimulus holds its last position.
 
-            TODO(#84): unimplemented server-side. The animation is created and
-            reports ``Running``, but the server never reads the segment and the
-            stimulus does not move.
+        Raises:
+            InvalidArgumentError: the rig declares no such device, or its first
+                two axes are not absolute.
         """
         req = self._make_req(
             stimuli, {
@@ -552,6 +550,126 @@ class AnimationClient:
             cancel_action_trigger_line=cancel_action_trigger_line,
         )
         return self._create(req)
+
+    def create_linear_nav_3d(
+        self,
+        speed_cm_per_s: float,
+        *,
+        wrap_period_cm: float | None = None,
+        source: AxisRef | None = None,
+        name: str = "",
+        start_action_mask: StartAction = StartAction(0),
+        start_action_trigger_line: Optional[VtlHandle] = None,
+        start_trigger: Optional[VtlHandle] = None,
+        start_edge: VtlEdge = VtlEdge.RISING,
+        cancel_trigger: Optional[VtlHandle] = None,
+        cancel_edge: VtlEdge = VtlEdge.RISING,
+        cancel_action_mask: CancelAction = CancelAction(0),
+        cancel_action_trigger_line: Optional[VtlHandle] = None,
+    ) -> AnimationHandle:
+        """Move the 3-D camera straight ahead at ``speed_cm_per_s``, every frame.
+
+        The camera moves along its horizontal forward direction — its yaw, not
+        its pitch — and keeps its height. Negative speed moves backwards. The
+        animation never finishes on its own; cancel or disarm it.
+
+        With ``wrap_period_cm``, the camera's ``z`` wraps into
+        ``[0, wrap_period_cm)``, for an endless corridor built from geometry that
+        repeats with that period. :meth:`query` reports the true distance as
+        ``distance_travelled_cm``, which never wraps — log that, not the camera
+        position.
+
+        Change the speed with :meth:`set_nav_speed`. It is meant for scripted
+        changes, not for streaming a treadmill's speed every frame — for that,
+        give a ``source``: an axis of a rig-config input device. A rate axis is
+        then the speed in cm/s, integrated over real frame time; a cumulative
+        axis moves the camera by exactly its change. ``speed_cm_per_s`` is
+        ignored while a source is set.
+
+        Raises:
+            InvalidArgumentError: a stimulus-only action bit (``ENABLE``,
+                ``DISABLE``, ``RESTORE_VISIBILITY``) was given.
+        """
+        req = self._make_req(
+            None, {
+                "linear_nav_3d": animations_pb2.LinearNav3D(
+                    speed_cm_per_s=speed_cm_per_s,
+                    wrap_period_cm=wrap_period_cm or 0.0,
+                    source=source.to_proto() if source else None,
+                ),
+            },
+            name=name,
+            start_action_mask=start_action_mask,
+            start_action_trigger_line=start_action_trigger_line,
+            final_action_mask=FinalAction(0),
+            final_action_trigger_line=None,
+            final_action_level_line=None,
+            start_trigger=start_trigger, start_edge=start_edge,
+            cancel_trigger=cancel_trigger, cancel_edge=cancel_edge,
+            cancel_action_mask=cancel_action_mask,
+            cancel_action_trigger_line=cancel_action_trigger_line,
+        )
+        return self._create(req)
+
+    def create_device_driven_transform(
+        self,
+        stimuli: Stimuli | None,
+        device: str,
+        axes: list[AxisMap],
+        *,
+        name: str = "",
+        start_trigger: Optional[VtlHandle] = None,
+        start_edge: VtlEdge = VtlEdge.RISING,
+        cancel_trigger: Optional[VtlHandle] = None,
+        cancel_edge: VtlEdge = VtlEdge.RISING,
+    ) -> AnimationHandle:
+        """Drive stimuli — or, with ``stimuli=None``, the 3-D camera — from an
+        input device declared in the rig-config, every frame.
+
+        Each :class:`AxisMap` names one of the device's axes and the transform
+        channel it drives. The animation never finishes on its own. While the
+        device is stale (its producer silent) the target holds still; check
+        :meth:`query`'s ``device_stale``.
+
+        Example — a treadmill walks the camera, a knob turns it::
+
+            conn.animations.create_device_driven_transform(None, "treadmill", [
+                AxisMap("distance", TransformChannel.FORWARD),
+                AxisMap("knob", TransformChannel.YAW, gain=0.5),
+            ])
+
+        Raises:
+            InvalidArgumentError: the device or an axis is unknown, a camera
+                channel lacks a camera target, an absolute axis drives FORWARD
+                or STRAFE, or a scale channel targets the camera.
+        """
+        req = self._make_req(
+            stimuli, {
+                "device_driven_transform": animations_pb2.DeviceDrivenTransform(
+                    device=device, axes=[a.to_proto() for a in axes],
+                ),
+            },
+            name=name,
+            start_action_mask=StartAction(0),
+            start_action_trigger_line=None,
+            final_action_mask=FinalAction(0),
+            final_action_trigger_line=None,
+            final_action_level_line=None,
+            start_trigger=start_trigger, start_edge=start_edge,
+            cancel_trigger=cancel_trigger, cancel_edge=cancel_edge,
+            cancel_action_mask=CancelAction(0),
+            cancel_action_trigger_line=None,
+        )
+        return self._create(req)
+
+    def set_nav_speed(self, handle: AnimationHandle, speed_cm_per_s: float) -> ServerResponse:
+        """Change a :meth:`create_linear_nav_3d` animation's speed from the next frame."""
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            system=_sys(),
+            set_nav_speed=animations_pb2.SetNavSpeedRequest(
+                handle=handle, speed_cm_per_s=speed_cm_per_s
+            ),
+        )))
 
     # ── Internal ──────────────────────────────────────────────────────────────
 

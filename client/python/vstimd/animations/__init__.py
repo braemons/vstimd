@@ -9,6 +9,7 @@ from .animations_models import (
     VtlEdge,
     VtlPolarity,
 )
+from .device_models import AxisMap, AxisRef, TransformChannel
 from vstimd._handles import AnimationHandle
 
 __all__ = [
@@ -17,6 +18,9 @@ __all__ = [
     "AnimationHandle",
     "AnimationInfo",
     "AnimationState",
+    "AxisMap",
+    "AxisRef",
+    "TransformChannel",
     "CancelAction",
     "FinalAction",
     "StartAction",

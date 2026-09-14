@@ -11,6 +11,7 @@ from vstimd.response import ServerResponse
 from .dots_client import DotsClient
 from .grating_client import GratingClient
 from .shapes_client import ShapesClient, _SendFn
+from .shapes3d_client import Shapes3DClient
 from .text_client import TextClient
 from .color import Color
 from .stimuli_models import StimulusInfo
@@ -27,6 +28,7 @@ class StimuliClient:
     * ``grating`` — :class:`~vstimd.stimuli.GratingClient`: grating stimuli
     * ``text`` — :class:`~vstimd.stimuli.TextClient`: text stimuli
     * ``dots`` — :class:`~vstimd.stimuli.DotsClient`: random dot kinematograms
+    * ``shapes3d`` — :class:`~vstimd.stimuli.Shapes3DClient`: cubes, spheres and planes in 3-D
 
     Example::
 
@@ -47,6 +49,7 @@ class StimuliClient:
         self.grating = GratingClient(send)
         self.text = TextClient(send)
         self.dots = DotsClient(send)
+        self.shapes3d = Shapes3DClient(send)
         self._send = send
 
     # ── Generic mutations ──────────────────────────────────────────────────────

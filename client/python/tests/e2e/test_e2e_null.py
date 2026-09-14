@@ -85,3 +85,11 @@ def server_process(server_address: str):
 @pytest.fixture
 def step_delay() -> float:
     return 0.0
+
+
+def test_capture_frame_is_not_supported_without_a_renderer(conn):
+    """The null renderer has no frames, and says so rather than hanging."""
+    from vstimd.exceptions import NotSupportedError
+
+    with pytest.raises(NotSupportedError):
+        conn.system.capture_frame()

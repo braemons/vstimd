@@ -176,6 +176,7 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::QueryAnimation(c)) => format!("QueryAnimation({})", c.handle),
         Some(request::Body::WaitForFrames(c)) => format!("WaitForFrames({})", c.count),
         Some(request::Body::WaitUntil(c)) => format!("WaitUntil({}ns)", c.server_time_ns),
+        Some(request::Body::CaptureFrame(_)) => "CaptureFrame".into(),
         Some(request::Body::ListSceneConfigs(_)) => "ListSceneConfigs".into(),
         Some(request::Body::LoadSceneConfig(c)) => format!("LoadSceneConfig({:?})", c.name),
         Some(request::Body::UploadSceneConfig(c)) => format!("UploadSceneConfig({:?})", c.name),
@@ -198,6 +199,41 @@ fn command_summary(req: &proto::Request) -> String {
         }
         Some(request::Body::SetAnimationConditions(c)) => {
             format!("SetAnimationConditions({}, {:?})", c.handle, c.condition_indices)
+        }
+        Some(request::Body::CreateCube3d(c)) => {
+            let s = c.params.as_ref().and_then(|p| p.size_cm).unwrap_or_default();
+            format!("CreateCube3D {:.0}×{:.0}×{:.0}cm", s.x, s.y, s.z)
+        }
+        Some(request::Body::CreateSphere3d(c)) => {
+            format!("CreateSphere3D d={:.0}cm", c.params.as_ref().map_or(0.0, |p| p.diameter_cm))
+        }
+        Some(request::Body::CreatePlane3d(c)) => {
+            let s = c.params.as_ref().and_then(|p| p.size_cm).unwrap_or_default();
+            format!("CreatePlane3D {:.0}×{:.0}cm", s.x, s.y)
+        }
+        Some(request::Body::CreateCorridor3d(c)) => {
+            let p = c.params.as_ref();
+            format!("CreateCorridor3D period={:.0}cm", p.map_or(0.0, |p| p.period_cm))
+        }
+        Some(request::Body::SetTransform3d(c)) => {
+            let p = c.transform.as_ref().and_then(|t| t.position_cm).unwrap_or_default();
+            format!("SetTransform3D({:.1},{:.1},{:.1})", p.x, p.y, p.z)
+        }
+        Some(request::Body::SetMaterial3d(_)) => "SetMaterial3D".into(),
+        Some(request::Body::SetCube3dSize(_)) => "SetCube3DSize".into(),
+        Some(request::Body::SetSphere3dDiameter(c)) => {
+            format!("SetSphere3DDiameter({:.1})", c.diameter_cm)
+        }
+        Some(request::Body::SetPlane3dSize(_)) => "SetPlane3DSize".into(),
+        Some(request::Body::SetCamera(_)) => "SetCamera".into(),
+        Some(request::Body::QueryCamera(_)) => "QueryCamera".into(),
+        Some(request::Body::SetLighting(_)) => "SetLighting".into(),
+        Some(request::Body::QueryLighting(_)) => "QueryLighting".into(),
+        Some(request::Body::ListInputDevices(_)) => "ListInputDevices".into(),
+        Some(request::Body::SetCameraZones(c)) => format!("SetCameraZones({})", c.zones.len()),
+        Some(request::Body::ListCameraZones(_)) => "ListCameraZones".into(),
+        Some(request::Body::SetNavSpeed(c)) => {
+            format!("SetNavSpeed({}, {:.1}cm/s)", c.handle, c.speed_cm_per_s)
         }
         Some(request::Body::Shutdown(_)) => "Shutdown".into(),
         None => "?".into(),
@@ -288,6 +324,17 @@ impl SceneState {
             request::Body::CreateGrating(cmd) => self.cmd_create_grating(cmd),
             request::Body::CreateText(cmd) => self.cmd_create_text(cmd),
             request::Body::CreateDots(cmd) => self.cmd_create_dots(cmd),
+            request::Body::CreateCube3d(cmd) => self.cmd_create_cube_3d(cmd),
+            request::Body::CreateSphere3d(cmd) => self.cmd_create_sphere_3d(cmd),
+            request::Body::CreatePlane3d(cmd) => self.cmd_create_plane_3d(cmd),
+            request::Body::CreateCorridor3d(cmd) => self.cmd_create_corridor_3d(cmd),
+            request::Body::SetCamera(cmd) => self.cmd_set_camera(cmd),
+            request::Body::QueryCamera(_) => self.cmd_query_camera(),
+            request::Body::SetLighting(cmd) => self.cmd_set_lighting(cmd),
+            request::Body::QueryLighting(_) => self.cmd_query_lighting(),
+            request::Body::ListInputDevices(_) => self.cmd_list_input_devices(),
+            request::Body::SetCameraZones(cmd) => self.cmd_set_camera_zones(cmd, vtl.as_deref()),
+            request::Body::ListCameraZones(_) => self.cmd_list_camera_zones(),
             request::Body::CreatePolygon(_) => err(
                 proto::ErrorCode::NotSupported,
                 "CreatePolygon is not yet implemented",
@@ -326,6 +373,7 @@ impl SceneState {
             request::Body::ArmAnimation(cmd) => self.cmd_arm_animation(cmd),
             request::Body::DisarmAnimation(cmd) => self.cmd_disarm_animation(cmd),
             request::Body::CancelAnimation(cmd) => self.cmd_cancel_animation(cmd, vtl),
+            request::Body::SetNavSpeed(cmd) => self.cmd_set_nav_speed(cmd),
             request::Body::DeleteAnimation(cmd) => self.cmd_delete_animation(cmd),
             request::Body::ListAnimations(_) => self.cmd_list_animations(),
             request::Body::QueryAnimation(cmd) => self.cmd_query_animation(cmd),
@@ -341,6 +389,12 @@ impl SceneState {
                 crate::process::shutdown::request();
                 ok_ack()
             }
+            // Waits on the render thread, so it cannot run under the scene lock
+            // this dispatcher is called with. The ZMQ transport serves it.
+            request::Body::CaptureFrame(_) => err(
+                proto::ErrorCode::NotSupported,
+                "CaptureFrame is only served over the ZMQ transport",
+            ),
             _ => err(
                 proto::ErrorCode::WrongTarget,
                 "command requires a stimulus handle (target.stimulus > 0)",
@@ -358,6 +412,17 @@ impl SceneState {
             | request::Body::CreateGrating(_)
             | request::Body::CreateText(_)
             | request::Body::CreateDots(_)
+            | request::Body::CreateCube3d(_)
+            | request::Body::CreateSphere3d(_)
+            | request::Body::CreatePlane3d(_)
+            | request::Body::CreateCorridor3d(_)
+            | request::Body::SetCamera(_)
+            | request::Body::QueryCamera(_)
+            | request::Body::SetLighting(_)
+            | request::Body::QueryLighting(_)
+            | request::Body::ListInputDevices(_)
+            | request::Body::SetCameraZones(_)
+            | request::Body::ListCameraZones(_)
             | request::Body::CreatePolygon(_)
             | request::Body::SetBackground(_)
             | request::Body::SetDeferredMode(_)
@@ -378,11 +443,13 @@ impl SceneState {
             | request::Body::ArmAnimation(_)
             | request::Body::DisarmAnimation(_)
             | request::Body::CancelAnimation(_)
+            | request::Body::SetNavSpeed(_)
             | request::Body::DeleteAnimation(_)
             | request::Body::ListAnimations(_)
             | request::Body::QueryAnimation(_)
             | request::Body::WaitForFrames(_)
             | request::Body::WaitUntil(_)
+            | request::Body::CaptureFrame(_)
             | request::Body::ListSceneConfigs(_)
             | request::Body::LoadSceneConfig(_)
             | request::Body::UploadSceneConfig(_)
@@ -435,6 +502,13 @@ impl SceneState {
             request::Body::SetDotsLifetime(cmd) => self.cmd_set_dots_lifetime(handle, cmd),
             request::Body::SetDotsSeed(cmd) => self.cmd_set_dots_seed(handle, cmd),
             request::Body::SetText(cmd) => self.cmd_set_text(handle, cmd),
+            request::Body::SetTransform3d(cmd) => self.cmd_set_transform_3d(handle, cmd),
+            request::Body::SetMaterial3d(cmd) => self.cmd_set_material_3d(handle, cmd),
+            request::Body::SetCube3dSize(cmd) => self.cmd_set_cube_3d_size(handle, cmd),
+            request::Body::SetSphere3dDiameter(cmd) => {
+                self.cmd_set_sphere_3d_diameter(handle, cmd)
+            }
+            request::Body::SetPlane3dSize(cmd) => self.cmd_set_plane_3d_size(handle, cmd),
             request::Body::SetTextColor(cmd) => self.cmd_set_text_color(handle, cmd),
             request::Body::SetPolygonVertices(_) => err(
                 proto::ErrorCode::NotSupported,

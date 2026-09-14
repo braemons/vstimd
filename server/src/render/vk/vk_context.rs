@@ -76,6 +76,13 @@ pub struct VkContext {
     /// empty otherwise. A real swapchain's images are freed implicitly by
     /// `vkDestroySwapchainKHR`; self-owned ones need their memory freed here.
     pub owned_image_memory: Vec<vk::DeviceMemory>,
+    /// The layout every pass that can end a frame leaves the colour image in:
+    /// `PRESENT_SRC_KHR` for a real swapchain, `GENERAL` for evdi's self-owned
+    /// images (see `evdi_init::create_render_pass_no_wsi`).
+    pub present_layout: vk::ImageLayout,
+    /// The 3-D pass and depth buffer. `None` until the first frame with a 3-D
+    /// stimulus, and forever on a pure 2-D rig — see `vk_pass3d`.
+    pub pass_3d: Option<super::Pass3d>,
 }
 
 impl Drop for VkContext {
@@ -104,6 +111,9 @@ impl Drop for VkContext {
                 self.device.destroy_fence(frame.in_flight, None);
             }
             log::debug!("vstimd: [drop] destroy framebuffers + render pass + image views");
+            if let Some(pass_3d) = &mut self.pass_3d {
+                pass_3d.destroy(&self.device);
+            }
             for &fb in &self.framebuffers {
                 self.device.destroy_framebuffer(fb, None);
             }
@@ -174,6 +184,15 @@ impl VkContext {
         }
 
         self.framebuffers = create_framebuffers(&self.device, self.render_pass, &views, extent);
+        if let Some(pass_3d) = &mut self.pass_3d {
+            pass_3d.recreate_targets(
+                &self.instance,
+                self.physical_device,
+                &self.device,
+                &views,
+                extent,
+            );
+        }
         self.swapchain = swapchain;
         self.swapchain_images = images;
         self.swapchain_image_views = views;
@@ -490,6 +509,8 @@ pub fn build_context(
         surface_counter_enabled: use_display_control,
         self_presented: false,
         owned_image_memory: Vec::new(),
+        present_layout: vk::ImageLayout::PRESENT_SRC_KHR,
+        pass_3d: None,
     }
 }
 
@@ -530,6 +551,9 @@ pub fn create_render_pass(device: &ash::Device, format: vk::Format) -> vk::Rende
 
 /// Create a render pass for egui overlay that LOADs the existing color attachment
 /// (to composite on top of the stimulus pass) and STOREs the result.
+///
+/// Its `initialLayout` is the stimulus pass's `finalLayout` (`PRESENT_SRC_KHR`):
+/// a `LOAD` pass has to declare the layout the image is actually in.
 pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::RenderPass {
     let attachment = vk::AttachmentDescription::default()
         .format(format)
@@ -538,7 +562,7 @@ pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::
         .store_op(vk::AttachmentStoreOp::STORE)
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
-        .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+        .initial_layout(vk::ImageLayout::PRESENT_SRC_KHR)
         .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
     let color_ref =
         vk::AttachmentReference::default().layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);

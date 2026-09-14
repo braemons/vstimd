@@ -11,6 +11,7 @@ use super::convert::{
 };
 use super::response::{err, err_not_2d, err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
 use crate::proto;
+use crate::scene::units::Pos2Px;
 use crate::scene::stimulus::{
     Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusBody, StimulusSceneEntry,
     StimulusType,
@@ -220,7 +221,11 @@ impl SceneState {
                 // stimulus has none. Pixels have no meaning for world-space
                 // placement, so a 3-D stimulus is rejected rather than silently
                 // reinterpreted — see `Stimulus::move_to_2d`.
-                if entry.stimulus.move_to_2d(deferred, cmd.x_px, cmd.y_px).is_ok() {
+                if entry
+                    .stimulus
+                    .move_to_2d(deferred, Pos2Px::new(cmd.x_px, cmd.y_px))
+                    .is_ok()
+                {
                     ok_ack()
                 } else {
                     err_not_2d(&entry.stimulus, "SetPosition")

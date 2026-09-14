@@ -33,6 +33,81 @@ pub struct RigConfig {
     pub web: WebRigConfig,
     #[serde(default)]
     pub startup: StartupRigConfig,
+    #[serde(default)]
+    pub input: InputRigConfig,
+}
+
+/// Directional input devices — wheels, treadmills, eye trackers — that
+/// animations read every frame. A property of the rig, not of the experiment:
+/// an animation names a device, and swapping the encoder behind that name is an
+/// edit here, not in a script.
+#[derive(Debug, Clone, serde::Deserialize, Default)]
+#[serde(deny_unknown_fields)]
+pub struct InputRigConfig {
+    #[serde(default)]
+    pub device: Vec<InputDeviceRigConfig>,
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InputDeviceRigConfig {
+    /// What animations call the device, e.g. `"treadmill"`.
+    pub name: String,
+    /// The producer's shared-memory segment, e.g. `"/vstimd_wheel"`.
+    pub shm: String,
+    /// A producer silent for longer than this is treated as gone: rate axes
+    /// read zero and cumulative axes stop accumulating, so a crashed reader
+    /// stops the stimulus rather than leaving it running. Default 100 ms.
+    #[serde(default = "InputDeviceRigConfig::default_stale_after_ms")]
+    pub stale_after_ms: u64,
+    /// The axes, in the producer's order. Their semantics must match the
+    /// segment's, or the device is not connected.
+    #[serde(default)]
+    pub axis: Vec<InputAxisRigConfig>,
+}
+
+impl InputDeviceRigConfig {
+    fn default_stale_after_ms() -> u64 {
+        100
+    }
+}
+
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct InputAxisRigConfig {
+    pub name: String,
+    pub semantic: InputSemantic,
+    /// Raw producer value → the axis' unit, e.g. encoder counts → cm. Default 1.
+    #[serde(default = "InputAxisRigConfig::default_scale")]
+    pub scale: f32,
+    /// Scaled absolute or rate values within ±deadzone of zero read as zero.
+    #[serde(default)]
+    pub deadzone: f32,
+}
+
+impl InputAxisRigConfig {
+    fn default_scale() -> f32 {
+        1.0
+    }
+}
+
+/// See `vinput::Semantic`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum InputSemantic {
+    Absolute,
+    Cumulative,
+    Rate,
+}
+
+impl From<InputSemantic> for vinput::Semantic {
+    fn from(s: InputSemantic) -> Self {
+        match s {
+            InputSemantic::Absolute => vinput::Semantic::Absolute,
+            InputSemantic::Cumulative => vinput::Semantic::Cumulative,
+            InputSemantic::Rate => vinput::Semantic::Rate,
+        }
+    }
 }
 
 /// What (if anything) vstimd loads into the scene at startup, and whether it

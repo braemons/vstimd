@@ -2,6 +2,7 @@ syntax = "proto3";
 package vstimd.v1;
 
 import "vstimd/v1/vec2.proto";
+import "vstimd/v1/vec3.proto";
 
 // Placement of a 2-D stimulus: centre in pixel-space (origin = screen centre,
 // Y-up) plus a rotation about that centre.
@@ -10,9 +11,23 @@ import "vstimd/v1/vec2.proto";
 // property that is *not* dimension-independent — a 3-D stimulus needs a
 // position, an orientation and a scale in world space, and cannot be described
 // by a Vec2 and one angle. So placement travels as a `oneof`, per dimension,
-// rather than as bare fields that only ever fit 2-D. `Transform3D` joins it when
-// 3-D stimuli arrive (dev/3D_ROADMAP.md §B.2).
+// rather than as bare fields that only ever fit 2-D.
 message Transform2D {
   Vec2  pos_px       = 1; // centre in pixel-space
   float rotation_deg = 2; // counter-clockwise degrees
+}
+
+// Placement of a 3-D stimulus in world space: right-handed, Y-up, centimetres.
+// The default camera sits at the origin looking down -Z, so an object at
+// (0, 0, -60) is 60 cm straight ahead.
+message Transform3D {
+  Vec3 position_cm = 1;
+  // [yaw, pitch, roll] in degrees, applied as yaw about world +Y, then pitch
+  // about the object's +X, then roll about its +Z (Euler order YXZ) — the same
+  // order the camera uses. Positive yaw turns counter-clockwise seen from above:
+  // +X swings towards -Z.
+  Vec3 rotation_deg = 2;
+  // Per-axis multiplier on the geometry's own size. Absent means (1, 1, 1), and
+  // so does a zero component: a zero scale would draw nothing.
+  Vec3 scale = 3;
 }

@@ -38,7 +38,7 @@ class _CommandFailure(Exception):
         self.hint = hint
 
 # Commands that block on the server for an unbounded time — no recv timeout.
-_BLOCKING_COMMANDS = {"wait-frames", "wait-until", "wait-ready"}
+_BLOCKING_COMMANDS = {"wait-frames", "wait-until", "wait-ready", "capture"}
 
 # A continuation row has an empty left column. Built rather than written out so
 # the columns cannot drift when a constant below changes length.
@@ -109,6 +109,7 @@ _COMMAND_GROUPS: tuple[tuple[str, tuple[tuple[str, str], ...]], ...] = (
         "Manage the server",
         (
             ("scene-config", "list, save, load, get, or upload scene-configs"),
+            ("capture", "save the next presented frame as a PNG"),
             ("shutdown", "ask the server to exit cleanly"),
         ),
     ),
@@ -235,6 +236,10 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("wait-frames", help="block until N more frames are rendered")
     p.add_argument("count", type=int, nargs="?", default=1)
     p.set_defaults(func=cmd_wait_frames)
+
+    p = sub.add_parser("capture", help="save the next presented frame as a PNG")
+    p.add_argument("path", help="where to write the PNG")
+    p.set_defaults(func=cmd_capture)
 
     p = sub.add_parser("wait-ready", help="block until the server answers and has rendered a frame")
     p.add_argument(
@@ -416,6 +421,21 @@ def cmd_wait_frames(conn: Connection, args: argparse.Namespace) -> int:
         _print_json({"frame_count": resp.frame_count, "server_time_ns": resp.server_time_ns})
         return 0
     print(f"frame_count={resp.frame_count} server_time_ns={resp.server_time_ns}")
+    return 0
+
+
+def cmd_capture(conn: Connection, args: argparse.Namespace) -> int:
+    frame = conn.system.capture_frame()
+    frame.save(args.path)
+    if args.as_json:
+        _print_json({
+            "path": args.path,
+            "frame": frame.frame,
+            "width_px": frame.width_px,
+            "height_px": frame.height_px,
+        })
+        return 0
+    print(f"frame {frame.frame} ({frame.width_px}x{frame.height_px}) saved to {args.path}")
     return 0
 
 

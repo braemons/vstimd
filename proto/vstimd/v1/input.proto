@@ -1,0 +1,44 @@
+syntax = "proto3";
+package vstimd.v1;
+
+// ── Input devices ─────────────────────────────────────────────────────────────
+//
+// Wheels, treadmills, eye trackers and the like, declared in the rig-config and
+// read every frame from a producer's shared-memory segment (or the keyboard,
+// under --input-override). Animations name them: see DeviceDrivenTransform,
+// LinearNav3D.source and ExternalPosition2D.
+
+// What an axis value means. See the vinput crate.
+enum InputSemantic {
+  INPUT_SEMANTIC_UNSPECIFIED = 0;
+  INPUT_SEMANTIC_ABSOLUTE    = 1;  // a position: used as is
+  INPUT_SEMANTIC_CUMULATIVE  = 2;  // a running total: its change is used
+  INPUT_SEMANTIC_RATE        = 3;  // a velocity: integrated over frame time
+}
+
+message InputAxisInfo {
+  string name = 1;
+  InputSemantic semantic = 2;
+  float scale = 3;       // raw → axis units, from the rig-config
+  double value = 4;      // the last frame's scaled value
+  double delta = 5;      // the last frame's scaled change (cumulative only)
+}
+
+message InputDeviceInfo {
+  string name = 1;
+  // "shm /vstimd_wheel" in production, "keyboard (…)" under --input-override.
+  string backend = 2;
+  bool connected = 3;    // a segment is mapped (always true for the keyboard)
+  // The producer is missing or silent: rate axes read 0 and cumulative axes do
+  // not move until it resumes. An experiment should check this.
+  bool stale = 4;
+  uint64 torn_reads = 5; // reads abandoned because the producer was mid-write
+  repeated InputAxisInfo axes = 6;
+}
+
+// System command. Returns ListInputDevicesResponse in Response.body.
+message ListInputDevicesRequest {}
+
+message ListInputDevicesResponse {
+  repeated InputDeviceInfo devices = 1;
+}
