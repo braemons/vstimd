@@ -14,7 +14,7 @@ use crate::vtl_state::{VtlEdge, VtlBit};
 /// It is not a target for *every* animation. The visibility kinds have nothing to
 /// act on, and the 2-D motion kinds move in pixels, which mean nothing for a
 /// camera in centimetres — the same reason `Stimulus::move_to_2d` refuses a 3-D
-/// stimulus. [`Animation::drives_camera`] says which kinds take it; create
+/// stimulus. [`Animation::camera_target`] says which kinds take it; create
 /// refuses every other pairing.
 #[derive(Clone, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "kind")]

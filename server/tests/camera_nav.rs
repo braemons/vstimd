@@ -30,6 +30,7 @@ fn nav(speed_cm_per_s: f32, wrap_period_cm: f32) -> Option<proto::create_animati
     Some(proto::create_animation_request::Body::LinearNav3d(proto::LinearNav3D {
         speed_cm_per_s,
         wrap_period_cm,
+        source: None,
     }))
 }
 

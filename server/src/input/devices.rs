@@ -51,7 +51,10 @@ pub struct Axis {
 pub enum Backend {
     /// A producer's segment. `None` until it has been opened, and again after a
     /// failed reopen.
-    Shm { shm_name: String, client: Option<VinputClient> },
+    Shm {
+        shm_name: String,
+        client: Option<VinputClient>,
+    },
     /// Arrow keys (see [`keyboard_axes`]), at `speed` axis units per second for
     /// rate and cumulative axes.
     Keyboard { speed: f64 },
@@ -115,7 +118,10 @@ impl InputDevice {
             &cfg.name,
             axes,
             Duration::from_millis(cfg.stale_after_ms),
-            Backend::Shm { shm_name: cfg.shm.clone(), client: None },
+            Backend::Shm {
+                shm_name: cfg.shm.clone(),
+                client: None,
+            },
         )
     }
 
@@ -155,7 +161,9 @@ impl InputDevice {
     pub fn sample(&mut self, dt_s: f64) {
         let n = self.axes.len();
         let fresh = match &self.backend {
-            Backend::Shm { client: Some(c), .. } => {
+            Backend::Shm {
+                client: Some(c), ..
+            } => {
                 let alive = c.age_ns() <= self.stale_after.as_nanos() as u64;
                 if alive {
                     // A write count that went backwards is a producer that
@@ -200,7 +208,11 @@ impl InputDevice {
                     self.backend.label()
                 );
             } else {
-                log::info!("input: device '{}' resumed ({})", self.name, self.backend.label());
+                log::info!(
+                    "input: device '{}' resumed ({})",
+                    self.name,
+                    self.backend.label()
+                );
                 // Adopt the resumed producer's counts as the new baseline.
                 self.has_baseline = false;
             }
@@ -220,7 +232,11 @@ impl InputDevice {
                 }
                 Semantic::Rate => {
                     let v = self.raw[i] * scale;
-                    f.value = if !fresh || v.abs() <= deadzone { 0.0 } else { v };
+                    f.value = if !fresh || v.abs() <= deadzone {
+                        0.0
+                    } else {
+                        v
+                    };
                     f.delta = 0.0;
                 }
                 Semantic::Cumulative => {
@@ -251,7 +267,9 @@ pub struct InputRegistry {
 
 impl InputRegistry {
     pub fn from_rig(cfg: &InputRigConfig) -> Self {
-        Self { devices: cfg.device.iter().map(InputDevice::from_rig).collect() }
+        Self {
+            devices: cfg.device.iter().map(InputDevice::from_rig).collect(),
+        }
     }
 
     pub fn get(&self, name: &str) -> Option<&InputDevice> {
@@ -316,56 +334,58 @@ pub fn open_checked(shm_name: &str, axes: &[Axis]) -> Result<VinputClient, Strin
 /// segment under the same name, and the old mapping would stay silent forever.
 /// Opening happens outside the scene lock; only the swap takes it.
 pub fn spawn_reconnector(scene: Arc<RwLock<SceneState>>, interval: Duration) {
-    let spawned = std::thread::Builder::new().name("input-reconnect".into()).spawn(move || {
-        let mut reported: std::collections::HashSet<String> = Default::default();
-        loop {
-            if crate::process::shutdown::is_requested() {
-                return;
-            }
-            let wanted: Vec<(String, String, Vec<Axis>)> = {
-                let sc = scene.read().expect("scene lock poisoned");
-                sc.runtime
-                    .input
-                    .devices
-                    .iter()
-                    .filter_map(|d| match &d.backend {
-                        Backend::Shm { shm_name, client } if client.is_none() || d.stale => {
-                            Some((d.name.clone(), shm_name.clone(), d.axes.clone()))
-                        }
-                        _ => None,
-                    })
-                    .collect()
-            };
-            for (name, shm_name, axes) in wanted {
-                match open_checked(&shm_name, &axes) {
-                    Ok(client) => {
-                        // A stale producer's old segment reopens as the same
-                        // silent segment; only swap in one that is writing.
-                        let live = client.age_ns() < 1_000_000_000;
-                        let mut sc = scene.write().expect("scene lock poisoned");
-                        if let Some(d) = sc.runtime.input.get_mut(&name)
-                            && let Backend::Shm { client: slot, .. } = &mut d.backend
-                            && (slot.is_none() || live)
-                        {
-                            if slot.is_none() {
-                                log::info!("input: device '{name}' connected to {shm_name}");
+    let spawned = std::thread::Builder::new()
+        .name("input-reconnect".into())
+        .spawn(move || {
+            let mut reported: std::collections::HashSet<String> = Default::default();
+            loop {
+                if crate::process::shutdown::is_requested() {
+                    return;
+                }
+                let wanted: Vec<(String, String, Vec<Axis>)> = {
+                    let sc = scene.read().expect("scene lock poisoned");
+                    sc.runtime
+                        .input
+                        .devices
+                        .iter()
+                        .filter_map(|d| match &d.backend {
+                            Backend::Shm { shm_name, client } if client.is_none() || d.stale => {
+                                Some((d.name.clone(), shm_name.clone(), d.axes.clone()))
                             }
-                            *slot = Some(client);
-                            d.has_baseline = false;
-                            d.last_write_count = 0;
+                            _ => None,
+                        })
+                        .collect()
+                };
+                for (name, shm_name, axes) in wanted {
+                    match open_checked(&shm_name, &axes) {
+                        Ok(client) => {
+                            // A stale producer's old segment reopens as the same
+                            // silent segment; only swap in one that is writing.
+                            let live = client.age_ns() < 1_000_000_000;
+                            let mut sc = scene.write().expect("scene lock poisoned");
+                            if let Some(d) = sc.runtime.input.get_mut(&name)
+                                && let Backend::Shm { client: slot, .. } = &mut d.backend
+                                && (slot.is_none() || live)
+                            {
+                                if slot.is_none() {
+                                    log::info!("input: device '{name}' connected to {shm_name}");
+                                }
+                                *slot = Some(client);
+                                d.has_baseline = false;
+                                d.last_write_count = 0;
+                            }
+                            reported.remove(&name);
                         }
-                        reported.remove(&name);
-                    }
-                    Err(e) => {
-                        if reported.insert(name.clone()) {
-                            log::warn!("input: device '{name}' not available: {e}");
+                        Err(e) => {
+                            if reported.insert(name.clone()) {
+                                log::warn!("input: device '{name}' not available: {e}");
+                            }
                         }
                     }
                 }
+                std::thread::sleep(interval);
             }
-            std::thread::sleep(interval);
-        }
-    });
+        });
     if let Err(e) = spawned {
         log::error!("input: could not start the reconnect thread: {e}");
     }
@@ -383,13 +403,21 @@ mod tests {
     fn device(tag: &str, semantic: Semantic, scale: f32) -> (VinputOwner, InputDevice) {
         let name = shm(tag);
         let owner = VinputOwner::create(&name, &[AxisDesc::new("a", semantic, 1.0)]).unwrap();
-        let axes = vec![Axis { name: "a".into(), semantic, scale, deadzone: 0.0 }];
+        let axes = vec![Axis {
+            name: "a".into(),
+            semantic,
+            scale,
+            deadzone: 0.0,
+        }];
         let client = open_checked(&name, &axes).unwrap();
         let dev = InputDevice::new(
             "dev",
             axes,
             Duration::from_millis(50),
-            Backend::Shm { shm_name: name, client: Some(client) },
+            Backend::Shm {
+                shm_name: name,
+                client: Some(client),
+            },
         );
         (owner, dev)
     }
@@ -399,7 +427,10 @@ mod tests {
         let (mut owner, mut dev) = device("cum", Semantic::Cumulative, 0.5);
         owner.write(&[100.0]);
         dev.sample(1.0 / 60.0);
-        assert_eq!(dev.frame[0].delta, 0.0, "the first reading is only a baseline");
+        assert_eq!(
+            dev.frame[0].delta, 0.0,
+            "the first reading is only a baseline"
+        );
         owner.write(&[110.0]);
         dev.sample(1.0 / 60.0);
         assert_eq!(dev.frame[0].delta, 5.0);
@@ -418,7 +449,10 @@ mod tests {
         std::thread::sleep(Duration::from_millis(70));
         dev.sample(1.0 / 60.0);
         assert!(dev.stale);
-        assert_eq!(dev.frame[0].value, 0.0, "a silent producer must stop motion");
+        assert_eq!(
+            dev.frame[0].value, 0.0,
+            "a silent producer must stop motion"
+        );
         owner.write(&[3.0]);
         dev.sample(1.0 / 60.0);
         assert!(!dev.stale);
@@ -440,7 +474,10 @@ mod tests {
         assert_eq!(dev.frame[0].delta, 0.0);
         owner.write(&[5.0]);
         dev.sample(0.016);
-        assert_eq!(dev.frame[0].delta, 0.0, "the new count is adopted, not differenced");
+        assert_eq!(
+            dev.frame[0].delta, 0.0,
+            "the new count is adopted, not differenced"
+        );
         owner.write(&[7.0]);
         dev.sample(0.016);
         assert_eq!(dev.frame[0].delta, 2.0);
@@ -449,18 +486,39 @@ mod tests {
     #[test]
     fn semantics_must_match_the_segment() {
         let name = shm("mismatch");
-        let _owner = VinputOwner::create(&name, &[AxisDesc::new("a", Semantic::Rate, 1.0)]).unwrap();
-        let axes = vec![Axis { name: "a".into(), semantic: Semantic::Cumulative, scale: 1.0, deadzone: 0.0 }];
+        let _owner =
+            VinputOwner::create(&name, &[AxisDesc::new("a", Semantic::Rate, 1.0)]).unwrap();
+        let axes = vec![Axis {
+            name: "a".into(),
+            semantic: Semantic::Cumulative,
+            scale: 1.0,
+            deadzone: 0.0,
+        }];
         assert!(open_checked(&name, &axes).is_err());
     }
 
     #[test]
     fn keyboard_drives_rate_and_cumulative_axes() {
         let axes = vec![
-            Axis { name: "fwd".into(), semantic: Semantic::Cumulative, scale: 2.0, deadzone: 0.0 },
-            Axis { name: "turn".into(), semantic: Semantic::Rate, scale: 1.0, deadzone: 0.0 },
+            Axis {
+                name: "fwd".into(),
+                semantic: Semantic::Cumulative,
+                scale: 2.0,
+                deadzone: 0.0,
+            },
+            Axis {
+                name: "turn".into(),
+                semantic: Semantic::Rate,
+                scale: 1.0,
+                deadzone: 0.0,
+            },
         ];
-        let mut dev = InputDevice::new("kb", axes, Duration::from_millis(50), Backend::Keyboard { speed: 30.0 });
+        let mut dev = InputDevice::new(
+            "kb",
+            axes,
+            Duration::from_millis(50),
+            Backend::Keyboard { speed: 30.0 },
+        );
         keyboard_axes::set_arrow(keyboard_axes::Arrow::Up, true);
         keyboard_axes::set_arrow(keyboard_axes::Arrow::Left, true);
         dev.sample(0.1);
@@ -468,7 +526,11 @@ mod tests {
         keyboard_axes::set_arrow(keyboard_axes::Arrow::Up, false);
         keyboard_axes::set_arrow(keyboard_axes::Arrow::Left, false);
         assert!(!dev.stale);
-        assert!((dev.frame[0].delta - 3.0).abs() < 1e-9, "30 units/s for 0.1 s: {}", dev.frame[0].delta);
+        assert!(
+            (dev.frame[0].delta - 3.0).abs() < 1e-9,
+            "30 units/s for 0.1 s: {}",
+            dev.frame[0].delta
+        );
         assert_eq!(dev.frame[1].value, -30.0);
     }
 }

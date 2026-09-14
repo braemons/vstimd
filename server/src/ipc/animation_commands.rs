@@ -93,7 +93,15 @@ impl SceneState {
         };
 
         let target = animation_target_from_proto(cmd.target);
-        if let Err(msg) = check_camera_pairing(&target, &animation, start_action, final_action, cancel_action) {
+        if let Err(msg) = check_camera_pairing(&target, start_action, final_action, cancel_action)
+            .and_then(|()| {
+                crate::scene::animation::animation_input::check_animation(
+                    &target,
+                    &animation,
+                    &self.runtime.input,
+                )
+            })
+        {
             return err(proto::ErrorCode::InvalidArgument, msg);
         }
 
@@ -305,23 +313,16 @@ impl SceneState {
     }
 }
 
-/// The camera takes only the kinds that move a camera, and those take only the
-/// camera. Action bits that act on stimuli have nothing to act on for a camera,
-/// so they are refused rather than silently ignored.
+/// Action bits that act on stimuli have nothing to act on for a camera, so they
+/// are refused rather than silently ignored. Which kinds take the camera at all
+/// is `animation_input::check_animation`'s business.
 fn check_camera_pairing(
     target: &AnimationTarget,
-    animation: &Animation,
     start_action: StartAction,
     final_action: FinalAction,
     cancel_action: CancelAction,
 ) -> Result<(), String> {
     let is_camera = matches!(target, AnimationTarget::Camera);
-    let name = animation.type_name();
-    match (is_camera, animation.drives_camera()) {
-        (true, false) => return Err(format!("{name} cannot target the camera")),
-        (false, true) => return Err(format!("{name} must target the camera")),
-        _ => {}
-    }
     if is_camera {
         let stimulus_bits = start_action.contains(StartAction::ENABLE)
             || final_action.intersects(FinalAction::DISABLE | FinalAction::RESTORE_VISIBILITY)

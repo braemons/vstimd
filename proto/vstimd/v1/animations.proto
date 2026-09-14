@@ -48,12 +48,12 @@ message FlickerForNFrames {
   bool            start_on_phase = 4; // true (default) = start in the on-phase
 }
 
-// Read stimulus position from a POSIX shared memory float array each frame.
-//
-// TODO(#84): unimplemented. The server accepts this animation and reports success,
-// but never opens the segment; the stimulus does not move.
+// Set stimulus position every frame from an input device: its first two axes,
+// both absolute, in pixels after the rig-config scale, plus the offsets.
+// shm_name names a rig-config input device, by its name or its segment.
+// INVALID_ARGUMENT if no such device, or its first two axes are not absolute.
 message ExternalPosition2D {
-  string shm_name  = 1; // e.g. "/vstimd_pos_myobj"
+  string shm_name  = 1; // e.g. "eye_tracker" or "/vstimd_gaze"
   float  x_offset_px = 2;
   float  y_offset_px = 3;
 }
@@ -87,8 +87,62 @@ message MoveAlongSegments2D {
 // Speed changes go through SetNavSpeedRequest. It is not a per-frame channel —
 // driving the camera from a treadmill is an input-device animation.
 message LinearNav3D {
-  float speed_cm_per_s = 1;  // negative moves backwards
+  float speed_cm_per_s = 1;  // negative moves backwards; ignored with a source
   float wrap_period_cm = 2;  // (0 → no wrapping)
+  // Drive the speed from an input device instead: a rate axis is a speed in
+  // cm/s over real frame time (dropped frames included), a cumulative axis moves
+  // the camera by exactly its change. An absolute axis is INVALID_ARGUMENT.
+  AxisRef source = 3;
+}
+
+// One axis of a rig-config input device, by name.
+message AxisRef {
+  string device = 1;
+  string axis = 2;
+}
+
+// What an AxisMap drives.
+enum TransformChannel {
+  TRANSFORM_CHANNEL_UNSPECIFIED = 0;
+  // Position: pixels on a 2-D stimulus, cm on a 3-D stimulus or the camera.
+  TRANSFORM_CHANNEL_POS_X = 1;
+  TRANSFORM_CHANNEL_POS_Y = 2;
+  TRANSFORM_CHANNEL_POS_Z = 3;
+  // Degrees. YAW is a 2-D stimulus' rotation.
+  TRANSFORM_CHANNEL_YAW = 4;
+  TRANSFORM_CHANNEL_PITCH = 5;
+  TRANSFORM_CHANNEL_ROLL = 6;
+  // 3-D stimuli only.
+  TRANSFORM_CHANNEL_SCALE_X = 7;
+  TRANSFORM_CHANNEL_SCALE_Y = 8;
+  TRANSFORM_CHANNEL_SCALE_Z = 9;
+  TRANSFORM_CHANNEL_SCALE_UNIFORM = 10;
+  // Along the camera's horizontal forward / rightward direction, cm. Camera
+  // target only, and rate or cumulative axes only.
+  TRANSFORM_CHANNEL_FORWARD = 11;
+  TRANSFORM_CHANNEL_STRAFE = 12;
+}
+
+// One device axis driving one channel. The axis' semantic decides how: absolute
+// sets the channel, cumulative adds its change, rate adds value × frame time.
+message AxisMap {
+  string axis = 1;
+  TransformChannel channel = 2;
+  float gain = 3;                // device units → px, cm or degrees
+  float deadzone = 4;            // absolute and rate values within ±deadzone read 0
+  bool invert = 5;
+  optional float clamp_min = 6;  // both or neither
+  optional float clamp_max = 7;
+  float wrap = 8;                // wrap the channel into [0, wrap); 0 → none
+}
+
+// Map input-device axes onto the target's transform every frame — stimuli or
+// the camera. Never finishes on its own. INVALID_ARGUMENT for an unknown device
+// or axis, a camera-only channel without a camera target, an absolute axis on
+// FORWARD / STRAFE, or a scale channel on the camera.
+message DeviceDrivenTransform {
+  string device = 1;
+  repeated AxisMap axes = 2;
 }
 
 // ── What an animation drives ──────────────────────────────────────────────────
@@ -196,6 +250,7 @@ message CreateAnimationRequest {
     MoveAlongSegments2D move_along_segments_2d = 15;
     ExternalPosition2D external_position_2d  = 18;
     LinearNav3D        linear_nav_3d         = 22;
+    DeviceDrivenTransform device_driven_transform = 23;
   }
 }
 

@@ -5,6 +5,9 @@ const FRAME_HISTORY_SIZE: usize = 120;
 pub struct FrameTiming {
     pub stats: FrameStats,
     pub last_phases: FramePhases,
+    /// Vblanks missed before the last presented frame (0 while warming up).
+    /// Feeds `SceneRuntimeState::vblanks_elapsed`.
+    pub last_dropped_frames: u32,
     /// Swapchain slot index (cycles 0..swapchain_len); distinct from the global
     /// frame counter inside `FrameStats`.
     pub frame_index: usize,
@@ -15,6 +18,7 @@ impl FrameTiming {
         Self {
             stats: FrameStats::new(refresh_hz),
             last_phases: FramePhases::default(),
+            last_dropped_frames: 0,
             frame_index: 0,
         }
     }
@@ -25,6 +29,7 @@ impl FrameTiming {
         Self {
             stats: FrameStats::new_rate_averaged(refresh_hz),
             last_phases: FramePhases::default(),
+            last_dropped_frames: 0,
             frame_index: 0,
         }
     }

@@ -9,7 +9,7 @@ import time
 
 import pytest
 
-from vstimd import Connection, NotSupportedError
+from vstimd import Connection, InvalidArgumentError
 from vstimd.animations import AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
 from vstimd.stimuli import GratingParams, RectParams, ShapeAppearance
 from vstimd.stimuli.stimuli_models import Color, Vec2
@@ -936,18 +936,15 @@ def test_anim_moving_bar_rf_mapping(conn: Connection, stage: Stage) -> None:
 
 @pytest.mark.onscreen(
     "ANIM-24",
-    "a plain white rect and nothing else: driving a stimulus from shared "
-    "memory is refused by the server rather than silently doing nothing",
+    "a plain white rect and nothing else: driving a stimulus from an input "
+    "device the rig does not declare is refused, naming the device",
 )
-def test_anim_external_position_2d_is_refused(conn: Connection, stage: Stage) -> None:
-    """Unimplemented, and refused rather than silently doing nothing (#84).
-
-    The server never opens the shared-memory segment, so accepting this would arm
-    an animation that reports success and leaves the stimulus where it was for the
-    whole session. Tighten this to the behavioural test when #84 lands.
-    """
+def test_anim_external_position_2d_needs_a_rig_device(conn: Connection, stage: Stage) -> None:
+    """ExternalPosition2D reads a rig-config input device. One the rig does not
+    declare is refused at create time rather than arming an animation that would
+    never move the stimulus."""
     s = conn.stimuli.shapes.create_rect()
-    with pytest.raises(NotSupportedError):
+    with pytest.raises(InvalidArgumentError, match="no input device"):
         conn.animations.create_external_position_2d(s, shm_name="/vstimd_test_ext_pos")
     stage.hold(0.5)
     conn.stimuli.delete(s)

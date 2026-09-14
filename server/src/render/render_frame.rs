@@ -158,6 +158,7 @@ pub fn render_frame(
     // ── 4. Tessellate scene into GPU buffers ──────────────────────────────────
     let t_tess_start = std::time::Instant::now();
     let mut wants_3d = false;
+    let vblanks_elapsed = 1 + rs.timing.last_dropped_frames;
     {
         let fps = rs.timing.stats.summary().fps as f32;
         // Nominal, not measured — everything whose result has to be the same on
@@ -188,6 +189,7 @@ pub fn render_frame(
         sc.runtime.frame_rate_hz = fps;
         sc.runtime.nominal_frame_rate_hz = nominal_fps;
         wants_3d |= sc.has_3d();
+        sc.runtime.vblanks_elapsed = vblanks_elapsed;
         if sc.runtime.last_uploaded_size != screen_size {
             sc.runtime.last_uploaded_size = screen_size;
             for entry in sc.stimuli.values_mut() {
@@ -942,6 +944,9 @@ pub fn render_frame(
     // ── 10. Stats + return ────────────────────────────────────────────────────
     let warming_up = rs.timing.stats.is_warming_up();
     let dropped_frames = rs.timing.stats.on_present(vblank_time);
+    // What input integration needs next frame: how long this one really took.
+    // Warm-up gaps are swapchain start-up, not time an animal was running.
+    rs.timing.last_dropped_frames = if warming_up { 0 } else { dropped_frames as u32 };
     if dropped_frames > 0 && !warming_up {
         // Stated, not judged: whether a trial that lost a frame is still a
         // trial is the decision authority's call, and this server has no idea

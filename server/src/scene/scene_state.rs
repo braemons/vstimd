@@ -83,6 +83,11 @@ pub struct SceneRuntimeState {
     /// The rig's input devices, sampled once per frame before animations run.
     /// Never serialized: a scene-config names devices, the rig provides them.
     pub input: crate::input::InputRegistry,
+    /// Vblanks between the last two presented frames: 1, or more after a drop.
+    /// Device-driven motion integrates over this many frame periods, so a
+    /// stuttering display does not shorten a corridor. Set by the render loop;
+    /// always 1 on the null renderer.
+    pub vblanks_elapsed: u32,
     /// Set by the render thread when it could not set up 3-D (no depth format).
     /// The 3-D create commands then answer `NOT_SUPPORTED` rather than accepting
     /// a stimulus that will never be drawn.
@@ -123,6 +128,7 @@ impl SceneRuntimeState {
             next_render_frame: 0,
             events: crate::ipc::EventPublisher::disabled(),
             input: Default::default(),
+            vblanks_elapsed: 1,
             render_3d_unavailable: false,
             capture_requests: capture_tx,
             capture_receiver: std::sync::Mutex::new(Some(capture_rx)),
@@ -322,7 +328,7 @@ impl SceneState {
         // whole `SceneState` mutably, so we can't iterate `self.animations`
         // directly. Taking the scratch Vec out lets us hand `self` to the callee.
         // Input first, so every animation this frame sees the same sample.
-        let dt_s = 1.0 / f64::from(self.runtime.nominal_frame_rate_hz.max(1.0));
+        let dt_s = self.frame_dt_s();
         self.runtime.input.sample_all(dt_s);
 
         let mut handles = std::mem::take(&mut self.runtime.anim_scratch);
@@ -488,6 +494,15 @@ impl SceneState {
         for handle in to_arm {
             self.arm_animation(handle);
         }
+    }
+
+    /// Real time this frame stands for, s: the nominal frame period times the
+    /// vblanks since the last frame. Device-driven motion integrates over it.
+    /// Scripted motion uses the nominal period alone, so a config replays
+    /// identically (#120).
+    pub fn frame_dt_s(&self) -> f64 {
+        f64::from(self.runtime.vblanks_elapsed.max(1))
+            / f64::from(self.runtime.nominal_frame_rate_hz.max(1.0))
     }
 
     /// Whether any visible stimulus needs the 3-D pass. False for every scene

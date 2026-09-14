@@ -4,7 +4,7 @@
 use super::super::response::err;
 use super::vtl::{vtl_bit_from_proto, vtl_bit_to_proto};
 use crate::proto;
-use crate::scene::animation::{Animation, VtlEdge, VtlPolarity};
+use crate::scene::animation::{Animation, AxisMap, AxisRef, TransformChannel, VtlEdge, VtlPolarity};
 use crate::scene::VtlBit;
 use crate::vtl_state::VtlNameEntry;
 
@@ -77,10 +77,19 @@ pub(crate) fn animation_body_to_proto(anim: &Animation) -> proto::create_animati
             x_offset_px: *x_offset_px,
             y_offset_px: *y_offset_px,
         }),
-        Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm } => {
+        Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm, source } => {
             PBody::LinearNav3d(proto::LinearNav3D {
                 speed_cm_per_s: *speed_cm_per_s,
                 wrap_period_cm: wrap_period_cm.unwrap_or(0.0),
+                source: source
+                    .as_ref()
+                    .map(|s| proto::AxisRef { device: s.device.clone(), axis: s.axis.clone() }),
+            })
+        }
+        Animation::DeviceDrivenTransform { device, axes } => {
+            PBody::DeviceDrivenTransform(proto::DeviceDrivenTransform {
+                device: device.clone(),
+                axes: axes.iter().map(axis_map_to_proto).collect(),
             })
         }
     }
@@ -161,17 +170,20 @@ pub(crate) fn animation_from_proto(
                 speed_px_per_sec: c.speed_px_per_sec,
             })
         }
-        // Refused rather than accepted-and-ignored: `advance_one` never opens the
-        // segment, so an accepted ExternalPosition2D arms, runs forever and moves
-        // nothing while reporting success — the stimulus silently stays put for a
-        // whole session. Returning NOT_SUPPORTED until #84 lands is the honest
-        // answer; the fields are kept so the message does not have to change.
-        Some(PBody::ExternalPosition2d(_)) => Err(Box::new(err(
-            proto::ErrorCode::NotSupported,
-            "ExternalPosition2D is not implemented yet (see \
-             https://github.com/braemons/vstimd/issues/84): the shared-memory \
-             segment is never read, so the stimulus would not move",
-        ))),
+        Some(PBody::ExternalPosition2d(c)) => Ok(Animation::ExternalPosition2D {
+            shm_name: c.shm_name.clone(),
+            x_offset_px: c.x_offset_px,
+            y_offset_px: c.y_offset_px,
+        }),
+        Some(PBody::DeviceDrivenTransform(c)) => {
+            let axes = c
+                .axes
+                .iter()
+                .map(axis_map_from_proto)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|msg| Box::new(err(proto::ErrorCode::InvalidArgument, msg)))?;
+            Ok(Animation::DeviceDrivenTransform { device: c.device.clone(), axes })
+        }
         Some(PBody::LinearNav3d(c)) => {
             if !c.speed_cm_per_s.is_finite() || !c.wrap_period_cm.is_finite() || c.wrap_period_cm < 0.0 {
                 return Err(Box::new(err(
@@ -182,6 +194,10 @@ pub(crate) fn animation_from_proto(
             Ok(Animation::LinearNav3D {
                 speed_cm_per_s: c.speed_cm_per_s,
                 wrap_period_cm: (c.wrap_period_cm > 0.0).then_some(c.wrap_period_cm),
+                source: c
+                    .source
+                    .as_ref()
+                    .map(|s| AxisRef { device: s.device.clone(), axis: s.axis.clone() }),
             })
         }
         None => Err(Box::new(err(
@@ -221,5 +237,72 @@ pub(crate) fn animation_target_to_proto(
                 proto::animation_target::Target::Camera(proto::AnimationCamera {})
             }
         }),
+    }
+}
+
+fn channel_from_proto(v: i32) -> Result<TransformChannel, String> {
+    use proto::TransformChannel as P;
+    Ok(match P::try_from(v).unwrap_or(P::Unspecified) {
+        P::Unspecified => return Err("axis mapping needs a channel".into()),
+        P::PosX => TransformChannel::PosX,
+        P::PosY => TransformChannel::PosY,
+        P::PosZ => TransformChannel::PosZ,
+        P::Yaw => TransformChannel::Yaw,
+        P::Pitch => TransformChannel::Pitch,
+        P::Roll => TransformChannel::Roll,
+        P::ScaleX => TransformChannel::ScaleX,
+        P::ScaleY => TransformChannel::ScaleY,
+        P::ScaleZ => TransformChannel::ScaleZ,
+        P::ScaleUniform => TransformChannel::ScaleUniform,
+        P::Forward => TransformChannel::Forward,
+        P::Strafe => TransformChannel::Strafe,
+    })
+}
+
+fn channel_to_proto(c: TransformChannel) -> proto::TransformChannel {
+    use proto::TransformChannel as P;
+    match c {
+        TransformChannel::PosX => P::PosX,
+        TransformChannel::PosY => P::PosY,
+        TransformChannel::PosZ => P::PosZ,
+        TransformChannel::Yaw => P::Yaw,
+        TransformChannel::Pitch => P::Pitch,
+        TransformChannel::Roll => P::Roll,
+        TransformChannel::ScaleX => P::ScaleX,
+        TransformChannel::ScaleY => P::ScaleY,
+        TransformChannel::ScaleZ => P::ScaleZ,
+        TransformChannel::ScaleUniform => P::ScaleUniform,
+        TransformChannel::Forward => P::Forward,
+        TransformChannel::Strafe => P::Strafe,
+    }
+}
+
+fn axis_map_from_proto(m: &proto::AxisMap) -> Result<AxisMap, String> {
+    let clamp = match (m.clamp_min, m.clamp_max) {
+        (Some(lo), Some(hi)) => Some([lo, hi]),
+        (None, None) => None,
+        _ => return Err(format!("axis '{}': clamp needs both clamp_min and clamp_max", m.axis)),
+    };
+    Ok(AxisMap {
+        axis: m.axis.clone(),
+        channel: channel_from_proto(m.channel)?,
+        gain: m.gain,
+        deadzone: m.deadzone,
+        invert: m.invert,
+        clamp,
+        wrap: (m.wrap > 0.0).then_some(m.wrap),
+    })
+}
+
+fn axis_map_to_proto(m: &AxisMap) -> proto::AxisMap {
+    proto::AxisMap {
+        axis: m.axis.clone(),
+        channel: channel_to_proto(m.channel) as i32,
+        gain: m.gain,
+        deadzone: m.deadzone,
+        invert: m.invert,
+        clamp_min: m.clamp.map(|c| c[0]),
+        clamp_max: m.clamp.map(|c| c[1]),
+        wrap: m.wrap.unwrap_or(0.0),
     }
 }
