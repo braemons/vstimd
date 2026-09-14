@@ -42,6 +42,9 @@ class Window:
         self._conn = Connection(address)
         info = self._conn.system.query_server_info()
         self.size: tuple[int, int] = (info.width_px, info.height_px)
+        # The rig's *nominal* refresh rate, which the server steps motion against.
+        # PsychoPy states speeds per frame; this is what converts them to per second.
+        self._frame_rate_hz: float = info.frame_rate_hz
         self.units = units
         self.monitor = monitor
         self.deferred = deferred

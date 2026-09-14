@@ -56,6 +56,7 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 | `Circle(win, ...)` | identical | ✓ |
 | `Rect(win, ...)` | identical | ✓ |
 | `GratingStim(win, ...)` | identical | ✓ |
+| `DotStim(win, ...)` | identical | ✓ dots move every display frame rather than every `draw()`; `element`, per-dot `dotSize` raise `NotImplementedError`; `seed=` added |
 | `Polygon(win, ...)` | not in v0.1 | raises `AttributeError` |
 | `Line(win, ...)` | not in v0.1 | raises `AttributeError` |
 | `ShapeStim(win, ...)` | not in v0.1 | raises `AttributeError` |

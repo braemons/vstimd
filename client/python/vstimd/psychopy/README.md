@@ -101,6 +101,7 @@ but have currently no effect:
 | `Window` | owns `Connection`; `flip()` flushes queue |
 | `Rect` | `create_rect`, `set_position`, `set_rect_size`, `set_fill_color`, `set_rotation`, `set_enabled`, `set_alpha` |
 | `Circle` | `create_circle`, `set_position`, `set_disc_radius`, `set_fill_color`, `set_rotation`, `set_enabled`, `set_alpha` |
+| `DotStim` | `create_dots`, `set_direction`, `set_speed`, `set_coherence`, `set_dot_count`, `set_dot_size`, `set_dot_color`, `set_dot_lifetime`, `set_field`, `set_params` (rules, field shape), `set_seed` (`refreshDots`), `set_position`, `set_enabled`, `set_alpha` |
 
 ## Testing
 

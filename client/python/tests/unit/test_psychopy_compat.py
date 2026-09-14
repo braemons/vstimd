@@ -19,6 +19,7 @@ CLASSES = [
     (psychopy_visual.Rect,         vstimd.psychopy.visual.Rect,         None),
     (psychopy_visual.Circle,       vstimd.psychopy.visual.Circle,       None),
     (psychopy_visual.GratingStim,  vstimd.psychopy.visual.GratingStim,  None),
+    (psychopy_visual.DotStim,      vstimd.psychopy.visual.DotStim,      None),
     (psychopy_visual.Window,       vstimd.psychopy.visual.Window,
      "vstimd.psychopy.visual.Window is a remote connection stub; "
      "rendering params not yet implemented"),
