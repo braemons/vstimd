@@ -200,6 +200,31 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::SetAnimationConditions(c)) => {
             format!("SetAnimationConditions({}, {:?})", c.handle, c.condition_indices)
         }
+        Some(request::Body::CreateCube3d(c)) => {
+            let s = c.params.as_ref().and_then(|p| p.size_cm).unwrap_or_default();
+            format!("CreateCube3D {:.0}×{:.0}×{:.0}cm", s.x, s.y, s.z)
+        }
+        Some(request::Body::CreateSphere3d(c)) => {
+            format!("CreateSphere3D d={:.0}cm", c.params.as_ref().map_or(0.0, |p| p.diameter_cm))
+        }
+        Some(request::Body::CreatePlane3d(c)) => {
+            let s = c.params.as_ref().and_then(|p| p.size_cm).unwrap_or_default();
+            format!("CreatePlane3D {:.0}×{:.0}cm", s.x, s.y)
+        }
+        Some(request::Body::SetTransform3d(c)) => {
+            let p = c.transform.as_ref().and_then(|t| t.position_cm).unwrap_or_default();
+            format!("SetTransform3D({:.1},{:.1},{:.1})", p.x, p.y, p.z)
+        }
+        Some(request::Body::SetMaterial3d(_)) => "SetMaterial3D".into(),
+        Some(request::Body::SetCube3dSize(_)) => "SetCube3DSize".into(),
+        Some(request::Body::SetSphere3dDiameter(c)) => {
+            format!("SetSphere3DDiameter({:.1})", c.diameter_cm)
+        }
+        Some(request::Body::SetPlane3dSize(_)) => "SetPlane3DSize".into(),
+        Some(request::Body::SetCamera(_)) => "SetCamera".into(),
+        Some(request::Body::QueryCamera(_)) => "QueryCamera".into(),
+        Some(request::Body::SetLighting(_)) => "SetLighting".into(),
+        Some(request::Body::QueryLighting(_)) => "QueryLighting".into(),
         Some(request::Body::Shutdown(_)) => "Shutdown".into(),
         None => "?".into(),
     }
@@ -289,6 +314,13 @@ impl SceneState {
             request::Body::CreateGrating(cmd) => self.cmd_create_grating(cmd),
             request::Body::CreateText(cmd) => self.cmd_create_text(cmd),
             request::Body::CreateDots(cmd) => self.cmd_create_dots(cmd),
+            request::Body::CreateCube3d(cmd) => self.cmd_create_cube_3d(cmd),
+            request::Body::CreateSphere3d(cmd) => self.cmd_create_sphere_3d(cmd),
+            request::Body::CreatePlane3d(cmd) => self.cmd_create_plane_3d(cmd),
+            request::Body::SetCamera(cmd) => self.cmd_set_camera(cmd),
+            request::Body::QueryCamera(_) => self.cmd_query_camera(),
+            request::Body::SetLighting(cmd) => self.cmd_set_lighting(cmd),
+            request::Body::QueryLighting(_) => self.cmd_query_lighting(),
             request::Body::CreatePolygon(_) => err(
                 proto::ErrorCode::NotSupported,
                 "CreatePolygon is not yet implemented",
@@ -365,6 +397,13 @@ impl SceneState {
             | request::Body::CreateGrating(_)
             | request::Body::CreateText(_)
             | request::Body::CreateDots(_)
+            | request::Body::CreateCube3d(_)
+            | request::Body::CreateSphere3d(_)
+            | request::Body::CreatePlane3d(_)
+            | request::Body::SetCamera(_)
+            | request::Body::QueryCamera(_)
+            | request::Body::SetLighting(_)
+            | request::Body::QueryLighting(_)
             | request::Body::CreatePolygon(_)
             | request::Body::SetBackground(_)
             | request::Body::SetDeferredMode(_)
@@ -443,6 +482,13 @@ impl SceneState {
             request::Body::SetDotsLifetime(cmd) => self.cmd_set_dots_lifetime(handle, cmd),
             request::Body::SetDotsSeed(cmd) => self.cmd_set_dots_seed(handle, cmd),
             request::Body::SetText(cmd) => self.cmd_set_text(handle, cmd),
+            request::Body::SetTransform3d(cmd) => self.cmd_set_transform_3d(handle, cmd),
+            request::Body::SetMaterial3d(cmd) => self.cmd_set_material_3d(handle, cmd),
+            request::Body::SetCube3dSize(cmd) => self.cmd_set_cube_3d_size(handle, cmd),
+            request::Body::SetSphere3dDiameter(cmd) => {
+                self.cmd_set_sphere_3d_diameter(handle, cmd)
+            }
+            request::Body::SetPlane3dSize(cmd) => self.cmd_set_plane_3d_size(handle, cmd),
             request::Body::SetTextColor(cmd) => self.cmd_set_text_color(handle, cmd),
             request::Body::SetPolygonVertices(_) => err(
                 proto::ErrorCode::NotSupported,

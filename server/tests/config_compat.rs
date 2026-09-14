@@ -104,13 +104,11 @@ fn current_reference_survives_load_and_save_unchanged() {
     );
 }
 
-/// A 3-D body deserializes — `StimulusBody` has a `Mesh3d` arm and serde takes it —
-/// but the 3-D types own no wire value and no query-params arm yet. Before this was
-/// refused, such a file loaded happily and then killed whichever thread next walked
-/// the scene for a client: `ListStimuli`, `QueryStimulus` or the web snapshot, each
-/// reaching an `unimplemented!()` rather than reporting a 2-D type it is not.
+/// A config holding a 3-D stimulus loads, and the loaded stimulus can be
+/// described to a client. This used to be refused, because a 3-D type had no
+/// wire value and a query on one reached an `unimplemented!()`.
 #[test]
-fn reject_a_stimulus_with_no_wire_type() {
+fn a_3d_stimulus_loads_and_answers_a_query() {
     let reference = std::fs::read_to_string("tests/configs/vstimd_reference_v5.config.json")
         .expect("reference v5 config must be readable");
     let mut file: serde_json::Value = serde_json::from_str(&reference).unwrap();
@@ -124,7 +122,7 @@ fn reject_a_stimulus_with_no_wire_type() {
                     "type": "Mesh3d",
                     "transform": {
                         "position_cm": [0.0, 0.0, 0.0],
-                        "rotation_euler_deg": [0.0, 0.0, 0.0],
+                        "rotation_deg": [0.0, 0.0, 0.0],
                         "scale": [1.0, 1.0, 1.0]
                     },
                     "material": {
@@ -139,12 +137,23 @@ fn reject_a_stimulus_with_no_wire_type() {
         }
     });
 
-    let msg = match vstimd::scene_config_file::parse_config_json(&file.to_string()) {
-        Ok(_) => panic!("a config carrying a 3-D stimulus must be refused"),
-        Err(e) => e.to_string(),
-    };
-    assert!(
-        msg.contains("a_cube") && msg.contains("Cube3D"),
-        "the error must name the stimulus and its user-facing type, got: {msg}"
+    let (scene_cfg, _io) = vstimd::scene_config_file::parse_config_json(&file.to_string())
+        .expect("a config carrying a 3-D stimulus must load");
+    let mut scene = vstimd::scene::SceneState::new();
+    scene.load_snapshot(scene_cfg, vstimd::scene::LoadMode::Replace);
+    let handle = *scene.stimuli.keys().next().expect("the cube was loaded");
+    let resp = scene.handle_request(
+        vstimd::proto::Request {
+            target: Some(vstimd::proto::request::Target::Stimulus(handle)),
+            body: Some(vstimd::proto::request::Body::QueryStimulus(
+                vstimd::proto::QueryStimulusRequest {},
+            )),
+        },
+        None,
     );
+    let Some(vstimd::proto::response::Body::StimulusInfo(info)) = resp.body else {
+        panic!("expected StimulusInfo, got {resp:?}");
+    };
+    assert_eq!(info.stimulus_type, vstimd::proto::StimulusType::Cube3d as i32);
+    assert_eq!(info.name, "a_cube");
 }

@@ -80,6 +80,10 @@ pub struct SceneRuntimeState {
     pub events: crate::ipc::EventPublisher,
     /// Where the ZMQ thread sends `CaptureFrame` requests. Capacity one: the ZMQ
     /// thread serves one request at a time and waits for each capture.
+    /// Set by the render thread when it could not set up 3-D (no depth format).
+    /// The 3-D create commands then answer `NOT_SUPPORTED` rather than accepting
+    /// a stimulus that will never be drawn.
+    pub render_3d_unavailable: bool,
     pub capture_requests: std::sync::mpsc::SyncSender<crate::render::screenshot::CaptureRequest>,
     /// The other end, until a render loop that can capture claims it with
     /// [`Self::take_capture_receiver`]. A backend that cannot capture (null,
@@ -115,6 +119,7 @@ impl SceneRuntimeState {
             frame_notifier: std::sync::Arc::new(tx),
             next_render_frame: 0,
             events: crate::ipc::EventPublisher::disabled(),
+            render_3d_unavailable: false,
             capture_requests: capture_tx,
             capture_receiver: std::sync::Mutex::new(Some(capture_rx)),
             anim_scratch: Vec::new(),

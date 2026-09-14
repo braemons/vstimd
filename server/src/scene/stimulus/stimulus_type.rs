@@ -17,8 +17,7 @@
 /// Not every arm of the wire enum appears here. `Bitmap`, `Shader`, `Particle` and
 /// `Polygon` have proto values but no scene representation — `CreatePolygon` is
 /// refused in `ipc/dispatch` — so they are not constructible and have no business in
-/// a type the scene hands out. The traffic runs the other way too: the 3-D types are
-/// here and own no wire value yet, which `ipc/convert` refuses rather than guesses.
+/// a type the scene hands out.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum StimulusType {
     // ── 2-D ──
@@ -29,7 +28,7 @@ pub enum StimulusType {
     Text,
     Dots,
 
-    // ── 3-D — no wire value yet; dev/3D_ROADMAP.md §10.2 reserves 20–29 ──
+    // ── 3-D — placed in world space, wire values 20–29 ──
     Cube3D,
     Sphere3D,
     Plane3D,
@@ -53,8 +52,7 @@ impl StimulusType {
         }
     }
 
-    /// True for the types placed in world space, whose wire representation is still
-    /// owed (`transform_3d` on the placement oneof, and the reserved enum values).
+    /// True for the types placed in world space by a `Transform3D`.
     pub fn is_3d(self) -> bool {
         matches!(self, Self::Cube3D | Self::Sphere3D | Self::Plane3D)
     }

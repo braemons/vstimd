@@ -13,6 +13,8 @@ mod convert;
 mod dispatch;
 mod dots_commands;
 mod grating_commands;
+mod mesh3d_commands;
+mod scene3d_commands;
 mod scene_commands;
 mod shape_commands;
 mod snapshot;

@@ -24,7 +24,7 @@ pub struct Transform3D {
     /// yaw turns counter-clockwise seen from above, so +X swings towards −Z.
     ///
     /// [`Camera3D`]: crate::scene::Camera3D
-    pub rotation_euler_deg: Vec3,
+    pub rotation_deg: Vec3,
     /// Non-uniform scale, composed *on top of* the size the
     /// [`Mesh3dGeometry`](super::Mesh3dGeometry) carries.
     pub scale: Vec3,
@@ -34,7 +34,7 @@ impl Default for Transform3D {
     fn default() -> Self {
         Self {
             position_cm: Vec3::ZERO,
-            rotation_euler_deg: Vec3::ZERO,
+            rotation_deg: Vec3::ZERO,
             scale: Vec3::ONE,
         }
     }
@@ -42,7 +42,7 @@ impl Default for Transform3D {
 
 impl Transform3D {
     pub fn rotation(&self) -> Quat {
-        let [yaw, pitch, roll] = self.rotation_euler_deg.to_array().map(f32::to_radians);
+        let [yaw, pitch, roll] = self.rotation_deg.to_array().map(f32::to_radians);
         Quat::from_euler(EulerRot::YXZ, yaw, pitch, roll)
     }
 
@@ -121,7 +121,7 @@ mod tests {
     #[test]
     fn positive_yaw_swings_x_towards_negative_z() {
         let t = Transform3D {
-            rotation_euler_deg: Vec3::new(90.0, 0.0, 0.0),
+            rotation_deg: Vec3::new(90.0, 0.0, 0.0),
             ..Default::default()
         };
         let p = t.model_matrix(Vec3::ONE).transform_point3(Vec3::X);
@@ -132,7 +132,7 @@ mod tests {
     fn yaw_is_applied_after_pitch() {
         // YXZ composes as Ry · Rx · Rz, so a vector meets roll, then pitch, then yaw.
         let t = Transform3D {
-            rotation_euler_deg: Vec3::new(90.0, 90.0, 0.0),
+            rotation_deg: Vec3::new(90.0, 90.0, 0.0),
             ..Default::default()
         };
         let p = t.model_matrix(Vec3::ONE).transform_vector3(Vec3::Z);
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn geometry_scale_and_scale_compose_before_rotation() {
         let t = Transform3D {
-            rotation_euler_deg: Vec3::new(90.0, 0.0, 0.0),
+            rotation_deg: Vec3::new(90.0, 0.0, 0.0),
             scale: Vec3::new(2.0, 1.0, 1.0),
             ..Default::default()
         };

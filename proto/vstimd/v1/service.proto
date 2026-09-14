@@ -7,12 +7,14 @@ import "vstimd/v1/stimuli/circle.proto";
 import "vstimd/v1/stimuli/dots.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
 import "vstimd/v1/stimuli/grating.proto";
+import "vstimd/v1/stimuli/mesh3d.proto";
 import "vstimd/v1/stimuli/polygon.proto";
 import "vstimd/v1/stimuli/query.proto";
 import "vstimd/v1/stimuli/rect.proto";
 import "vstimd/v1/stimuli/shapes.proto";
 import "vstimd/v1/stimuli/shared_set_requests.proto";
 import "vstimd/v1/stimuli/text.proto";
+import "vstimd/v1/scene3d.proto";
 import "vstimd/v1/system.proto";
 import "vstimd/v1/vtl.proto";
 
@@ -77,6 +79,10 @@ message Request {
     CreateTextRequest create_text = 14;
     CreatePolygonRequest create_polygon = 15;
     CreateDotsRequest create_dots = 16;
+    // 20–29: 3-D creation.
+    CreateCube3DRequest create_cube_3d = 20;
+    CreateSphere3DRequest create_sphere_3d = 21;
+    CreatePlane3DRequest create_plane_3d = 22;
 
     // ── Generic stimulus mutations (stimulus target only) ───────────────────
     SetEnabledRequest set_enabled = 30;
@@ -116,6 +122,13 @@ message Request {
     // ── Polygon-specific mutations (stimulus target only) ───────────────────
     SetPolygonVerticesRequest set_polygon_vertices = 63;
 
+    // ── 3-D mutations (stimulus target only) ────────────────────────────────
+    SetTransform3DRequest set_transform_3d = 64;
+    SetMaterial3DRequest set_material_3d = 65;
+    SetCube3DSizeRequest set_cube_3d_size = 66;
+    SetSphere3DDiameterRequest set_sphere_3d_diameter = 67;
+    SetPlane3DSizeRequest set_plane_3d_size = 68;
+
     // ── Dots-specific mutations (stimulus target only) ──────────────────────
     SetDotsDirectionRequest set_dots_direction = 140;
     SetDotsSpeedRequest set_dots_speed = 141;
@@ -136,11 +149,15 @@ message Request {
     ClearAnimationsRequest clear_animations = 75;
     ClearAllRequest clear_all = 76;
     SetAllEnabledRequest set_all_enabled = 73;
+    SetCameraRequest set_camera = 77;
+    SetLightingRequest set_lighting = 78;
 
     // ── Queries ─────────────────────────────────────────────────────────────
     QueryServerInfoRequest query_server_info = 80; // system target
     QueryStimulusRequest query_stimulus = 81; // stimulus target
     ListStimuliRequest list_stimuli = 82; // system target
+    QueryCameraRequest query_camera = 86; // system target
+    QueryLightingRequest query_lighting = 87; // system target
 
     // ── Timing / synchronisation (system target) ─────────────────────────────
     WaitForFramesRequest wait_for_frames = 83;
@@ -217,6 +234,8 @@ message Response {
     SetDeferredModeResponse deferred_mode = 19;
     ListConditionsResponse condition_list = 22;
     CaptureFrameResponse captured_frame = 23;
+    Camera3D camera = 24;
+    Lighting3D lighting = 25;
   }
 
   // Server-side monotonic clock at response time, nanoseconds since server

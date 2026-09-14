@@ -1,0 +1,111 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/color.proto";
+import "vstimd/v1/stimuli/identity.proto";
+import "vstimd/v1/transform.proto";
+import "vstimd/v1/vec2.proto";
+import "vstimd/v1/vec3.proto";
+
+// ── 3-D stimuli: cube, sphere, plane ──────────────────────────────────────────
+//
+// Drawn in a 3-D pass underneath every 2-D stimulus, with depth testing, seen
+// through the scene camera (scene3d.proto). Sizes are full extents in
+// centimetres, like every size on this wire; Transform3D.scale multiplies them.
+//
+// Alpha below 1 blends, but 3-D surfaces are not sorted back to front, so
+// overlapping translucent surfaces can look wrong. Opaque is the supported case.
+
+// How a 3-D surface is lit.
+enum Shading {
+  SHADING_UNSPECIFIED = 0;  // → UNLIT
+  // The albedo, exactly: no lighting, no ambient term. An unlit surface writes
+  // the same pixel values as a 2-D shape of the same colour, which is what most
+  // psychophysics stimuli want.
+  SHADING_UNLIT       = 1;
+  // Lambert diffuse and Blinn-Phong specular from the scene's one directional
+  // light, plus its ambient term. Not physically based.
+  SHADING_PHONG       = 2;
+}
+
+message Material3D {
+  Color albedo = 1;       // (absent → opaque white)
+  Vec3 emissive = 2;      // linear RGB added after shading; (absent → none)
+  Shading shading = 3;
+}
+
+message Cube3DParams {
+  Vec3 size_cm = 1;       // full extents along x, y, z (a zero component → 10)
+  Material3D material = 2;
+  // Server-side image path. Not supported yet: non-empty → NOT_SUPPORTED.
+  string texture_path = 3;
+}
+
+message Sphere3DParams {
+  float diameter_cm = 1;  // (0 → 10)
+  // Tessellation: latitude bands and longitude slices. More is smoother and
+  // costs vertices; spheres sharing both numbers share one GPU mesh, whatever
+  // their size. (0 → 16 rings, 32 sectors; at most 256 each)
+  uint32 rings = 2;
+  uint32 sectors = 3;
+  Material3D material = 4;
+  string texture_path = 5;  // see Cube3DParams.texture_path
+}
+
+// A flat rectangle in the object's XZ plane, facing +Y — a floor as placed.
+// Visible from its front (+Y) side only.
+message Plane3DParams {
+  Vec2 size_cm = 1;       // x: extent along X, y: extent along Z (a zero component → 100)
+  Material3D material = 2;
+  string texture_path = 3;  // see Cube3DParams.texture_path
+}
+
+// System commands. NOT_SUPPORTED when the display has no usable depth format.
+message CreateCube3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  Cube3DParams params = 3;
+}
+
+message CreateSphere3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  Sphere3DParams params = 3;
+}
+
+message CreatePlane3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  Plane3DParams params = 3;
+}
+
+// ── 3-D stimulus mutations (stimulus target) ──────────────────────────────────
+//
+// SetPosition and SetRotation are 2-D commands and refuse a 3-D stimulus; its
+// placement is replaced whole by SetTransform3D. SetAlpha, SetEnabled and
+// Delete work on every stimulus.
+
+// Any 3-D type. Same defaults as Transform3D.
+message SetTransform3DRequest {
+  Transform3D transform = 1;
+}
+
+// Any 3-D type. Same defaults as Material3D.
+message SetMaterial3DRequest {
+  Material3D material = 1;
+}
+
+// WRONG_STIMULUS_TYPE unless a Cube3D.
+message SetCube3DSizeRequest {
+  Vec3 size_cm = 1;
+}
+
+// WRONG_STIMULUS_TYPE unless a Sphere3D. Tessellation is fixed at creation.
+message SetSphere3DDiameterRequest {
+  float diameter_cm = 1;
+}
+
+// WRONG_STIMULUS_TYPE unless a Plane3D.
+message SetPlane3DSizeRequest {
+  Vec2 size_cm = 1;
+}

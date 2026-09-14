@@ -59,9 +59,6 @@ impl SceneRenderer {
         ctx.set_debug_name(dots_pipeline.pipeline, "dots_pipeline");
         ctx.set_debug_name(wireframe_pipeline.pipeline, "solid_wireframe_pipeline");
         ctx.set_debug_name(wireframe_grating.pipeline, "grating_wireframe_pipeline");
-        if std::env::var_os("VSTIMD_DEBUG_3D").is_some() {
-            crate::render::demo::spawn_debug_3d_stimuli(&scene);
-        }
         let scene_cache = SceneCache::new(&ctx.instance, ctx.physical_device, ctx.frames.len());
         Self {
             pipeline,
@@ -103,6 +100,9 @@ impl SceneRenderer {
             Err(e) => {
                 log::error!("vstimd: 3-D unavailable ({e}); continuing with 2-D only");
                 self.mesh3d_unavailable = true;
+                if let Ok(mut scene) = self.scene.write() {
+                    scene.runtime.render_3d_unavailable = true;
+                }
                 return false;
             }
         };

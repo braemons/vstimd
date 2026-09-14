@@ -323,8 +323,7 @@ fn a_config_without_the_level_line_field_still_loads() {
 }
 
 /// The 3-D stimulus types survive the config JSON exactly — geometry,
-/// placement, material and texture path. At the serde level: `parse_config_json`
-/// still refuses 3-D stimuli until they have a wire representation (#72).
+/// placement, material and texture path.
 #[test]
 fn roundtrip_3d_stimuli_through_json() {
     use vstimd::scene::{Material3D, Mesh3d, Mesh3dGeometry, Shading3D, StimulusBody, Transform3D};
@@ -333,7 +332,7 @@ fn roundtrip_3d_stimuli_through_json() {
     let sphere = Mesh3d::new(
         Transform3D {
             position_cm: glam::Vec3::new(0.0, 10.0, -60.0),
-            rotation_euler_deg: glam::Vec3::new(30.0, -10.0, 5.0),
+            rotation_deg: glam::Vec3::new(30.0, -10.0, 5.0),
             scale: glam::Vec3::new(1.0, 2.0, 1.0),
         },
         Material3D {

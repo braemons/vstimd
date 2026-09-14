@@ -1,0 +1,50 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/vec3.proto";
+
+// ── The 3-D scene: camera and lighting ────────────────────────────────────────
+//
+// Scene-wide, like the background. Both are saved in the scene-config and, set
+// in deferred mode, change on the same frame as the stimuli staged with them.
+
+// World space is right-handed, Y-up, centimetres.
+message Camera3D {
+  Vec3 position_cm = 1;
+  // Rotations in degrees, applied yaw (about world +Y), pitch (camera +X), roll
+  // (view axis). At zero the camera looks down -Z. Positive yaw turns the view
+  // left; positive pitch tilts it up.
+  float yaw_deg = 2;
+  float pitch_deg = 3;
+  float roll_deg = 4;
+  float fov_y_deg = 5;  // vertical field of view, (0, 180); (0 → 60)
+  float near_cm = 6;    // (0 → 1)
+  float far_cm = 7;     // must exceed near_cm; (0 → 50000)
+}
+
+// Lighting for SHADING_PHONG surfaces; unlit ones ignore it. Colours are
+// linear RGB multipliers and may exceed 1.
+message Lighting3D {
+  Vec3 ambient_color = 1;
+  // The direction the light travels, from the sun. Any non-zero length.
+  Vec3 sun_direction = 2;
+  Vec3 sun_color = 3;
+}
+
+// System command. Replaces the whole camera; INVALID_ARGUMENT if absent or out
+// of range.
+message SetCameraRequest {
+  Camera3D camera = 1;
+}
+
+// System command. Returns Camera3D in Response.body.
+message QueryCameraRequest {}
+
+// System command. Replaces the whole lighting; INVALID_ARGUMENT if absent or the
+// sun direction is zero.
+message SetLightingRequest {
+  Lighting3D lighting = 1;
+}
+
+// System command. Returns Lighting3D in Response.body.
+message QueryLightingRequest {}

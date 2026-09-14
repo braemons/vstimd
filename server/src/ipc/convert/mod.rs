@@ -25,6 +25,8 @@ mod animation;
 mod condition;
 mod dots;
 mod grating;
+mod mesh3d;
+mod scene3d;
 mod text;
 mod vtl;
 
@@ -40,6 +42,15 @@ pub(super) use dots::{
 };
 pub(super) use grating::{
     grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,
+};
+pub(super) use mesh3d::{
+    Refusal, cube_size_from_proto, cube3d_from_proto, material3d_from_proto,
+    mesh3d_params_to_proto, plane_size_from_proto, plane3d_from_proto,
+    sphere_diameter_from_proto, sphere3d_from_proto, transform3d_from_proto,
+    transform3d_to_proto,
+};
+pub(super) use scene3d::{
+    camera3d_from_proto, camera3d_to_proto, lighting3d_from_proto, lighting3d_to_proto,
 };
 pub(super) use text::{anchor_from_str, language_style_from_proto, text_params_to_proto,
     text_render_params_from_proto};
@@ -86,12 +97,9 @@ pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusTyp
         SceneStimulusType::Grating => proto::StimulusType::Grating,
         SceneStimulusType::Text => proto::StimulusType::Text,
         SceneStimulusType::Dots => proto::StimulusType::Dots,
-        // Phase B: dev/3D_ROADMAP.md §10.2 reserves wire values 20–29 for these.
-        // Unreachable until a command constructs a `Mesh3d`, and reporting one of
-        // the 2-D values instead would be a lie a client could not detect.
-        SceneStimulusType::Cube3D | SceneStimulusType::Sphere3D | SceneStimulusType::Plane3D => {
-            unimplemented!("Phase B: STIMULUS_TYPE_CUBE_3D / _SPHERE_3D / _PLANE_3D")
-        }
+        SceneStimulusType::Cube3D => proto::StimulusType::Cube3d,
+        SceneStimulusType::Sphere3D => proto::StimulusType::Sphere3d,
+        SceneStimulusType::Plane3D => proto::StimulusType::Plane3d,
     }
 }
 
@@ -228,18 +236,13 @@ mod stimulus_type_tests {
             (SceneStimulusType::Circle, proto::StimulusType::Circle, "Circle"),
             (SceneStimulusType::Grating, proto::StimulusType::Grating, "Grating"),
             (SceneStimulusType::Text, proto::StimulusType::Text, "Text"),
+            (SceneStimulusType::Cube3D, proto::StimulusType::Cube3d, "Cube3D"),
+            (SceneStimulusType::Sphere3D, proto::StimulusType::Sphere3d, "Sphere3D"),
+            (SceneStimulusType::Plane3D, proto::StimulusType::Plane3d, "Plane3D"),
         ] {
             assert_eq!(stimulus_type_to_proto(scene), wire, "wire value for {name}");
             assert_eq!(scene.type_name(), name);
         }
-    }
-
-    /// A 3-D type has no wire value yet, and must refuse rather than report a 2-D one
-    /// — a client cannot tell a wrong type from a right one.
-    #[test]
-    #[should_panic(expected = "Phase B")]
-    fn three_d_types_have_no_wire_value_yet() {
-        let _ = stimulus_type_to_proto(SceneStimulusType::Cube3D);
     }
 }
 

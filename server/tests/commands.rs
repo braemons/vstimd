@@ -65,6 +65,9 @@ fn is_ok(resp: &proto::Response) -> bool {
 fn placement_2d(info: &proto::QueryStimulusResponse) -> proto::Transform2D {
     match info.placement.clone() {
         Some(proto::query_stimulus_response::Placement::Transform2d(t)) => t,
+        Some(proto::query_stimulus_response::Placement::Transform3d(_)) => {
+            panic!("expected a 2-D placement, got a 3-D one")
+        }
         None => panic!("query response carried no placement"),
     }
 }
