@@ -1,0 +1,15 @@
+[package]
+name    = "vinput"
+# Sentinel inherited from the workspace; the shipped version comes from the git
+# tag. See [workspace.package] in the root Cargo.toml.
+version.workspace = true
+edition = "2024"
+description = "Shared-memory interface for directional input devices (wheels, treadmills, eye trackers) feeding vstimd"
+license = "AGPL-3.0-only"
+repository = "https://github.com/braemons/vstimd"
+
+[dependencies]
+libc = "0.2"
+
+[[example]]
+name = "wheel_writer"
