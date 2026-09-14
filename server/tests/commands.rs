@@ -281,7 +281,7 @@ fn test_set_position() {
         body: Some(request::Body::SetPosition(proto::SetPositionRequest { x_px: 42.0, y_px: -7.0 })),
     }, None);
     assert!(is_ok(&resp));
-    assert_eq!(scene.stimuli[&h].stimulus.get_pos_2d(), Some([42.0, -7.0]));
+    assert_eq!(scene.stimuli[&h].stimulus.get_pos_2d(), Some(vstimd::scene::Pos2Px([42.0, -7.0])));
 }
 
 #[test]
@@ -354,7 +354,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+    assert_eq!(t.live.pos_px, vstimd::scene::Pos2Px([15.0, 25.0]));
     assert_eq!(t.live.angle_deg, 30.0);
 
     let app = stim.shape_appearance().expect("expected shape");
@@ -437,7 +437,7 @@ fn test_ending_deferred_mode_that_never_began_leaves_the_scene_alone() {
         scene.apply_flip();
     }
     let t = scene.stimuli.get(&h).unwrap().stimulus.transform2d().expect("2-D");
-    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+    assert_eq!(t.live.pos_px, vstimd::scene::Pos2Px([15.0, 25.0]));
 }
 
 #[test]
@@ -449,7 +449,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
 
     let stim_obj = &mut scene.stimuli.get_mut(&h).unwrap().stimulus;
     stim_obj.transform2d_mut().expect("expected 2-D stimulus").live =
-        vstimd::scene::Transform2D { pos_px: [1.0, 2.0], angle_deg: 3.0 };
+        vstimd::scene::Transform2D { pos_px: vstimd::scene::Pos2Px([1.0, 2.0]), angle_deg: 3.0 };
     {
         let app = stim_obj.shape_appearance_mut().expect("expected shape");
         app.live.fill_color = Color::new(0.11, 0.12, 0.13, 0.14);
@@ -508,9 +508,9 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos_px, [1.0, 2.0]);
+    assert_eq!(t.live.pos_px, vstimd::scene::Pos2Px([1.0, 2.0]));
     assert_eq!(t.live.angle_deg, 3.0);
-    assert_eq!(t.copy.pos_px, [15.0, 25.0]);
+    assert_eq!(t.copy.pos_px, vstimd::scene::Pos2Px([15.0, 25.0]));
     assert_eq!(t.copy.angle_deg, 30.0);
 
     let app = stim.shape_appearance().expect("expected shape");
@@ -537,7 +537,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+    assert_eq!(t.live.pos_px, vstimd::scene::Pos2Px([15.0, 25.0]));
     assert_eq!(t.live.angle_deg, 30.0);
     let app = stim.shape_appearance().expect("expected shape");
     assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
@@ -762,7 +762,7 @@ fn test_create_text() {
     assert_eq!(t.font_family, "Open Sans");
     assert_eq!(t.letter_height_px, 32.0);
     assert_eq!(t.box_size_px.live, [400.0, 80.0]);
-    assert_eq!(t.transform.live.pos_px, [10.0, -20.0]);
+    assert_eq!(t.transform.live.pos_px, vstimd::scene::Pos2Px([10.0, -20.0]));
     assert_eq!(t.params.live.color, Color::new(1.0, 1.0, 0.0, 1.0));
     assert_eq!(t.params.live.fill_color.a, 0.0); // transparent by default
 }

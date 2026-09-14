@@ -100,7 +100,7 @@ impl<'de> serde::Deserialize<'de> for Dots {
 }
 
 impl Dots {
-    pub fn new(pos_px: [f32; 2], angle_deg: f32, params: DotsParams) -> Self {
+    pub fn new(pos_px: crate::scene::units::Pos2Px, angle_deg: f32, params: DotsParams) -> Self {
         Self::from_config(DotsConfig {
             transform: Deferred::new(Transform2D { pos_px, angle_deg }),
             params: Deferred::new(params),
@@ -520,7 +520,7 @@ pub fn build_dots_push_constants(
     };
     DotsPushConstants {
         screen_half: [screen_w * 0.5, screen_h * 0.5],
-        field_center_px: d.transform.live.pos_px,
+        field_center_px: d.transform.live.pos_px.0,
         aperture_offset_px: a.offset_px,
         aperture_half,
         dot_radius_px: p.dot_size_px * 0.5,
@@ -552,7 +552,7 @@ mod tests {
     const HZ: f32 = 60.0;
 
     fn field(params: DotsParams) -> Dots {
-        Dots::new([0.0, 0.0], 0.0, params)
+        Dots::new(crate::scene::units::Pos2Px([0.0, 0.0]), 0.0, params)
     }
 
     fn params(f: impl FnOnce(&mut DotsParams)) -> DotsParams {
@@ -1013,7 +1013,7 @@ mod tests {
 
     #[test]
     fn push_constants_halve_sizes_exactly_once() {
-        let d = Dots::new([100.0, -50.0], 0.0, params(|p| {
+        let d = Dots::new(crate::scene::units::Pos2Px([100.0, -50.0]), 0.0, params(|p| {
             p.dot_size_px = 30.0;
             p.aperture = Aperture {
                 shape: ApertureShape::Rect,
@@ -1032,7 +1032,7 @@ mod tests {
     /// are its radius — the shader compares against `.x` and never reads `.y`.
     #[test]
     fn a_circle_aperture_pushes_its_radius() {
-        let d = Dots::new([0.0, 0.0], 0.0, params(|p| {
+        let d = Dots::new(crate::scene::units::Pos2Px([0.0, 0.0]), 0.0, params(|p| {
             p.aperture = Aperture {
                 shape: ApertureShape::Circle,
                 size_px: [900.0, 0.0],
@@ -1050,7 +1050,7 @@ mod tests {
     #[test]
     fn dot_center_clipping_disables_the_shader_test() {
         let make = |clip| {
-            let d = Dots::new([0.0, 0.0], 0.0, params(|p| {
+            let d = Dots::new(crate::scene::units::Pos2Px([0.0, 0.0]), 0.0, params(|p| {
                 p.aperture = Aperture { clip, ..Default::default() };
             }));
             build_dots_push_constants(&d, 1.0, 800.0, 600.0).clip_per_pixel
@@ -1063,7 +1063,7 @@ mod tests {
     /// shader's `mix` cannot produce anything unexpected from a stale flag.
     #[test]
     fn one_color_pushes_the_same_color_twice() {
-        let d = Dots::new([0.0, 0.0], 0.0, params(|p| {
+        let d = Dots::new(crate::scene::units::Pos2Px([0.0, 0.0]), 0.0, params(|p| {
             p.dot_color = crate::Color::WHITE;
             p.dot_color_alt = None;
         }));
@@ -1073,7 +1073,7 @@ mod tests {
 
     #[test]
     fn opacity_comes_from_above_the_body() {
-        let d = Dots::new([0.0, 0.0], 0.0, DotsParams::default());
+        let d = Dots::new(crate::scene::units::Pos2Px([0.0, 0.0]), 0.0, DotsParams::default());
         assert_eq!(build_dots_push_constants(&d, 0.25, 800.0, 600.0).global_opacity, 0.25);
     }
 

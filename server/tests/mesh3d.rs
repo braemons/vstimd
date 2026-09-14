@@ -108,7 +108,7 @@ fn create_sphere_places_and_sizes_it() {
     );
     assert_eq!(
         m.transform.live.position_cm,
-        glam::Vec3::new(1.0, 2.0, -50.0)
+        vstimd::scene::Pos3Cm::new(1.0, 2.0, -50.0)
     );
     assert_eq!(
         m.transform.live.scale,
@@ -358,7 +358,7 @@ fn set_transform_and_material() {
         }),
     ));
     let m = mesh(&scene, h);
-    assert_eq!(m.transform.live.position_cm.z, -80.0);
+    assert_eq!(m.transform.live.position_cm.0.z, -80.0);
     assert_eq!(m.transform.live.scale, glam::Vec3::new(1.0, 3.0, 1.0));
     assert_eq!(m.material.live.shading, Shading3D::Phong);
 }
@@ -465,7 +465,7 @@ fn deferred_transform_lands_on_flip() {
         }),
     ));
     assert_eq!(
-        mesh(&scene, h).transform.live.position_cm.x,
+        mesh(&scene, h).transform.live.position_cm.0.x,
         1.0,
         "staged, not live"
     );
@@ -473,7 +473,7 @@ fn deferred_transform_lands_on_flip() {
 
     ok(&send(&mut scene, sys(), deferred(false)));
     scene.apply_flip();
-    assert_eq!(mesh(&scene, h).transform.live.position_cm.x, 9.0);
+    assert_eq!(mesh(&scene, h).transform.live.position_cm.0.x, 9.0);
     assert_eq!(
         scene.camera.live.yaw_deg, 45.0,
         "camera flips with the stimuli"

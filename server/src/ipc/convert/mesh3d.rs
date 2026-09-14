@@ -12,6 +12,7 @@ use super::color_or_default;
 use crate::Color;
 use crate::ipc::response::err;
 use crate::proto;
+use crate::scene::units::Pos3Cm;
 use crate::scene::stimulus::{
     CorridorParams, Material3D, Mesh3d, Mesh3dGeometry, Repeat3D, Shading3D, Transform3D,
 };
@@ -84,7 +85,7 @@ pub(crate) fn transform3d_from_proto(
         )));
     }
     Ok(Transform3D {
-        position_cm: finite(vec3_from_proto(t.position_cm), "position_cm")?,
+        position_cm: Pos3Cm(finite(vec3_from_proto(t.position_cm), "position_cm")?),
         rotation_deg: finite(vec3_from_proto(t.rotation_deg), "rotation_deg")?,
         scale: Vec3::select(scale.cmpeq(Vec3::ZERO), Vec3::ONE, scale),
     })
@@ -92,7 +93,7 @@ pub(crate) fn transform3d_from_proto(
 
 pub(crate) fn transform3d_to_proto(t: &Transform3D) -> proto::Transform3D {
     proto::Transform3D {
-        position_cm: Some(vec3_to_proto(t.position_cm)),
+        position_cm: Some(vec3_to_proto(t.position_cm.0)),
         rotation_deg: Some(vec3_to_proto(t.rotation_deg)),
         scale: Some(vec3_to_proto(t.scale)),
     }

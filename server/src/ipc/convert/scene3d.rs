@@ -3,6 +3,7 @@
 use super::mesh3d::{Refusal, vec3_from_proto, vec3_to_proto};
 use crate::ipc::response::err;
 use crate::proto;
+use crate::scene::units::Pos3Cm;
 use crate::scene::{Camera3D, Lighting3D};
 
 fn invalid(msg: impl Into<String>) -> Refusal {
@@ -17,7 +18,7 @@ pub(crate) fn camera3d_from_proto(c: Option<proto::Camera3D>) -> Result<Camera3D
     let default = Camera3D::default();
     let or_default = |v: f32, d: f32| if v == 0.0 { d } else { v };
     let camera = Camera3D {
-        position_cm: vec3_from_proto(c.position_cm),
+        position_cm: Pos3Cm(vec3_from_proto(c.position_cm)),
         yaw_deg: c.yaw_deg,
         pitch_deg: c.pitch_deg,
         roll_deg: c.roll_deg,
@@ -25,7 +26,7 @@ pub(crate) fn camera3d_from_proto(c: Option<proto::Camera3D>) -> Result<Camera3D
         near_cm: or_default(c.near_cm, default.near_cm),
         far_cm: or_default(c.far_cm, default.far_cm),
     };
-    let all_finite = camera.position_cm.is_finite()
+    let all_finite = camera.position_cm.0.is_finite()
         && [
             camera.yaw_deg,
             camera.pitch_deg,
@@ -56,7 +57,7 @@ pub(crate) fn camera3d_from_proto(c: Option<proto::Camera3D>) -> Result<Camera3D
 
 pub(crate) fn camera3d_to_proto(c: &Camera3D) -> proto::Camera3D {
     proto::Camera3D {
-        position_cm: Some(vec3_to_proto(c.position_cm)),
+        position_cm: Some(vec3_to_proto(c.position_cm.0)),
         yaw_deg: c.yaw_deg,
         pitch_deg: c.pitch_deg,
         roll_deg: c.roll_deg,

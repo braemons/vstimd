@@ -11,7 +11,7 @@ fn make_rect_entry() -> StimulusSceneEntry {
     StimulusSceneEntry::new(
         StimulusIdentity::new(Some("test_rect".into())),
         Stimulus::from(Shape::new(
-            [100.0, -50.0],
+            vstimd::scene::Pos2Px([100.0, -50.0]),
             45.0,
             ShapeAppearance {
                 fill_color: vstimd::Color::new(1.0, 0.5, 0.0, 1.0),
@@ -27,7 +27,7 @@ fn make_circle_entry() -> StimulusSceneEntry {
         StimulusIdentity::new(Some("test_circle".into())),
         {
             let mut stim = Stimulus::from(Shape::new(
-                [-200.0, 300.0],
+                vstimd::scene::Pos2Px([-200.0, 300.0]),
                 0.0,
                 ShapeAppearance {
                     fill_color: vstimd::Color::new(0.0, 0.0, 1.0, 1.0),
@@ -67,7 +67,7 @@ fn roundtrip_rect_stimulus() {
     assert_eq!(entry.name(), "test_rect");
     let rect = entry.stimulus.shape().expect("expected rect");
     assert_eq!(entry.stimulus.type_name(), "Rect");
-    assert_eq!(rect.transform.live.pos_px, [100.0, -50.0]);
+    assert_eq!(rect.transform.live.pos_px, vstimd::scene::Pos2Px([100.0, -50.0]));
     assert!((rect.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
 }
 
@@ -331,7 +331,7 @@ fn roundtrip_3d_stimuli_through_json() {
     let mut scene = SceneConfig::default();
     let sphere = Mesh3d::new(
         Transform3D {
-            position_cm: glam::Vec3::new(0.0, 10.0, -60.0),
+            position_cm: vstimd::scene::Pos3Cm::new(0.0, 10.0, -60.0),
             rotation_deg: glam::Vec3::new(30.0, -10.0, 5.0),
             scale: glam::Vec3::new(1.0, 2.0, 1.0),
         },
@@ -377,7 +377,7 @@ fn camera_is_saved_only_when_moved() {
     let json = serde_json::to_string(&scene).unwrap();
     assert!(!json.contains("\"camera\""), "{json}");
 
-    scene.camera.live.position_cm = glam::Vec3::new(0.0, 5.0, 100.0);
+    scene.camera.live.position_cm = vstimd::scene::Pos3Cm::new(0.0, 5.0, 100.0);
     scene.camera.live.yaw_deg = 45.0;
     let json = serde_json::to_string(&scene).unwrap();
     let loaded: SceneConfig = serde_json::from_str(&json).unwrap();

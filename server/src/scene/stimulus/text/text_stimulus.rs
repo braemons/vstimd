@@ -64,7 +64,7 @@ impl<'de> serde::Deserialize<'de> for Text {
 impl Text {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        pos_px: [f32; 2],
+        pos_px: crate::scene::units::Pos2Px,
         angle_deg: f32,
         box_size_px: [f32; 2],
         text: String,
@@ -130,7 +130,7 @@ mod tests {
 
     fn default_stim() -> Text {
         Text::new(
-            [0.0, 0.0],
+            crate::scene::units::Pos2Px::ORIGIN,
             0.0,
             [200.0, 100.0],
             "hello".into(),

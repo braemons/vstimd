@@ -82,26 +82,26 @@ fn nav_moves_forward_and_wraps_while_distance_does_not() {
     let travelled = 25.0 * step;
     assert!((distance(&mut scene, h) - travelled).abs() < 1e-9);
     // Forward is -Z, so 4.17 cm ahead of 0 wraps to 100 - 4.17.
-    let z = scene.camera.live.position_cm.z;
+    let z = scene.camera.live.position_cm.0.z;
     assert!((f64::from(z) - (100.0 - travelled)).abs() < 1e-4, "z = {z}");
 
     advance(&mut scene, 675);
     let travelled = 700.0 * step; // 116.67 cm: more than one period
     assert!((distance(&mut scene, h) - travelled).abs() < 1e-9, "distance is never wrapped");
-    let z = f64::from(scene.camera.live.position_cm.z);
+    let z = f64::from(scene.camera.live.position_cm.0.z);
     assert!((z - (100.0 - (travelled - 100.0))).abs() < 1e-3, "z = {z}");
     assert!((0.0..100.0).contains(&z));
-    assert_eq!(scene.camera.live.position_cm.x, 0.0);
+    assert_eq!(scene.camera.live.position_cm.0.x, 0.0);
 }
 
 #[test]
 fn nav_follows_the_camera_yaw_and_holds_height() {
     let mut scene = scene_at_60hz();
     scene.camera.live.yaw_deg = 90.0; // facing -X
-    scene.camera.live.position_cm.y = 12.0;
+    scene.camera.live.position_cm.0.y = 12.0;
     start_nav(&mut scene, 60.0, 0.0);
     advance(&mut scene, 60);
-    let p = scene.camera.live.position_cm;
+    let p = scene.camera.live.position_cm.0;
     assert!((p.x + 60.0).abs() < 1e-3 && p.z.abs() < 1e-3, "{p}");
     assert_eq!(p.y, 12.0);
 }
@@ -113,7 +113,7 @@ fn long_sessions_keep_the_position_exact() {
     advance(&mut scene, 60 * 60 * 10); // ten minutes: 1.5 km
     let travelled = distance(&mut scene, h);
     assert!((travelled - 150_000.0).abs() < 1e-6, "{travelled}");
-    let z = f64::from(scene.camera.live.position_cm.z);
+    let z = f64::from(scene.camera.live.position_cm.0.z);
     let expected = (-travelled).rem_euclid(500.0);
     assert!((z - expected).abs() < 1e-2 || (z - expected).abs() > 499.99, "z = {z}, expected {expected}");
 }
@@ -129,7 +129,7 @@ fn set_nav_speed_changes_the_rate_and_reversing_moves_back() {
     }));
     assert_eq!(code(&resp), proto::ErrorCode::Ok);
     advance(&mut scene, 60);
-    assert!(scene.camera.live.position_cm.z.abs() < 1e-3);
+    assert!(scene.camera.live.position_cm.0.z.abs() < 1e-3);
     assert!(distance(&mut scene, h).abs() < 1e-9, "net distance");
 }
 
@@ -141,7 +141,7 @@ fn deferred_blocks_do_not_undo_nav() {
     advance(&mut scene, 60);
     send(&mut scene, Body::SetDeferredMode(proto::SetDeferredModeRequest { active: false, cancel: false }));
     scene.apply_flip();
-    assert!((scene.camera.live.position_cm.z + 60.0).abs() < 1e-3, "the flip must not rewind the camera");
+    assert!((scene.camera.live.position_cm.0.z + 60.0).abs() < 1e-3, "the flip must not rewind the camera");
 }
 
 #[test]

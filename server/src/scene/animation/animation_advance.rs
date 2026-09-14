@@ -7,6 +7,7 @@
 
 use super::{AnimState, Animation, CancelAction, FinalAction, StartAction};
 use crate::scene::SceneState;
+use crate::scene::units::Pos2Px;
 use crate::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs};
 use vtl::VtlKind;
 
@@ -239,7 +240,7 @@ pub(crate) fn advance_one(
                     let [x, y] = coords_px[idx];
                     for &sh in &stim_handles {
                         if let Some(e) = scene.config.stimuli.get_mut(&sh)
-                            && e.stimulus.move_to_2d(false, x, y).is_err()
+                            && e.stimulus.move_to_2d(false, Pos2Px::new(x, y)).is_err()
                         {
                             // A 2-D path animation over a 3-D stimulus is a
                             // config error; dropping the frame silently would
@@ -306,7 +307,7 @@ pub(crate) fn advance_one(
                     }
                     for &sh in &stim_handles {
                         if let Some(e) = scene.config.stimuli.get_mut(&sh)
-                            && e.stimulus.move_to_2d(false, pos_px[0], pos_px[1]).is_err()
+                            && e.stimulus.move_to_2d(false, Pos2Px(pos_px)).is_err()
                         {
                             log::warn!(
                                 "animation #{handle}: stimulus #{sh} is 3-D; \
@@ -387,7 +388,7 @@ fn advance_camera_along_forward(
     wrap_period_cm: Option<f32>,
 ) -> super::NavPosition {
     let camera = &mut scene.config.camera;
-    let current = camera.live.position_cm;
+    let current = camera.live.position_cm.0;
     let (x, z) = match nav {
         Some(n) if n.written == current => (n.x, n.z),
         _ => (f64::from(current.x), f64::from(current.z)),
@@ -400,8 +401,8 @@ fn advance_camera_along_forward(
         z = z.rem_euclid(f64::from(period));
     }
     let written = glam::Vec3::new(x as f32, current.y, z as f32);
-    camera.live.position_cm = written;
-    camera.copy.position_cm = written;
+    camera.live.position_cm = crate::scene::units::Pos3Cm(written);
+    camera.copy.position_cm = crate::scene::units::Pos3Cm(written);
     super::NavPosition { x, z, written }
 }
 

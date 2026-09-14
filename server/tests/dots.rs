@@ -462,7 +462,7 @@ fn dots_and_grating_measure_angles_in_the_same_frame() {
     // is where it would show.
     let uncoupled = |grating_deg: f32, drift_deg: f32| {
         let g = Grating::new(
-            [0.0, 0.0],
+            vstimd::scene::Pos2Px([0.0, 0.0]),
             grating_deg,
             [200.0, 200.0],
             GratingParams {
@@ -475,7 +475,7 @@ fn dots_and_grating_measure_angles_in_the_same_frame() {
         grating_phase_inc(&g, 60.0)
     };
     let coupled = Grating::new(
-        [0.0, 0.0],
+        vstimd::scene::Pos2Px([0.0, 0.0]),
         30.0,
         [200.0, 200.0],
         GratingParams { drift_speed_hz: 1.0, drift_coupled: true, ..Default::default() },

@@ -19,11 +19,13 @@
 
 use glam::{EulerRot, Mat4, Quat, Vec3};
 
+use crate::scene::units::Pos3Cm;
+
 #[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(default)]
 pub struct Camera3D {
     /// World space, cm.
-    pub position_cm: Vec3,
+    pub position_cm: Pos3Cm,
     /// Rotation about world +Y. Positive turns the view to the left
     /// (right-handed, seen from above).
     pub yaw_deg: f32,
@@ -40,7 +42,7 @@ pub struct Camera3D {
 impl Default for Camera3D {
     fn default() -> Self {
         Self {
-            position_cm: Vec3::ZERO,
+            position_cm: Pos3Cm::ORIGIN,
             yaw_deg: 0.0,
             pitch_deg: 0.0,
             roll_deg: 0.0,
@@ -66,7 +68,7 @@ impl Camera3D {
 
     /// World → view. The inverse of the camera's own placement.
     pub fn view_matrix(&self) -> Mat4 {
-        Mat4::from_rotation_translation(self.rotation(), self.position_cm).inverse()
+        Mat4::from_rotation_translation(self.rotation(), self.position_cm.0).inverse()
     }
 
     /// View → clip, depth in `[0, 1]`, clip +Y = screen up (see module doc).
@@ -187,7 +189,7 @@ mod tests {
     #[test]
     fn position_translates_the_view() {
         let cam = Camera3D {
-            position_cm: Vec3::new(5.0, 7.0, 0.0),
+            position_cm: Pos3Cm::new(5.0, 7.0, 0.0),
             ..Default::default()
         };
         let p = ndc(&cam, Vec3::new(5.0, 7.0, -50.0));

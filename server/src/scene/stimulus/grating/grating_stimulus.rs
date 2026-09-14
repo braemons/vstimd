@@ -65,7 +65,7 @@ impl<'de> serde::Deserialize<'de> for Grating {
 
 impl Grating {
     pub fn new(
-        pos_px: [f32; 2],
+        pos_px: crate::scene::units::Pos2Px,
         angle_deg: f32,
         size_px: [f32; 2], // [width, height] in pixels (full extents)
         params: GratingParams,
@@ -257,7 +257,7 @@ pub fn build_grating_push_constants(
     let p = &s.params.live;
     GratingPushConstants {
         screen_half: [screen_w * 0.5, screen_h * 0.5],
-        center_px: s.transform.live.pos_px,
+        center_px: s.transform.live.pos_px.0,
         half_size: [s.size_px.live[0] * 0.5, s.size_px.live[1] * 0.5],
         sf_cycles_per_px: p.sf_cycles_per_px,
         phase_cycles: p.phase_cycles + s.phase_accum_cycles,
@@ -280,7 +280,7 @@ mod tests {
     use crate::scene::stimulus::grating::grating_params::GratingParams;
 
     fn default_stim() -> Grating {
-        Grating::new([0.0, 0.0], 0.0, [100.0, 100.0], GratingParams::default())
+        Grating::new(crate::scene::units::Pos2Px::ORIGIN, 0.0, [100.0, 100.0], GratingParams::default())
     }
 
     // ── set_phase ──────────────────────────────────────────────────────────────

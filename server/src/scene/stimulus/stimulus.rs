@@ -7,6 +7,7 @@ use super::stimulus_flags::StimulusFlags;
 use super::stimulus_type::StimulusType;
 use super::text::Text;
 use crate::scene::deferred::Deferred;
+use crate::scene::units::Pos2Px;
 pub use crate::scene::stimulus::shape_appearance::ShapeAppearance;
 use crate::scene::stimulus::transform2d::Transform2D;
 
@@ -275,12 +276,12 @@ impl Stimulus {
     /// and the units differ regardless — pixels into centimetres has no correct
     /// interpretation. 3-D placement gets its own commands (`SetTransform3D`)
     /// and its own animation kinds.
-    pub fn move_to_2d(&mut self, deferred: bool, x: f32, y: f32) -> Result<(), WrongDimension> {
+    pub fn move_to_2d(&mut self, deferred: bool, pos_px: Pos2Px) -> Result<(), WrongDimension> {
         let Some(t) = self.transform2d_mut() else {
             return Err(WrongDimension);
         };
         let angle_deg = if deferred { t.copy.angle_deg } else { t.live.angle_deg };
-        t.set(deferred, Transform2D { pos_px: [x, y], angle_deg });
+        t.set(deferred, Transform2D { pos_px, angle_deg });
         if !deferred {
             self.flags_mut().mark_dirty();
         }
@@ -302,7 +303,7 @@ impl Stimulus {
     }
 
     /// 2-D position, or `None` for a 3-D stimulus.
-    pub fn get_pos_2d(&self) -> Option<[f32; 2]> {
+    pub fn get_pos_2d(&self) -> Option<Pos2Px> {
         self.transform2d().map(|t| t.live.pos_px)
     }
 

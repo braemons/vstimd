@@ -17,7 +17,7 @@ fn load_current_reference() {
     let rect_entry = scene.stimuli.values().find(|e| e.name() == "ref_rect").expect("ref_rect must exist");
     assert_eq!(rect_entry.stimulus.type_name(), "Rect");
     let r = rect_entry.stimulus.shape().expect("ref_rect must be a shape");
-    assert_eq!(r.transform.live.pos_px, [100.0, -50.0]);
+    assert_eq!(r.transform.live.pos_px, vstimd::scene::Pos2Px([100.0, -50.0]));
     assert!((r.transform.live.angle_deg - 30.0).abs() < 1e-4);
     assert!((r.appearance.live.fill_color.r - 1.0).abs() < 1e-6);
     assert!(rect_entry.stimulus.flags().enabled);
@@ -31,7 +31,7 @@ fn load_current_reference() {
     let circle_entry = scene.stimuli.values().find(|e| e.name() == "ref_circle").expect("ref_circle must exist");
     assert_eq!(circle_entry.stimulus.type_name(), "Circle");
     let c = circle_entry.stimulus.shape().expect("ref_circle must be a shape");
-    assert_eq!(c.transform.live.pos_px, [-300.0, 200.0]);
+    assert_eq!(c.transform.live.pos_px, vstimd::scene::Pos2Px([-300.0, 200.0]));
     // A full extent, like every other geometry: 100 px across, not a 100 px radius.
     assert!(matches!(
         c.geometry.live,

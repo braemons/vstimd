@@ -33,7 +33,7 @@ pub unsafe fn record_3d_pass(
         frame_slot,
         &SceneUniform {
             view_proj: camera.view_proj(aspect).to_cols_array_2d(),
-            camera_pos: camera.position_cm.to_array(),
+            camera_pos: camera.position_cm.0.to_array(),
             ambient: lighting.ambient_color,
             sun_dir: lighting.sun_direction_normalized().to_array(),
             sun_color: lighting.sun_color,

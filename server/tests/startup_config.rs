@@ -57,7 +57,7 @@ fn scene_with_rect(dir: &std::path::Path) -> SceneState {
     scene.add_stimulus(StimulusSceneEntry::new(
         StimulusIdentity::new(Some("target".into())),
         Stimulus::from(Shape::new(
-            [10.0, 20.0],
+            vstimd::scene::Pos2Px([10.0, 20.0]),
             0.0,
             ShapeAppearance::default(),
             ShapeGeometry::Rect { size_px: [100.0, 50.0] },

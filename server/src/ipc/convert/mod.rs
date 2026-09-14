@@ -61,6 +61,7 @@ pub(super) use vtl::{
 
 use crate::Color;
 use crate::proto;
+use crate::scene::units::Pos2Px;
 use crate::scene::stimulus::{
     DrawMode as SceneDrawMode, ShapeAppearance, StimulusIdentity,
     StimulusType as SceneStimulusType,
@@ -176,12 +177,12 @@ pub(super) fn shape_appearance_from_proto(
 ///
 /// Absent, or absent `pos_px`, means the screen centre at 0° — the same default the
 /// bare `center`/`angle_deg` fields gave before placement was a message.
-pub(super) fn placement_from_proto(placement: Option<proto::Transform2D>) -> ([f32; 2], f32) {
+pub(super) fn placement_from_proto(placement: Option<proto::Transform2D>) -> (Pos2Px, f32) {
     let Some(t) = placement else {
-        return ([0.0, 0.0], 0.0);
+        return (Pos2Px::ORIGIN, 0.0);
     };
     let pos_px = t.pos_px.unwrap_or_default();
-    ([pos_px.x, pos_px.y], t.rotation_deg)
+    (Pos2Px::new(pos_px.x, pos_px.y), t.rotation_deg)
 }
 
 /// A create request's `identity` → the scene's, minting the id.

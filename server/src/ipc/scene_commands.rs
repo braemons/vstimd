@@ -206,8 +206,8 @@ impl SceneState {
         let placement = stim.transform2d().map(|t| {
             proto::query_stimulus_response::Placement::Transform2d(proto::Transform2D {
                 pos_px: Some(proto::Vec2 {
-                    x: t.live.pos_px[0],
-                    y: t.live.pos_px[1],
+                    x: t.live.pos_px.x(),
+                    y: t.live.pos_px.y(),
                 }),
                 rotation_deg: t.live.angle_deg,
             })

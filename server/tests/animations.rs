@@ -73,7 +73,7 @@ fn create_rect(scene: &mut SceneState) -> u32 {
     scene.add_stimulus(StimulusSceneEntry::new(
         StimulusIdentity::new(None),
         Stimulus::from(Shape::new(
-            [0.0, 0.0],
+            vstimd::scene::Pos2Px([0.0, 0.0]),
             0.0,
             ShapeAppearance::default(),
             ShapeGeometry::Rect { size_px: [50.0, 50.0] },
@@ -1662,7 +1662,7 @@ fn output_edge_cancels_running_animation() {
 #[test]
 fn move_along_segments_ignores_the_measured_frame_rate() {
     // Two runs of an identical scene, with wildly different measurements.
-    let positions_at = |measured_fps: f32| -> Vec<[f32; 2]> {
+    let positions_at = |measured_fps: f32| -> Vec<vstimd::scene::Pos2Px> {
         let mut scene = SceneState::new();
         scene.runtime.nominal_frame_rate_hz = 60.0;
         scene.runtime.frame_rate_hz = measured_fps;
@@ -1706,7 +1706,7 @@ fn grating_drift_uses_the_nominal_frame_rate() {
     use vstimd::scene::stimulus::grating::grating_phase_inc;
 
     let s = Grating::new(
-        [0.0, 0.0],
+        vstimd::scene::Pos2Px([0.0, 0.0]),
         0.0,
         [100.0, 100.0],
         GratingParams { drift_speed_hz: 2.0, ..Default::default() },

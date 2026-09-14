@@ -36,7 +36,7 @@ fn add_rect(sc: &mut SceneState) -> u32 {
     sc.add_stimulus(StimulusSceneEntry::new(
         StimulusIdentity::new(None),
         Stimulus::from(Shape::new(
-            [0.0, 0.0],
+            vstimd::scene::Pos2Px([0.0, 0.0]),
             0.0,
             ShapeAppearance::default(),
             ShapeGeometry::Rect { size_px: [50.0, 50.0] },

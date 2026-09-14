@@ -6,6 +6,7 @@
 //! All inputs are `DragValue`/`TextEdit` widgets reachable by Tab, so the dialog
 //! is fully usable without a mouse (the DRM rig has no pointer).
 
+use crate::scene::units::Pos2Px;
 use crate::Color;
 use crate::scene::{
     Grating, GratingParams, Shape, ShapeAppearance, ShapeGeometry, Stimulus, StimulusIdentity,
@@ -85,7 +86,7 @@ impl StimulusDialog {
             ..Default::default()
         };
         let shape = |geometry| {
-            Stimulus::from(Shape::new(self.pos_px, self.angle_deg, appearance, geometry))
+            Stimulus::from(Shape::new(Pos2Px(self.pos_px), self.angle_deg, appearance, geometry))
         };
         let stimulus = match self.stimulus_type {
             StimulusDialogType::Rect => shape(ShapeGeometry::Rect { size_px: self.rect_size }),
@@ -96,7 +97,7 @@ impl StimulusDialog {
                 size_px: self.ellipse_size,
             }),
             StimulusDialogType::Grating => Stimulus::from(Grating::new(
-                self.pos_px,
+                Pos2Px(self.pos_px),
                 self.angle_deg,
                 self.grating_size,
                 GratingParams {

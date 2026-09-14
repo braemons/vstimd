@@ -178,8 +178,8 @@ pub fn layout_and_rasterize(
 
 /// Returns the Y-up screen coordinates of the top-left corner of the text box,
 /// given the anchor point position and box dimensions.
-fn anchor_top_left(pos_px: [f32; 2], size_px: [f32; 2], anchor: Anchor) -> (f32, f32) {
-    let [cx, cy] = pos_px;
+fn anchor_top_left(pos_px: crate::scene::units::Pos2Px, size_px: [f32; 2], anchor: Anchor) -> (f32, f32) {
+    let [cx, cy] = pos_px.0;
     let [w, h] = size_px;
     match anchor {
         Anchor::Center      => (cx - w * 0.5, cy + h * 0.5),
@@ -199,7 +199,7 @@ mod tests {
 
     fn make_stim(text: &str) -> Text {
         Text::new(
-            [0.0, 0.0],
+            crate::scene::units::Pos2Px::ORIGIN,
             0.0,
             [400.0, 100.0],
             text.into(),
@@ -283,7 +283,7 @@ mod tests {
         let mut fs = TextFontSystem::new();
         let mut sc = TextSwashCache::new();
         let stim = Text::new(
-            [0.0, 0.0], 0.0, [400.0, 100.0],
+            crate::scene::units::Pos2Px::ORIGIN, 0.0, [400.0, 100.0],
             "Hello".into(), "Hack".into(), 32.0,
             Anchor::Center, LanguageStyle::Ltr,
             TextRenderParams::default(),

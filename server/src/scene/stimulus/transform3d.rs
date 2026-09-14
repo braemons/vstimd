@@ -7,6 +7,7 @@
 use glam::{EulerRot, Mat4, Quat, Vec3};
 
 use crate::Color;
+use crate::scene::units::Pos3Cm;
 
 /// 3-D placement — the world-space counterpart of
 /// [`Transform2D`](super::Transform2D).
@@ -18,7 +19,7 @@ use crate::Color;
 #[serde(default)]
 pub struct Transform3D {
     /// World space, cm.
-    pub position_cm: Vec3,
+    pub position_cm: Pos3Cm,
     /// Degrees, `[yaw, pitch, roll]` — about world +Y, then the object's +X,
     /// then its +Z (`EulerRot::YXZ`), the same order [`Camera3D`] uses. Positive
     /// yaw turns counter-clockwise seen from above, so +X swings towards −Z.
@@ -33,7 +34,7 @@ pub struct Transform3D {
 impl Default for Transform3D {
     fn default() -> Self {
         Self {
-            position_cm: Vec3::ZERO,
+            position_cm: Pos3Cm::ORIGIN,
             rotation_deg: Vec3::ZERO,
             scale: Vec3::ONE,
         }
@@ -53,7 +54,7 @@ impl Transform3D {
         Mat4::from_scale_rotation_translation(
             self.scale * geometry_scale,
             self.rotation(),
-            self.position_cm,
+            self.position_cm.0,
         )
     }
 }
@@ -111,11 +112,11 @@ mod tests {
     #[test]
     fn translation_moves_the_origin() {
         let t = Transform3D {
-            position_cm: Vec3::new(1.0, 2.0, -3.0),
+            position_cm: Pos3Cm::new(1.0, 2.0, -3.0),
             ..Default::default()
         };
         let p = t.model_matrix(Vec3::ONE).transform_point3(Vec3::ZERO);
-        assert!(close(p, t.position_cm), "{p}");
+        assert!(close(p, t.position_cm.0), "{p}");
     }
 
     #[test]
