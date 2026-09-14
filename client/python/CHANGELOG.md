@@ -121,7 +121,10 @@ server and the client move together, and nothing has shipped yet.
   centimetres, with a `Material3D` that is either `Shading.UNLIT` — exactly the
   albedo, matching a 2-D shape of the same colour — or `Shading.PHONG`.
   `conn.system.set_camera` / `query_camera` and `set_lighting` / `query_lighting`
-  control the scene they are seen through. `StimulusInfo` gains `transform_3d`,
+  control the scene they are seen through, and
+  `conn.animations.create_linear_nav_3d` moves the camera every frame (optionally
+  wrapping for an endless corridor; `set_nav_speed`, and `AnimationDetails` gains
+  `camera` and `distance_travelled_cm`). `StimulusInfo` gains `transform_3d`,
   and `StimulusType` gains `CUBE_3D`, `SPHERE_3D` and `PLANE_3D`. See
   `examples/scene_3d.py`.
 - **`conn.system.capture_frame()`** returns the next presented frame as a PNG
