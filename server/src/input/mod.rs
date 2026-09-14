@@ -9,6 +9,7 @@ pub mod app_keys;
 pub use app_keys::AppKey;
 
 pub mod devices;
+pub mod gamepad_axes;
 pub mod keyboard_axes;
 pub use devices::{InputDevice, InputRegistry};
 

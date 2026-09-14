@@ -17,6 +17,9 @@ web = ["dep:axum", "dep:futures-util", "dep:tower-http", "tokio/net", "tokio/mac
 # Requires the frontend to be built first: `cd client/web && npm run build`.
 # Opt-in so a plain `cargo build` does not depend on the frontend being built.
 embed-ui = ["web", "dep:rust-embed"]
+# Gamepads as an --input-override backend, for running a rig's experiment on a
+# desk. Off by default: a production rig binary must not depend on gilrs.
+gamepad = ["dep:gilrs"]
 
 [dependencies]
 ash        = "0.38"
@@ -40,6 +43,7 @@ prost      = "0.13"
 # crates.io, and it would have to track the workspace's 0.0.0 sentinel.
 vtl        = { path = "../vtl", features = ["serde"] }
 vinput     = { path = "../vinput" }
+gilrs      = { version = "0.11", optional = true }
 nvml-wrapper = "0.10"
 rand         = "0.10.1"
 uuid         = { version = "1", features = ["v4", "serde"] }

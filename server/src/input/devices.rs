@@ -58,6 +58,10 @@ pub enum Backend {
     /// Arrow keys (see [`keyboard_axes`]), at `speed` axis units per second for
     /// rate and cumulative axes.
     Keyboard { speed: f64 },
+    /// Gamepad `pad`'s sticks (see [`gamepad_axes`](crate::input::gamepad_axes)),
+    /// at `speed` axis units per second at full deflection. Needs the `gamepad`
+    /// build feature; without it the sticks read 0.
+    Gamepad { pad: usize, speed: f64 },
 }
 
 impl Backend {
@@ -66,6 +70,7 @@ impl Backend {
         match self {
             Backend::Shm { shm_name, .. } => format!("shm {shm_name}"),
             Backend::Keyboard { speed } => format!("keyboard ({speed}/s)"),
+            Backend::Gamepad { pad, speed } => format!("gamepad {pad} ({speed}/s)"),
         }
     }
 }
@@ -152,7 +157,7 @@ impl InputDevice {
     pub fn is_connected(&self) -> bool {
         match &self.backend {
             Backend::Shm { client, .. } => client.is_some(),
-            Backend::Keyboard { .. } => true,
+            Backend::Keyboard { .. } | Backend::Gamepad { .. } => true,
         }
     }
 
@@ -182,9 +187,16 @@ impl InputDevice {
                 alive
             }
             Backend::Shm { client: None, .. } => false,
-            Backend::Keyboard { speed } => {
+            Backend::Keyboard { speed } | Backend::Gamepad { speed, .. } => {
+                let pad = match self.backend {
+                    Backend::Gamepad { pad, .. } => Some(pad),
+                    _ => None,
+                };
                 for (i, axis) in self.axes.iter().enumerate() {
-                    let dir = keyboard_axes::direction(i);
+                    let dir = match pad {
+                        Some(p) => crate::input::gamepad_axes::stick(p, i),
+                        None => keyboard_axes::direction(i),
+                    };
                     let per_raw = f64::from(axis.scale).max(f64::MIN_POSITIVE);
                     self.raw[i] = match axis.semantic {
                         Semantic::Absolute => dir / per_raw,
@@ -290,7 +302,7 @@ impl InputRegistry {
             device.backend.label(),
             backend.label()
         );
-        device.stale = !matches!(backend, Backend::Keyboard { .. });
+        device.stale = matches!(backend, Backend::Shm { .. });
         device.backend = backend;
         device.has_baseline = false;
         Ok(())

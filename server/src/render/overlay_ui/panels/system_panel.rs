@@ -115,7 +115,7 @@ fn input_devices(ui: &mut egui::Ui, scene: &Arc<RwLock<SceneState>>) {
             (egui::Color32::from_rgb(80, 200, 80), "live")
         };
         let backend = d.backend.label();
-        let backend_color = if matches!(d.backend, crate::input::devices::Backend::Keyboard { .. }) {
+        let backend_color = if !matches!(d.backend, crate::input::devices::Backend::Shm { .. }) {
             egui::Color32::YELLOW
         } else {
             ui.visuals().text_color()

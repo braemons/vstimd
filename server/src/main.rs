@@ -122,6 +122,10 @@ fn main() {
         }
     }
     vstimd::input::devices::spawn_reconnector(scene.clone(), std::time::Duration::from_millis(250));
+    #[cfg(feature = "gamepad")]
+    if args.input_overrides.iter().any(|(_, o)| matches!(o, InputOverride::Gamepad { .. })) {
+        vstimd::input::gamepad_axes::spawn();
+    }
 
     // Create VTL shared memory on Linux using rig-config parameters.
     // The Arc<Mutex<>> lets both the ZMQ thread (software triggers, naming)
@@ -386,34 +390,54 @@ fn main() {
 #[derive(Clone, Debug)]
 enum InputOverride {
     Keyboard { speed: f64 },
+    Gamepad { pad: usize, speed: f64 },
 }
 
 impl InputOverride {
     fn to_backend(&self) -> vstimd::input::devices::Backend {
         match *self {
             InputOverride::Keyboard { speed } => vstimd::input::devices::Backend::Keyboard { speed },
+            InputOverride::Gamepad { pad, speed } => vstimd::input::devices::Backend::Gamepad { pad, speed },
         }
     }
 
-    /// `keyboard` or `keyboard:SPEED` (axis units per second, default 1).
+    /// `keyboard[:SPEED]` or `gamepad[:PAD[:SPEED]]` (SPEED in axis units per
+    /// second, default 1; PAD from 0).
     fn parse(spec: &str) -> Result<(String, Self), String> {
         let (name, backend) = spec
             .split_once('=')
             .ok_or_else(|| format!("expected NAME=BACKEND, got '{spec}'"))?;
-        let (kind, arg) = backend.split_once(':').map_or((backend, None), |(k, a)| (k, Some(a)));
+        let mut parts = backend.split(':');
+        let kind = parts.next().unwrap_or_default();
+        let speed_of = |a: Option<&str>| -> Result<f64, String> {
+            match a {
+                None => Ok(1.0),
+                Some(a) => a
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|v| v.is_finite() && *v > 0.0)
+                    .ok_or_else(|| format!("speed must be a positive number, got '{a}'")),
+            }
+        };
         match kind {
             "keyboard" => {
-                let speed = match arg {
-                    None => 1.0,
-                    Some(a) => a
-                        .parse::<f64>()
-                        .ok()
-                        .filter(|v| v.is_finite() && *v > 0.0)
-                        .ok_or_else(|| format!("keyboard speed must be a positive number, got '{a}'"))?,
-                };
+                let speed = speed_of(parts.next())?;
                 Ok((name.to_string(), InputOverride::Keyboard { speed }))
             }
-            other => Err(format!("unknown input backend '{other}' (supported: keyboard[:SPEED])")),
+            "gamepad" => {
+                let pad = match parts.next() {
+                    None => 0,
+                    Some(p) => p.parse().map_err(|_| format!("gamepad index must be a number, got '{p}'"))?,
+                };
+                let speed = speed_of(parts.next())?;
+                if !cfg!(feature = "gamepad") {
+                    return Err("this vstimd was built without the `gamepad` feature".into());
+                }
+                Ok((name.to_string(), InputOverride::Gamepad { pad, speed }))
+            }
+            other => Err(format!(
+                "unknown input backend '{other}' (supported: keyboard[:SPEED], gamepad[:PAD[:SPEED]])"
+            )),
         }
     }
 }
@@ -939,10 +963,11 @@ fn print_usage() {
     eprintln!("      --event-port <N>      ZMQ PUB event stream port (default: 5556)");
     eprintln!("      --no-events           Do not publish the event stream at all");
     eprintln!("      --no-web              Disable the embedded web control surface");
-    eprintln!("      --input-override <NAME=keyboard[:SPEED]>");
+    eprintln!("      --input-override <NAME=keyboard[:SPEED] | NAME=gamepad[:PAD[:SPEED]]>");
     eprintln!("                            Drive the rig-config input device NAME from the arrow");
-    eprintln!("                            keys instead of its hardware (SPEED units/s, default 1);");
-    eprintln!("                            repeatable");
+    eprintln!("                            keys or a gamepad's sticks instead of its hardware");
+    eprintln!("                            (SPEED units/s, default 1; gamepad needs the `gamepad`");
+    eprintln!("                            build feature); repeatable");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
     eprintln!("      --overlay-scale <N>   Scale factor for the egui overlay UI (default: 1.0)");
     eprintln!("      --preferred-clock-source <S>");

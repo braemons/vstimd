@@ -109,5 +109,7 @@ print(conn.animations.query(walk).device_stale)
 `vstimd --input-override wheel=keyboard:30` stands the arrow keys in for the
 device — Up/Down on the first axis, Right/Left on the second, at 30 units per
 second — keeping its axes and scale, so the same experiment script runs on a desk.
-The overlay shows the keyboard backend in yellow so it cannot be mistaken for the
-rig's hardware.
+`--input-override wheel=gamepad:0:30` does the same with the first gamepad's
+sticks (left Y, left X, right X, right Y on axes 0–3), in a vstimd built with the
+`gamepad` feature. The overlay shows a keyboard or gamepad backend in yellow so it
+cannot be mistaken for the rig's hardware.
