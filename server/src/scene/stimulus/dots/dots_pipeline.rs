@@ -38,12 +38,13 @@ pub struct DotInstance {
 ///   offset 16: aperture_offset_px [f32; 2] ← field-local, as `Aperture` stores it
 ///   offset 24: aperture_half      [f32; 2] ← half-extents: halving is a shader detail
 ///   offset 32: dot_radius_px      f32      ← half of `dot_size_px`, likewise
-///   offset 36: dot_shape          u32      ← 0 Round, 1 Square
-///   offset 40: aperture_shape     u32      ← 0 Rect, 1 Circle
+///   offset 36: dot_shape          u32      ← 0 Round, 1 Square, 2 RoundSmooth
+///   offset 40: aperture_shape     u32      ← 0 Rect, 1 Ellipse
 ///   offset 44: aperture_invert    u32
 ///   offset 48: clip_per_pixel     u32      ← 0 when the CPU already culled by centre
 ///   offset 52: global_opacity     f32
-///   offset 56: _pad               [u32; 2] ← vec4 wants 16-byte alignment
+///   offset 56: pixel_snap         u32      ← centre dots on pixel centres
+///   offset 60: _pad               u32      ← vec4 wants 16-byte alignment
 ///   offset 64: dot_color          [f32; 4]
 ///   offset 80: alt_color          [f32; 4]
 #[repr(C)]
@@ -59,7 +60,8 @@ pub struct DotsPushConstants {
     pub aperture_invert: u32,
     pub clip_per_pixel: u32,
     pub global_opacity: f32,
-    pub _pad: [u32; 2],
+    pub pixel_snap: u32,
+    pub _pad: u32,
     pub dot_color: [f32; 4],
     pub alt_color: [f32; 4],
 }

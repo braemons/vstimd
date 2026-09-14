@@ -7,12 +7,11 @@ RDK, and, because the aperture is a separate thing from the field, the
 
 ```python
 from vstimd import Connection
-from vstimd.stimuli import Aperture, ApertureShape, DotsParams
+from vstimd.stimuli import DotsParams, Region
 
 with Connection() as conn:
     h = conn.stimuli.dots.create_dots(params=DotsParams(
-        field_width_px=400, field_height_px=400,
-        aperture=Aperture(shape=ApertureShape.CIRCLE, width_px=400),
+        field=Region.circle(400),
         dot_count=150, dot_size_px=8,
         direction_deg=0.0, speed_px_per_s=120.0, coherence=0.5,
         seed=1,
@@ -27,17 +26,18 @@ default"*, with two deliberate exceptions noted below.
 
 | Field | Default | Meaning |
 |---|---|---|
-| `field_width_px` | `0.0` → 800 px | Width of the rectangle dots live in and wrap around. Invisible — see [The field is not the aperture](#the-field-is-not-the-aperture). |
-| `field_height_px` | `0.0` → 600 px | Field height. |
+| `field` | `None` → an 800 × 600 px `Region.rect` | The [`Region`](#region) dots live in: where they are born, where they re-enter, and what `dot_count` counts. Invisible — see [The field is not the aperture](#the-field-is-not-the-aperture). A zero width or height takes the default's. |
 | `dot_count` | `0` → 200 | Number of dots in the field. A count, not a density — it is the number a methods section quotes; `dots_for_density` converts. |
-| `aperture` | a `Rect` the size of the field | Where dots are *visible*. See [Aperture](#aperture) below. |
+| `aperture` | `Aperture()` — the field itself | Where dots are *visible*. See [Aperture](#aperture) below. |
 | `dot_size_px` | `0.0` → 6 px | Dot **diameter**, never a radius. |
 | `dot_color` | white | RGBA in 0–1. |
 | `dot_color_alt` | `None` | A second colour, assigned per dot at birth with probability ½ — Psychtoolbox's `bwSameTrial`. `None` gives a single-colour field. |
-| `dot_shape` | `DotShape.ROUND` | `ROUND`, or `SQUARE` for Psychtoolbox's `dot_type=0`. |
+| `dot_shape` | `DotShape.ROUND` | `ROUND` (hard edge), `SQUARE` (Psychtoolbox's `dot_type` 0/4, PsychoPy's `DotStim`), or `ROUND_SMOOTH` (a one-pixel anti-aliased edge — Psychtoolbox's `dot_type` 1–3). |
+| `pixel_snap` | `False` | Centre each dot on a pixel centre and draw only the pixels strictly within its radius — see [Pixel-exact dots](#pixel-exact-dots). |
 | `direction_deg` | `0.0` | Direction of coherent motion, CCW, 0° = right — the same convention as `rotation_deg`. Psychtoolbox angles are mirrored; see [Porting](#porting-from-psychtoolbox). |
 | `speed_px_per_s` | `None` → 100 | Coherent speed, per **second**. Typed `float \| None` because `0.0` is a legitimate value — a static field. |
 | `coherence` | `None` → 1.0 | Fraction of dots carrying the coherent direction, `[0, 1]`. Also `float \| None`, because `0.0` means pure noise. Clamped server-side. |
+| `coherence_count` | `CoherenceCount.EXACT` | `EXACT`: exactly `round(coherence × dot_count)` signal dots on every frame. `BINOMIAL`: each dot independently. See [Coherence](#coherence-exact-or-binomial). |
 | `signal_rule` | `SignalRule.SAME` | Whether a dot's signal/noise role is fixed for its life. See [Motion rules](#motion-rules). |
 | `noise_rule` | `NoiseRule.DIRECTION` | How a noise dot moves. |
 | `reinsertion` | `Reinsertion.WRAP` | What happens to a dot leaving the field. |
@@ -47,15 +47,27 @@ default"*, with two deliberate exceptions noted below.
 There is no `rotation_deg` on a dot field: a field of dots has no orientation of
 its own, only a `direction_deg` on its motion.
 
+### Region
+
+One shape type serves both the field and the aperture, so a shape added once is
+available to both.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `shape` | `RegionShape.RECT` | `RECT` or `ELLIPSE`. A circle is an ellipse with equal width and height. |
+| `width_px` | `0.0` → the fallback's | Full extent, never a half-extent. |
+| `height_px` | `0.0` → the fallback's | Full extent. |
+| `offset_px` | `Vec2(0, 0)` | Centre relative to the stimulus position. |
+
+`Region.rect(w, h)`, `Region.ellipse(w, h)` and `Region.circle(diameter)` build
+one; each takes an optional `offset_px`.
+
 ### Aperture
 
 | Field | Default | Meaning |
 |---|---|---|
-| `shape` | `ApertureShape.RECT` | `RECT` or `CIRCLE`. For `CIRCLE`, `width_px` is the **diameter** and `height_px` is ignored. |
-| `width_px` | `0.0` → the field width | Full extent, never a half-extent. |
-| `height_px` | `0.0` → the field height | Full extent. |
-| `offset_px` | `Vec2(0, 0)` | Aperture centre relative to the stimulus position, which is the field centre. |
-| `invert` | `False` | Draw *outside* the shape instead of inside. This one flag is the whole of "background dots, everywhere but the figure". |
+| `region` | `None` → the field itself | Where dots are visible. A zero width or height takes the field's. |
+| `invert` | `False` | Draw *outside* the region instead of inside. This one flag is the whole of "background dots, everywhere but the figure". |
 | `clip` | `ApertureClip.DOT_CENTER` | How the edge cuts a dot — see [Clipping](#clipping-dot_center-vs-pixel). |
 
 ## The field is not the aperture
@@ -63,21 +75,23 @@ its own, only a `direction_deg` on its motion.
 Two separate things, and keeping them separate is what makes the second family of
 stimulus expressible:
 
-- the **field** is a rectangle (`field_width_px` × `field_height_px`, centred on the
-  stimulus position) where `dot_count` dots live and where `reinsertion` acts. It is
-  invisible;
-- the **aperture** is a mask over it, with its own shape, its own size, its own
-  `offset_px` from the field centre, and an `invert` flag.
+- the **field** is a region where `dot_count` dots live, are born and re-enter. It
+  is invisible, and `dot_count` dots are always inside it;
+- the **aperture** is a mask over it — a region of its own, with its own shape,
+  size and offset, and an `invert` flag. It never moves a dot or changes the count.
 
-For a classic RDK they coincide: a circular aperture the same size as the field, and
-the two behave as one thing. For a figure-ground RDK they must not. Its background
+For a classic RDK they coincide, and the aperture is best left unset: a circular
+field (`field=Region.circle(d)`) holds exactly `dot_count` dots in the circle and
+draws every one of them. This is PsychoPy's `fieldShape='circle'`. A circular
+*aperture* over a rectangular field would instead show a varying `π/4` of the dots,
+and the exact coherence count would no longer be a count of what is visible. For a figure-ground RDK they must not. Its background
 dots fill the screen while being visible only *outside* a circle, and its figure
 dots only inside the same circle — one field, one aperture, one `invert`:
 
 ```python
 from dataclasses import replace
 
-circle = Aperture(shape=ApertureShape.CIRCLE, width_px=900, offset_px=rf_center)
+circle = Aperture(region=Region.circle(900, offset_px=rf_center))
 ground = conn.stimuli.dots.create_dots(params=replace(
     common, aperture=replace(circle, invert=True), direction_deg=0.0, seed=1))
 figure = conn.stimuli.dots.create_dots(params=replace(
@@ -100,11 +114,26 @@ RDK behind a hard circular window.
 
 ## Appearance
 
-`dot_size_px` is a **diameter**, like every size in vstimd. `dot_shape` is
-`DotShape.ROUND` (the default) or `DotShape.SQUARE` — Psychtoolbox's
-`dot_type=0`. `dot_color` is the field's colour; `dot_color_alt`, left `None`
-for a single-colour field, assigns a second colour to each dot at birth with
-probability ½ — Psychtoolbox's `bwSameTrial`.
+`dot_size_px` is a **diameter**, like every size in vstimd. `dot_shape` is one of:
+
+| `DotShape` | Pixels drawn | Matches |
+|---|---|---|
+| `ROUND` | those whose centre is within the radius, hard-edged | — |
+| `SQUARE` | those whose centre is within the square | Psychtoolbox `dot_type` 0/4; PsychoPy `DotStim` |
+| `ROUND_SMOOTH` | a disc whose edge ramps over one pixel, blended | Psychtoolbox `dot_type` 1–3 |
+
+`dot_color` is the field's colour; `dot_color_alt`, left `None` for a single-colour
+field, assigns a second colour to each dot at birth with probability ½ —
+Psychtoolbox's `bwSameTrial`.
+
+### Pixel-exact dots
+
+`pixel_snap=True` reproduces a Psychtoolbox script that rounds each position to a
+pixel and blits a binary mask built as `sqrt(dx² + dy²) < radius`: the dot centre
+moves to the centre of the pixel it falls in, and exactly the pixels a whole number
+of pixels away and *strictly* within the radius are drawn. The mask has a hard edge
+whatever the `dot_shape`, except that `SQUARE` stays square. Motion is still
+integrated at sub-pixel precision; only the drawing is snapped.
 
 ## Mutating a live field
 
@@ -121,9 +150,10 @@ recreating it:
 | `set_dot_size(handle, dot_size_px)` | Dot diameter. |
 | `set_dot_color(handle, color, color_alt=None)` | Both colours together — omitting `color_alt` clears it. |
 | `set_aperture(handle, aperture)` | The whole `Aperture`, replaced in one call. |
-| `set_field_size(handle, width_px, height_px)` | The field rectangle. |
+| `set_field(handle, region)` | The field. A zero width or height keeps the current one; the aperture is left alone. |
 | `set_dot_lifetime(handle, dot_lifetime_frames)` | Frames before a dot is reborn. |
 | `set_seed(handle, seed)` | Reseeds the field: redraws the sample and restarts it at frame 0. Never deferred — a seed is not a value that can be half-applied. |
+| `set_params(handle, params)` | Every parameter at once, including those with no setter of their own (the motion rules, `coherence_count`, `dot_shape`, `pixel_snap`). `params.seed` is ignored — use `set_seed`. Send a complete block, typically a query's with `dataclasses.replace`. |
 
 ## Reproducibility
 
@@ -158,8 +188,11 @@ construction — a dot's lifetime group is its index modulo the lifetime — so 
 never flickers in lockstep, which is the classic way a hand-rolled RDK goes wrong.
 
 `reinsertion` decides what happens to a dot leaving the field: `WRAP` (the default)
-keeps density exactly constant, and because the wrap boundary is not the aperture
-boundary it leaks no edge cue. `RESPAWN` puts the dot at a fresh random position.
+keeps density constant, and because the wrap boundary is not the aperture boundary
+it leaks no edge cue. A rectangular field wraps each axis, like a torus; an
+elliptical one re-enters the dot where its line of motion enters the ellipse,
+carried in by the distance it overshot. `RESPAWN` puts the dot at a fresh uniform
+position in the field, which is PsychoPy's rule.
 
 ## The statistics of a field
 
@@ -173,7 +206,8 @@ sampling rules exactly, so a methods section can be written from it.
 At birth — which is frame 0 for every dot, and every `dot_lifetime_frames`
 thereafter — a dot draws four values from **its own** random stream, in order:
 
-1. a position, uniform over the field rectangle (independent in x and y);
+1. a position, uniform over the field — independent in x and y for a rectangle,
+   `√u` in radius for an ellipse — from exactly two draws either way;
 2. a direction, uniform on `[0, 2π)`, used only if it turns out to be a noise
    dot under `NoiseRule.DIRECTION`;
 3. a *signal roll*, uniform on `[0, 1)`;
@@ -191,29 +225,38 @@ in-tree and frozen by a test vector: its output stream is part of the
 scene-config format, not an implementation detail, because a config records a
 seed and nothing else about the sample.
 
-### Coherence is a per-dot Bernoulli, not a fixed count
+### Coherence: exact or binomial
 
-Every frame, a dot carries the signal **iff its signal roll is below the
-current `coherence`**. So the number of signal dots on a given frame is
+Under `CoherenceCount.EXACT` (the default) exactly
+
+    k = round(coherence × dot_count)
+
+dots carry the signal on every frame, rounding half to even as Python's `round`
+does — PsychoPy's rule, and what most Psychtoolbox scripts do by shuffling a
+fixed-size index set. At 100 dots and 10 % coherence that is 10 signal dots, every
+frame. `k` is recomputed from the current values each frame, so `set_coherence` and
+`set_dot_count` take effect on the next one.
+
+- Under `SignalRule.SAME` the signal dots are the first `k` by index. Positions and
+  lifetime groups owe nothing to index order, so this is no spatial or temporal
+  pattern, and the same dots keep the signal while `k` is unchanged.
+- Under `SignalRule.DIFFERENT` a fresh `k` of the dots are chosen every frame, by a
+  partial Fisher–Yates shuffle over a field-level random stream seeded from `seed`.
+
+An exact count couples the dots: raising `dot_count` changes `k`, and with it the
+role of some dots already in the field.
+
+Under `CoherenceCount.BINOMIAL` a dot carries the signal **iff its signal roll is
+below the current `coherence`**, so the number of signal dots on a frame is
 
     n_signal ~ Binomial(dot_count, coherence)
 
-with mean `coherence × dot_count` and SD `√(dot_count · c · (1 − c))` — *not*
-exactly `round(coherence × dot_count)`, which is what PsychoPy and most
-Psychtoolbox scripts produce by shuffling a fixed-size index set.
+with mean `coherence × dot_count` and SD `√(dot_count · c · (1 − c))` — at 100 dots
+and 50 % coherence an SD of 5 percentage points frame to frame. Its one advantage is
+that each dot's role depends on its own stream alone, so changing `dot_count` never
+changes the role of a dot already in the field.
 
-This matters at small `dot_count`. With 100 dots at 50 % coherence the
-realised coherence has an SD of 5 percentage points frame to frame; with 900
-dots it is 1.7. If your design needs the count pinned exactly — a
-single-interval task where the nominal coherence is the independent variable —
-either use enough dots that the binomial spread is small relative to your
-coherence steps, or report the nominal value and note the sampling rule. The
-choice here is deliberate: a per-dot threshold is what lets `set_coherence`
-take effect on the very next frame, moving dots across the threshold *in
-place*, which a shuffled fixed-size set cannot do without disturbing dots that
-should not have changed role.
-
-Because the roll is stored raw and re-tested every frame, `SignalRule.SAME`
+Under `BINOMIAL`, because the roll is stored raw and re-tested every frame, `SignalRule.SAME`
 means the *same subset* keeps carrying the signal for as long as the dots live
 (the roll only changes at rebirth), while `SignalRule.DIFFERENT` redraws the
 roll each frame, making a dot's role independent across frames.
@@ -249,8 +292,9 @@ rather than an unmodelled source of trial-to-trial variance.
 ### Density, lifetime and reinsertion
 
 `WRAP` (the default) conserves dot count exactly: no dot is ever created or
-destroyed by leaving the field, so density is constant by construction and
-identical in every region of the field. `RESPAWN` also conserves count, but
+destroyed by leaving the field. On a rectangle density is constant by construction;
+on an ellipse, re-entry along the line of motion keeps a uniform field uniform for
+straight-line motion. `RESPAWN` also conserves count, but
 redistributes: a dot leaving one edge reappears anywhere, so the field is
 uniform only in expectation and momentarily non-uniform in any one frame.
 
@@ -318,8 +362,14 @@ from vstimd.stimuli import direction_from_ptb_rad
 direction_from_ptb_rad(3 * math.pi / 2)   # 90.0
 ```
 
+**Dots are drawn the way the script draws them.** `Screen('DrawDots')` with
+`dot_type` 0 or 4 is `DotShape.SQUARE`, 1–3 is `DotShape.ROUND_SMOOTH`. A script
+that rounds positions and blits a `dist < radius` mask is `pixel_snap=True` — see
+[Pixel-exact dots](#pixel-exact-dots).
+
 From PsychoPy, `dotLife = -1` means infinite, which is `0` here —
-`lifetime_from_psychopy` translates.
+`lifetime_from_psychopy` translates. Or use `vstimd.psychopy.visual.DotStim`
+directly.
 
 ## Degrees of visual angle
 
@@ -358,7 +408,7 @@ sections are written in:
 
 | Package | Notes for a vstimd user |
 |---|---|
-| [PsychoPy `DotStim`](https://psychopy.org/api/visual/dotstim.html) | The closest relative: `signalDots` / `noiseDots` are exactly `signal_rule` / `noise_rule`, from the same Scase et al. taxonomy. Differences: `dotLife = -1` is infinite where vstimd uses `0` (`lifetime_from_psychopy` translates), sizes are in the window's units rather than always pixels, and the signal set is a fixed count rather than a per-dot Bernoulli (see [Coherence](#coherence-is-a-per-dot-bernoulli-not-a-fixed-count)). |
+| [PsychoPy `DotStim`](https://psychopy.org/api/visual/dotstim.html) | The closest relative, and drop-in through `vstimd.psychopy.visual.DotStim`, which sets `field` to its `fieldShape`, `dot_shape=SQUARE`, `reinsertion=RESPAWN` and `coherence_count=EXACT`. `signalDots` / `noiseDots` are exactly `signal_rule` / `noise_rule`. Differences: `dotLife = -1` is infinite where vstimd uses `0` (`lifetime_from_psychopy` translates), speeds are per frame there and per second here, and PsychoPy moves dots on each `draw()` where vstimd moves them on each display frame. |
 | [MWorks `moving_dots`](https://mworks.github.io/documentation/latest/components/moving_dots.html) | Specifies a **dot density** in dots/deg² and a field *radius*, deriving the count; vstimd stores the count, which `dots_for_density` converts to. Lifetime is in seconds there, frames here. Directions for noise dots are randomised per dot, matching `NoiseRule.DIRECTION`. |
 | Psychtoolbox (`DotDemo` and the many lab forks) | No single canonical implementation — each lab's script makes its own choices, which is precisely why `signal_rule`/`noise_rule` are explicit here. Two conversions always apply: radii → diameters, and clockwise/Y-down angles → CCW/Y-up (see [Porting from Psychtoolbox](#porting-from-psychtoolbox)). Aperture handling is typically a one-pixel mask test followed by a whole-dot blit, which is what `ApertureClip.DOT_CENTER` reproduces. |
 

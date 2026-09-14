@@ -9,7 +9,7 @@ from vstimd._proto.vstimd.v1.transform_pb2 import Transform2D
 from vstimd.response import ServerResponse
 
 from .color import Color
-from .dots_models import Aperture, DotsParams
+from .dots_models import Aperture, DotsParams, Region
 from .stimulus_identity import StimulusIdentity
 from .vec import Vec2
 
@@ -33,10 +33,9 @@ class DotsClient:
 
     Example — the figure-ground case::
 
-        circle = Aperture(shape=ApertureShape.CIRCLE,
-                          width_px=diameter_from_radius(radius_px),
-                          offset_px=rf_center)
-        common = DotsParams(field_width_px=1920, field_height_px=1080,
+        circle = Aperture(region=Region.circle(diameter_from_radius(radius_px),
+                                               offset_px=rf_center))
+        common = DotsParams(field=Region.rect(1920, 1080),
                             dot_count=166, dot_size_px=60, speed_px_per_s=1000)
         ground = conn.stimuli.dots.create_dots(params=replace(
             common, aperture=replace(circle, invert=True), direction_deg=0, seed=1))
@@ -139,14 +138,14 @@ class DotsClient:
             set_dots_aperture=dots_pb2.SetDotsApertureRequest(aperture=aperture.to_proto()),
         )))
 
-    def set_field_size(
-        self, handle: StimulusHandle, width_px: float, height_px: float
-    ) -> ServerResponse:
+    def set_field(self, handle: StimulusHandle, field: Region) -> ServerResponse:
+        """Set the field the dots live in. A zero extent keeps the current one.
+
+        The aperture is left alone, even one that was defaulted from the old field.
+        """
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_dots_field_size=dots_pb2.SetDotsFieldSizeRequest(
-                width_px=width_px, height_px=height_px,
-            ),
+            set_dots_field=dots_pb2.SetDotsFieldRequest(field=field.to_proto()),
         )))
 
     def set_dot_lifetime(self, handle: StimulusHandle, dot_lifetime_frames: int) -> ServerResponse:
@@ -156,6 +155,19 @@ class DotsClient:
             set_dots_lifetime=dots_pb2.SetDotsLifetimeRequest(
                 dot_lifetime_frames=dot_lifetime_frames,
             ),
+        )))
+
+    def set_params(self, handle: StimulusHandle, params: DotsParams) -> ServerResponse:
+        """Replace every parameter at once — the way to change the motion rules, the
+        field shape and anything else without a setter of its own.
+
+        ``params.seed`` is ignored: the field keeps its sample. Use :meth:`set_seed`
+        to restart it. Zero-means-default applies as on create, so send a complete
+        block — typically a query's, modified with ``dataclasses.replace``.
+        """
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            stimulus=handle,
+            set_dots_params=dots_pb2.SetDotsParamsRequest(params=params.to_proto()),
         )))
 
     def set_seed(self, handle: StimulusHandle, seed: int) -> ServerResponse:

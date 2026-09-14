@@ -39,6 +39,16 @@ impl DotsRng {
         Self::new(seed ^ splitmix64(index as u64).rotate_left(32))
     }
 
+    /// The field-level stream that picks which dots carry the signal under
+    /// `CoherenceCount::Exact` with `SignalRule::Different`.
+    ///
+    /// An exact count couples the dots — choosing `k` of `n` is one draw over the
+    /// whole field — so it cannot come from the per-dot streams. It gets a stream of
+    /// its own, so that it takes nothing from them either.
+    pub fn for_roles(seed: u64) -> Self {
+        Self::new(seed ^ 0xD07_5EED_0000_0000 ^ splitmix64(u64::MAX))
+    }
+
     /// Seed the generator, whitening through SplitMix64 first.
     pub fn new(seed: u64) -> Self {
         let mut rng = Self { state: splitmix64(seed) };
@@ -76,6 +86,15 @@ impl DotsRng {
     pub fn unit_vector(&mut self) -> [f32; 2] {
         let theta = self.f32_01() * std::f32::consts::TAU;
         [theta.cos(), theta.sin()]
+    }
+
+    /// Uniform in `0..n` for `n > 0`, from exactly one output.
+    ///
+    /// Multiply-shift without Lemire's rejection step: rejection would make the draw
+    /// count depend on the values drawn. The bias is below `n / 2³²`, which for a dot
+    /// count is invisible.
+    pub fn below(&mut self, n: u32) -> u32 {
+        ((u64::from(self.next_u32()) * u64::from(n)) >> 32) as u32
     }
 
     /// True with probability `p`. `p <= 0` is never, `p >= 1` is always — but the
@@ -160,6 +179,18 @@ mod tests {
         assert!(a.iter().all(|v| *v == a[0]));
         assert_ne!(DotsRng::for_dot(3, 99).next_u32(), DotsRng::for_dot(4, 99).next_u32());
         assert_ne!(DotsRng::for_dot(3, 99).next_u32(), DotsRng::for_dot(3, 98).next_u32());
+    }
+
+    #[test]
+    fn below_stays_in_range_and_covers_it() {
+        let mut rng = DotsRng::new(5);
+        let mut seen = [false; 7];
+        for _ in 0..1000 {
+            let v = rng.below(7);
+            assert!(v < 7);
+            seen[v as usize] = true;
+        }
+        assert!(seen.iter().all(|s| *s));
     }
 
     #[test]

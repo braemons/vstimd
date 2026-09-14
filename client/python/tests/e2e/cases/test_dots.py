@@ -17,10 +17,11 @@ from vstimd import Connection
 from vstimd.stimuli import (
     Aperture,
     ApertureClip,
-    ApertureShape,
     DotShape,
     DotsParams,
     NoiseRule,
+    Region,
+    RegionShape,
     StimulusType,
     diameter_from_radius,
     direction_from_ptb_rad,
@@ -38,11 +39,10 @@ from ._helpers import Stage
 def test_create_dots(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
-            field_width_px=400,
-            field_height_px=400,
+            field=Region.rect(400, 400),
             dot_count=150,
             dot_size_px=8,
-            aperture=Aperture(shape=ApertureShape.CIRCLE, width_px=400),
+            aperture=Aperture(region=Region.circle(400)),
             direction_deg=0.0,
             speed_px_per_s=120.0,
             coherence=1.0,
@@ -57,9 +57,11 @@ def test_create_dots(conn: Connection, stage: Stage) -> None:
     assert info.params.dot_count == 150
     assert info.params.dot_size_px == pytest.approx(8.0, abs=0.5)
     assert info.params.coherence == pytest.approx(1.0)
-    assert info.params.aperture.shape == ApertureShape.CIRCLE
+    region = info.params.aperture.region
+    assert region is not None and region.shape == RegionShape.ELLIPSE
     # Sized by its diameter, not its radius.
-    assert info.params.aperture.width_px == pytest.approx(400.0, abs=0.5)
+    assert region.width_px == pytest.approx(400.0, abs=0.5)
+    assert region.height_px == pytest.approx(400.0, abs=0.5)
 
     stage.hold()
     conn.stimuli.delete(handle)
@@ -80,9 +82,9 @@ def test_dots_coherence(conn: Connection, stage: Stage) -> None:
         return conn.stimuli.dots.create_dots(
             position_px=Vec2(x, 0.0),
             params=DotsParams(
-                field_width_px=third * 0.9, field_height_px=third * 0.9,
+                field=Region.rect(third * 0.9, third * 0.9),
                 dot_count=200, dot_size_px=8,
-                aperture=Aperture(shape=ApertureShape.CIRCLE, width_px=third * 0.9),
+                aperture=Aperture(region=Region.circle(third * 0.9)),
                 speed_px_per_s=150.0, coherence=coherence,
                 noise_rule=NoiseRule.DIRECTION, seed=2,
             ),
@@ -111,7 +113,7 @@ def test_dots_coherence(conn: Connection, stage: Stage) -> None:
 def test_dots_direction_changes_are_continuous(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
-            field_width_px=600, field_height_px=600, dot_count=200, dot_size_px=8,
+            field=Region.rect(600, 600), dot_count=200, dot_size_px=8,
             speed_px_per_s=200.0, coherence=1.0, seed=3,
         ),
     )
@@ -132,7 +134,7 @@ def test_dots_direction_changes_are_continuous(conn: Connection, stage: Stage) -
 def test_dots_two_colors(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
-            field_width_px=500, field_height_px=500, dot_count=250, dot_size_px=10,
+            field=Region.rect(500, 500), dot_count=250, dot_size_px=10,
             dot_color=Color(1.0, 1.0, 1.0), dot_color_alt=Color(0.0, 0.0, 0.0),
             speed_px_per_s=120.0, seed=4,
         ),
@@ -158,7 +160,7 @@ def test_dots_shape(conn: Connection, stage: Stage) -> None:
     for shape in (DotShape.SQUARE, DotShape.ROUND):
         handle = conn.stimuli.dots.create_dots(
             params=DotsParams(
-                field_width_px=400, field_height_px=400, dot_count=60,
+                field=Region.rect(400, 400), dot_count=60,
                 dot_size_px=24, dot_shape=shape, speed_px_per_s=60.0, seed=5,
             ),
         )
@@ -178,7 +180,7 @@ def test_dots_shape(conn: Connection, stage: Stage) -> None:
 def test_dots_lifetime_does_not_flicker_in_lockstep(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
-            field_width_px=500, field_height_px=500, dot_count=200, dot_size_px=8,
+            field=Region.rect(500, 500), dot_count=200, dot_size_px=8,
             speed_px_per_s=150.0, dot_lifetime_frames=10, seed=6,
         ),
     )
@@ -202,7 +204,7 @@ def test_dots_lifetime_does_not_flicker_in_lockstep(conn: Connection, stage: Sta
 )
 def test_dots_seed_reproduces(conn: Connection, stage: Stage) -> None:
     params = DotsParams(
-        field_width_px=400, field_height_px=400, dot_count=100, dot_size_px=10,
+        field=Region.rect(400, 400), dot_count=100, dot_size_px=10,
         speed_px_per_s=0.0, seed=7,
     )
     a = conn.stimuli.dots.create_dots(params=params)
@@ -234,14 +236,11 @@ def test_figure_ground(conn: Connection, stage: Stage) -> None:
     px_per_deg = screen[0] / 96.0
 
     circle = Aperture(
-        shape=ApertureShape.CIRCLE,
-        width_px=diameter_from_radius(45.0 / 2.0) * px_per_deg,
-        offset_px=Vec2(0.0, 0.0),
+        region=Region.circle(diameter_from_radius(45.0 / 2.0) * px_per_deg),
         clip=ApertureClip.DOT_CENTER,
     )
     common = dict(
-        field_width_px=screen[0],
-        field_height_px=screen[1],
+        field=Region.rect(screen[0], screen[1]),
         dot_count=round((screen[0] / px_per_deg) * (screen[1] / px_per_deg) / 25.0),
         dot_size_px=diameter_from_radius(1.5) * px_per_deg,
         speed_px_per_s=50.0 * px_per_deg,

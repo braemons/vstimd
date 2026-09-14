@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import dataclasses
 import math
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import StrEnum
 
 from vstimd._proto.vstimd.v1.stimuli import dots_pb2
@@ -11,14 +12,29 @@ from .vec import Vec2
 
 
 class DotShape(StrEnum):
+    #: A hard-edged disc.
     ROUND = "round"
-    #: What Psychtoolbox's ``dot_type=0`` gives.
+    #: What Psychtoolbox's ``dot_type`` 0/4 and PsychoPy's ``DotStim`` give.
     SQUARE = "square"
+    #: A disc with a one-pixel anti-aliased edge: Psychtoolbox's ``dot_type`` 1–3.
+    ROUND_SMOOTH = "roundSmooth"
 
 
-class ApertureShape(StrEnum):
+class RegionShape(StrEnum):
     RECT = "rect"
-    CIRCLE = "circle"
+    #: A circle is an ellipse with equal width and height — see :meth:`Region.circle`.
+    ELLIPSE = "ellipse"
+
+
+class CoherenceCount(StrEnum):
+    """How many dots carry the signal."""
+
+    #: Exactly ``round(coherence * dot_count)``, rounding half to even — PsychoPy's
+    #: rule. 10 of 100 dots at coherence 0.1, on every frame. The default.
+    EXACT = "exact"
+    #: Each dot independently with probability ``coherence``, so the count varies
+    #: binomially from frame to frame.
+    BINOMIAL = "binomial"
 
 
 class ApertureClip(StrEnum):
@@ -71,14 +87,21 @@ class Reinsertion(StrEnum):
 _DOT_SHAPE_TO_PROTO = {
     DotShape.ROUND: dots_pb2.DOT_SHAPE_ROUND,
     DotShape.SQUARE: dots_pb2.DOT_SHAPE_SQUARE,
+    DotShape.ROUND_SMOOTH: dots_pb2.DOT_SHAPE_ROUND_SMOOTH,
 }
 _PROTO_TO_DOT_SHAPE = {v: k for k, v in _DOT_SHAPE_TO_PROTO.items()}
 
-_APERTURE_SHAPE_TO_PROTO = {
-    ApertureShape.RECT: dots_pb2.APERTURE_SHAPE_RECT,
-    ApertureShape.CIRCLE: dots_pb2.APERTURE_SHAPE_CIRCLE,
+_REGION_SHAPE_TO_PROTO = {
+    RegionShape.RECT: dots_pb2.REGION_SHAPE_RECT,
+    RegionShape.ELLIPSE: dots_pb2.REGION_SHAPE_ELLIPSE,
 }
-_PROTO_TO_APERTURE_SHAPE = {v: k for k, v in _APERTURE_SHAPE_TO_PROTO.items()}
+_PROTO_TO_REGION_SHAPE = {v: k for k, v in _REGION_SHAPE_TO_PROTO.items()}
+
+_COHERENCE_COUNT_TO_PROTO = {
+    CoherenceCount.EXACT: dots_pb2.COHERENCE_COUNT_EXACT,
+    CoherenceCount.BINOMIAL: dots_pb2.COHERENCE_COUNT_BINOMIAL,
+}
+_PROTO_TO_COHERENCE_COUNT = {v: k for k, v in _COHERENCE_COUNT_TO_PROTO.items()}
 
 _APERTURE_CLIP_TO_PROTO = {
     ApertureClip.DOT_CENTER: dots_pb2.APERTURE_CLIP_DOT_CENTER,
@@ -107,29 +130,72 @@ _PROTO_TO_REINSERTION = {v: k for k, v in _REINSERTION_TO_PROTO.items()}
 
 
 @dataclass
+class Region:
+    """A shape placed relative to the stimulus position.
+
+    The one shape type the field and the aperture share. ``width_px``/``height_px``
+    are full extents, never half-extents: a circle of radius ``r`` is an
+    ``ELLIPSE`` of ``2r × 2r`` — build one with :meth:`circle`. Psychtoolbox scripts
+    specify radii; double them (see :func:`diameter_from_radius`).
+
+    A zero width or height takes the fallback's: for a field, the server default;
+    for an aperture, the field's.
+    """
+
+    shape: RegionShape = RegionShape.RECT
+    width_px: float = 0.0
+    height_px: float = 0.0
+    #: Centre relative to the stimulus position.
+    offset_px: Vec2 = dataclasses.field(default_factory=lambda: Vec2(0.0, 0.0))
+
+    @classmethod
+    def rect(cls, width_px: float, height_px: float,
+             offset_px: Vec2 | None = None) -> Region:
+        return cls(RegionShape.RECT, width_px, height_px, offset_px or Vec2(0.0, 0.0))
+
+    @classmethod
+    def ellipse(cls, width_px: float, height_px: float,
+                offset_px: Vec2 | None = None) -> Region:
+        return cls(RegionShape.ELLIPSE, width_px, height_px, offset_px or Vec2(0.0, 0.0))
+
+    @classmethod
+    def circle(cls, diameter_px: float, offset_px: Vec2 | None = None) -> Region:
+        """A circle, sized by its **diameter**."""
+        return cls.ellipse(diameter_px, diameter_px, offset_px)
+
+    @classmethod
+    def from_proto(cls, proto: dots_pb2.Region) -> Region:
+        return cls(
+            shape=_PROTO_TO_REGION_SHAPE.get(proto.shape, RegionShape.RECT),
+            width_px=proto.width_px,
+            height_px=proto.height_px,
+            offset_px=Vec2(proto.offset_x_px, proto.offset_y_px),
+        )
+
+    def to_proto(self) -> dots_pb2.Region:
+        return dots_pb2.Region(
+            shape=_REGION_SHAPE_TO_PROTO[self.shape],
+            width_px=self.width_px,
+            height_px=self.height_px,
+            offset_x_px=self.offset_px.x,
+            offset_y_px=self.offset_px.y,
+        )
+
+
+@dataclass
 class Aperture:
     """Where dots are *visible* — a separate thing from the field they live in.
 
     Conflating the two is invisible for a classic RDK, where the aperture is the
     field, and fatal for a figure-ground one: its background dots must fill the
     screen while being visible only outside a circle, and its figure dots only
-    inside the same circle. Hence a mask with its own size, its own offset, and an
-    ``invert`` flag, over a field that is always a plain rectangle.
-
-    ``width_px``/``height_px`` are full extents, never half-extents. For
-    ``CIRCLE``, ``width_px`` is the **diameter** and ``height_px`` is ignored.
-    Psychtoolbox scripts specify a radius — double it (see
-    :func:`diameter_from_radius`).
-
-    Zero width or height means "the field", i.e. no crop in that axis.
+    inside the same circle. Hence a mask with its own region and an ``invert``
+    flag, over a field that is a region of its own.
     """
 
-    shape: ApertureShape = ApertureShape.RECT
-    width_px: float = 0.0
-    height_px: float = 0.0
-    #: Aperture centre relative to the stimulus position, which is the field centre.
-    offset_px: Vec2 = field(default_factory=lambda: Vec2(0.0, 0.0))
-    #: Draw *outside* the shape. This is the whole of "background dots, everywhere
+    #: ``None`` → the field itself, which hides nothing.
+    region: Region | None = None
+    #: Draw *outside* the region. This is the whole of "background dots, everywhere
     #: but the figure".
     invert: bool = False
     clip: ApertureClip = ApertureClip.DOT_CENTER
@@ -137,24 +203,19 @@ class Aperture:
     @classmethod
     def from_proto(cls, proto: dots_pb2.Aperture) -> Aperture:
         return cls(
-            shape=_PROTO_TO_APERTURE_SHAPE.get(proto.shape, ApertureShape.RECT),
-            width_px=proto.width_px,
-            height_px=proto.height_px,
-            offset_px=Vec2(proto.offset_x_px, proto.offset_y_px),
+            region=Region.from_proto(proto.region) if proto.HasField("region") else None,
             invert=proto.invert,
             clip=_PROTO_TO_APERTURE_CLIP.get(proto.clip, ApertureClip.DOT_CENTER),
         )
 
     def to_proto(self) -> dots_pb2.Aperture:
-        return dots_pb2.Aperture(
-            shape=_APERTURE_SHAPE_TO_PROTO[self.shape],
-            width_px=self.width_px,
-            height_px=self.height_px,
-            offset_x_px=self.offset_px.x,
-            offset_y_px=self.offset_px.y,
+        proto = dots_pb2.Aperture(
             invert=self.invert,
             clip=_APERTURE_CLIP_TO_PROTO[self.clip],
         )
+        if self.region is not None:
+            proto.region.CopyFrom(self.region.to_proto())
+        return proto
 
 
 @dataclass
@@ -173,24 +234,29 @@ class DotsParams:
     it. Record the seed; do not leave it to chance.
     """
 
-    # ── field: where dots live and wrap; invisible ──
-    field_width_px: float = 0.0
-    field_height_px: float = 0.0
+    # ── field: where dots live, are born and re-enter; invisible ──
+    #: ``dot_count`` dots are always inside it. An ``ELLIPSE`` field is PsychoPy's
+    #: ``fieldShape='circle'``. ``None`` → the server default, 800 × 600.
+    field: Region | None = None
     #: Stored rather than derived from a density, because this is the number a
     #: methods section quotes. See :func:`dots_for_density` for the conversion.
     dot_count: int = 0
 
     # ── aperture: where dots are visible ──
-    aperture: Aperture = field(default_factory=Aperture)
+    aperture: Aperture = dataclasses.field(default_factory=Aperture)
 
     # ── appearance ──
     #: Dot **diameter**, not radius.
     dot_size_px: float = 0.0
-    dot_color: Color = field(default_factory=lambda: Color(1.0, 1.0, 1.0, 1.0))
+    dot_color: Color = dataclasses.field(default_factory=lambda: Color(1.0, 1.0, 1.0, 1.0))
     #: A second colour, assigned to each dot at birth with probability ½ —
     #: Psychtoolbox's ``bwSameTrial``. ``None`` gives a single-colour field.
     dot_color_alt: Color | None = None
     dot_shape: DotShape = DotShape.ROUND
+    #: Centre each dot on a pixel centre and draw only the pixels strictly within its
+    #: radius — a Psychtoolbox script that rounds positions and blits a
+    #: ``dist < radius`` mask.
+    pixel_snap: bool = False
 
     # ── motion ──
     #: CCW, 0° = right — the same convention as ``rotation_deg``. Psychtoolbox
@@ -201,6 +267,7 @@ class DotsParams:
     speed_px_per_s: float | None = None
     #: Fraction of dots carrying the coherent direction, [0, 1]. ``None`` → 1.
     coherence: float | None = None
+    coherence_count: CoherenceCount = CoherenceCount.EXACT
     signal_rule: SignalRule = SignalRule.SAME
     noise_rule: NoiseRule = NoiseRule.DIRECTION
     reinsertion: Reinsertion = Reinsertion.WRAP
@@ -223,17 +290,19 @@ class DotsParams:
             else Color(1.0, 1.0, 1.0, 1.0)
         )
         return cls(
-            field_width_px=proto.field_width_px,
-            field_height_px=proto.field_height_px,
+            field=Region.from_proto(proto.field) if proto.HasField("field") else None,
             dot_count=proto.dot_count,
             aperture=Aperture.from_proto(proto.aperture),
             dot_size_px=proto.dot_size_px,
             dot_color=color,
             dot_color_alt=alt,
             dot_shape=_PROTO_TO_DOT_SHAPE.get(proto.dot_shape, DotShape.ROUND),
+            pixel_snap=proto.pixel_snap,
             direction_deg=proto.direction_deg,
             speed_px_per_s=proto.speed_px_per_s if proto.HasField("speed_px_per_s") else None,
             coherence=proto.coherence if proto.HasField("coherence") else None,
+            coherence_count=_PROTO_TO_COHERENCE_COUNT.get(
+                proto.coherence_count, CoherenceCount.EXACT),
             signal_rule=_PROTO_TO_SIGNAL_RULE.get(proto.signal_rule, SignalRule.SAME),
             noise_rule=_PROTO_TO_NOISE_RULE.get(proto.noise_rule, NoiseRule.DIRECTION),
             reinsertion=_PROTO_TO_REINSERTION.get(proto.reinsertion, Reinsertion.WRAP),
@@ -243,22 +312,24 @@ class DotsParams:
 
     def to_proto(self) -> dots_pb2.DotsParams:
         proto = dots_pb2.DotsParams(
-            field_width_px=self.field_width_px,
-            field_height_px=self.field_height_px,
             dot_count=self.dot_count,
             aperture=self.aperture.to_proto(),
             dot_size_px=self.dot_size_px,
             dot_color=self.dot_color.to_proto(),
             dot_shape=_DOT_SHAPE_TO_PROTO[self.dot_shape],
+            pixel_snap=self.pixel_snap,
             direction_deg=self.direction_deg,
+            coherence_count=_COHERENCE_COUNT_TO_PROTO[self.coherence_count],
             signal_rule=_SIGNAL_RULE_TO_PROTO[self.signal_rule],
             noise_rule=_NOISE_RULE_TO_PROTO[self.noise_rule],
             reinsertion=_REINSERTION_TO_PROTO[self.reinsertion],
             dot_lifetime_frames=self.dot_lifetime_frames,
             seed=self.seed,
         )
-        # Set only when given: absence is what carries "use the default" for these
-        # three, since zero is a value each of them can legitimately take.
+        # Set only when given: absence is what carries "use the default" for these,
+        # since zero is a value each of them can legitimately take.
+        if self.field is not None:
+            proto.field.CopyFrom(self.field.to_proto())
         if self.dot_color_alt is not None:
             proto.dot_color_alt.CopyFrom(self.dot_color_alt.to_proto())
         if self.speed_px_per_s is not None:

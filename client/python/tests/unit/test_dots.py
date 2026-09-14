@@ -15,11 +15,13 @@ import pytest
 from vstimd.stimuli import (
     Aperture,
     ApertureClip,
-    ApertureShape,
+    CoherenceCount,
     Color,
     DotShape,
     DotsParams,
     NoiseRule,
+    Region,
+    RegionShape,
     Reinsertion,
     SignalRule,
     Vec2,
@@ -83,26 +85,25 @@ def test_px_per_deg_scales_with_distance():
 
 def test_params_round_trip_through_proto():
     sent = DotsParams(
-        field_width_px=1920.0,
-        field_height_px=1080.0,
+        field=Region.ellipse(1920.0, 1080.0, offset_px=Vec2(4.0, -2.0)),
         dot_count=207,
         aperture=Aperture(
-            shape=ApertureShape.CIRCLE,
-            width_px=900.0,
-            offset_px=Vec2(200.0, -150.0),
+            region=Region.circle(900.0, offset_px=Vec2(200.0, -150.0)),
             invert=True,
             clip=ApertureClip.PIXEL,
         ),
         dot_size_px=60.0,
         dot_color=Color(1.0, 1.0, 1.0, 1.0),
         dot_color_alt=Color(0.0, 0.0, 0.0, 1.0),
-        dot_shape=DotShape.SQUARE,
+        dot_shape=DotShape.ROUND_SMOOTH,
+        pixel_snap=True,
         direction_deg=90.0,
         speed_px_per_s=1000.0,
         # Exactly representable in the float32 the wire carries; a value like
         # 0.35 would come back as 0.34999999 and the comparison would be about
         # float widths rather than about the round trip.
         coherence=0.375,
+        coherence_count=CoherenceCount.BINOMIAL,
         signal_rule=SignalRule.DIFFERENT,
         noise_rule=NoiseRule.WALK,
         reinsertion=Reinsertion.RESPAWN,
@@ -134,5 +135,23 @@ def test_no_alt_color_by_default():
 
 
 def test_inverted_aperture_round_trips():
-    a = Aperture(shape=ApertureShape.CIRCLE, width_px=900.0, invert=True)
+    a = Aperture(region=Region.circle(900.0), invert=True)
     assert Aperture.from_proto(a.to_proto()) == a
+
+
+def test_a_circle_is_an_ellipse_sized_by_diameter():
+    c = Region.circle(90.0, offset_px=Vec2(1.0, 2.0))
+    assert c == Region(RegionShape.ELLIPSE, 90.0, 90.0, Vec2(1.0, 2.0))
+
+
+def test_unset_field_and_aperture_region_stay_unset():
+    """Absence is what asks for the default field, and for an aperture that is the
+    field itself — a zero-sized Region would mean something else."""
+    back = DotsParams.from_proto(DotsParams().to_proto())
+    assert back.field is None
+    assert back.aperture.region is None
+
+
+def test_exact_coherence_is_the_default():
+    assert DotsParams().coherence_count == CoherenceCount.EXACT
+    assert DotsParams.from_proto(DotsParams().to_proto()).coherence_count == CoherenceCount.EXACT

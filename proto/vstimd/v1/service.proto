@@ -124,9 +124,10 @@ message Request {
     SetDotsSizeRequest set_dots_size = 144;
     SetDotsColorRequest set_dots_color = 145;
     SetDotsApertureRequest set_dots_aperture = 146;
-    SetDotsFieldSizeRequest set_dots_field_size = 147;
+    SetDotsFieldRequest set_dots_field = 147;
     SetDotsLifetimeRequest set_dots_lifetime = 148;
     SetDotsSeedRequest set_dots_seed = 149;
+    SetDotsParamsRequest set_dots_params = 150;
 
     // ── System mutations (system target only) ───────────────────────────────
     SwapDrawOrderRequest swap_draw_order = 74;

@@ -36,7 +36,7 @@ pub(super) use condition::{
     condition_to_proto,
 };
 pub(super) use dots::{
-    aperture_from_proto, dots_params_from_proto, dots_params_to_proto,
+    aperture_from_proto, dots_params_from_proto, dots_params_to_proto, region_from_proto,
 };
 pub(super) use grating::{
     grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,

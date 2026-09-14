@@ -13,8 +13,8 @@ mod transform2d;
 mod transform3d;
 
 pub use dots::{
-    Aperture, ApertureClip, ApertureShape, DotShape, Dots, DotsConfig, DotsParams, NoiseRule,
-    Reinsertion, SignalRule,
+    Aperture, ApertureClip, CoherenceCount, DotShape, Dots, DotsConfig, DotsParams, NoiseRule,
+    Region, RegionShape, Reinsertion, SignalRule,
 };
 pub use grating::{Grating, GratingMask, GratingParams, Waveform};
 pub use mesh3d::{Mesh3d, Mesh3dGeometry, MeshKey};

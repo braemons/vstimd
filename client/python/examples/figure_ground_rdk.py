@@ -40,10 +40,10 @@ from vstimd import Connection
 from vstimd.stimuli import (
     Aperture,
     ApertureClip,
-    ApertureShape,
     Color,
     DotsParams,
     NoiseRule,
+    Region,
     Reinsertion,
     SignalRule,
     Vec2,
@@ -76,8 +76,7 @@ def build_params() -> tuple[DotsParams, Aperture]:
     field_h_deg = SCREEN_PX[1] / ppd
 
     common = DotsParams(
-        field_width_px=float(SCREEN_PX[0]),
-        field_height_px=float(SCREEN_PX[1]),
+        field=Region.rect(float(SCREEN_PX[0]), float(SCREEN_PX[1])),
         # The MATLAB generates a 161 × 161 lattice, jittered by about twice its own
         # spacing — which is a uniform random field at this density, not a lattice.
         dot_count=dots_for_density(
@@ -97,9 +96,10 @@ def build_params() -> tuple[DotsParams, Aperture]:
         dot_lifetime_frames=0,  # the original never reborns a dot
     )
     figure_circle = Aperture(
-        shape=ApertureShape.CIRCLE,
-        width_px=diameter_from_radius(FIGURE_RADIUS_DEG) * ppd,
-        offset_px=Vec2(RF_CENTER_DEG[0] * ppd, RF_CENTER_DEG[1] * ppd),
+        region=Region.circle(
+            diameter_from_radius(FIGURE_RADIUS_DEG) * ppd,
+            offset_px=Vec2(RF_CENTER_DEG[0] * ppd, RF_CENTER_DEG[1] * ppd),
+        ),
         # Dots overhang the boundary uncut, as the MATLAB's centre-pixel test does.
         # Cutting them would draw a crisp circle — a static form cue, which is
         # exactly what a motion-defined figure must not have.

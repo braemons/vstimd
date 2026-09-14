@@ -7,6 +7,23 @@ versioned independently of the vstimd server.
 
 ## [Unreleased]
 
+### Added
+
+- **`visual.DotStim`**, the PsychoPy random dot kinematogram, on the server's dot
+  field. It reproduces PsychoPy's rules — `nDots` dots inside a rectangular or
+  elliptical field, exactly `round(coherence × nDots)` signal dots, respawn on
+  leaving, square aliased dots — with `speed` converted from per-frame to per-second
+  at the nominal refresh rate. Dots move on every display frame rather than on each
+  `draw()`, and a `seed=` extension makes the field replayable (a random one is
+  drawn and recorded when omitted).
+- **Dot fields match PsychoPy and Psychtoolbox exactly.** `DotsParams.field` is a
+  `Region` — `Region.rect`, `Region.ellipse`, `Region.circle` — so an elliptical
+  field holds every dot inside it; `coherence_count` is `CoherenceCount.EXACT`
+  (the new default) or `BINOMIAL`; `DotShape.ROUND_SMOOTH` is Psychtoolbox's
+  anti-aliased `dot_type` 1–3; and `pixel_snap` reproduces a script that rounds
+  positions and blits a `dist < radius` mask. `conn.stimuli.dots.set_params`
+  replaces every parameter but the seed.
+
 ### Changed — breaking
 
 The API-consistency pass before the first release. No aliases are kept: the
@@ -108,6 +125,13 @@ server and the client move together, and nothing has shipped yet.
   same script now yields the same frame counts on every run; the measurement moved
   to `measured_frame_rate_hz` for monitoring
   ([#120](https://github.com/braemons/vstimd/issues/120)).
+
+- **Dot fields share one shape type.** `DotsParams.field_width_px`/`field_height_px`
+  → `field: Region`; `Aperture.shape`/`width_px`/`height_px`/`offset_px` →
+  `Aperture.region: Region` (`None` is the field itself); `ApertureShape` →
+  `RegionShape`, whose `CIRCLE` is `ELLIPSE` sized on both axes;
+  `set_field_size(handle, w, h)` → `set_field(handle, region)`. Coherence now
+  defaults to an exact count rather than a per-dot probability.
 
 - **Text field names agree across the three places they appear.**
   `CreateTextRequest.size` → `box_size_px` (matching the config field and the

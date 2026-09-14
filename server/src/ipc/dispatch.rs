@@ -114,9 +114,11 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::SetDotsSize(c)) => format!("SetDotsSize({:.1})", c.dot_size_px),
         Some(request::Body::SetDotsColor(_)) => "SetDotsColor".into(),
         Some(request::Body::SetDotsAperture(_)) => "SetDotsAperture".into(),
-        Some(request::Body::SetDotsFieldSize(c)) => {
-            format!("SetDotsFieldSize({:.0}×{:.0})", c.width_px, c.height_px)
-        }
+        Some(request::Body::SetDotsParams(_)) => "SetDotsParams".into(),
+        Some(request::Body::SetDotsField(c)) => match c.field {
+            Some(f) => format!("SetDotsField({:.0}×{:.0})", f.width_px, f.height_px),
+            None => "SetDotsField".into(),
+        },
         Some(request::Body::SetDotsLifetime(c)) => {
             format!("SetDotsLifetime({} frames)", c.dot_lifetime_frames)
         }
@@ -431,7 +433,8 @@ impl SceneState {
             request::Body::SetDotsSize(cmd) => self.cmd_set_dots_size(handle, cmd),
             request::Body::SetDotsColor(cmd) => self.cmd_set_dots_color(handle, cmd),
             request::Body::SetDotsAperture(cmd) => self.cmd_set_dots_aperture(handle, cmd),
-            request::Body::SetDotsFieldSize(cmd) => self.cmd_set_dots_field_size(handle, cmd),
+            request::Body::SetDotsField(cmd) => self.cmd_set_dots_field(handle, cmd),
+            request::Body::SetDotsParams(cmd) => self.cmd_set_dots_params(handle, cmd),
             request::Body::SetDotsLifetime(cmd) => self.cmd_set_dots_lifetime(handle, cmd),
             request::Body::SetDotsSeed(cmd) => self.cmd_set_dots_seed(handle, cmd),
             request::Body::SetText(cmd) => self.cmd_set_text(handle, cmd),

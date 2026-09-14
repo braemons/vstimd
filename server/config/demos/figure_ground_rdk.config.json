@@ -47,21 +47,30 @@
               "angle_deg": 0.0
             },
             "params": {
-              "field_size_px": [
-                1920.0,
-                1080.0
-              ],
-              "dot_count": 900,
-              "aperture": {
-                "shape": "Circle",
+              "field": {
+                "shape": "Rect",
                 "size_px": [
-                  500.0,
-                  500.0
+                  1920.0,
+                  1080.0
                 ],
                 "offset_px": [
                   0.0,
                   0.0
-                ],
+                ]
+              },
+              "dot_count": 900,
+              "aperture": {
+                "region": {
+                  "shape": "Ellipse",
+                  "size_px": [
+                    500.0,
+                    500.0
+                  ],
+                  "offset_px": [
+                    0.0,
+                    0.0
+                  ]
+                },
                 "invert": true,
                 "clip": "DotCenter"
               },
@@ -74,9 +83,11 @@
               ],
               "dot_color_alt": null,
               "dot_shape": "Round",
+              "pixel_snap": false,
               "direction_deg": 0.0,
               "speed_px_per_s": 200.0,
               "coherence": 1.0,
+              "coherence_count": "Exact",
               "signal_rule": "Same",
               "noise_rule": "Direction",
               "reinsertion": "Wrap",
@@ -107,21 +118,30 @@
               "angle_deg": 0.0
             },
             "params": {
-              "field_size_px": [
-                1920.0,
-                1080.0
-              ],
-              "dot_count": 900,
-              "aperture": {
-                "shape": "Circle",
+              "field": {
+                "shape": "Rect",
                 "size_px": [
-                  500.0,
-                  500.0
+                  1920.0,
+                  1080.0
                 ],
                 "offset_px": [
                   0.0,
                   0.0
-                ],
+                ]
+              },
+              "dot_count": 900,
+              "aperture": {
+                "region": {
+                  "shape": "Ellipse",
+                  "size_px": [
+                    500.0,
+                    500.0
+                  ],
+                  "offset_px": [
+                    0.0,
+                    0.0
+                  ]
+                },
                 "invert": false,
                 "clip": "DotCenter"
               },
@@ -134,9 +154,11 @@
               ],
               "dot_color_alt": null,
               "dot_shape": "Round",
+              "pixel_snap": false,
               "direction_deg": 90.0,
               "speed_px_per_s": 200.0,
               "coherence": 1.0,
+              "coherence_count": "Exact",
               "signal_rule": "Same",
               "noise_rule": "Direction",
               "reinsertion": "Wrap",
@@ -191,7 +213,7 @@
               1500.0,
               320.0
             ],
-            "text_live": "demos/figure_ground_rdk — a figure defined by motion alone\n\nTwo full-screen dot fields: one inside a 500 px circle, one outside it —\nthe exact complement, so together they cover the whole screen with no gap\nor overlap in where each field is *allowed* to be seen. The figure drifts up,\nthe ground drifts right. Freeze either field alone and there is nothing to see:\nthe circle exists only in how the dots move, never in their density or colour.\nRuns on load — no trigger.",
+            "text_live": "demos/figure_ground_rdk \u2014 a figure defined by motion alone\n\nTwo full-screen dot fields: one inside a 500 px circle, one outside it \u2014\nthe exact complement, so together they cover the whole screen with no gap\nor overlap in where each field is *allowed* to be seen. The figure drifts up,\nthe ground drifts right. Freeze either field alone and there is nothing to see:\nthe circle exists only in how the dots move, never in their density or colour.\nRuns on load \u2014 no trigger.",
             "font_family": "",
             "letter_height_px": 24.0,
             "anchor": "Center",
