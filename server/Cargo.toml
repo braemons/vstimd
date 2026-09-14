@@ -39,6 +39,7 @@ prost      = "0.13"
 # No `version` requirement: that field only matters when publishing to
 # crates.io, and it would have to track the workspace's 0.0.0 sentinel.
 vtl        = { path = "../vtl", features = ["serde"] }
+vinput     = { path = "../vinput" }
 nvml-wrapper = "0.10"
 rand         = "0.10.1"
 uuid         = { version = "1", features = ["v4", "serde"] }

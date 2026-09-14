@@ -80,6 +80,9 @@ pub struct SceneRuntimeState {
     pub events: crate::ipc::EventPublisher,
     /// Where the ZMQ thread sends `CaptureFrame` requests. Capacity one: the ZMQ
     /// thread serves one request at a time and waits for each capture.
+    /// The rig's input devices, sampled once per frame before animations run.
+    /// Never serialized: a scene-config names devices, the rig provides them.
+    pub input: crate::input::InputRegistry,
     /// Set by the render thread when it could not set up 3-D (no depth format).
     /// The 3-D create commands then answer `NOT_SUPPORTED` rather than accepting
     /// a stimulus that will never be drawn.
@@ -119,6 +122,7 @@ impl SceneRuntimeState {
             frame_notifier: std::sync::Arc::new(tx),
             next_render_frame: 0,
             events: crate::ipc::EventPublisher::disabled(),
+            input: Default::default(),
             render_3d_unavailable: false,
             capture_requests: capture_tx,
             capture_receiver: std::sync::Mutex::new(Some(capture_rx)),
@@ -317,6 +321,10 @@ impl SceneState {
         // Snapshot the handles into a reused buffer: `advance_one` borrows the
         // whole `SceneState` mutably, so we can't iterate `self.animations`
         // directly. Taking the scratch Vec out lets us hand `self` to the callee.
+        // Input first, so every animation this frame sees the same sample.
+        let dt_s = 1.0 / f64::from(self.runtime.nominal_frame_rate_hz.max(1.0));
+        self.runtime.input.sample_all(dt_s);
+
         let mut handles = std::mem::take(&mut self.runtime.anim_scratch);
         handles.clear();
         // Animations outside the active condition do not advance: they observe

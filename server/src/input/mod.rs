@@ -8,6 +8,10 @@
 pub mod app_keys;
 pub use app_keys::AppKey;
 
+pub mod devices;
+pub mod keyboard_axes;
+pub use devices::{InputDevice, InputRegistry};
+
 /// libinput keyboard handling shared by the bare-console backends
 /// (`render::drm` and `render::evdi`).
 #[cfg(target_os = "linux")]

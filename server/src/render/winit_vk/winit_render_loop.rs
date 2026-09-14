@@ -343,6 +343,25 @@ impl ApplicationHandler for WinitEventHandler {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // Arrow keys feed a keyboard-overridden input device (press and release).
+        if let WindowEvent::KeyboardInput {
+            event: winit::event::KeyEvent { physical_key: PhysicalKey::Code(key), state, .. },
+            ..
+        } = &event
+        {
+            use crate::input::keyboard_axes::{Arrow, set_arrow};
+            let arrow = match key {
+                KeyCode::ArrowUp => Some(Arrow::Up),
+                KeyCode::ArrowDown => Some(Arrow::Down),
+                KeyCode::ArrowLeft => Some(Arrow::Left),
+                KeyCode::ArrowRight => Some(Arrow::Right),
+                _ => None,
+            };
+            if let Some(a) = arrow {
+                set_arrow(a, *state == ElementState::Pressed);
+            }
+        }
+
         // ── Global hotkeys — handled BEFORE egui so a focused widget cannot
         //   swallow them. F1–F7 and backtick must always reach the app.
         //   Plain Fn: show + focus that panel.

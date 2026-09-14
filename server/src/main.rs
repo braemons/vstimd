@@ -96,7 +96,32 @@ fn main() {
         if let Some(hz) = rig.display.refresh_hz {
             s.runtime.frame_rate_hz = hz as f32;
         }
+
+        // Input devices come from the rig; `--input-override` may stand the
+        // keyboard in for one. Their segments are opened by the reconnect
+        // thread, never here and never on the render thread.
+        s.runtime.input = vstimd::input::InputRegistry::from_rig(&rig.input);
+        for (name, backend) in &args.input_overrides {
+            if let Err(e) = s.runtime.input.override_backend(name, backend.to_backend()) {
+                eprintln!("vstimd: --input-override: {e}");
+                std::process::exit(1);
+            }
+        }
+        if !s.runtime.input.devices.is_empty() {
+            log::info!(
+                "input: {} device(s): {}",
+                s.runtime.input.devices.len(),
+                s.runtime
+                    .input
+                    .devices
+                    .iter()
+                    .map(|d| format!("{} ({})", d.name, d.backend.label()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
     }
+    vstimd::input::devices::spawn_reconnector(scene.clone(), std::time::Duration::from_millis(250));
 
     // Create VTL shared memory on Linux using rig-config parameters.
     // The Arc<Mutex<>> lets both the ZMQ thread (software triggers, naming)
@@ -357,7 +382,45 @@ fn main() {
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
+/// One `--input-override NAME=BACKEND`.
+#[derive(Clone, Debug)]
+enum InputOverride {
+    Keyboard { speed: f64 },
+}
+
+impl InputOverride {
+    fn to_backend(&self) -> vstimd::input::devices::Backend {
+        match *self {
+            InputOverride::Keyboard { speed } => vstimd::input::devices::Backend::Keyboard { speed },
+        }
+    }
+
+    /// `keyboard` or `keyboard:SPEED` (axis units per second, default 1).
+    fn parse(spec: &str) -> Result<(String, Self), String> {
+        let (name, backend) = spec
+            .split_once('=')
+            .ok_or_else(|| format!("expected NAME=BACKEND, got '{spec}'"))?;
+        let (kind, arg) = backend.split_once(':').map_or((backend, None), |(k, a)| (k, Some(a)));
+        match kind {
+            "keyboard" => {
+                let speed = match arg {
+                    None => 1.0,
+                    Some(a) => a
+                        .parse::<f64>()
+                        .ok()
+                        .filter(|v| v.is_finite() && *v > 0.0)
+                        .ok_or_else(|| format!("keyboard speed must be a positive number, got '{a}'"))?,
+                };
+                Ok((name.to_string(), InputOverride::Keyboard { speed }))
+            }
+            other => Err(format!("unknown input backend '{other}' (supported: keyboard[:SPEED])")),
+        }
+    }
+}
+
 struct Args {
+    /// `--input-override NAME=BACKEND`, in order given.
+    input_overrides: Vec<(String, InputOverride)>,
     /// `Some(_)` if `--null` or `--evdi` forced a specific target on the
     /// command line — takes priority over rig-config. `None` means "resolve
     /// later": rig-config's `[display] backend`, then DISPLAY-env
@@ -619,6 +682,7 @@ fn parse_args() -> Args {
     let mut storage_dir: Option<std::path::PathBuf> = None;
     let mut overlay_scale: Option<f32> = None;
     let mut preferred_clock_source: Option<Option<ClockSource>> = None;
+    let mut input_overrides: Vec<(String, InputOverride)> = Vec::new();
 
     let mut args = std::env::args().skip(1).peekable();
     while let Some(arg) = args.next() {
@@ -695,6 +759,19 @@ fn parse_args() -> Args {
                     std::process::exit(1);
                 }));
             }
+            "--input-override" => {
+                let spec = args.next().unwrap_or_else(|| {
+                    eprintln!("vstimd: --input-override requires NAME=BACKEND (e.g. treadmill=keyboard:30)");
+                    std::process::exit(1);
+                });
+                match InputOverride::parse(&spec) {
+                    Ok(o) => input_overrides.push(o),
+                    Err(e) => {
+                        eprintln!("vstimd: --input-override: {e}");
+                        std::process::exit(1);
+                    }
+                }
+            }
             "--no-web" => web_enabled = Some(false),
             "--web-port" => {
                 let p = args.next().and_then(|s| s.parse::<u16>().ok()).unwrap_or_else(|| {
@@ -736,6 +813,7 @@ fn parse_args() -> Args {
     };
 
     Args {
+        input_overrides,
         render_target,
         window_mode,
         explicit_windowed,
@@ -861,6 +939,10 @@ fn print_usage() {
     eprintln!("      --event-port <N>      ZMQ PUB event stream port (default: 5556)");
     eprintln!("      --no-events           Do not publish the event stream at all");
     eprintln!("      --no-web              Disable the embedded web control surface");
+    eprintln!("      --input-override <NAME=keyboard[:SPEED]>");
+    eprintln!("                            Drive the rig-config input device NAME from the arrow");
+    eprintln!("                            keys instead of its hardware (SPEED units/s, default 1);");
+    eprintln!("                            repeatable");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
     eprintln!("      --overlay-scale <N>   Scale factor for the egui overlay UI (default: 1.0)");
     eprintln!("      --preferred-clock-source <S>");
