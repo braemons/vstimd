@@ -551,6 +551,9 @@ pub fn create_render_pass(device: &ash::Device, format: vk::Format) -> vk::Rende
 
 /// Create a render pass for egui overlay that LOADs the existing color attachment
 /// (to composite on top of the stimulus pass) and STOREs the result.
+///
+/// Its `initialLayout` is the stimulus pass's `finalLayout` (`PRESENT_SRC_KHR`):
+/// a `LOAD` pass has to declare the layout the image is actually in.
 pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::RenderPass {
     let attachment = vk::AttachmentDescription::default()
         .format(format)
@@ -559,7 +562,7 @@ pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::
         .store_op(vk::AttachmentStoreOp::STORE)
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
-        .initial_layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL)
+        .initial_layout(vk::ImageLayout::PRESENT_SRC_KHR)
         .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
     let color_ref =
         vk::AttachmentReference::default().layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);

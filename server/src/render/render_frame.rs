@@ -761,11 +761,10 @@ pub fn render_frame(
             ctx.device.cmd_end_render_pass(cb);
         }
 
-        // ── Optional CPU readback (evdi only — readback is only ever Some for
-        //    a self_presented context; see VkContext::self_presented) ─────────
-        // Recorded here, while the image is still ours (both of evdi's render
-        // passes' `finalLayout` leaves it in `GENERAL`, not `PRESENT_SRC_KHR` —
-        // see evdi_init.rs's create_render_pass_no_wsi doc comment for why).
+        // ── Optional CPU readback (evdi's output path, and F12 screenshots) ───
+        // Recorded here, while the image is still ours. It starts and must end
+        // in `ctx.present_layout`: `PRESENT_SRC_KHR` for a real swapchain,
+        // `GENERAL` for evdi (see evdi_init.rs's create_render_pass_no_wsi).
         if let Some(rb) = readback {
             let image = ctx.swapchain_images[image_index as usize];
             let subresource_range = vk::ImageSubresourceRange {
@@ -776,7 +775,7 @@ pub fn render_frame(
                 layer_count: 1,
             };
             let to_transfer_src = vk::ImageMemoryBarrier::default()
-                .old_layout(vk::ImageLayout::GENERAL)
+                .old_layout(ctx.present_layout)
                 .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
                 .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
@@ -818,10 +817,10 @@ pub fn render_frame(
                 &[region],
             );
 
-            // The render pass expects the image back in `GENERAL`.
+            // Back to where the passes left it, ready for present.
             let back_to_present = vk::ImageMemoryBarrier::default()
                 .old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
-                .new_layout(vk::ImageLayout::GENERAL)
+                .new_layout(ctx.present_layout)
                 .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .image(image)
