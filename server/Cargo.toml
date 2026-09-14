@@ -54,6 +54,7 @@ png = "0.18.1"
 # entirely (docs/PLAN.md in the console repo), so nothing here may assume
 # same-origin -- the same reason statemachined and triald open it up.
 tower-http   = { version = "0.6", features = ["cors"], optional = true }
+glam = { version = "0.33", features = ["bytemuck", "serde"] }
 
 # Linux-only dependencies for DRM/console mode and Wayland support
 [target.'cfg(target_os = "linux")'.dependencies]

@@ -456,6 +456,15 @@ impl SceneState {
         }
     }
 
+    /// Whether any visible stimulus needs the 3-D pass. False for every scene
+    /// that can be built today; the render thread skips the 3-D pass entirely
+    /// when it is.
+    pub fn has_3d(&self) -> bool {
+        self.stimuli.values().any(|e| {
+            e.stimulus.is_visible() && matches!(e.stimulus.body, crate::scene::StimulusBody::Mesh3d(_))
+        })
+    }
+
     // ── Deferred mode ─────────────────────────────────────────────────────────
 
     /// Start deferred mode: snapshot all live state into copy fields.
@@ -465,6 +474,7 @@ impl SceneState {
         }
         self.background.make_copy();
         self.photodiode.make_copy();
+        self.camera.make_copy();
         self.runtime.deferred_mode = true;
     }
 
@@ -492,6 +502,7 @@ impl SceneState {
         }
         self.background.flip();
         self.photodiode.flip();
+        self.camera.flip();
         self.runtime.pending_flip = false;
     }
 
@@ -614,6 +625,7 @@ impl SceneState {
         }
         self.config.background.make_copy();
         self.config.photodiode.make_copy();
+        self.config.camera.make_copy();
         // `cond_enabled` is derived, never saved: a load restores the
         // memberships and the active index, and the gates follow from them.
         self.apply_conditions();

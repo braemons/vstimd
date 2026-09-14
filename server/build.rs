@@ -94,6 +94,7 @@ fn main() {
     compile_shader("shaders/dots.wgsl", "dots.spv");
     compile_shader("shaders/text.wgsl", "text.spv");
     compile_shader("shaders/egui.wgsl", "egui.spv");
+    compile_shader("shaders/mesh3d.wgsl", "mesh3d.spv");
 }
 
 /// The version reported by `vstimd --version` and over the wire, resolved at

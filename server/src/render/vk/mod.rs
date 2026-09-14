@@ -6,6 +6,8 @@ pub mod egui;
 pub mod readback;
 pub mod vk_context;
 pub mod vk_mesh;
+pub mod vk_mesh3d_pipeline;
+pub mod vk_pass3d;
 pub mod vk_render_pipeline;
 pub mod vk_text_atlas;
 pub mod vk_text_pipeline;
@@ -17,6 +19,8 @@ pub use egui::VkEguiRenderer;
 pub use readback::Readback;
 pub use vk_context::{VkContext, build_context};
 pub use vk_mesh::VkMesh;
+pub use vk_mesh3d_pipeline::{Mesh3dPushConstants, Mesh3dRenderer, SceneUniform};
+pub use vk_pass3d::Pass3d;
 pub use vk_render_pipeline::VkPipeline;
 #[allow(unused_imports)]
 pub use vk_text_atlas::AtlasEntry;

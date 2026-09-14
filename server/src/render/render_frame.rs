@@ -157,6 +157,7 @@ pub fn render_frame(
 
     // ── 4. Tessellate scene into GPU buffers ──────────────────────────────────
     let t_tess_start = std::time::Instant::now();
+    let mut wants_3d = rs.scene_renderer.debug_cube;
     {
         let fps = rs.timing.stats.summary().fps as f32;
         // Nominal, not measured — everything whose result has to be the same on
@@ -186,6 +187,7 @@ pub fn render_frame(
         sc.runtime.screen_size = Some(screen_size);
         sc.runtime.frame_rate_hz = fps;
         sc.runtime.nominal_frame_rate_hz = nominal_fps;
+        wants_3d |= sc.has_3d();
         if sc.runtime.last_uploaded_size != screen_size {
             sc.runtime.last_uploaded_size = screen_size;
             for entry in sc.stimuli.values_mut() {
@@ -368,6 +370,13 @@ pub fn render_frame(
         .flush(&ctx.device, ctx.graphics_queue, ctx.command_pool);
     let tessellate_us = t_tess_start.elapsed().as_micros() as u32;
 
+    // ── 4b. 3-D setup, on the first frame that needs it ──────────────────────
+    // Never entered by a pure 2-D scene. Re-borrows `ctx`/`frame` afterwards,
+    // since creating the 3-D pass mutates the context.
+    let drew_3d = wants_3d && rs.scene_renderer.ensure_3d(&mut rs.ctx);
+    let ctx = &rs.ctx;
+    let frame = &ctx.frames[frame_slot];
+
     // ── 5. Select pipeline pair (after tessellation to avoid borrow conflict) ──
     // `pipe` and `grate` borrow from `scene_renderer.{pipeline,grating_pipeline}`,
     // which are disjoint from `scene_cache` already mutated above.
@@ -436,11 +445,37 @@ pub fn render_frame(
             extent: ctx.extent,
         };
         let clear_value = vk::ClearValue { color: bg };
-        let rp_info = vk::RenderPassBeginInfo::default()
-            .render_pass(ctx.render_pass)
-            .framebuffer(ctx.framebuffers[image_index as usize])
-            .render_area(render_area)
-            .clear_values(std::slice::from_ref(&clear_value));
+
+        // The 3-D pass, if any, clears and draws first; the 2-D pass then
+        // `LOAD`s over it instead of clearing. With no 3-D this is exactly the
+        // 2-D pass that ran before 3-D existed. See `vk_pass3d`.
+        let pass_3d = ctx.pass_3d.as_ref().filter(|_| drew_3d);
+        if let (Some(pass), Some(mesh3d)) = (pass_3d, rs.scene_renderer.mesh3d.as_ref()) {
+            let sc = rs.scene_renderer.scene.read().expect("scene lock poisoned");
+            crate::render::render_3d::record_3d_pass(
+                ctx,
+                cb,
+                pass,
+                mesh3d,
+                image_index,
+                frame_slot,
+                bg,
+                rs.scene_renderer.wireframe,
+                &sc,
+                rs.scene_renderer.debug_cube,
+            );
+        }
+        let rp_info = match pass_3d {
+            None => vk::RenderPassBeginInfo::default()
+                .render_pass(ctx.render_pass)
+                .framebuffer(ctx.framebuffers[image_index as usize])
+                .render_area(render_area)
+                .clear_values(std::slice::from_ref(&clear_value)),
+            Some(pass) => vk::RenderPassBeginInfo::default()
+                .render_pass(pass.load_2d_pass)
+                .framebuffer(ctx.framebuffers[image_index as usize])
+                .render_area(render_area),
+        };
 
         ctx.device
             .cmd_begin_render_pass(cb, &rp_info, vk::SubpassContents::INLINE);
