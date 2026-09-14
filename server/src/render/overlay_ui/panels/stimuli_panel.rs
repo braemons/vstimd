@@ -90,7 +90,7 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                             // dots occupy, and the aperture is a mask over it.
                             StimulusBody::Dots(d) => {
                                 format!("{} dots in {}", d.params.live.dot_count,
-                                        wh(d.params.live.field_size_px))
+                                        wh(d.params.live.field.size_px))
                             }
                             StimulusBody::Mesh3d(_) => "3-D".to_string(),
                         };

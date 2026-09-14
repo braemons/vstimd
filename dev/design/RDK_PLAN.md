@@ -431,3 +431,33 @@ tessellation phase goes from ~12 µs to ~28 µs when the fields are created), an
 the CPU→shader contract is pinned by tests over `build_dots_push_constants`. The
 shader itself wants an eye on a real display: `make test-e2e-interactive` and the
 `DOTS-*` cases are written for exactly that.
+
+## 10. Addendum — PsychoPy and Psychtoolbox fidelity
+
+Added with `vstimd.psychopy.visual.DotStim`. The sections above describe the first
+design; where they disagree with this one, this one is current.
+
+- **One shape type, `Region`,** replaces `ApertureShape` and the field's bare
+  `field_size_px`. `DotsParams.field` and `Aperture.region` are both a `Region`
+  (`Rect | Ellipse`, full extents, an offset from the stimulus position), so a shape
+  added once serves both. The field needs `contains`, `sample` (a fixed two draws)
+  and `reenter`; the aperture only `contains` and a shader test.
+  PsychoPy's `fieldShape='circle'` is an `Ellipse` **field**: a circular aperture
+  over a rectangular field would show a varying π/4 of the dots and break the exact
+  count below. Figure-ground stimuli are unchanged — a rectangular field with a
+  circle and its inverse as apertures, because a circular field would respawn dots
+  along the figure's edge.
+- **Wrap on an ellipse** re-enters where the line of motion enters, carried in by
+  the overshoot; it keeps a uniform field uniform for straight-line motion.
+- **`CoherenceCount::Exact`** is the default: `round_ties_even(coherence · n)`
+  signal dots, the first `k` by index under `SignalRule::Same`, a partial
+  Fisher–Yates over a field-level stream (`DotsRng::for_roles`) under `Different`.
+  `Binomial` keeps §4's per-dot roll.
+- **`DotShape::RoundSmooth`** (Psychtoolbox `dot_type` 1–3) and **`pixel_snap`**
+  (a script that rounds positions and blits a `dist < radius` mask) are drawing
+  options only; the simulation is untouched.
+- **`SetDotsParams`** replaces every parameter but the seed, for the rules and
+  shapes that have no setter of their own.
+- Accepted differences from PsychoPy: dots advance every display frame rather than
+  every `draw()`; `speed` is converted per frame → per second at the nominal rate;
+  the random stream is vstimd's, and lifetimes stagger by index.

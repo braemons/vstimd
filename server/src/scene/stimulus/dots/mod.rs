@@ -5,7 +5,8 @@ pub mod dots_stimulus;
 pub mod dots_tess;
 
 pub use dots_params::{
-    Aperture, ApertureClip, ApertureShape, DotShape, DotsParams, NoiseRule, Reinsertion, SignalRule,
+    Aperture, ApertureClip, CoherenceCount, DotShape, DotsParams, NoiseRule, Region, RegionShape,
+    Reinsertion, SignalRule,
 };
 pub use dots_pipeline::{DotInstance, DotsPushConstants, VkDotsPipeline};
 pub use dots_rng::DotsRng;

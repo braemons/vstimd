@@ -28,7 +28,7 @@ from dataclasses import replace
 from _common import add_explanation, clean_slate, demo_parser
 
 from vstimd import Connection
-from vstimd.stimuli import Aperture, ApertureClip, ApertureShape, Color, DotsParams
+from vstimd.stimuli import Aperture, ApertureClip, Color, DotsParams, Region
 from vstimd.stimuli.stimuli_models import Vec2
 
 EXPLANATION = (
@@ -61,20 +61,14 @@ def main() -> None:
 
         # ── The shared field and the figure circle ───────────────────────────
         figure_circle = Aperture(
-            shape=ApertureShape.CIRCLE,
-            # height_px is ignored for a circle, but 0 means "the field" — pass
-            # the diameter on both axes so the aperture round-trips as the circle
-            # it is, rather than as a circle-shaped stand-in for the field height.
-            width_px=FIGURE_DIAMETER_PX,
-            height_px=FIGURE_DIAMETER_PX,
+            region=Region.circle(FIGURE_DIAMETER_PX),
             # Dots overhang the boundary uncut, as the MATLAB's centre-pixel test
             # does — cutting them at the edge would draw a crisp circle, a static
             # form cue that a motion-defined figure must not have.
             clip=ApertureClip.DOT_CENTER,
         )
         common = DotsParams(
-            field_width_px=FIELD_PX.x,
-            field_height_px=FIELD_PX.y,
+            field=Region.rect(FIELD_PX.x, FIELD_PX.y),
             dot_count=DOT_COUNT,
             dot_size_px=DOT_SIZE_PX,
             dot_color=Color(1.0, 1.0, 1.0),

@@ -5,8 +5,8 @@ use crate::Color;
 use crate::proto;
 
 use crate::scene::stimulus::dots::{
-    Aperture, ApertureClip, ApertureShape, DotShape, Dots, DotsParams, NoiseRule, Reinsertion,
-    SignalRule,
+    Aperture, ApertureClip, CoherenceCount, DotShape, Dots, DotsParams, NoiseRule, Region,
+    RegionShape, Reinsertion, SignalRule,
 };
 
 // ── Enumerations ──────────────────────────────────────────────────────────────
@@ -15,6 +15,7 @@ pub(crate) fn dot_shape_from_proto(v: i32) -> DotShape {
     match proto::DotShape::try_from(v).unwrap_or(proto::DotShape::Unspecified) {
         proto::DotShape::Unspecified | proto::DotShape::Round => DotShape::Round,
         proto::DotShape::Square => DotShape::Square,
+        proto::DotShape::RoundSmooth => DotShape::RoundSmooth,
     }
 }
 
@@ -22,20 +23,35 @@ pub(crate) fn dot_shape_to_proto(s: DotShape) -> proto::DotShape {
     match s {
         DotShape::Round => proto::DotShape::Round,
         DotShape::Square => proto::DotShape::Square,
+        DotShape::RoundSmooth => proto::DotShape::RoundSmooth,
     }
 }
 
-pub(crate) fn aperture_shape_from_proto(v: i32) -> ApertureShape {
-    match proto::ApertureShape::try_from(v).unwrap_or(proto::ApertureShape::Unspecified) {
-        proto::ApertureShape::Unspecified | proto::ApertureShape::Rect => ApertureShape::Rect,
-        proto::ApertureShape::Circle => ApertureShape::Circle,
+pub(crate) fn region_shape_from_proto(v: i32) -> RegionShape {
+    match proto::RegionShape::try_from(v).unwrap_or(proto::RegionShape::Unspecified) {
+        proto::RegionShape::Unspecified | proto::RegionShape::Rect => RegionShape::Rect,
+        proto::RegionShape::Ellipse => RegionShape::Ellipse,
     }
 }
 
-pub(crate) fn aperture_shape_to_proto(s: ApertureShape) -> proto::ApertureShape {
+pub(crate) fn region_shape_to_proto(s: RegionShape) -> proto::RegionShape {
     match s {
-        ApertureShape::Rect => proto::ApertureShape::Rect,
-        ApertureShape::Circle => proto::ApertureShape::Circle,
+        RegionShape::Rect => proto::RegionShape::Rect,
+        RegionShape::Ellipse => proto::RegionShape::Ellipse,
+    }
+}
+
+pub(crate) fn coherence_count_from_proto(v: i32) -> CoherenceCount {
+    match proto::CoherenceCount::try_from(v).unwrap_or(proto::CoherenceCount::Unspecified) {
+        proto::CoherenceCount::Unspecified | proto::CoherenceCount::Exact => CoherenceCount::Exact,
+        proto::CoherenceCount::Binomial => CoherenceCount::Binomial,
+    }
+}
+
+pub(crate) fn coherence_count_to_proto(c: CoherenceCount) -> proto::CoherenceCount {
+    match c {
+        CoherenceCount::Exact => proto::CoherenceCount::Exact,
+        CoherenceCount::Binomial => proto::CoherenceCount::Binomial,
     }
 }
 
@@ -97,27 +113,47 @@ pub(crate) fn reinsertion_to_proto(r: Reinsertion) -> proto::Reinsertion {
     }
 }
 
-// ── Aperture ──────────────────────────────────────────────────────────────────
+// ── Region and aperture ───────────────────────────────────────────────────────
 
-/// An aperture whose zero fields fall back to `field_size_px`.
-///
-/// A zero size means "the whole field", which is the classic-RDK case where the
-/// aperture *is* the field. The default has to be resolved here rather than in the
-/// scene, because only the create request knows the field size.
-pub(crate) fn aperture_from_proto(a: Option<proto::Aperture>, field_size_px: [f32; 2]) -> Aperture {
-    let Some(a) = a else {
-        return Aperture {
-            shape: ApertureShape::Rect,
-            size_px: field_size_px,
-            ..Default::default()
-        };
+/// A region whose zero width or height falls back to `fallback`'s — for a field the
+/// default field, for an aperture the field. Shape and offset never fall back: a
+/// zero offset and `Rect` are ordinary values.
+pub(crate) fn region_from_proto(r: Option<proto::Region>, fallback: Region) -> Region {
+    let Some(r) = r else {
+        return fallback;
     };
-    let width_px = if a.width_px == 0.0 { field_size_px[0] } else { a.width_px };
-    let height_px = if a.height_px == 0.0 { field_size_px[1] } else { a.height_px };
+    Region {
+        shape: region_shape_from_proto(r.shape),
+        size_px: [
+            if r.width_px == 0.0 { fallback.size_px[0] } else { r.width_px },
+            if r.height_px == 0.0 { fallback.size_px[1] } else { r.height_px },
+        ],
+        offset_px: [r.offset_x_px, r.offset_y_px],
+    }
+}
+
+pub(crate) fn region_to_proto(r: &Region) -> proto::Region {
+    proto::Region {
+        shape: region_shape_to_proto(r.shape) as i32,
+        width_px: r.size_px[0],
+        height_px: r.size_px[1],
+        offset_x_px: r.offset_px[0],
+        offset_y_px: r.offset_px[1],
+    }
+}
+
+/// An aperture that defaults to `field`.
+///
+/// An absent aperture, or one with no region, is the field itself — the classic-RDK
+/// case where the aperture *is* the field, and a mask that hides nothing. It has to
+/// be resolved here rather than in the scene, because only the request knows the
+/// field.
+pub(crate) fn aperture_from_proto(a: Option<proto::Aperture>, field: Region) -> Aperture {
+    let Some(a) = a else {
+        return Aperture::of_field(field);
+    };
     Aperture {
-        shape: aperture_shape_from_proto(a.shape),
-        size_px: [width_px, height_px],
-        offset_px: [a.offset_x_px, a.offset_y_px],
+        region: region_from_proto(a.region, field),
         invert: a.invert,
         clip: aperture_clip_from_proto(a.clip),
     }
@@ -125,11 +161,7 @@ pub(crate) fn aperture_from_proto(a: Option<proto::Aperture>, field_size_px: [f3
 
 pub(crate) fn aperture_to_proto(a: &Aperture) -> proto::Aperture {
     proto::Aperture {
-        shape: aperture_shape_to_proto(a.shape) as i32,
-        width_px: a.size_px[0],
-        height_px: a.size_px[1],
-        offset_x_px: a.offset_px[0],
-        offset_y_px: a.offset_px[1],
+        region: Some(region_to_proto(&a.region)),
         invert: a.invert,
         clip: aperture_clip_to_proto(a.clip) as i32,
     }
@@ -139,24 +171,23 @@ pub(crate) fn aperture_to_proto(a: &Aperture) -> proto::Aperture {
 
 pub(crate) fn dots_params_from_proto(cmd: &proto::DotsParams) -> DotsParams {
     let d = DotsParams::default();
-    let field_size_px = [
-        if cmd.field_width_px == 0.0 { d.field_size_px[0] } else { cmd.field_width_px },
-        if cmd.field_height_px == 0.0 { d.field_size_px[1] } else { cmd.field_height_px },
-    ];
+    let field = region_from_proto(cmd.field, d.field);
     DotsParams {
-        field_size_px,
+        field,
         dot_count: if cmd.dot_count == 0 { d.dot_count } else { cmd.dot_count },
-        aperture: aperture_from_proto(cmd.aperture, field_size_px),
+        aperture: aperture_from_proto(cmd.aperture, field),
         dot_size_px: if cmd.dot_size_px == 0.0 { d.dot_size_px } else { cmd.dot_size_px },
         dot_color: color_or_default(cmd.dot_color, Color::WHITE),
         dot_color_alt: cmd.dot_color_alt.map(Into::into),
         dot_shape: dot_shape_from_proto(cmd.dot_shape),
+        pixel_snap: cmd.pixel_snap,
         direction_deg: cmd.direction_deg,
         // Not zero-means-default: zero is meaningful for both of these — a static
         // field, and a field of pure noise — so they carry field presence and the
         // fallback is on absence, not on zero.
         speed_px_per_s: cmd.speed_px_per_s.unwrap_or(d.speed_px_per_s),
         coherence: cmd.coherence.map_or(d.coherence, |c| c.clamp(0.0, 1.0)),
+        coherence_count: coherence_count_from_proto(cmd.coherence_count),
         signal_rule: signal_rule_from_proto(cmd.signal_rule),
         noise_rule: noise_rule_from_proto(cmd.noise_rule),
         reinsertion: reinsertion_from_proto(cmd.reinsertion),
@@ -171,17 +202,18 @@ pub(crate) fn dots_params_to_proto(s: &Dots) -> proto::StimulusParams {
     let p = s.params.live;
     proto::StimulusParams {
         shape: Some(proto::stimulus_params::Shape::Dots(proto::DotsParams {
-            field_width_px: p.field_size_px[0],
-            field_height_px: p.field_size_px[1],
+            field: Some(region_to_proto(&p.field)),
             dot_count: p.dot_count,
             aperture: Some(aperture_to_proto(&p.aperture)),
             dot_size_px: p.dot_size_px,
             dot_color: Some(p.dot_color.into()),
             dot_color_alt: p.dot_color_alt.map(Into::into),
             dot_shape: dot_shape_to_proto(p.dot_shape) as i32,
+            pixel_snap: p.pixel_snap,
             direction_deg: p.direction_deg,
             speed_px_per_s: Some(p.speed_px_per_s),
             coherence: Some(p.coherence),
+            coherence_count: coherence_count_to_proto(p.coherence_count) as i32,
             signal_rule: signal_rule_to_proto(p.signal_rule) as i32,
             noise_rule: noise_rule_to_proto(p.noise_rule) as i32,
             reinsertion: reinsertion_to_proto(p.reinsertion) as i32,

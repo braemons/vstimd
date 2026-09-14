@@ -279,7 +279,7 @@ fn drifting_grating_demo_drifts() {
 /// mismatch would leak a non-motion cue at the boundary.
 #[test]
 fn figure_ground_rdk_is_a_complementary_pair_that_differs_only_in_direction() {
-    use vstimd::scene::stimulus::{ApertureClip, ApertureShape};
+    use vstimd::scene::stimulus::{ApertureClip, RegionShape};
 
     let (scene, _) = parse_config_json(demo("figure_ground_rdk")).unwrap();
     let mut dots: Vec<_> = scene
@@ -297,10 +297,9 @@ fn figure_ground_rdk_is_a_complementary_pair_that_differs_only_in_direction() {
     let fp = figure.params.live;
 
     // Same circle, opposite side of it.
-    assert_eq!(gp.aperture.shape, ApertureShape::Circle);
-    assert_eq!(fp.aperture.shape, ApertureShape::Circle);
-    assert_eq!(gp.aperture.size_px, fp.aperture.size_px);
-    assert_eq!(gp.aperture.offset_px, fp.aperture.offset_px);
+    assert_eq!(gp.aperture.region.shape, RegionShape::Ellipse);
+    assert_eq!(gp.aperture.region.size_px[0], gp.aperture.region.size_px[1], "not a circle");
+    assert_eq!(gp.aperture.region, fp.aperture.region);
     assert_ne!(gp.aperture.invert, fp.aperture.invert, "both fields mask the same side");
 
     // Dots overhang the boundary uncut — cutting them would draw the circle as a
@@ -310,7 +309,7 @@ fn figure_ground_rdk_is_a_complementary_pair_that_differs_only_in_direction() {
 
     // Everything but direction is shared, so nothing but motion tells the two
     // fields apart in a single frame.
-    assert_eq!(gp.field_size_px, fp.field_size_px);
+    assert_eq!(gp.field, fp.field);
     assert_eq!(gp.dot_count, fp.dot_count);
     assert_eq!(gp.dot_size_px, fp.dot_size_px);
     assert_eq!(gp.dot_color, fp.dot_color);

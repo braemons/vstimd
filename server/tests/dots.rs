@@ -109,13 +109,14 @@ fn empty_params_give_working_defaults() {
     let p = dots_params_of(&info);
     assert!(p.dot_count > 0);
     assert!(p.dot_size_px > 0.0);
-    assert!(p.field_width_px > 0.0 && p.field_height_px > 0.0);
+    let field = p.field.expect("field reported");
+    assert!(field.width_px > 0.0 && field.height_px > 0.0);
     assert_eq!(p.coherence, Some(1.0), "an unset coherence is 1, not 0");
+    assert_eq!(p.coherence_count, proto::CoherenceCount::Exact as i32, "exact is the default");
     assert_eq!(p.speed_px_per_s, Some(100.0), "an unset speed is not a static field");
     // An unset aperture is the field, not a crop of it.
     let a = p.aperture.as_ref().expect("aperture reported");
-    assert_eq!(a.width_px, p.field_width_px);
-    assert_eq!(a.height_px, p.field_height_px);
+    assert_eq!(a.region, Some(field));
 }
 
 /// Every parameter survives the round trip out to the wire and back.
@@ -123,32 +124,41 @@ fn empty_params_give_working_defaults() {
 fn params_round_trip_through_query() {
     let mut scene = SceneState::new();
     let sent = proto::DotsParams {
-        field_width_px: 1920.0,
-        field_height_px: 1080.0,
+        field: Some(proto::Region {
+            shape: proto::RegionShape::Ellipse as i32,
+            width_px: 1600.0,
+            height_px: 1000.0,
+            offset_x_px: -10.0,
+            offset_y_px: 20.0,
+        }),
         dot_count: 321,
         aperture: Some(proto::Aperture {
-            shape: proto::ApertureShape::Circle as i32,
-            width_px: 450.0,
-            height_px: 0.0,
-            offset_x_px: 120.0,
-            offset_y_px: -80.0,
+            region: Some(proto::Region {
+                shape: proto::RegionShape::Ellipse as i32,
+                width_px: 450.0,
+                height_px: 300.0,
+                offset_x_px: 120.0,
+                offset_y_px: -80.0,
+            }),
             invert: true,
             clip: proto::ApertureClip::Pixel as i32,
         }),
         dot_size_px: 9.0,
         dot_color: Some(Color::WHITE.into()),
         dot_color_alt: Some(Color::BLACK.into()),
-        dot_shape: proto::DotShape::Square as i32,
+        dot_shape: proto::DotShape::RoundSmooth as i32,
+        pixel_snap: true,
         direction_deg: 135.0,
         speed_px_per_s: Some(250.0),
         coherence: Some(0.6),
+        coherence_count: proto::CoherenceCount::Binomial as i32,
         signal_rule: proto::SignalRule::Different as i32,
         noise_rule: proto::NoiseRule::Walk as i32,
         reinsertion: proto::Reinsertion::Respawn as i32,
         dot_lifetime_frames: 12,
         seed: 4242,
     };
-    let h = create_dots(&mut scene, sent.clone(), [0.0, 0.0]);
+    let h = create_dots(&mut scene, sent, [0.0, 0.0]);
     let info = query(&mut scene, h);
     let got = dots_params_of(&info);
     assert_eq!(got.dot_count, sent.dot_count);
@@ -163,12 +173,119 @@ fn params_round_trip_through_query() {
     assert_eq!(got.dot_lifetime_frames, sent.dot_lifetime_frames);
     assert_eq!(got.seed, sent.seed);
     assert_eq!(got.dot_color_alt, sent.dot_color_alt);
-    let a = got.aperture.as_ref().unwrap();
-    assert_eq!(a.shape, proto::ApertureShape::Circle as i32);
-    assert_eq!(a.width_px, 450.0, "a circle is sized by its diameter");
-    assert!(a.invert);
-    assert_eq!(a.clip, proto::ApertureClip::Pixel as i32);
-    assert_eq!((a.offset_x_px, a.offset_y_px), (120.0, -80.0));
+    assert_eq!(got.pixel_snap, sent.pixel_snap);
+    assert_eq!(got.coherence_count, sent.coherence_count);
+    assert_eq!(got.field, sent.field);
+    assert_eq!(got.aperture, sent.aperture);
+}
+
+/// A zero aperture extent takes the field's, and an absent aperture region is the
+/// field itself — shape and offset included.
+#[test]
+fn aperture_zero_extents_fall_back_to_the_field() {
+    let mut scene = SceneState::new();
+    let field = proto::Region {
+        shape: proto::RegionShape::Ellipse as i32,
+        width_px: 600.0,
+        height_px: 400.0,
+        offset_x_px: 5.0,
+        offset_y_px: 0.0,
+    };
+    let h = create_dots(
+        &mut scene,
+        proto::DotsParams {
+            field: Some(field),
+            aperture: Some(proto::Aperture {
+                region: Some(proto::Region { width_px: 200.0, ..Default::default() }),
+                ..Default::default()
+            }),
+            ..Default::default()
+        },
+        [0.0, 0.0],
+    );
+    let a = dots_params_of(&query(&mut scene, h)).aperture.unwrap().region.unwrap();
+    assert_eq!((a.width_px, a.height_px), (200.0, 400.0));
+
+    let h = create_dots(
+        &mut scene,
+        proto::DotsParams {
+            field: Some(field),
+            aperture: Some(proto::Aperture { invert: false, ..Default::default() }),
+            ..Default::default()
+        },
+        [0.0, 0.0],
+    );
+    assert_eq!(dots_params_of(&query(&mut scene, h)).aperture.unwrap().region, Some(field));
+}
+
+/// `SetDotsField` replaces the field, keeps a zero extent at its current value, and
+/// leaves the aperture alone.
+#[test]
+fn set_dots_field_replaces_the_field_only() {
+    let mut scene = SceneState::new();
+    let h = create_dots(&mut scene, proto::DotsParams::default(), [0.0, 0.0]);
+    let aperture_before = dots_params_of(&query(&mut scene, h)).aperture;
+    let resp = scene.handle_request(
+        req(
+            stim(h),
+            request::Body::SetDotsField(proto::SetDotsFieldRequest {
+                field: Some(proto::Region {
+                    shape: proto::RegionShape::Ellipse as i32,
+                    width_px: 300.0,
+                    height_px: 0.0,
+                    ..Default::default()
+                }),
+            }),
+        ),
+        None,
+    );
+    assert_eq!(resp.code, proto::ErrorCode::Ok as i32, "{}", resp.error);
+    let p = query(&mut scene, h);
+    let p = dots_params_of(&p);
+    let f = p.field.unwrap();
+    assert_eq!(f.shape, proto::RegionShape::Ellipse as i32);
+    assert_eq!((f.width_px, f.height_px), (300.0, 600.0));
+    assert_eq!(p.aperture, aperture_before);
+
+    // Dots stranded outside the new field respawn into it as they next move.
+    let e = vstimd::scene::Region::ellipse([300.0, 600.0]);
+    advance(&mut scene, 1, 60.0);
+    assert!(positions(&scene, h).iter().all(|p| e.contains(*p)), "dots left behind outside");
+}
+
+/// PsychoPy's `fieldShape='circle'`: `nDots` dots, all inside an ellipse, every
+/// frame — which a circular aperture over a rectangular field could not give.
+#[test]
+fn an_ellipse_field_keeps_every_dot_inside() {
+    let mut scene = SceneState::new();
+    let h = create_dots(
+        &mut scene,
+        proto::DotsParams {
+            field: Some(proto::Region {
+                shape: proto::RegionShape::Ellipse as i32,
+                width_px: 500.0,
+                height_px: 300.0,
+                ..Default::default()
+            }),
+            dot_count: 400,
+            coherence: Some(0.5),
+            noise_rule: proto::NoiseRule::Direction as i32,
+            reinsertion: proto::Reinsertion::Respawn as i32,
+            dot_lifetime_frames: 5,
+            speed_px_per_s: Some(600.0),
+            seed: 8,
+            ..Default::default()
+        },
+        [0.0, 0.0],
+    );
+    let e = vstimd::scene::Region::ellipse([500.0, 300.0]);
+    for _ in 0..200 {
+        advance(&mut scene, 1, 60.0);
+        let d = scene.config.stimuli[&h].stimulus.dots().unwrap();
+        let mut buf = vec![Default::default(); d.live_count()];
+        assert_eq!(d.write_instances(&mut buf), 400, "the default aperture hid a dot");
+        assert!(positions(&scene, h).iter().all(|p| e.contains(*p)));
+    }
 }
 
 /// A dot mutation aimed at another stimulus type is refused by name, not silently
@@ -271,8 +388,12 @@ fn figure_ground() {
         ((SCREEN[0] / PX_PER_DEG) * (SCREEN[1] / PX_PER_DEG) * density_per_deg2).round() as u32;
 
     let common = proto::DotsParams {
-        field_width_px: SCREEN[0],
-        field_height_px: SCREEN[1],
+        field: Some(proto::Region {
+            shape: proto::RegionShape::Rect as i32,
+            width_px: SCREEN[0],
+            height_px: SCREEN[1],
+            ..Default::default()
+        }),
         dot_count,
         dot_size_px: deg(3.0), // dotSize is a radius; the dot is 3 deg across
         dot_color: Some(Color::WHITE.into()),
@@ -286,11 +407,13 @@ fn figure_ground() {
     };
     // R = 45/2 is a radius, so the circle is 45 deg across.
     let figure_circle = proto::Aperture {
-        shape: proto::ApertureShape::Circle as i32,
-        width_px: deg(45.0),
-        height_px: 0.0,
-        offset_x_px: RF_CENTER[0],
-        offset_y_px: RF_CENTER[1],
+        region: Some(proto::Region {
+            shape: proto::RegionShape::Ellipse as i32,
+            width_px: deg(45.0),
+            height_px: deg(45.0),
+            offset_x_px: RF_CENTER[0],
+            offset_y_px: RF_CENTER[1],
+        }),
         invert: false,
         // Dots overhang the boundary uncut, as the MATLAB's centre-pixel test does.
         clip: proto::ApertureClip::DotCenter as i32,
@@ -303,7 +426,7 @@ fn figure_ground() {
             aperture: Some(proto::Aperture { invert: true, ..figure_circle }),
             direction_deg: 0.0, // dirAngleBackground = 0
             seed: 1,
-            ..common.clone()
+            ..common
         },
         [0.0, 0.0],
     );
@@ -313,7 +436,7 @@ fn figure_ground() {
             aperture: Some(figure_circle),
             direction_deg: 90.0, // dirAngleFigure = 3*pi/2, which is UP
             seed: 2,
-            ..common.clone()
+            ..common
         },
         [0.0, 0.0],
     );
@@ -522,4 +645,54 @@ fn ninety_degrees_moves_dots_toward_positive_y() {
         assert!((a[0] - b[0]).abs() < 1e-4, "90° must not move a dot sideways");
         assert!((a[1] - b[1] - 1.0).abs() < 1e-4, "90° must move a dot toward +y");
     }
+}
+
+/// `SetDotsParams` replaces every parameter — including the ones with no setter of
+/// their own, like the motion rules and the field shape — but never the seed.
+#[test]
+fn set_dots_params_replaces_everything_but_the_seed() {
+    let mut scene = SceneState::new();
+    let h = create_dots(
+        &mut scene,
+        proto::DotsParams { seed: 77, dot_count: 120, ..Default::default() },
+        [0.0, 0.0],
+    );
+    let resp = scene.handle_request(
+        req(
+            stim(h),
+            request::Body::SetDotsParams(proto::SetDotsParamsRequest {
+                params: Some(proto::DotsParams {
+                    field: Some(proto::Region {
+                        shape: proto::RegionShape::Ellipse as i32,
+                        width_px: 300.0,
+                        height_px: 300.0,
+                        ..Default::default()
+                    }),
+                    dot_count: 250,
+                    signal_rule: proto::SignalRule::Different as i32,
+                    noise_rule: proto::NoiseRule::Position as i32,
+                    reinsertion: proto::Reinsertion::Respawn as i32,
+                    seed: 1,
+                    ..Default::default()
+                }),
+            }),
+        ),
+        None,
+    );
+    assert_eq!(resp.code, proto::ErrorCode::Ok as i32, "{}", resp.error);
+    let info = query(&mut scene, h);
+    let p = dots_params_of(&info);
+    assert_eq!(p.dot_count, 250);
+    assert_eq!(p.signal_rule, proto::SignalRule::Different as i32);
+    assert_eq!(p.noise_rule, proto::NoiseRule::Position as i32);
+    assert_eq!(p.reinsertion, proto::Reinsertion::Respawn as i32);
+    assert_eq!(p.field.unwrap().shape, proto::RegionShape::Ellipse as i32);
+    assert_eq!(p.seed, 77, "SetDotsParams must not change the seed");
+
+    // Every dot, old and new, lands in the new field within a frame.
+    advance(&mut scene, 1, 60.0);
+    let e = vstimd::scene::Region::ellipse([300.0, 300.0]);
+    let pos = positions(&scene, h);
+    assert_eq!(pos.len(), 250);
+    assert!(pos.iter().all(|p| e.contains(*p)));
 }

@@ -2,6 +2,7 @@
 
 use super::convert::{
     aperture_from_proto, dots_params_from_proto, identity_from_proto, placement_from_proto,
+    region_from_proto,
 };
 use super::response::{err_not_found, err_wrong_type, ok_ack, ok_handle_with_id};
 use crate::proto;
@@ -126,22 +127,21 @@ impl SceneState {
         cmd: proto::SetDotsApertureRequest,
     ) -> proto::Response {
         self.with_dots(handle, "SetDotsAperture", |d, deferred| {
-            let field = if deferred {
-                d.params.copy.field_size_px
-            } else {
-                d.params.live.field_size_px
-            };
+            let field = if deferred { d.params.copy.field } else { d.params.live.field };
             d.set_aperture(deferred, aperture_from_proto(cmd.aperture, field));
         })
     }
 
-    pub(super) fn cmd_set_dots_field_size(
+    pub(super) fn cmd_set_dots_field(
         &mut self,
         handle: u32,
-        cmd: proto::SetDotsFieldSizeRequest,
+        cmd: proto::SetDotsFieldRequest,
     ) -> proto::Response {
-        self.with_dots(handle, "SetDotsFieldSize", |d, deferred| {
-            d.set_field_size(deferred, [cmd.width_px, cmd.height_px]);
+        self.with_dots(handle, "SetDotsField", |d, deferred| {
+            // A zero extent keeps the current one, as a zero extent on create takes
+            // the default.
+            let current = if deferred { d.params.copy.field } else { d.params.live.field };
+            d.set_field(deferred, region_from_proto(cmd.field, current));
         })
     }
 
@@ -152,6 +152,20 @@ impl SceneState {
     ) -> proto::Response {
         self.with_dots(handle, "SetDotsLifetime", |d, deferred| {
             d.set_dot_lifetime(deferred, cmd.dot_lifetime_frames);
+        })
+    }
+
+    pub(super) fn cmd_set_dots_params(
+        &mut self,
+        handle: u32,
+        cmd: proto::SetDotsParamsRequest,
+    ) -> proto::Response {
+        self.with_dots(handle, "SetDotsParams", |d, deferred| {
+            let mut params = dots_params_from_proto(&cmd.params.unwrap_or_default());
+            // The seed is not a parameter this sets — see SetDotsParamsRequest. A
+            // deferred seed change would promote at a flip that does not reseed.
+            params.seed = d.params.live.seed;
+            d.set_params(deferred, params);
         })
     }
 

@@ -3,7 +3,9 @@
 use crate::scene::deferred::Deferred;
 use crate::scene::stimulus::Transform2D;
 
-use super::dots_params::{Aperture, ApertureClip, DotsParams, NoiseRule, Reinsertion, SignalRule};
+use super::dots_params::{
+    Aperture, ApertureClip, CoherenceCount, DotsParams, NoiseRule, Region, Reinsertion, SignalRule,
+};
 use super::dots_pipeline::{DotInstance, DotsPushConstants};
 use super::dots_rng::DotsRng;
 
@@ -44,13 +46,14 @@ pub struct Dots {
     // command arrives, and the flip only changes how many of them are used.
     pos_px: Vec<[f32; 2]>,
     dir_unit: Vec<[f32; 2]>,
-    /// Each dot's fixed uniform draw in `[0, 1)`, **not** its resolved role. A dot
-    /// carries the signal this frame when its roll is below the *current*
-    /// `coherence`, so a live `SetCoherence` moves dots across the threshold at
-    /// once — without it, a role drawn at birth would never change under an
-    /// infinite lifetime and `SignalRule::Same`, and stepping coherence would have
-    /// no visible effect (DOTS-02). Under `SignalRule::Different` the roll is
-    /// redrawn every frame.
+    /// Each dot's fixed uniform draw in `[0, 1)`, **not** its resolved role. Under
+    /// `CoherenceCount::Binomial` a dot carries the signal this frame when its roll
+    /// is below the *current* `coherence`, so a live `SetCoherence` moves dots
+    /// across the threshold at once — without it, a role drawn at birth would never
+    /// change under an infinite lifetime and `SignalRule::Same`, and stepping
+    /// coherence would have no visible effect (DOTS-02). Under
+    /// `SignalRule::Different` the roll is redrawn every frame. Drawn at every birth
+    /// whatever the count rule, so a birth's draw count stays fixed.
     signal_roll: Vec<f32>,
     use_alt_color: Vec<bool>,
     /// **One stream per dot**, not one for the field.
@@ -63,6 +66,16 @@ pub struct Dots {
     /// field seed, `i`, and how long it has lived — and touching any other dot
     /// cannot reach it.
     rng: Vec<DotsRng>,
+
+    // Scratch for `CoherenceCount::Exact` with `SignalRule::Different`, which picks
+    // exactly `k` of the live dots afresh every frame. Sized with the other arrays,
+    // on the ZMQ thread, so the pick allocates nothing on the render thread.
+    /// This frame's role per dot.
+    signal_now: Vec<bool>,
+    /// A permutation of `0..live`, partially shuffled to choose the signal dots.
+    perm: Vec<u32>,
+    /// The stream that choice is drawn from — see [`DotsRng::for_roles`].
+    role_rng: DotsRng,
 
     /// Frames advanced since the field was seeded. The sample at frame N is a
     /// function of `(seed, N)`; this is the N.
@@ -115,6 +128,9 @@ impl Dots {
             signal_roll: Vec::new(),
             use_alt_color: Vec::new(),
             rng: Vec::new(),
+            signal_now: Vec::new(),
+            perm: Vec::new(),
+            role_rng: DotsRng::new(0),
             frame: 0,
             seeded_with: 0,
         };
@@ -137,6 +153,7 @@ impl Dots {
         let p = self.params.live;
         self.seeded_with = p.seed;
         self.frame = 0;
+        self.role_rng = DotsRng::for_roles(p.seed);
         let capacity = (p.dot_count as usize).max(self.pos_px.len());
         self.resize_arrays(capacity);
         for i in 0..capacity {
@@ -151,6 +168,8 @@ impl Dots {
         self.signal_roll.resize(capacity, 0.0);
         self.use_alt_color.resize(capacity, false);
         self.rng.resize_with(capacity, || DotsRng::new(0));
+        self.signal_now.resize(capacity, false);
+        self.perm.resize(capacity, 0);
     }
 
     /// Grow the arrays so `count` dots fit, seeding and birthing the new slots.
@@ -210,9 +229,7 @@ impl Dots {
         i: usize,
         p: &DotsParams,
     ) {
-        let hw = p.field_size_px[0] * 0.5;
-        let hh = p.field_size_px[1] * 0.5;
-        pos_px[i] = [rng.f32_range(-hw, hw), rng.f32_range(-hh, hh)];
+        pos_px[i] = p.field.sample(rng);
         dir_unit[i] = rng.unit_vector();
         signal_roll[i] = rng.f32_01();
         use_alt_color[i] = rng.chance(0.5);
@@ -247,8 +264,7 @@ impl Dots {
 
         let step = p.step_px(nominal_hz);
         let signal_dir = p.direction_unit();
-        let hw = p.field_size_px[0] * 0.5;
-        let hh = p.field_size_px[1] * 0.5;
+        let field = p.field;
 
         // Which lifetime group is reborn this frame. A dot's group is its index
         // modulo the lifetime, so membership needs no storage — and, more to the
@@ -260,6 +276,31 @@ impl Dots {
         let life = p.dot_lifetime_frames as usize;
         let reborn_group = (life > 0).then(|| (self.frame as usize) % life);
 
+        // An exact count: `k` of the `n` live dots, resolved against the *current*
+        // coherence and count every frame, so a live `SetCoherence` or
+        // `SetDotCount` takes effect at once.
+        //
+        // Under `Same` the signal dots are the first `k` by index — PsychoPy's
+        // rule. Roles stay fixed while `k` does, and since positions and lifetime
+        // groups owe nothing to index order, "the first k" is no spatial or temporal
+        // pattern. Under `Different` a partial Fisher–Yates over the field-level role
+        // stream picks `k` afresh.
+        let exact = p.coherence_count == CoherenceCount::Exact;
+        let k = p.exact_signal_count(n);
+        if exact && p.signal_rule == SignalRule::Different {
+            for (j, slot) in self.perm[..n].iter_mut().enumerate() {
+                *slot = j as u32;
+            }
+            for j in 0..k {
+                let r = j + self.role_rng.below((n - j) as u32) as usize;
+                self.perm.swap(j, r);
+            }
+            self.signal_now[..n].fill(false);
+            for &i in &self.perm[..k] {
+                self.signal_now[i as usize] = true;
+            }
+        }
+
         for i in 0..n {
             if reborn_group == Some(i % life.max(1)) {
                 Self::birth(&mut self.rng[i], &mut self.pos_px, &mut self.dir_unit,
@@ -267,21 +308,23 @@ impl Dots {
                 continue;
             }
 
-            if p.signal_rule == SignalRule::Different {
-                self.signal_roll[i] = self.rng[i].f32_01();
-            }
-
-            // Resolved against the *current* coherence every frame, so a live
-            // `SetCoherence` moves dots across the threshold at once.
-            let is_signal = self.signal_roll[i] < p.coherence;
+            let is_signal = match (exact, p.signal_rule) {
+                (true, SignalRule::Same) => i < k,
+                (true, SignalRule::Different) => self.signal_now[i],
+                (false, rule) => {
+                    if rule == SignalRule::Different {
+                        self.signal_roll[i] = self.rng[i].f32_01();
+                    }
+                    self.signal_roll[i] < p.coherence
+                }
+            };
             let dir = if is_signal {
                 signal_dir
             } else {
                 match p.noise_rule {
                     NoiseRule::Position => {
                         // Not motion at all: the dot reappears somewhere else.
-                        self.pos_px[i] =
-                            [self.rng[i].f32_range(-hw, hw), self.rng[i].f32_range(-hh, hh)];
+                        self.pos_px[i] = field.sample(&mut self.rng[i]);
                         continue;
                     }
                     NoiseRule::Direction => self.dir_unit[i],
@@ -289,23 +332,17 @@ impl Dots {
                 }
             };
 
-            let mut x = self.pos_px[i][0] + dir[0] * step;
-            let mut y = self.pos_px[i][1] + dir[1] * step;
-
-            let outside = x < -hw || x > hw || y < -hh || y > hh;
-            if outside {
-                match p.reinsertion {
-                    Reinsertion::Wrap => {
-                        x = wrap(x, hw);
-                        y = wrap(y, hh);
-                    }
-                    Reinsertion::Respawn => {
-                        x = self.rng[i].f32_range(-hw, hw);
-                        y = self.rng[i].f32_range(-hh, hh);
-                    }
-                }
-            }
-            self.pos_px[i] = [x, y];
+            let d = [dir[0] * step, dir[1] * step];
+            let moved = [self.pos_px[i][0] + d[0], self.pos_px[i][1] + d[1]];
+            self.pos_px[i] = if field.contains(moved) {
+                moved
+            } else {
+                let reentered = match p.reinsertion {
+                    Reinsertion::Wrap => field.reenter(moved, d),
+                    Reinsertion::Respawn => None,
+                };
+                reentered.unwrap_or_else(|| field.sample(&mut self.rng[i]))
+            };
         }
     }
 
@@ -433,8 +470,11 @@ impl Dots {
         self.with_params(deferred, |p| p.aperture = aperture);
     }
 
-    pub fn set_field_size(&mut self, deferred: bool, field_size_px: [f32; 2]) {
-        self.with_params(deferred, |p| p.field_size_px = field_size_px);
+    /// Set the field. The aperture is left alone, even one that was defaulted from
+    /// the old field — it is a region of its own, and only the caller knows whether
+    /// it was meant to follow.
+    pub fn set_field(&mut self, deferred: bool, field: Region) {
+        self.with_params(deferred, |p| p.field = field);
     }
 
     pub fn set_dot_lifetime(&mut self, deferred: bool, dot_lifetime_frames: u32) {
@@ -475,23 +515,6 @@ impl Dots {
     }
 }
 
-/// Fold `v` back into `[-half, half]` by one period. One fold, not a modulo loop:
-/// a dot that has left the field has left it by one frame's step, and a step longer
-/// than the field is a misconfiguration rather than something to accommodate.
-fn wrap(v: f32, half: f32) -> f32 {
-    let span = half * 2.0;
-    if span <= 0.0 {
-        return 0.0;
-    }
-    if v > half {
-        v - span
-    } else if v < -half {
-        v + span
-    } else {
-        v
-    }
-}
-
 // ── Push constants ────────────────────────────────────────────────────────────
 
 /// Build the per-field push constants for one dot stimulus.
@@ -508,36 +531,32 @@ pub fn build_dots_push_constants(
     screen_w: f32,
     screen_h: f32,
 ) -> DotsPushConstants {
-    use super::dots_params::{ApertureShape, DotShape};
+    use super::dots_params::{DotShape, RegionShape};
 
     let p = d.params.live;
     let a = p.aperture;
-    let aperture_half = match a.shape {
-        // A circle is sized by its diameter, so both components are its radius —
-        // the shader compares against `.x` and never reads `.y`.
-        ApertureShape::Circle => [a.size_px[0] * 0.5, a.size_px[0] * 0.5],
-        ApertureShape::Rect => [a.size_px[0] * 0.5, a.size_px[1] * 0.5],
-    };
     DotsPushConstants {
         screen_half: [screen_w * 0.5, screen_h * 0.5],
         field_center_px: d.transform.live.pos_px,
-        aperture_offset_px: a.offset_px,
-        aperture_half,
+        aperture_offset_px: a.region.offset_px,
+        aperture_half: [a.region.size_px[0] * 0.5, a.region.size_px[1] * 0.5],
         dot_radius_px: p.dot_size_px * 0.5,
         dot_shape: match p.dot_shape {
             DotShape::Round => 0,
             DotShape::Square => 1,
+            DotShape::RoundSmooth => 2,
         },
-        aperture_shape: match a.shape {
-            ApertureShape::Rect => 0,
-            ApertureShape::Circle => 1,
+        aperture_shape: match a.region.shape {
+            RegionShape::Rect => 0,
+            RegionShape::Ellipse => 1,
         },
         aperture_invert: u32::from(a.invert),
         // Under `DotCenter` the CPU has already dropped the dots that fail the
         // test, and the ones that pass are meant to overhang the edge uncut.
         clip_per_pixel: u32::from(a.clip == ApertureClip::Pixel),
         global_opacity: opacity,
-        _pad: [0, 0],
+        pixel_snap: u32::from(p.pixel_snap),
+        _pad: 0,
         dot_color: p.dot_color.into(),
         alt_color: p.dot_color_alt.unwrap_or(p.dot_color).into(),
     }
@@ -546,7 +565,7 @@ pub fn build_dots_push_constants(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::dots_params::{Aperture, ApertureShape, DotShape};
+    use super::super::dots_params::{Aperture, DotShape, Region};
     use super::build_dots_push_constants;
 
     const HZ: f32 = 60.0;
@@ -556,7 +575,7 @@ mod tests {
     }
 
     fn params(f: impl FnOnce(&mut DotsParams)) -> DotsParams {
-        let mut p = DotsParams { dot_count: 64, field_size_px: [800.0, 600.0], ..Default::default() };
+        let mut p = DotsParams { dot_count: 64, field: Region::rect([800.0, 600.0]), ..Default::default() };
         f(&mut p);
         p
     }
@@ -755,6 +774,136 @@ mod tests {
         assert!(signal_fraction(&mut d) < 0.02, "still moving coherently at coherence 0");
     }
 
+    /// Dots that moved exactly one coherent step (+1 px right at 60 px/s, 60 Hz) in
+    /// the last frame, by index.
+    fn signal_mask(d: &mut Dots) -> Vec<bool> {
+        let before = d.positions().to_vec();
+        d.advance(HZ);
+        before
+            .iter()
+            .zip(d.positions())
+            .map(|(b, a)| (a[0] - b[0] - 1.0).abs() < 1e-3 && (a[1] - b[1]).abs() < 1e-3)
+            .collect()
+    }
+
+    fn exact_field(signal_rule: SignalRule) -> Dots {
+        field(params(|p| {
+            p.dot_count = 100;
+            p.coherence = 0.1;
+            p.direction_deg = 0.0;
+            p.speed_px_per_s = 60.0;
+            p.noise_rule = NoiseRule::Walk;
+            p.signal_rule = signal_rule;
+            p.field = Region::rect([100_000.0, 100_000.0]); // no wraps to muddy the count
+        }))
+    }
+
+    /// `Exact` is the default, and gives exactly `round(coherence · n)` signal dots on
+    /// every frame — 10 of 100, not "about 10". Under `Same` they are the same 10.
+    #[test]
+    fn exact_coherence_holds_the_count_and_the_roles_under_same() {
+        assert_eq!(DotsParams::default().coherence_count, CoherenceCount::Exact);
+        let mut d = exact_field(SignalRule::Same);
+        let first = signal_mask(&mut d);
+        assert_eq!(first.iter().filter(|s| **s).count(), 10);
+        for _ in 0..20 {
+            assert_eq!(signal_mask(&mut d), first, "a signal dot changed role under Same");
+        }
+    }
+
+    /// Under `Different` the count is still exact, but which dots carry it changes.
+    #[test]
+    fn exact_coherence_holds_the_count_but_redraws_roles_under_different() {
+        let mut d = exact_field(SignalRule::Different);
+        let masks: Vec<Vec<bool>> = (0..20).map(|_| signal_mask(&mut d)).collect();
+        for m in &masks {
+            assert_eq!(m.iter().filter(|s| **s).count(), 10, "the signal count drifted");
+        }
+        assert!(masks.windows(2).any(|w| w[0] != w[1]), "roles never changed under Different");
+    }
+
+    /// `Binomial` is the other rule, and its count does move.
+    #[test]
+    fn binomial_coherence_varies_the_count() {
+        let mut d = exact_field(SignalRule::Different);
+        d.config.params.live.coherence_count = CoherenceCount::Binomial;
+        let counts: Vec<usize> =
+            (0..30).map(|_| signal_mask(&mut d).iter().filter(|s| **s).count()).collect();
+        assert!(counts.iter().any(|c| *c != counts[0]), "binomial count never varied: {counts:?}");
+    }
+
+    /// A live `SetCoherence` changes an exact count at once, even under `Same` with an
+    /// infinite lifetime (DOTS-02).
+    #[test]
+    fn exact_coherence_follows_a_live_change() {
+        let mut d = exact_field(SignalRule::Same);
+        d.set_coherence(false, 0.37);
+        assert_eq!(signal_mask(&mut d).iter().filter(|s| **s).count(), 37);
+    }
+
+    /// The same seed reproduces the exact-`Different` role choice, which comes from
+    /// the field-level stream rather than the per-dot ones.
+    #[test]
+    fn exact_different_roles_replay_from_the_seed() {
+        let run = || {
+            let mut d = exact_field(SignalRule::Different);
+            (0..10).map(|_| signal_mask(&mut d)).collect::<Vec<_>>()
+        };
+        assert_eq!(run(), run());
+    }
+
+    /// An ellipse field holds every dot inside it — at birth, and after every way a
+    /// dot can leave or be placed: wrapping, respawning, position noise, rebirth.
+    #[test]
+    fn an_ellipse_field_holds_its_dots_under_every_rule() {
+        let e = Region { offset_px: [40.0, -25.0], ..Region::ellipse([500.0, 300.0]) };
+        for (reinsertion, noise_rule) in [
+            (Reinsertion::Wrap, NoiseRule::Direction),
+            (Reinsertion::Respawn, NoiseRule::Walk),
+            (Reinsertion::Wrap, NoiseRule::Position),
+        ] {
+            let mut d = field(params(|p| {
+                p.dot_count = 500;
+                p.field = e;
+                p.coherence = 0.5;
+                p.speed_px_per_s = 1500.0;
+                p.dot_lifetime_frames = 7;
+                p.reinsertion = reinsertion;
+                p.noise_rule = noise_rule;
+            }));
+            for f in 0..300 {
+                for p in d.positions() {
+                    assert!(e.contains(*p), "{reinsertion:?}/{noise_rule:?}: {p:?} outside at frame {f}");
+                }
+                d.advance(HZ);
+            }
+        }
+    }
+
+    /// Wrapping an ellipse field is continuous motion plus re-entry, not a respawn:
+    /// with coherent dots, no lifetime and `Wrap`, every dot either moved by exactly
+    /// one step or re-entered on the far side of its chord along the same line.
+    #[test]
+    fn an_ellipse_field_wraps_along_the_line_of_motion() {
+        let mut d = field(params(|p| {
+            p.dot_count = 300;
+            p.field = Region::ellipse([400.0, 400.0]);
+            p.coherence = 1.0;
+            p.direction_deg = 0.0;
+            p.speed_px_per_s = 600.0; // 10 px per frame
+        }));
+        for _ in 0..120 {
+            let before = d.positions().to_vec();
+            d.advance(HZ);
+            for (b, a) in before.iter().zip(d.positions()) {
+                assert!((a[1] - b[1]).abs() < 1e-3, "a wrap left the line of motion: {b:?} → {a:?}");
+                let stepped = (a[0] - b[0] - 10.0).abs() < 1e-3;
+                let reentered = a[0] < 0.0 && b[0] > 0.0;
+                assert!(stepped || reentered, "{b:?} → {a:?}");
+            }
+        }
+    }
+
     // ── The aperture ──────────────────────────────────────────────────────────
 
     fn instances(d: &Dots) -> Vec<DotInstance> {
@@ -770,11 +919,7 @@ mod tests {
     fn dot_center_clipping_culls_whole_dots() {
         let d = field(params(|p| {
             p.dot_count = 2000;
-            p.aperture = Aperture {
-                shape: ApertureShape::Circle,
-                size_px: [200.0, 200.0],
-                ..Default::default()
-            };
+            p.aperture = Aperture { region: Region::ellipse([200.0, 200.0]), ..Default::default() };
         }));
         let drawn = instances(&d);
         assert!(!drawn.is_empty() && drawn.len() < 2000, "{} of 2000 drawn", drawn.len());
@@ -788,11 +933,7 @@ mod tests {
     /// the whole of "background dots, everywhere but the figure".
     #[test]
     fn inverted_aperture_is_the_exact_complement() {
-        let inside = Aperture {
-            shape: ApertureShape::Circle,
-            size_px: [200.0, 200.0],
-            ..Default::default()
-        };
+        let inside = Aperture { region: Region::ellipse([200.0, 200.0]), ..Default::default() };
         let make = |a| field(params(|p| { p.dot_count = 1000; p.aperture = a; }));
         let fig = instances(&make(inside));
         let gnd = instances(&make(Aperture { invert: true, ..inside }));
@@ -806,8 +947,7 @@ mod tests {
         let d = field(params(|p| {
             p.dot_count = 500;
             p.aperture = Aperture {
-                shape: ApertureShape::Circle,
-                size_px: [50.0, 50.0],
+                region: Region::ellipse([50.0, 50.0]),
                 clip: ApertureClip::Pixel,
                 ..Default::default()
             };
@@ -876,6 +1016,9 @@ mod tests {
                 p.dot_count = 50;
                 p.coherence = 0.5; // noise dots draw per frame — the sensitive case
                 p.noise_rule = NoiseRule::Walk;
+                // An exact count couples the dots: growing the field changes `k`, and
+                // with it some existing dots' roles. Only binomial roles are per-dot.
+                p.coherence_count = CoherenceCount::Binomial;
                 p.seed = 21;
             }));
             for f in 0..20 {
@@ -901,6 +1044,7 @@ mod tests {
                 p.dot_count = 50;
                 p.coherence = 0.5;
                 p.noise_rule = NoiseRule::Walk;
+                p.coherence_count = CoherenceCount::Binomial;
                 p.seed = 22;
             }));
             for f in 0..20 {
@@ -987,10 +1131,11 @@ mod tests {
             p.signal_rule = SignalRule::Different;
             p.reinsertion = Reinsertion::Respawn;
             p.dot_color_alt = Some(crate::Color::BLACK);
+            p.field = Region::ellipse([700.0, 500.0]);
+            p.coherence_count = CoherenceCount::Binomial;
+            p.pixel_snap = true;
             p.aperture = Aperture {
-                shape: ApertureShape::Circle,
-                size_px: [450.0, 450.0],
-                offset_px: [120.0, -80.0],
+                region: Region { offset_px: [120.0, -80.0], ..Region::ellipse([450.0, 300.0]) },
                 invert: true,
                 clip: ApertureClip::Pixel,
             };
@@ -1015,11 +1160,7 @@ mod tests {
     fn push_constants_halve_sizes_exactly_once() {
         let d = Dots::new([100.0, -50.0], 0.0, params(|p| {
             p.dot_size_px = 30.0;
-            p.aperture = Aperture {
-                shape: ApertureShape::Rect,
-                size_px: [400.0, 200.0],
-                ..Default::default()
-            };
+            p.aperture = Aperture { region: Region::rect([400.0, 200.0]), ..Default::default() };
         }));
         let pc = build_dots_push_constants(&d, 1.0, 1920.0, 1080.0);
         assert_eq!(pc.screen_half, [960.0, 540.0]);
@@ -1028,20 +1169,25 @@ mod tests {
         assert_eq!(pc.field_center_px, [100.0, -50.0], "the field centre is the transform");
     }
 
-    /// A circle is sized by its diameter, so *both* components of `aperture_half`
-    /// are its radius — the shader compares against `.x` and never reads `.y`.
+    /// An ellipse pushes both of its half-extents — the shader normalises by each.
     #[test]
-    fn a_circle_aperture_pushes_its_radius() {
+    fn an_ellipse_aperture_pushes_both_half_extents() {
         let d = Dots::new([0.0, 0.0], 0.0, params(|p| {
-            p.aperture = Aperture {
-                shape: ApertureShape::Circle,
-                size_px: [900.0, 0.0],
-                ..Default::default()
-            };
+            p.aperture = Aperture { region: Region::ellipse([900.0, 300.0]), ..Default::default() };
         }));
         let pc = build_dots_push_constants(&d, 1.0, 1920.0, 1080.0);
-        assert_eq!(pc.aperture_half, [450.0, 450.0]);
+        assert_eq!(pc.aperture_half, [450.0, 150.0]);
         assert_eq!(pc.aperture_shape, 1);
+    }
+
+    #[test]
+    fn dot_shape_and_snap_reach_the_shader() {
+        let d = Dots::new([0.0, 0.0], 0.0, params(|p| {
+            p.dot_shape = DotShape::RoundSmooth;
+            p.pixel_snap = true;
+        }));
+        let pc = build_dots_push_constants(&d, 1.0, 800.0, 600.0);
+        assert_eq!((pc.dot_shape, pc.pixel_snap), (2, 1));
     }
 
     /// Under `DotCenter` the CPU has already culled, and the dots that survive are

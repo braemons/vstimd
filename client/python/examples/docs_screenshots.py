@@ -34,7 +34,6 @@ from vstimd import Connection, FinalAction, StartAction, VtlHandle, VtlKind
 from vstimd.stimuli import (
     Aperture,
     ApertureClip,
-    ApertureShape,
     CircleParams,
     Color,
     DotsParams,
@@ -44,6 +43,7 @@ from vstimd.stimuli import (
     GratingTexture,
     NoiseRule,
     RectParams,
+    Region,
     ShapeAppearance,
     ShapeDrawMode,
     TextParams,
@@ -225,9 +225,9 @@ def dots_classic(conn: Connection) -> None:
     conn.stimuli.dots.create_dots(
         name="classic_rdk", position_px=Vec2(0, 40),
         params=DotsParams(
-            field_width_px=460, field_height_px=460,
+            field=Region.rect(460, 460),
             aperture=Aperture(
-                shape=ApertureShape.CIRCLE, width_px=460, height_px=460,
+                region=Region.circle(460),
                 clip=ApertureClip.PIXEL,   # the aperture is meant to be seen here
             ),
             dot_count=250, dot_size_px=6.0,
@@ -241,9 +241,8 @@ def dots_classic(conn: Connection) -> None:
 def dots_coherence(conn: Connection) -> None:
     conn.system.set_background(*DARK)
     common = DotsParams(
-        field_width_px=300, field_height_px=300,
-        aperture=Aperture(shape=ApertureShape.CIRCLE, width_px=300, height_px=300,
-                          clip=ApertureClip.PIXEL),
+        field=Region.rect(300, 300),
+        aperture=Aperture(region=Region.circle(300), clip=ApertureClip.PIXEL),
         dot_count=160, dot_size_px=6.0,
         direction_deg=0.0, speed_px_per_s=140.0,
         noise_rule=NoiseRule.DIRECTION,
@@ -254,18 +253,18 @@ def dots_coherence(conn: Connection) -> None:
             params=replace(common, coherence=coh, seed=int(coh * 100) + 1),
         )
         label(conn, f"coherence = {coh:.1f}", Vec2(x, -125))
-    caption(conn, "Coherence is a per-dot Bernoulli, so the signal count varies frame to frame")
+    caption(conn, "Coherence is an exact count: round(coherence × dots) signal dots on every frame")
 
 
 def dots_figure_ground(conn: Connection) -> None:
     """The whole point of separating field from aperture."""
     conn.system.set_background(*GREY)
     circle = Aperture(
-        shape=ApertureShape.CIRCLE, width_px=380.0, height_px=380.0,
+        region=Region.circle(380.0),
         clip=ApertureClip.DOT_CENTER,   # never PIXEL here: a cut edge is a static cue
     )
     common = DotsParams(
-        field_width_px=1280.0, field_height_px=720.0,
+        field=Region.rect(1280.0, 720.0),
         dot_count=700, dot_size_px=6.0, dot_color=WHITE,
         speed_px_per_s=200.0, coherence=1.0,
     )
@@ -285,7 +284,7 @@ def dots_clipping(conn: Connection) -> None:
     """Side by side, the difference that decides whether a figure has an outline."""
     conn.system.set_background(*DARK)
     common = DotsParams(
-        field_width_px=340, field_height_px=340,
+        field=Region.rect(340, 340),
         dot_count=140, dot_size_px=16.0,   # big dots: the clip mode is the point
         direction_deg=0.0, speed_px_per_s=60.0, coherence=1.0, seed=3,
     )
@@ -293,8 +292,7 @@ def dots_clipping(conn: Connection) -> None:
                           (ApertureClip.PIXEL, "PIXEL", 260)):
         conn.stimuli.dots.create_dots(
             name=f"clip_{text.lower()}", position_px=Vec2(x, 60),
-            params=replace(common, aperture=Aperture(
-                shape=ApertureShape.CIRCLE, width_px=280, height_px=280, clip=clip)),
+            params=replace(common, aperture=Aperture(region=Region.circle(280), clip=clip)),
         )
         label(conn, text, Vec2(x, -130))
     caption(conn, "DOT_CENTER lets dots overhang; PIXEL cuts them, drawing the aperture")

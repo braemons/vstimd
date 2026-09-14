@@ -26,14 +26,11 @@ sit on it.
 ## 2. One aperture, shared by both fields
 
 ```python
-from vstimd.stimuli import Aperture, ApertureClip, ApertureShape
+from vstimd.stimuli import Aperture, ApertureClip, Region
 
 figure_circle = Aperture(
-    shape=ApertureShape.CIRCLE,
-    # height_px is ignored for a circle, but 0 means "the field" — pass the
-    # diameter on both axes so the aperture round-trips as the circle it is.
-    width_px=500.0,
-    height_px=500.0,
+    # A circle is an ellipse sized by its diameter on both axes.
+    region=Region.circle(500.0),
     # Dots overhang the boundary uncut, as the MATLAB's centre-pixel test does
     # — cutting them at the edge would draw a crisp circle, a static form cue
     # a motion-defined figure must not have.
@@ -52,10 +49,13 @@ here.
 ```python
 from dataclasses import replace
 
-from vstimd.stimuli import Color, DotsParams
+from vstimd.stimuli import Color, DotsParams, Region
 
 common = DotsParams(
-    field_width_px=1920.0, field_height_px=1080.0,
+    # The whole screen: the field stays a rectangle, and the circle is a mask on
+    # it. A circular *field* would make dots respawn along the figure's edge —
+    # tracing exactly the outline this stimulus must not have.
+    field=Region.rect(1920.0, 1080.0),
     dot_count=900, dot_size_px=8.0,
     dot_color=Color(1.0, 1.0, 1.0),
     speed_px_per_s=200.0, coherence=1.0,
@@ -70,8 +70,6 @@ what must differ.
 ## 4. The ground and the figure
 
 ```python
-from vstimd.stimuli import ApertureShape
-
 ground = conn.stimuli.dots.create_dots(
     name="ground",
     params=replace(
