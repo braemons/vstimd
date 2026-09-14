@@ -321,3 +321,66 @@ fn a_config_without_the_level_line_field_still_loads() {
     scene.load_snapshot(snap, LoadMode::Replace);
     assert!(scene.animations.values().next().unwrap().final_action_level_line.is_none());
 }
+
+/// The 3-D stimulus types survive the config JSON exactly — geometry,
+/// placement, material and texture path. At the serde level: `parse_config_json`
+/// still refuses 3-D stimuli until they have a wire representation (#72).
+#[test]
+fn roundtrip_3d_stimuli_through_json() {
+    use vstimd::scene::{Material3D, Mesh3d, Mesh3dGeometry, Shading3D, StimulusBody, Transform3D};
+
+    let mut scene = SceneConfig::default();
+    let sphere = Mesh3d::new(
+        Transform3D {
+            position_cm: glam::Vec3::new(0.0, 10.0, -60.0),
+            rotation_euler_deg: glam::Vec3::new(30.0, -10.0, 5.0),
+            scale: glam::Vec3::new(1.0, 2.0, 1.0),
+        },
+        Material3D {
+            albedo: vstimd::Color::new(0.2, 0.4, 0.6, 1.0),
+            emissive: [0.1, 0.0, 0.0],
+            shading: Shading3D::Phong,
+        },
+        Mesh3dGeometry::Sphere { diameter_cm: 12.0, rings: 16, sectors: 32 },
+        Some("textures/earth.png".into()),
+    );
+    let cube = Mesh3d::new(
+        Transform3D::default(),
+        Material3D::default(),
+        Mesh3dGeometry::Cube { size_cm: [20.0, 10.0, 5.0] },
+        None,
+    );
+    for (h, m) in [(1, sphere.clone()), (2, cube.clone())] {
+        scene.stimuli.insert(
+            h,
+            StimulusSceneEntry::new(StimulusIdentity::new(None), Stimulus::from(m)),
+        );
+    }
+
+    let json = serde_json::to_string(&scene).unwrap();
+    let loaded: SceneConfig = serde_json::from_str(&json).unwrap();
+    for (h, want) in [(1, &sphere), (2, &cube)] {
+        let StimulusBody::Mesh3d(got) = &loaded.stimuli[&h].stimulus.body else {
+            panic!("stimulus {h} is not a Mesh3d after the round trip");
+        };
+        assert_eq!(got.transform.live, want.transform.live);
+        assert_eq!(got.material.live, want.material.live);
+        assert_eq!(got.geometry.live, want.geometry.live);
+        assert_eq!(got.texture_path, want.texture_path);
+    }
+    assert_eq!(loaded.camera.live, scene.camera.live);
+}
+
+/// A moved camera is saved; a default one is omitted, so 2-D configs are unchanged.
+#[test]
+fn camera_is_saved_only_when_moved() {
+    let mut scene = SceneConfig::default();
+    let json = serde_json::to_string(&scene).unwrap();
+    assert!(!json.contains("\"camera\""), "{json}");
+
+    scene.camera.live.position_cm = glam::Vec3::new(0.0, 5.0, 100.0);
+    scene.camera.live.yaw_deg = 45.0;
+    let json = serde_json::to_string(&scene).unwrap();
+    let loaded: SceneConfig = serde_json::from_str(&json).unwrap();
+    assert_eq!(loaded.camera.live, scene.camera.live);
+}

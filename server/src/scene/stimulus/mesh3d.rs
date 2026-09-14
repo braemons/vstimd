@@ -1,8 +1,7 @@
 //! Procedural 3-D primitives: cube, sphere, plane.
 //!
-//! **Placeholder — Phase B of `dev/3D_ROADMAP.md`.** The type exists; nothing
-//! tessellates, uploads or draws it, and no command constructs one, so every
-//! arm reachable only from a live 3-D stimulus is `unimplemented!()`.
+//! The scene side of Phase B (`dev/3D_ROADMAP.md`). Rendering (#70) and the
+//! wire commands (#72) build on it.
 //!
 //! ## Why one struct rather than `Cube3D` / `Sphere3D` / `Plane3D`
 //!
@@ -51,7 +50,7 @@ pub struct Mesh3d {
 /// unit cube is 2 units across, so the halving happens when building the model
 /// matrix — never in the API or the config, and never as a `half_size` field
 /// (that split is what the v3 config format removed).
-#[derive(Clone, Copy, serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(tag = "type")]
 pub enum Mesh3dGeometry {
     Cube {
@@ -87,7 +86,7 @@ impl Default for Mesh3dGeometry {
 /// Phase A/B that is expensive to reverse. Every other cache in the codebase
 /// (`SolidMeshCache`, `TextMeshCache`) keys by handle; copying that here would
 /// make a corridor of N tiles allocate N identical vertex buffers.
-#[derive(PartialEq, Eq, Hash, Clone, Copy)]
+#[derive(PartialEq, Eq, Hash, Clone, Copy, Debug)]
 pub enum MeshKey {
     Cube,
     Sphere { rings: u32, sectors: u32 },
@@ -124,19 +123,37 @@ impl Mesh3dGeometry {
         }
     }
 
-    /// The nominal size_cm to fold into the model matrix as scale, so the shared
-    /// mesh can stay a *unit* primitive.
+    /// The size to fold into the model matrix as scale, so the shared mesh stays
+    /// a unit primitive.
     ///
-    /// Unimplemented pending the tessellator it has to agree with: the halving
-    /// convention (`size_cm * 0.5` for the 2-units-across unit cube) is only
-    /// correct relative to how `tess3d` emits the unit geometry, and writing one
-    /// without the other bakes in a factor-of-two nobody can later locate.
-    pub fn model_scale(&self) -> [f32; 3] {
-        unimplemented!("Phase B: unit-mesh scale — see dev/3D_ROADMAP.md §1.7, §B.3, §B.6")
+    /// The unit meshes in `render::tess3d` span `[-1, 1]` on every axis they
+    /// have — 2 units across — so a full extent of `size_cm` is a scale of
+    /// `size_cm / 2`. That halving happens here and nowhere else. The plane is
+    /// flat in XZ, so its Y scale is 1 (it has no thickness to scale).
+    pub fn model_scale(&self) -> glam::Vec3 {
+        match *self {
+            Self::Cube { size_cm } => glam::Vec3::from(size_cm) * 0.5,
+            Self::Sphere { diameter_cm, .. } => glam::Vec3::splat(diameter_cm * 0.5),
+            Self::Plane { size_cm: [w, d] } => glam::Vec3::new(w * 0.5, 1.0, d * 0.5),
+        }
     }
 }
 
 impl Mesh3d {
+    pub fn new(
+        transform: Transform3D,
+        material: Material3D,
+        geometry: Mesh3dGeometry,
+        texture_path: Option<String>,
+    ) -> Self {
+        Self {
+            transform: Deferred::new(transform),
+            material: Deferred::new(material),
+            geometry: Deferred::new(geometry),
+            texture_path,
+        }
+    }
+
     pub fn make_copy(&mut self) {
         self.transform.make_copy();
         self.material.make_copy();
@@ -147,5 +164,50 @@ impl Mesh3d {
         self.transform.flip();
         self.material.flip();
         self.geometry.flip();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use glam::Vec3;
+
+    #[test]
+    fn model_scale_halves_full_extents() {
+        let cube = Mesh3dGeometry::Cube {
+            size_cm: [20.0, 10.0, 4.0],
+        };
+        assert_eq!(cube.model_scale(), Vec3::new(10.0, 5.0, 2.0));
+        let sphere = Mesh3dGeometry::Sphere {
+            diameter_cm: 30.0,
+            rings: 16,
+            sectors: 32,
+        };
+        assert_eq!(sphere.model_scale(), Vec3::splat(15.0));
+        let plane = Mesh3dGeometry::Plane {
+            size_cm: [100.0, 40.0],
+        };
+        assert_eq!(plane.model_scale(), Vec3::new(50.0, 1.0, 20.0));
+    }
+
+    #[test]
+    fn size_does_not_change_the_mesh_key() {
+        let a = Mesh3dGeometry::Sphere {
+            diameter_cm: 1.0,
+            rings: 16,
+            sectors: 32,
+        };
+        let b = Mesh3dGeometry::Sphere {
+            diameter_cm: 50.0,
+            rings: 16,
+            sectors: 32,
+        };
+        assert_eq!(a.mesh_key(), b.mesh_key());
+        let c = Mesh3dGeometry::Sphere {
+            diameter_cm: 1.0,
+            rings: 8,
+            sectors: 32,
+        };
+        assert_ne!(a.mesh_key(), c.mesh_key());
     }
 }
