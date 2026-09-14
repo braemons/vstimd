@@ -81,3 +81,42 @@ def server_process(server_address: str):
             warnings.warn(f"vstimd (pid {proc.pid}) has not exited after SIGKILL")
     log_file.close()
     print(f"\nServer log: {log_path}")
+
+
+@pytest.mark.onscreen(
+    "SYS-15",
+    "a red square above centre and a green one below, on a blue background; "
+    "the capture must show them where they are",
+    deferred=True,  # no caption: it would be in the captured pixels
+)
+def test_capture_frame_shows_what_was_drawn(conn):
+    """CaptureFrame returns the presented frame, commands already applied."""
+    from vstimd.stimuli.color import Color
+    from vstimd.stimuli.shapes_models import RectParams, ShapeAppearance
+    from vstimd.stimuli.stimuli_models import Vec2
+
+    from .png_pixels import decode_rgb, pixel
+
+    def square(y_px: float, color: Color) -> None:
+        conn.stimuli.shapes.create_rect(
+            position_px=Vec2(0.0, y_px),
+            params=RectParams(
+                width_px=80.0, height_px=80.0, appearance=ShapeAppearance(fill_color=color)
+            ),
+        )
+
+    conn.system.set_background(0.0, 0.0, 1.0)
+    square(150.0, Color(1.0, 0.0, 0.0))
+    square(-150.0, Color(0.0, 1.0, 0.0))
+    before = conn.system.wait_for_frames(0).frame_count
+
+    shot = conn.system.capture_frame()
+    width, height, rgb = decode_rgb(shot.png)
+    assert (width, height) == (shot.width_px, shot.height_px)
+    assert shot.frame >= before
+
+    cx, cy = width // 2, height // 2
+    # Stimulus space is Y-up; image rows run top to bottom.
+    assert pixel(width, rgb, cx, cy - 150) == (255, 0, 0)
+    assert pixel(width, rgb, cx, cy + 150) == (0, 255, 0)
+    assert pixel(width, rgb, cx, cy) == (0, 0, 255)

@@ -90,6 +90,7 @@ impl WinitRenderLoopData {
 
         // Build sub-renderers before ctx moves into RenderState.
         let storage_dir = scene.read().unwrap().runtime.storage_dir.clone();
+        let capture_rx = scene.read().unwrap().runtime.take_capture_receiver();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
         let text = TextRenderer::new(&ctx);
 
@@ -166,7 +167,7 @@ impl WinitRenderLoopData {
         };
 
         Self {
-            shot: crate::render::Screenshotter::new(),
+            shot: crate::render::Screenshotter::new(capture_rx),
             rs,
             vtl,
             egui_winit,
@@ -223,7 +224,7 @@ impl WinitRenderLoopData {
         let readback = shot.begin(&rs.ctx);
         let (tick, platform_output) =
             render_frame(rs, None, egui_raw_input, vtl.as_deref(), readback);
-        shot.finish(&rs.ctx);
+        shot.finish(&rs.ctx, tick.as_ref().map(|t| t.frame));
 
 
         // 3. Forward egui platform output (cursor changes, clipboard, etc.).

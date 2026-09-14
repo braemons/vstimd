@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
 from vstimd._handles import StimulusHandle
@@ -60,6 +61,33 @@ class DeferredModeStatus:
         if not self.flip_scheduled:
             return None
         return self.flip_frame - self.frame_count
+
+
+@dataclass(repr=False)
+class CapturedFrame:
+    """One presented frame, returned by :meth:`SystemClient.capture_frame`.
+
+    ``png`` is the frame exactly as it went to the display — overlay included —
+    encoded as 8-bit RGB PNG.
+    """
+
+    png: bytes
+    width_px: int
+    height_px: int
+    #: The frame index, in the numbering ``ServerResponse.frame_count`` and the
+    #: event stream use.
+    frame: int
+
+    def save(self, path: str | os.PathLike[str]) -> None:
+        """Write the PNG to ``path``."""
+        with open(path, "wb") as f:
+            f.write(self.png)
+
+    def __repr__(self) -> str:
+        return (
+            f"CapturedFrame(frame={self.frame}, {self.width_px}x{self.height_px}, "
+            f"{len(self.png)} bytes)"
+        )
 
 
 @dataclass(repr=False)

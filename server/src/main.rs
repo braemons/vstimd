@@ -170,6 +170,14 @@ fn main() {
         }
     }
 
+    // A backend with no swapchain frames to read back never serves CaptureFrame.
+    // Dropping the receiver before the ZMQ thread starts makes that a prompt
+    // NOT_SUPPORTED; a backend that can capture claims it once its render loop
+    // exists, and a request that arrives before then waits in the channel.
+    if matches!(render_target, RenderTarget::Null | RenderTarget::Evdi) {
+        drop(scene.read().unwrap().runtime.take_capture_receiver());
+    }
+
     let (zmq_thread, zmq_shutdown, zmq_bound) = vstimd::ipc::spawn_zmq_thread(
         scene.clone(),
         vtl.clone(),

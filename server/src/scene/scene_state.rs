@@ -78,6 +78,15 @@ pub struct SceneRuntimeState {
     /// started an event stream, and disabled is not a degraded mode — it is what
     /// every test and `--no-events` uses, with the same code path.
     pub events: crate::ipc::EventPublisher,
+    /// Where the ZMQ thread sends `CaptureFrame` requests. Capacity one: the ZMQ
+    /// thread serves one request at a time and waits for each capture.
+    pub capture_requests: std::sync::mpsc::SyncSender<crate::render::screenshot::CaptureRequest>,
+    /// The other end, until a render loop that can capture claims it with
+    /// [`Self::take_capture_receiver`]. A backend that cannot capture (null,
+    /// evdi) has it dropped at startup, so `CaptureFrame` sees a disconnected
+    /// channel and answers `NOT_SUPPORTED`.
+    capture_receiver:
+        std::sync::Mutex<Option<std::sync::mpsc::Receiver<crate::render::screenshot::CaptureRequest>>>,
     /// Reusable buffer for the per-frame animation-handle snapshot in
     /// [`SceneState::advance_animations`]. Kept here so its allocation is reused
     /// across frames instead of being reallocated each tick.
@@ -87,6 +96,7 @@ pub struct SceneRuntimeState {
 impl SceneRuntimeState {
     pub fn new_with_storage_dir(storage_dir: std::path::PathBuf) -> Self {
         let (tx, _rx) = tokio::sync::watch::channel(0u64);
+        let (capture_tx, capture_rx) = std::sync::mpsc::sync_channel(1);
         Self {
             storage_dir,
             deferred_mode: false,
@@ -105,9 +115,20 @@ impl SceneRuntimeState {
             frame_notifier: std::sync::Arc::new(tx),
             next_render_frame: 0,
             events: crate::ipc::EventPublisher::disabled(),
+            capture_requests: capture_tx,
+            capture_receiver: std::sync::Mutex::new(Some(capture_rx)),
             anim_scratch: Vec::new(),
         }
     }
+
+    /// Hand the `CaptureFrame` receiver to the render loop that will serve it.
+    /// `Some` exactly once.
+    pub fn take_capture_receiver(
+        &self,
+    ) -> Option<std::sync::mpsc::Receiver<crate::render::screenshot::CaptureRequest>> {
+        self.capture_receiver.lock().ok()?.take()
+    }
+
 
     fn new() -> Self {
         Self::new_with_storage_dir(std::path::PathBuf::from("."))

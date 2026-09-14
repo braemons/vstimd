@@ -176,6 +176,7 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::QueryAnimation(c)) => format!("QueryAnimation({})", c.handle),
         Some(request::Body::WaitForFrames(c)) => format!("WaitForFrames({})", c.count),
         Some(request::Body::WaitUntil(c)) => format!("WaitUntil({}ns)", c.server_time_ns),
+        Some(request::Body::CaptureFrame(_)) => "CaptureFrame".into(),
         Some(request::Body::ListSceneConfigs(_)) => "ListSceneConfigs".into(),
         Some(request::Body::LoadSceneConfig(c)) => format!("LoadSceneConfig({:?})", c.name),
         Some(request::Body::UploadSceneConfig(c)) => format!("UploadSceneConfig({:?})", c.name),
@@ -341,6 +342,12 @@ impl SceneState {
                 crate::process::shutdown::request();
                 ok_ack()
             }
+            // Waits on the render thread, so it cannot run under the scene lock
+            // this dispatcher is called with. The ZMQ transport serves it.
+            request::Body::CaptureFrame(_) => err(
+                proto::ErrorCode::NotSupported,
+                "CaptureFrame is only served over the ZMQ transport",
+            ),
             _ => err(
                 proto::ErrorCode::WrongTarget,
                 "command requires a stimulus handle (target.stimulus > 0)",
@@ -383,6 +390,7 @@ impl SceneState {
             | request::Body::QueryAnimation(_)
             | request::Body::WaitForFrames(_)
             | request::Body::WaitUntil(_)
+            | request::Body::CaptureFrame(_)
             | request::Body::ListSceneConfigs(_)
             | request::Body::LoadSceneConfig(_)
             | request::Body::UploadSceneConfig(_)

@@ -114,6 +114,14 @@ server and the client move together, and nothing has shipped yet.
   `box_width`/`box_height` arguments), and its `color` → `text_color` (matching
   what a query already called it). `TextParams.size` → `TextParams.box_size_px`.
 
+### Added
+
+- **`conn.system.capture_frame()`** returns the next presented frame as a PNG
+  (`CapturedFrame`, with `.save(path)`), read back from the server's own
+  swapchain — overlay included, every acknowledged command applied. The CLI
+  equivalent is `vstimd-client capture PATH`. Raises `NotSupportedError` on the
+  null renderer and evdi.
+
 ## [0.1.0rc3] — 2026-08-13
 
 ### Added

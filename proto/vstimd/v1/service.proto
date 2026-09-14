@@ -145,6 +145,7 @@ message Request {
     // ── Timing / synchronisation (system target) ─────────────────────────────
     WaitForFramesRequest wait_for_frames = 83;
     WaitUntilRequest wait_until = 84;
+    CaptureFrameRequest capture_frame = 85;
 
     // ── VTL (Virtual Trigger Lines) ─────────────────────────────────────────
     SetVirtualTriggerLineNameRequest set_virtual_trigger_line_name = 90;
@@ -215,6 +216,7 @@ message Response {
     RetrieveSceneConfigResponse retrieved_scene_config = 18;
     SetDeferredModeResponse deferred_mode = 19;
     ListConditionsResponse condition_list = 22;
+    CaptureFrameResponse captured_frame = 23;
   }
 
   // Server-side monotonic clock at response time, nanoseconds since server

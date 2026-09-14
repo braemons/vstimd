@@ -8,6 +8,7 @@ from vstimd._proto.vstimd.v1 import color_pb2
 from vstimd.response import ServerResponse
 from vstimd.stimuli.color import Color
 from .system_models import (
+    CapturedFrame,
     DeferredModeStatus,
     ServerInfo,
     ServerVersion,
@@ -188,6 +189,34 @@ class SystemClient:
         while resp.frame_count < frame_count:
             resp = self.wait_for_frames(frame_count - resp.frame_count)
         return resp
+
+    # ── Frame capture ────────────────────────────────────────────────────────
+
+    def capture_frame(self) -> CapturedFrame:
+        """Capture the next presented frame as a PNG.
+
+        The frame includes every command acknowledged before this call, and
+        is read back from the server's own swapchain — exactly what went to
+        the display, overlay included. Takes about one frame plus the readback.
+
+        Example::
+
+            conn.system.capture_frame().save("frame.png")
+
+        Raises:
+            NotSupportedError: the server renders nothing to capture (null
+                renderer, evdi).
+            NotReadyError: no frame was rendered within a few seconds, e.g.
+                a minimised window. Retrying is safe.
+        """
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            capture_frame=system_pb2.CaptureFrameRequest(),
+        )
+        f = self._send(req).captured_frame
+        return CapturedFrame(
+            png=f.png, width_px=f.width_px, height_px=f.height_px, frame=f.frame
+        )
 
     def wait_until(self, server_time_ns: int) -> ServerResponse:
         """Block until the server's monotonic clock reaches `server_time_ns`."""

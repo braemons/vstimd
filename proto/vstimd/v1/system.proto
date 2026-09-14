@@ -87,6 +87,31 @@ message WaitUntilRequest {
   uint64 server_time_ns = 1;
 }
 
+// ── Frame capture ─────────────────────────────────────────────────────────────
+
+// Capture the next presented frame, exactly as it goes to the display — the
+// swapchain image read back after rendering, overlay included — and return it
+// as a PNG in CaptureFrameResponse.
+//
+// The captured frame includes every command acknowledged before this request
+// was sent. The reply comes once that frame is rendered, so the request takes
+// about one frame plus the readback.
+//
+// NOT_SUPPORTED on a server with nothing to capture (the null renderer, evdi).
+// NOT_READY if the render loop does not produce a frame within a few seconds
+// (the window is minimised, say); retrying is safe.
+message CaptureFrameRequest {}
+
+message CaptureFrameResponse {
+  // PNG, 8-bit RGB. Alpha is dropped: the frame is already composited.
+  bytes png = 1;
+  uint32 width_px = 2;
+  uint32 height_px = 3;
+  // Index of the captured frame, in the numbering the event stream and
+  // Response.frame_count use.
+  uint64 frame = 4;
+}
+
 // ── System queries ────────────────────────────────────────────────────────────
 
 // System command: query server/display properties.

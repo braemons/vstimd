@@ -59,7 +59,7 @@ acknowledges, and a server error is raised as a typed exception (see
 | `conn.stimuli.grating` | Create/mutate gratings | `create_grating`, `set_phase`, `set_sf`, `set_contrast`, `set_waveform`, `set_mask`, `set_drift_speed`, `set_drift_angle`, `set_fore_color`, … (opacity: use `conn.stimuli.set_alpha`) |
 | `conn.stimuli.text` | Create/mutate text | `create_text`, `set_text`, `set_text_color` |
 | `conn.stimuli.dots` | Create/mutate [dot fields](../stimuli/random-dots.md) | `create_dots`, `set_direction`, `set_speed`, `set_coherence`, `set_dot_count`, `set_dot_size`, `set_dot_color`, `set_aperture`, `set_field_size`, `set_dot_lifetime`, `set_seed` |
-| `conn.system` | Scene-wide + queries | `set_background`, `set_all_enabled`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_deferred_mode`, `list_stimuli`, `query_server_info`, `wait_for_frames`, `wait_for_frame`, `wait_until`, `shutdown` |
+| `conn.system` | Scene-wide + queries | `set_background`, `set_all_enabled`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_deferred_mode`, `list_stimuli`, `query_server_info`, `wait_for_frames`, `wait_for_frame`, `wait_until`, `capture_frame`, `shutdown` |
 | `conn.animations` | On-device animations | `create_flash`, `create_flicker`, `create_move_along_path_2d`, `create_couple_visibility_to_trigger_line`, `arm`, `disarm`, `cancel`, `query`, … |
 | `conn.vtl` | Virtual Trigger Lines | `set_line_name`, `set_line`, `toggle_line`, `set_bank`, `clear_latches`, `list_lines` |
 | `conn.scene_config` | Save/load scenes | `save`, `load`, `list_scene_configs`, `retrieve`, `upload` |
