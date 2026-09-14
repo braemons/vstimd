@@ -29,6 +29,7 @@ message StimulusParams {
     Cube3DParams cube_3d = 8;
     Sphere3DParams sphere_3d = 9;
     Plane3DParams plane_3d = 10;
+    Corridor3DParams corridor_3d = 11;
   }
 }
 

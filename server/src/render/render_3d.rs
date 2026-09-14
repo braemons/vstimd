@@ -102,8 +102,7 @@ pub unsafe fn record_3d_pass(
             if !stim.is_visible() {
                 continue;
             }
-            let geometry = m.geometry.live;
-            let key = geometry.mesh_key();
+            let key = m.geometry.live.mesh_key();
             let Some(mesh) = meshes.get(key) else {
                 continue;
             };
@@ -113,27 +112,34 @@ pub unsafe fn record_3d_pass(
                 bound = Some(key);
             }
             let material = m.material.live;
-            let pc = Mesh3dPushConstants {
-                model: m
-                    .transform
-                    .live
-                    .model_matrix(geometry.model_scale())
-                    .to_cols_array_2d(),
-                albedo: material.albedo.scaled_alpha(stim.opacity().live).into(),
-                emissive: material.emissive,
-                shading: match material.shading {
-                    Shading3D::Unlit => 0,
-                    Shading3D::Phong => 1,
-                },
+            let albedo = material.albedo.scaled_alpha(stim.opacity().live);
+            let shading = match material.shading {
+                Shading3D::Unlit => 0,
+                Shading3D::Phong => 1,
             };
-            device.cmd_push_constants(
-                cb,
-                pipe.layout,
-                vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
-                0,
-                bytemuck::bytes_of(&pc),
-            );
-            device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
+            // One draw per instance: a corridor is tens of planes sharing the
+            // bound mesh, so each costs one push-constant write.
+            m.for_each_instance(|model, tint| {
+                let pc = Mesh3dPushConstants {
+                    model: model.to_cols_array_2d(),
+                    albedo: [
+                        albedo.r * tint.r,
+                        albedo.g * tint.g,
+                        albedo.b * tint.b,
+                        albedo.a * tint.a,
+                    ],
+                    emissive: material.emissive,
+                    shading,
+                };
+                device.cmd_push_constants(
+                    cb,
+                    pipe.layout,
+                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                    0,
+                    bytemuck::bytes_of(&pc),
+                );
+                device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
+            });
         }
 
         ctx.cmd_end_label(cb);

@@ -12,7 +12,9 @@ use super::color_or_default;
 use crate::Color;
 use crate::ipc::response::err;
 use crate::proto;
-use crate::scene::stimulus::{Material3D, Mesh3d, Mesh3dGeometry, Shading3D, Transform3D};
+use crate::scene::stimulus::{
+    CorridorParams, Material3D, Mesh3d, Mesh3dGeometry, Repeat3D, Shading3D, Transform3D,
+};
 
 pub(crate) type Refusal = Box<proto::Response>;
 
@@ -164,6 +166,33 @@ fn tessellation(v: u32, default: u32, what: &str) -> Result<u32, Refusal> {
     }
 }
 
+/// Most periods or copies a corridor or a repeat may ask for.
+pub(crate) const MAX_PERIODS: u32 = 1000;
+
+fn count(v: u32, what: &str) -> Result<u32, Refusal> {
+    if v > MAX_PERIODS {
+        Err(invalid(format!("{what} must be at most {MAX_PERIODS}, got {v}")))
+    } else {
+        Ok(v)
+    }
+}
+
+pub(crate) fn repeat3d_from_proto(r: Option<proto::Repeat3D>) -> Result<Option<Repeat3D>, Refusal> {
+    let Some(r) = r else { return Ok(None) };
+    let (ahead, behind) = (count(r.ahead, "repeat.ahead")?, count(r.behind, "repeat.behind")?);
+    if ahead == 0 && behind == 0 {
+        return Ok(None);
+    }
+    if !r.period_cm.is_finite() || r.period_cm <= 0.0 {
+        return Err(invalid(format!("repeat.period_cm must be positive, got {}", r.period_cm)));
+    }
+    Ok(Some(Repeat3D { period_cm: r.period_cm, ahead, behind }))
+}
+
+pub(crate) fn repeat3d_to_proto(r: Option<Repeat3D>) -> Option<proto::Repeat3D> {
+    r.map(|r| proto::Repeat3D { period_cm: r.period_cm, ahead: r.ahead, behind: r.behind })
+}
+
 /// Textures are not implemented yet; refusing a path beats silently ignoring it.
 pub(crate) fn texture_path_from_proto(path: String) -> Result<Option<String>, Refusal> {
     if path.is_empty() {
@@ -176,74 +205,111 @@ pub(crate) fn texture_path_from_proto(path: String) -> Result<Option<String>, Re
     }
 }
 
-/// A validated create request, ready to become a stimulus.
-pub(crate) fn cube3d_from_proto(
-    p: proto::Cube3DParams,
-) -> Result<(Mesh3dGeometry, Material3D, Option<String>), Refusal> {
-    Ok((
-        Mesh3dGeometry::Cube {
-            size_cm: cube_size_from_proto(p.size_cm)?,
-        },
-        material3d_from_proto(p.material)?,
-        texture_path_from_proto(p.texture_path)?,
-    ))
+/// A validated create request's params, ready to become a stimulus.
+pub(crate) struct Mesh3dParts {
+    pub geometry: Mesh3dGeometry,
+    pub material: Material3D,
+    pub texture_path: Option<String>,
+    pub repeat: Option<Repeat3D>,
 }
 
-pub(crate) fn sphere3d_from_proto(
-    p: proto::Sphere3DParams,
-) -> Result<(Mesh3dGeometry, Material3D, Option<String>), Refusal> {
-    Ok((
-        Mesh3dGeometry::Sphere {
+pub(crate) fn cube3d_from_proto(p: proto::Cube3DParams) -> Result<Mesh3dParts, Refusal> {
+    Ok(Mesh3dParts {
+        geometry: Mesh3dGeometry::Cube { size_cm: cube_size_from_proto(p.size_cm)? },
+        material: material3d_from_proto(p.material)?,
+        texture_path: texture_path_from_proto(p.texture_path)?,
+        repeat: repeat3d_from_proto(p.repeat)?,
+    })
+}
+
+pub(crate) fn sphere3d_from_proto(p: proto::Sphere3DParams) -> Result<Mesh3dParts, Refusal> {
+    Ok(Mesh3dParts {
+        geometry: Mesh3dGeometry::Sphere {
             diameter_cm: sphere_diameter_from_proto(p.diameter_cm)?,
             rings: tessellation(p.rings, DEFAULT_SPHERE_RINGS, "rings")?,
             sectors: tessellation(p.sectors, DEFAULT_SPHERE_SECTORS, "sectors")?,
         },
-        material3d_from_proto(p.material)?,
-        texture_path_from_proto(p.texture_path)?,
-    ))
+        material: material3d_from_proto(p.material)?,
+        texture_path: texture_path_from_proto(p.texture_path)?,
+        repeat: repeat3d_from_proto(p.repeat)?,
+    })
 }
 
-pub(crate) fn plane3d_from_proto(
-    p: proto::Plane3DParams,
-) -> Result<(Mesh3dGeometry, Material3D, Option<String>), Refusal> {
-    Ok((
-        Mesh3dGeometry::Plane {
-            size_cm: plane_size_from_proto(p.size_cm)?,
-        },
-        material3d_from_proto(p.material)?,
-        texture_path_from_proto(p.texture_path)?,
-    ))
+pub(crate) fn plane3d_from_proto(p: proto::Plane3DParams) -> Result<Mesh3dParts, Refusal> {
+    Ok(Mesh3dParts {
+        geometry: Mesh3dGeometry::Plane { size_cm: plane_size_from_proto(p.size_cm)? },
+        material: material3d_from_proto(p.material)?,
+        texture_path: texture_path_from_proto(p.texture_path)?,
+        repeat: repeat3d_from_proto(p.repeat)?,
+    })
+}
+
+pub(crate) fn corridor3d_from_proto(p: proto::Corridor3DParams) -> Result<Mesh3dParts, Refusal> {
+    let grey = |v: f32| Color::new(v, v, v, 1.0);
+    let periods_behind = count(p.periods_behind, "periods_behind")?;
+    let periods_ahead = match count(p.periods_ahead, "periods_ahead")? {
+        0 if periods_behind == 0 => 10,
+        n => n,
+    };
+    let geometry = Mesh3dGeometry::Corridor(CorridorParams {
+        width_cm: extent(p.width_cm, 60.0, "width_cm")?,
+        height_cm: extent(p.height_cm, 40.0, "height_cm")?,
+        period_cm: extent(p.period_cm, 100.0, "period_cm")?,
+        periods_ahead,
+        periods_behind,
+        floor_color: color_or_default(p.floor_color, grey(0.3)),
+        wall_color: color_or_default(p.wall_color, grey(0.6)),
+        stripe_color: color_or_default(p.stripe_color, grey(0.2)),
+        ceiling: p.ceiling,
+    });
+    Ok(Mesh3dParts {
+        geometry,
+        material: material3d_from_proto(p.material)?,
+        texture_path: None,
+        repeat: None,
+    })
 }
 
 /// The query `params` arm for a 3-D stimulus.
 pub(crate) fn mesh3d_params_to_proto(m: &Mesh3d) -> proto::stimulus_params::Shape {
+    use proto::stimulus_params::Shape;
     let material = Some(material3d_to_proto(&m.material.live));
     let texture_path = m.texture_path.clone().unwrap_or_default();
+    let repeat = repeat3d_to_proto(m.repeat);
     match m.geometry.live {
-        Mesh3dGeometry::Cube { size_cm } => {
-            proto::stimulus_params::Shape::Cube3d(proto::Cube3DParams {
-                size_cm: Some(vec3_to_proto(Vec3::from(size_cm))),
-                material,
-                texture_path,
-            })
-        }
-        Mesh3dGeometry::Sphere {
-            diameter_cm,
-            rings,
-            sectors,
-        } => proto::stimulus_params::Shape::Sphere3d(proto::Sphere3DParams {
-            diameter_cm,
-            rings,
-            sectors,
+        Mesh3dGeometry::Cube { size_cm } => Shape::Cube3d(proto::Cube3DParams {
+            size_cm: Some(vec3_to_proto(Vec3::from(size_cm))),
             material,
             texture_path,
+            repeat,
         }),
-        Mesh3dGeometry::Plane { size_cm: [x, y] } => {
-            proto::stimulus_params::Shape::Plane3d(proto::Plane3DParams {
-                size_cm: Some(proto::Vec2 { x, y }),
+        Mesh3dGeometry::Sphere { diameter_cm, rings, sectors } => {
+            Shape::Sphere3d(proto::Sphere3DParams {
+                diameter_cm,
+                rings,
+                sectors,
                 material,
                 texture_path,
+                repeat,
             })
         }
+        Mesh3dGeometry::Plane { size_cm: [x, y] } => Shape::Plane3d(proto::Plane3DParams {
+            size_cm: Some(proto::Vec2 { x, y }),
+            material,
+            texture_path,
+            repeat,
+        }),
+        Mesh3dGeometry::Corridor(c) => Shape::Corridor3d(proto::Corridor3DParams {
+            width_cm: c.width_cm,
+            height_cm: c.height_cm,
+            period_cm: c.period_cm,
+            periods_ahead: c.periods_ahead,
+            periods_behind: c.periods_behind,
+            floor_color: Some(c.floor_color.into()),
+            wall_color: Some(c.wall_color.into()),
+            stripe_color: Some(c.stripe_color.into()),
+            ceiling: c.ceiling,
+            material,
+        }),
     }
 }

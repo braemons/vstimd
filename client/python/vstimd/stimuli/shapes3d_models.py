@@ -97,14 +97,45 @@ class Material3D:
 
 
 @dataclass
+class Repeat3D:
+    """Copies of a stimulus every ``period_cm`` along world −Z.
+
+    Copy ``k`` sits ``k · period_cm`` further along −Z, for ``k`` from
+    ``-behind`` to ``ahead``; copy 0 is the stimulus itself. For objects that
+    must recur in every period of a corridor — give them the corridor's period.
+    Fixed at creation.
+    """
+
+    period_cm: float
+    ahead: int = 0
+    behind: int = 0
+
+    def to_proto(self) -> shapes3d_pb2.Repeat3D:
+        return shapes3d_pb2.Repeat3D(period_cm=self.period_cm, ahead=self.ahead, behind=self.behind)
+
+    @classmethod
+    def from_proto(cls, proto: shapes3d_pb2.Repeat3D) -> Repeat3D:
+        return cls(period_cm=proto.period_cm, ahead=proto.ahead, behind=proto.behind)
+
+
+def _repeat_from(
+    proto_params: shapes3d_pb2.Cube3DParams | shapes3d_pb2.Sphere3DParams | shapes3d_pb2.Plane3DParams,
+) -> Repeat3D | None:
+    return Repeat3D.from_proto(proto_params.repeat) if proto_params.HasField("repeat") else None
+
+
+@dataclass
 class Cube3DParams:
     #: Full extents along x, y and z.
     size_cm: Vec3 = field(default_factory=lambda: Vec3(10.0, 10.0, 10.0))
     material: Material3D = field(default_factory=Material3D)
+    repeat: Repeat3D | None = None
 
     def to_proto(self) -> shapes3d_pb2.Cube3DParams:
         return shapes3d_pb2.Cube3DParams(
-            size_cm=self.size_cm.to_proto(), material=self.material.to_proto()
+            size_cm=self.size_cm.to_proto(),
+            material=self.material.to_proto(),
+            repeat=self.repeat.to_proto() if self.repeat else None,
         )
 
     @classmethod
@@ -112,6 +143,7 @@ class Cube3DParams:
         return cls(
             size_cm=Vec3.from_proto(proto.size_cm),
             material=Material3D.from_proto(proto.material),
+            repeat=_repeat_from(proto),
         )
 
 
@@ -124,6 +156,7 @@ class Sphere3DParams:
     #: Longitude slices. At most 256.
     sectors: int = 32
     material: Material3D = field(default_factory=Material3D)
+    repeat: Repeat3D | None = None
 
     def to_proto(self) -> shapes3d_pb2.Sphere3DParams:
         return shapes3d_pb2.Sphere3DParams(
@@ -131,6 +164,7 @@ class Sphere3DParams:
             rings=self.rings,
             sectors=self.sectors,
             material=self.material.to_proto(),
+            repeat=self.repeat.to_proto() if self.repeat else None,
         )
 
     @classmethod
@@ -140,6 +174,7 @@ class Sphere3DParams:
             rings=proto.rings,
             sectors=proto.sectors,
             material=Material3D.from_proto(proto.material),
+            repeat=_repeat_from(proto),
         )
 
 
@@ -153,15 +188,79 @@ class Plane3DParams:
     #: ``x``: extent along X; ``y``: extent along Z.
     size_cm: Vec2 = field(default_factory=lambda: Vec2(100.0, 100.0))
     material: Material3D = field(default_factory=Material3D)
+    repeat: Repeat3D | None = None
 
     def to_proto(self) -> shapes3d_pb2.Plane3DParams:
         return shapes3d_pb2.Plane3DParams(
-            size_cm=self.size_cm.to_proto(), material=self.material.to_proto()
+            size_cm=self.size_cm.to_proto(),
+            material=self.material.to_proto(),
+            repeat=self.repeat.to_proto() if self.repeat else None,
         )
 
     @classmethod
     def from_proto(cls, proto: shapes3d_pb2.Plane3DParams) -> Plane3DParams:
         return cls(
             size_cm=Vec2.from_proto(proto.size_cm),
+            material=Material3D.from_proto(proto.material),
+            repeat=_repeat_from(proto),
+        )
+
+
+def _grey(v: float) -> Color:
+    return Color(v, v, v)
+
+
+@dataclass
+class Corridor3DParams:
+    """An endless corridor: a floor, two striped walls and an optional ceiling.
+
+    In its own frame the corridor starts at the origin and runs along −Z, floor
+    at ``y = 0``. It repeats exactly every ``period_cm``, so a camera driven by
+    ``conn.animations.create_linear_nav_3d(speed, wrap_period_cm=period_cm)``
+    travels it forever without a seam — keep the corridor's origin at ``z = 0``
+    so the wrap and the tiling line up. Everything in it repeats, landmarks
+    included.
+    """
+
+    width_cm: float = 60.0
+    height_cm: float = 40.0
+    period_cm: float = 100.0
+    #: Periods drawn along −Z from the origin, and behind it (at most 1000).
+    periods_ahead: int = 10
+    periods_behind: int = 0
+    floor_color: Color = field(default_factory=lambda: _grey(0.3))
+    #: The two wall-panel colours, alternating every half period.
+    wall_color: Color = field(default_factory=lambda: _grey(0.6))
+    stripe_color: Color = field(default_factory=lambda: _grey(0.2))
+    ceiling: bool = False
+    #: Tints the colours above; its shading applies to every face.
+    material: Material3D = field(default_factory=Material3D)
+
+    def to_proto(self) -> shapes3d_pb2.Corridor3DParams:
+        return shapes3d_pb2.Corridor3DParams(
+            width_cm=self.width_cm,
+            height_cm=self.height_cm,
+            period_cm=self.period_cm,
+            periods_ahead=self.periods_ahead,
+            periods_behind=self.periods_behind,
+            floor_color=self.floor_color.to_proto(),
+            wall_color=self.wall_color.to_proto(),
+            stripe_color=self.stripe_color.to_proto(),
+            ceiling=self.ceiling,
+            material=self.material.to_proto(),
+        )
+
+    @classmethod
+    def from_proto(cls, proto: shapes3d_pb2.Corridor3DParams) -> Corridor3DParams:
+        return cls(
+            width_cm=proto.width_cm,
+            height_cm=proto.height_cm,
+            period_cm=proto.period_cm,
+            periods_ahead=proto.periods_ahead,
+            periods_behind=proto.periods_behind,
+            floor_color=Color.from_proto(proto.floor_color),
+            wall_color=Color.from_proto(proto.wall_color),
+            stripe_color=Color.from_proto(proto.stripe_color),
+            ceiling=proto.ceiling,
             material=Material3D.from_proto(proto.material),
         )

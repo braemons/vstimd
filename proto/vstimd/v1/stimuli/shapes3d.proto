@@ -34,11 +34,22 @@ message Material3D {
   Shading shading = 3;
 }
 
+// Copies of a stimulus every period_cm along world -Z: copy k sits at
+// position + k·period_cm·(-Z) for k in -behind..=ahead, and copy 0 is the
+// stimulus itself. For objects that must recur in every period of a corridor.
+// Absent, or ahead = behind = 0 → no copies. Fixed at creation.
+message Repeat3D {
+  float period_cm = 1;
+  uint32 ahead = 2;
+  uint32 behind = 3;
+}
+
 message Cube3DParams {
   Vec3 size_cm = 1;       // full extents along x, y, z (a zero component → 10)
   Material3D material = 2;
   // Server-side image path. Not supported yet: non-empty → NOT_SUPPORTED.
   string texture_path = 3;
+  Repeat3D repeat = 4;
 }
 
 message Sphere3DParams {
@@ -50,6 +61,7 @@ message Sphere3DParams {
   uint32 sectors = 3;
   Material3D material = 4;
   string texture_path = 5;  // see Cube3DParams.texture_path
+  Repeat3D repeat = 6;
 }
 
 // A flat rectangle in the object's XZ plane, facing +Y — a floor as placed.
@@ -58,6 +70,36 @@ message Plane3DParams {
   Vec2 size_cm = 1;       // x: extent along X, y: extent along Z (a zero component → 100)
   Material3D material = 2;
   string texture_path = 3;  // see Cube3DParams.texture_path
+  Repeat3D repeat = 4;
+}
+
+// An endless corridor: a floor, two walls and an optional ceiling, tiled.
+//
+// In the stimulus' own frame (placement) the corridor starts at the origin and
+// runs along -Z, floor at y = 0, centred on x = 0. Each period holds one floor
+// tile and, per wall, two panels of alternating colour — the motion cue, since
+// plain walls give none. The appearance repeats exactly every period_cm, so a
+// camera animation (LinearNav3D) with wrap_period_cm = period_cm circulates
+// through it with no seam. Place the corridor so its origin is at z = 0, or the
+// wrap and the tiling will not line up.
+//
+// Because it repeats, every landmark repeats: a track with unique landmarks
+// along its whole length is a long scene, not a corridor. Objects meant to recur
+// in every period take a Repeat3D with the same period.
+message Corridor3DParams {
+  float width_cm = 1;          // (0 → 60)
+  float height_cm = 2;         // (0 → 40)
+  float period_cm = 3;         // (0 → 100)
+  // Periods drawn towards -Z from the origin, and behind it. Enough ahead to
+  // reach the camera's far plane you care about. (0 → 10 ahead, 0 behind; at most 1000)
+  uint32 periods_ahead = 4;
+  uint32 periods_behind = 5;
+  Color floor_color = 6;       // (absent → grey 0.3)
+  Color wall_color = 7;        // (absent → grey 0.6)
+  Color stripe_color = 8;      // (absent → grey 0.2)
+  bool ceiling = 9;            // a ceiling in floor_color
+  // Multiplies the colours above; shading and emissive apply to every face.
+  Material3D material = 10;
 }
 
 // System commands. NOT_SUPPORTED when the display has no usable depth format.
@@ -77,6 +119,12 @@ message CreatePlane3DRequest {
   StimulusIdentity identity = 1;
   Transform3D placement = 2;
   Plane3DParams params = 3;
+}
+
+message CreateCorridor3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  Corridor3DParams params = 3;
 }
 
 // ── 3-D stimulus mutations (stimulus target) ──────────────────────────────────

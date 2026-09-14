@@ -174,3 +174,42 @@ def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn):
     right = pixel(width, rgb, cx + offset, cy)
     assert left[0] > 100, f"lit side too dark: {left}"
     assert right[0] < 20, f"unlit side should fall to the zero ambient: {right}"
+
+
+@pytest.mark.onscreen(
+    "3D-07",
+    "a striped grey corridor running away from the viewer with a sphere in every "
+    "period; the two captures, one period apart, must be identical",
+    deferred=True,  # no caption: it would be in the captured pixels
+)
+def test_corridor_has_no_seam_one_period_apart(conn):
+    """A camera one period further down the corridor sees the same frame, bit for
+    bit — which is what lets LinearNav3D wrap the camera without a visible jump."""
+    from vstimd.stimuli import (
+        Corridor3DParams, Material3D, Repeat3D, Shading, Sphere3DParams, Transform3D, Vec3,
+    )
+    from vstimd.system import Camera3D
+
+    period = 100.0
+    conn.stimuli.shapes3d.create_corridor(params=Corridor3DParams(
+        period_cm=period, periods_ahead=40, periods_behind=2, ceiling=True,
+        material=Material3D(shading=Shading.PHONG),
+    ))
+    conn.stimuli.shapes3d.create_sphere(
+        transform=Transform3D(position_cm=Vec3(-15.0, 8.0, -50.0)),
+        params=Sphere3DParams(
+            diameter_cm=8.0,
+            material=Material3D(shading=Shading.PHONG),
+            repeat=Repeat3D(period_cm=period, ahead=40, behind=2),
+        ),
+    )
+
+    def capture_at(z_cm: float) -> bytes:
+        conn.system.set_camera(Camera3D(position_cm=Vec3(0.0, 20.0, z_cm)))
+        return conn.system.capture_frame().png
+
+    near = capture_at(0.5)
+    far = capture_at(0.5 + period)
+    assert near == far, "the corridor must look the same one period further on"
+    # And it is not trivially identical: moving half a period changes the frame.
+    assert capture_at(0.5 + period / 2) != near

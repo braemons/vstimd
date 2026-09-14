@@ -1,7 +1,7 @@
 //! Create/modify commands for 3-D stimuli: cube, sphere, plane.
 
 use super::convert::{
-    Refusal, cube_size_from_proto, cube3d_from_proto, identity_from_proto, material3d_from_proto,
+    Mesh3dParts, Refusal, corridor3d_from_proto, cube_size_from_proto, cube3d_from_proto, identity_from_proto, material3d_from_proto,
     plane_size_from_proto, plane3d_from_proto, sphere_diameter_from_proto, sphere3d_from_proto,
     transform3d_from_proto,
 };
@@ -17,7 +17,7 @@ impl SceneState {
         &mut self,
         identity: Option<proto::StimulusIdentity>,
         placement: Option<proto::Transform3D>,
-        params: Result<(Mesh3dGeometry, crate::scene::Material3D, Option<String>), Refusal>,
+        params: Result<Mesh3dParts, Refusal>,
     ) -> proto::Response {
         if self.runtime.render_3d_unavailable {
             return err(
@@ -29,14 +29,15 @@ impl SceneState {
             Ok(t) => t,
             Err(refusal) => return *refusal,
         };
-        let (geometry, material, texture_path) = match params {
+        let parts = match params {
             Ok(p) => p,
             Err(refusal) => return *refusal,
         };
         let identity = identity_from_proto(identity);
         let id = identity.id;
         let handle = self.alloc_stim_handle();
-        let mesh = Mesh3d::new(transform, material, geometry, texture_path);
+        let mut mesh = Mesh3d::new(transform, parts.material, parts.geometry, parts.texture_path);
+        mesh.repeat = parts.repeat;
         self.config.stimuli.insert(
             handle,
             StimulusSceneEntry::new(identity, Stimulus::from(mesh)),
@@ -65,6 +66,14 @@ impl SceneState {
         cmd: proto::CreatePlane3DRequest,
     ) -> proto::Response {
         let params = plane3d_from_proto(cmd.params.unwrap_or_default());
+        self.create_mesh3d(cmd.identity, cmd.placement, params)
+    }
+
+    pub(super) fn cmd_create_corridor_3d(
+        &mut self,
+        cmd: proto::CreateCorridor3DRequest,
+    ) -> proto::Response {
+        let params = corridor3d_from_proto(cmd.params.unwrap_or_default());
         self.create_mesh3d(cmd.identity, cmd.placement, params)
     }
 

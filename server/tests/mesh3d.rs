@@ -588,3 +588,67 @@ fn zero_sun_direction_is_refused() {
     );
     assert_eq!(code(&resp), proto::ErrorCode::InvalidArgument);
 }
+
+// ── Corridor and repeat ───────────────────────────────────────────────────────
+
+#[test]
+fn corridor_defaults_and_query() {
+    use vstimd::scene::stimulus::CorridorParams;
+    let mut scene = SceneState::new();
+    let resp = send(&mut scene, sys(), Body::CreateCorridor3d(proto::CreateCorridor3DRequest::default()));
+    ok(&resp);
+    let h = resp.handle as u32;
+    let Mesh3dGeometry::Corridor(c) = mesh(&scene, h).geometry.live else {
+        panic!("expected a corridor");
+    };
+    let CorridorParams { width_cm, height_cm, period_cm, periods_ahead, periods_behind, .. } = c;
+    assert_eq!((width_cm, height_cm, period_cm), (60.0, 40.0, 100.0));
+    assert_eq!((periods_ahead, periods_behind), (10, 0));
+
+    let info = query(&mut scene, h);
+    assert_eq!(info.stimulus_type, proto::StimulusType::Corridor3d as i32);
+    let Some(proto::stimulus_params::Shape::Corridor3d(p)) = info.params.and_then(|p| p.shape) else {
+        panic!("expected Corridor3DParams");
+    };
+    assert_eq!(p.period_cm, 100.0);
+    assert_eq!(p.wall_color.unwrap().r, 0.6);
+}
+
+#[test]
+fn corridor_limits_are_checked() {
+    let mut scene = SceneState::new();
+    let resp = send(&mut scene, sys(), Body::CreateCorridor3d(proto::CreateCorridor3DRequest {
+        params: Some(proto::Corridor3DParams { periods_ahead: 5000, ..Default::default() }),
+        ..Default::default()
+    }));
+    assert_eq!(code(&resp), proto::ErrorCode::InvalidArgument);
+    let resp = send(&mut scene, sys(), Body::CreateCorridor3d(proto::CreateCorridor3DRequest {
+        params: Some(proto::Corridor3DParams { period_cm: -1.0, ..Default::default() }),
+        ..Default::default()
+    }));
+    assert_eq!(code(&resp), proto::ErrorCode::InvalidArgument);
+}
+
+#[test]
+fn repeat_round_trips_and_is_validated() {
+    let mut scene = SceneState::new();
+    let repeat = Some(proto::Repeat3D { period_cm: 100.0, ahead: 5, behind: 1 });
+    let h = create_sphere(&mut scene, proto::Sphere3DParams { repeat, ..Default::default() });
+    let r = mesh(&scene, h).repeat.expect("repeat kept");
+    assert_eq!((r.period_cm, r.ahead, r.behind), (100.0, 5, 1));
+    let Some(proto::stimulus_params::Shape::Sphere3d(p)) =
+        query(&mut scene, h).params.and_then(|p| p.shape)
+    else {
+        panic!()
+    };
+    assert_eq!(p.repeat.unwrap().ahead, 5);
+
+    let resp = send(&mut scene, sys(), Body::CreateCube3d(proto::CreateCube3DRequest {
+        params: Some(proto::Cube3DParams {
+            repeat: Some(proto::Repeat3D { period_cm: 0.0, ahead: 2, behind: 0 }),
+            ..Default::default()
+        }),
+        ..Default::default()
+    }));
+    assert_eq!(code(&resp), proto::ErrorCode::InvalidArgument, "copies need a period");
+}

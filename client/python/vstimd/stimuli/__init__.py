@@ -21,9 +21,11 @@ from .grating_models import GratingMask, GratingParams, GratingTexture
 from .shapes_client import ShapesClient
 from .shapes3d_client import Shapes3DClient
 from .shapes3d_models import (
+    Corridor3DParams,
     Cube3DParams,
     Material3D,
     Plane3DParams,
+    Repeat3D,
     Shading,
     Sphere3DParams,
     Transform3D,
@@ -53,7 +55,9 @@ __all__ = [
     "Vec2",
     "Vec3",
     "Shapes3DClient",
+    "Corridor3DParams",
     "Cube3DParams",
+    "Repeat3D",
     "Material3D",
     "Plane3DParams",
     "Shading",

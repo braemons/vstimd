@@ -32,6 +32,7 @@ pub enum StimulusType {
     Cube3D,
     Sphere3D,
     Plane3D,
+    Corridor3D,
 }
 
 impl StimulusType {
@@ -49,12 +50,13 @@ impl StimulusType {
             Self::Cube3D => "Cube3D",
             Self::Sphere3D => "Sphere3D",
             Self::Plane3D => "Plane3D",
+            Self::Corridor3D => "Corridor3D",
         }
     }
 
     /// True for the types placed in world space by a `Transform3D`.
     pub fn is_3d(self) -> bool {
-        matches!(self, Self::Cube3D | Self::Sphere3D | Self::Plane3D)
+        matches!(self, Self::Cube3D | Self::Sphere3D | Self::Plane3D | Self::Corridor3D)
     }
 }
 
@@ -66,7 +68,7 @@ mod tests {
     /// `WRONG_STIMULUS_TYPE` message ambiguous about what the client actually sent.
     #[test]
     fn type_names_are_unique() {
-        const ALL: [StimulusType; 9] = [
+        const ALL: [StimulusType; 10] = [
             StimulusType::Rect,
             StimulusType::Ellipse,
             StimulusType::Circle,
@@ -76,6 +78,7 @@ mod tests {
             StimulusType::Cube3D,
             StimulusType::Sphere3D,
             StimulusType::Plane3D,
+            StimulusType::Corridor3D,
         ];
         let mut names: Vec<&str> = ALL.iter().map(|t| t.type_name()).collect();
         names.sort_unstable();

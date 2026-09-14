@@ -83,6 +83,7 @@ message Request {
     CreateCube3DRequest create_cube_3d = 20;
     CreateSphere3DRequest create_sphere_3d = 21;
     CreatePlane3DRequest create_plane_3d = 22;
+    CreateCorridor3DRequest create_corridor_3d = 23;
 
     // ── Generic stimulus mutations (stimulus target only) ───────────────────
     SetEnabledRequest set_enabled = 30;

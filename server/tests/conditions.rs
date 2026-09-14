@@ -181,6 +181,7 @@ fn add_one_of_every_type(sc: &mut SceneState) -> Vec<(&'static str, u32)> {
         request::Body::CreateCube3d(proto::CreateCube3DRequest::default()),
         request::Body::CreateSphere3d(proto::CreateSphere3DRequest::default()),
         request::Body::CreatePlane3d(proto::CreatePlane3DRequest::default()),
+        request::Body::CreateCorridor3d(proto::CreateCorridor3DRequest::default()),
     ];
     creates
         .into_iter()
@@ -209,7 +210,7 @@ fn every_stimulus_type_carries_the_condition_gate() {
     names.sort_unstable();
     assert_eq!(
         names,
-        ["Circle", "Cube3D", "Dots", "Ellipse", "Grating", "Plane3D", "Rect", "Sphere3D", "Text"],
+        ["Circle", "Corridor3D", "Cube3D", "Dots", "Ellipse", "Grating", "Plane3D", "Rect", "Sphere3D", "Text"],
         "a stimulus type became constructible without being covered here",
     );
 

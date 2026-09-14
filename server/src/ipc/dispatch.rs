@@ -211,6 +211,10 @@ fn command_summary(req: &proto::Request) -> String {
             let s = c.params.as_ref().and_then(|p| p.size_cm).unwrap_or_default();
             format!("CreatePlane3D {:.0}×{:.0}cm", s.x, s.y)
         }
+        Some(request::Body::CreateCorridor3d(c)) => {
+            let p = c.params.as_ref();
+            format!("CreateCorridor3D period={:.0}cm", p.map_or(0.0, |p| p.period_cm))
+        }
         Some(request::Body::SetTransform3d(c)) => {
             let p = c.transform.as_ref().and_then(|t| t.position_cm).unwrap_or_default();
             format!("SetTransform3D({:.1},{:.1},{:.1})", p.x, p.y, p.z)
@@ -320,6 +324,7 @@ impl SceneState {
             request::Body::CreateCube3d(cmd) => self.cmd_create_cube_3d(cmd),
             request::Body::CreateSphere3d(cmd) => self.cmd_create_sphere_3d(cmd),
             request::Body::CreatePlane3d(cmd) => self.cmd_create_plane_3d(cmd),
+            request::Body::CreateCorridor3d(cmd) => self.cmd_create_corridor_3d(cmd),
             request::Body::SetCamera(cmd) => self.cmd_set_camera(cmd),
             request::Body::QueryCamera(_) => self.cmd_query_camera(),
             request::Body::SetLighting(cmd) => self.cmd_set_lighting(cmd),
@@ -404,6 +409,7 @@ impl SceneState {
             | request::Body::CreateCube3d(_)
             | request::Body::CreateSphere3d(_)
             | request::Body::CreatePlane3d(_)
+            | request::Body::CreateCorridor3d(_)
             | request::Body::SetCamera(_)
             | request::Body::QueryCamera(_)
             | request::Body::SetLighting(_)

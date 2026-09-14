@@ -8,6 +8,7 @@ from vstimd._proto.vstimd.v1.stimuli import shapes3d_pb2
 from vstimd.response import ServerResponse
 
 from .shapes3d_models import (
+    Corridor3DParams,
     Cube3DParams,
     Material3D,
     Plane3DParams,
@@ -93,6 +94,24 @@ class Shapes3DClient:
                 identity=StimulusIdentity(name=name).to_proto(),
                 placement=(transform or Transform3D()).to_proto(),
                 params=(params or Plane3DParams()).to_proto(),
+            ),
+        )
+        return StimulusHandle(self._send(req).handle)
+
+    def create_corridor(
+        self,
+        *,
+        name: str = "",
+        transform: Transform3D | None = None,
+        params: Corridor3DParams | None = None,
+    ) -> StimulusHandle:
+        """Create an endless corridor. See :class:`Corridor3DParams`."""
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            create_corridor_3d=shapes3d_pb2.CreateCorridor3DRequest(
+                identity=StimulusIdentity(name=name).to_proto(),
+                placement=(transform or Transform3D()).to_proto(),
+                params=(params or Corridor3DParams()).to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)

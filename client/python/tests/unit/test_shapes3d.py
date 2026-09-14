@@ -8,9 +8,11 @@ from __future__ import annotations
 
 from vstimd.stimuli import (
     Color,
+    Corridor3DParams,
     Cube3DParams,
     Material3D,
     Plane3DParams,
+    Repeat3D,
     Shading,
     Sphere3DParams,
     Transform3D,
@@ -64,3 +66,15 @@ def test_camera_and_lighting_round_trip() -> None:
         sun_color=Vec3(2, 2, 2),
     )
     assert Lighting3D.from_proto(light.to_proto()) == light
+
+
+def test_corridor_and_repeat_round_trip() -> None:
+    corridor = Corridor3DParams(
+        width_cm=80, height_cm=50, period_cm=200, periods_ahead=12, periods_behind=1,
+        floor_color=Color(0.25, 0.25, 0.25), wall_color=Color(0.75, 0.5, 0.25),
+        stripe_color=Color(0.125, 0.125, 0.125), ceiling=True, material=Material3D(shading=Shading.PHONG),
+    )
+    assert Corridor3DParams.from_proto(corridor.to_proto()) == corridor
+    sphere = Sphere3DParams(repeat=Repeat3D(period_cm=200, ahead=12, behind=1))
+    assert Sphere3DParams.from_proto(sphere.to_proto()) == sphere
+    assert Sphere3DParams.from_proto(Sphere3DParams().to_proto()).repeat is None

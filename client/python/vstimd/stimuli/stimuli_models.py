@@ -9,7 +9,13 @@ from vstimd._proto.vstimd.v1.stimuli import query_pb2, stimulus_type_pb2
 from .color import Color
 from .dots_models import DotsParams
 from .grating_models import GratingParams
-from .shapes3d_models import Cube3DParams, Plane3DParams, Sphere3DParams, Transform3D
+from .shapes3d_models import (
+    Corridor3DParams,
+    Cube3DParams,
+    Plane3DParams,
+    Sphere3DParams,
+    Transform3D,
+)
 from .shapes_models import (
     CircleParams,
     EllipseParams,
@@ -45,6 +51,7 @@ class StimulusType(Enum):
     CUBE_3D = "cube3d"
     SPHERE_3D = "sphere3d"
     PLANE_3D = "plane3d"
+    CORRIDOR_3D = "corridor3d"
 
 
 StimulusParams = Union[
@@ -58,6 +65,7 @@ StimulusParams = Union[
     Cube3DParams,
     Sphere3DParams,
     Plane3DParams,
+    Corridor3DParams,
 ]
 
 _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
@@ -71,6 +79,7 @@ _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     stimulus_type_pb2.STIMULUS_TYPE_CUBE_3D: StimulusType.CUBE_3D,
     stimulus_type_pb2.STIMULUS_TYPE_SPHERE_3D: StimulusType.SPHERE_3D,
     stimulus_type_pb2.STIMULUS_TYPE_PLANE_3D: StimulusType.PLANE_3D,
+    stimulus_type_pb2.STIMULUS_TYPE_CORRIDOR_3D: StimulusType.CORRIDOR_3D,
 }
 
 
@@ -149,6 +158,8 @@ class StimulusInfo:
             params = Sphere3DParams.from_proto(proto.params.sphere_3d)
         elif shape_which == "plane_3d":
             params = Plane3DParams.from_proto(proto.params.plane_3d)
+        elif shape_which == "corridor_3d":
+            params = Corridor3DParams.from_proto(proto.params.corridor_3d)
         else:
             params = None
 

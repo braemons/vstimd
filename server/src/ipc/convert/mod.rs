@@ -45,7 +45,7 @@ pub(super) use grating::{
     grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,
 };
 pub(super) use mesh3d::{
-    Refusal, cube_size_from_proto, cube3d_from_proto, material3d_from_proto,
+    Mesh3dParts, Refusal, corridor3d_from_proto, cube_size_from_proto, cube3d_from_proto, material3d_from_proto,
     mesh3d_params_to_proto, plane_size_from_proto, plane3d_from_proto,
     sphere_diameter_from_proto, sphere3d_from_proto, transform3d_from_proto,
     transform3d_to_proto,
@@ -101,6 +101,7 @@ pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusTyp
         SceneStimulusType::Cube3D => proto::StimulusType::Cube3d,
         SceneStimulusType::Sphere3D => proto::StimulusType::Sphere3d,
         SceneStimulusType::Plane3D => proto::StimulusType::Plane3d,
+        SceneStimulusType::Corridor3D => proto::StimulusType::Corridor3d,
     }
 }
 
@@ -240,6 +241,7 @@ mod stimulus_type_tests {
             (SceneStimulusType::Cube3D, proto::StimulusType::Cube3d, "Cube3D"),
             (SceneStimulusType::Sphere3D, proto::StimulusType::Sphere3d, "Sphere3D"),
             (SceneStimulusType::Plane3D, proto::StimulusType::Plane3d, "Plane3D"),
+            (SceneStimulusType::Corridor3D, proto::StimulusType::Corridor3d, "Corridor3D"),
         ] {
             assert_eq!(stimulus_type_to_proto(scene), wire, "wire value for {name}");
             assert_eq!(scene.type_name(), name);
