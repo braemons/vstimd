@@ -84,3 +84,67 @@ pub(crate) fn spawn_demo_stimuli(
     );
     log::info!("Demo: spawned circle #{h1}, rect #{h2}, grating #{h3}, text #{h4}");
 }
+
+/// Temporary (until #72 gives 3-D stimuli wire commands): with
+/// `VSTIMD_DEBUG_3D` set, put a few 3-D stimuli in the scene at startup so the
+/// renderer can be looked at. Run with `--no-web` — the web snapshot cannot
+/// describe a 3-D stimulus yet.
+///
+/// A floor, a cube with a stretched box pushed through it, and a sphere, all in
+/// front of the default camera: one look checks depth, culling, non-uniform
+/// scale, winding of every primitive and that world +Y is screen up.
+pub(crate) fn spawn_debug_3d_stimuli(
+    scene: &std::sync::Arc<std::sync::RwLock<crate::scene::SceneState>>,
+) {
+    use crate::Color;
+    use crate::scene::{
+        Material3D, Mesh3d, Mesh3dGeometry, Stimulus, StimulusIdentity, StimulusSceneEntry,
+        Transform3D,
+    };
+    use glam::Vec3;
+
+    let objects = [
+        (
+            "debug_floor",
+            Mesh3dGeometry::Plane { size_cm: [120.0, 200.0] },
+            Vec3::new(0.0, -20.0, -100.0),
+            Vec3::ZERO,
+            Color::new(0.25, 0.25, 0.3, 1.0),
+        ),
+        (
+            "debug_cube",
+            Mesh3dGeometry::Cube { size_cm: [20.0; 3] },
+            Vec3::new(-15.0, 0.0, -70.0),
+            Vec3::new(30.0, 20.0, 0.0),
+            Color::new(0.9, 0.3, 0.2, 1.0),
+        ),
+        (
+            "debug_bar",
+            Mesh3dGeometry::Cube { size_cm: [30.0, 4.0, 4.0] },
+            Vec3::new(-2.0, 10.0, -70.0),
+            Vec3::new(0.0, 0.0, 15.0),
+            Color::new(0.9, 0.8, 0.2, 1.0),
+        ),
+        (
+            "debug_sphere",
+            Mesh3dGeometry::Sphere { diameter_cm: 18.0, rings: 16, sectors: 32 },
+            Vec3::new(20.0, -5.0, -80.0),
+            Vec3::ZERO,
+            Color::new(0.2, 0.6, 0.9, 1.0),
+        ),
+    ];
+    let mut sc = scene.write().expect("scene lock poisoned");
+    for (name, geometry, position_cm, rotation_euler_deg, albedo) in objects {
+        let h = sc.alloc_stim_handle();
+        let mesh = Mesh3d::new(
+            Transform3D { position_cm, rotation_euler_deg, ..Default::default() },
+            Material3D { albedo, ..Default::default() },
+            geometry,
+            None,
+        );
+        sc.stimuli.insert(
+            h,
+            StimulusSceneEntry::new(StimulusIdentity::new(Some(name.into())), Stimulus::from(mesh)),
+        );
+    }
+}

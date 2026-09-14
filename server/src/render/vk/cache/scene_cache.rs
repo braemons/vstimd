@@ -1,6 +1,8 @@
 use ash::vk;
 
-use crate::render::vk::cache::{DotsInstanceCache, PhotodiodeCache, SolidMeshCache, TextMeshCache};
+use crate::render::vk::cache::{
+    DotsInstanceCache, Mesh3dCache, PhotodiodeCache, SolidMeshCache, TextMeshCache,
+};
 
 /// Unified GPU-side cache for all stimulus types.
 ///
@@ -14,6 +16,9 @@ pub struct SceneCache {
     /// Dot fields hold no mesh — only a per-frame-slot instance buffer.
     pub dots: DotsInstanceCache,
     pub photodiode: PhotodiodeCache,
+    /// Shared unit meshes for 3-D stimuli, keyed by geometry. Empty, and never
+    /// touched, in a pure 2-D scene.
+    pub mesh3d: Mesh3dCache,
 }
 
 impl SceneCache {
@@ -27,6 +32,7 @@ impl SceneCache {
             text: TextMeshCache::new(instance, physical_device),
             dots: DotsInstanceCache::new(instance, physical_device, frames_in_flight),
             photodiode: PhotodiodeCache::default(),
+            mesh3d: Mesh3dCache::new(instance, physical_device),
         }
     }
 
@@ -34,5 +40,6 @@ impl SceneCache {
         self.solid.destroy_all(device);
         self.text.destroy_all(device);
         self.dots.destroy_all(device);
+        self.mesh3d.destroy_all(device);
     }
 }

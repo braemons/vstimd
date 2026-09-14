@@ -7,7 +7,6 @@
 use ash::vk;
 
 use crate::render::Vertex;
-use crate::render::vk::VkMesh;
 use crate::render::vk::buffers::find_memory_type;
 
 /// Must match `struct Scene` in `shaders/mesh3d.wgsl` (uniform, std140).
@@ -342,9 +341,6 @@ pub struct Mesh3dRenderer {
     pub uniforms: SceneUniforms,
     pub pipeline: VkMesh3dPipeline,
     pub wireframe_pipeline: VkMesh3dPipeline,
-    /// Temporary (#68): the hardcoded cube behind `VSTIMD_DEBUG_3D_CUBE`, until
-    /// #69/#70 give 3-D stimuli a scene type and a geometry-keyed mesh cache.
-    pub debug_cube: VkMesh,
 }
 
 impl Mesh3dRenderer {
@@ -370,55 +366,18 @@ impl Mesh3dRenderer {
         };
         let wireframe_pipeline =
             VkMesh3dPipeline::new(device, render_pass, uniforms.set_layout, wf_mode);
-
-        let mem_props = unsafe { instance.get_physical_device_memory_properties(physical_device) };
-        let debug_cube = debug_cube_mesh(device, &mem_props);
         Self {
             uniforms,
             pipeline,
             wireframe_pipeline,
-            debug_cube,
         }
     }
 
     pub fn destroy(&self, device: &ash::Device) {
-        unsafe { self.debug_cube.destroy(device) };
         self.wireframe_pipeline.destroy(device);
         self.pipeline.destroy(device);
         self.uniforms.destroy(device);
     }
-}
-
-/// A unit cube with a distinct colour per face, so it reads as a solid under the
-/// unlit shader. Host-visible: device-local upload belongs to #70's mesh cache.
-fn debug_cube_mesh(device: &ash::Device, mem_props: &vk::PhysicalDeviceMemoryProperties) -> VkMesh {
-    use crate::Color;
-    use crate::render::vk::buffers::alloc_upload_bytes;
-    const FACE_COLORS: [Color; 6] = [
-        Color::new(0.9, 0.2, 0.2, 1.0),
-        Color::new(0.2, 0.9, 0.2, 1.0),
-        Color::new(0.2, 0.2, 0.9, 1.0),
-        Color::new(0.9, 0.9, 0.2, 1.0),
-        Color::new(0.2, 0.9, 0.9, 1.0),
-        Color::new(0.9, 0.2, 0.9, 1.0),
-    ];
-    let (mut verts, idxs) = crate::render::tess3d::unit_cube(Color::WHITE);
-    for (face, chunk) in verts.chunks_exact_mut(4).enumerate() {
-        chunk.iter_mut().for_each(|v| v.color = FACE_COLORS[face]);
-    }
-    let (vb, vm) = alloc_upload_bytes(
-        mem_props,
-        device,
-        vk::BufferUsageFlags::VERTEX_BUFFER,
-        bytemuck::cast_slice(&verts),
-    );
-    let (ib, im) = alloc_upload_bytes(
-        mem_props,
-        device,
-        vk::BufferUsageFlags::INDEX_BUFFER,
-        bytemuck::cast_slice(&idxs),
-    );
-    VkMesh::from_raw(vb, vm, ib, im, idxs.len() as u32)
 }
 
 #[cfg(test)]

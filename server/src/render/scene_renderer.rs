@@ -20,9 +20,6 @@ pub struct SceneRenderer {
     /// Set once 3-D setup has failed (no depth format), so it is not retried —
     /// and logged — every frame. 2-D keeps rendering.
     pub mesh3d_unavailable: bool,
-    /// Temporary (#68): draw a hardcoded spinning cube behind the 2-D layer when
-    /// `VSTIMD_DEBUG_3D_CUBE` is set. Goes away once a 3-D stimulus can be created.
-    pub debug_cube: bool,
 }
 
 impl SceneRenderer {
@@ -62,6 +59,9 @@ impl SceneRenderer {
         ctx.set_debug_name(dots_pipeline.pipeline, "dots_pipeline");
         ctx.set_debug_name(wireframe_pipeline.pipeline, "solid_wireframe_pipeline");
         ctx.set_debug_name(wireframe_grating.pipeline, "grating_wireframe_pipeline");
+        if std::env::var_os("VSTIMD_DEBUG_3D").is_some() {
+            crate::render::demo::spawn_debug_3d_stimuli(&scene);
+        }
         let scene_cache = SceneCache::new(&ctx.instance, ctx.physical_device, ctx.frames.len());
         Self {
             pipeline,
@@ -74,7 +74,6 @@ impl SceneRenderer {
             scene,
             mesh3d: None,
             mesh3d_unavailable: false,
-            debug_cube: std::env::var_os("VSTIMD_DEBUG_3D_CUBE").is_some(),
         }
     }
 

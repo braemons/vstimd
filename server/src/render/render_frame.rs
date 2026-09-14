@@ -157,7 +157,7 @@ pub fn render_frame(
 
     // ── 4. Tessellate scene into GPU buffers ──────────────────────────────────
     let t_tess_start = std::time::Instant::now();
-    let mut wants_3d = rs.scene_renderer.debug_cube;
+    let mut wants_3d = false;
     {
         let fps = rs.timing.stats.summary().fps as f32;
         // Nominal, not measured — everything whose result has to be the same on
@@ -326,16 +326,26 @@ pub fn render_frame(
                     clear_dirty = true;
                 }
 
-                // Phase B: tessellate into the geometry-keyed `Mesh3dCache` and
-                // upload to device-local memory via a staging buffer. Nothing
-                // constructs a `Mesh3d` yet, so this is unreachable.
-                StimulusBody::Mesh3d(_) => {
-                    unimplemented!("Phase B: 3-D mesh upload — see dev/3D_ROADMAP.md §A.5, §B.6")
-                }
+                // Nothing per stimulus: the mesh is shared by geometry and synced
+                // below, and size, placement and colour are per-draw constants.
+                StimulusBody::Mesh3d(_) => clear_dirty = true,
             }
             if clear_dirty {
                 entry.stimulus.flags_mut().dirty = false;
             }
+        }
+
+        // The shared 3-D meshes follow the geometries the scene references. A
+        // pure 2-D scene has none cached and none wanted, and skips this.
+        if wants_3d || !cache.mesh3d.is_empty() {
+            cache.mesh3d.sync(
+                &ctx.device,
+                ctx.command_pool,
+                ctx.graphics_queue,
+                sc.stimuli
+                    .values()
+                    .filter_map(|e| e.stimulus.mesh3d().map(|m| m.geometry.live.mesh_key())),
+            );
         }
 
         sc.photodiode.advance();
@@ -462,7 +472,7 @@ pub fn render_frame(
                 bg,
                 rs.scene_renderer.wireframe,
                 &sc,
-                rs.scene_renderer.debug_cube,
+                &rs.scene_renderer.scene_cache.mesh3d,
             );
         }
         let rp_info = match pass_3d {

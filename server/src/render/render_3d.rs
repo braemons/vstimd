@@ -2,10 +2,10 @@
 //! something 3-D to draw; a pure 2-D frame never reaches this file.
 
 use ash::vk;
-use glam::{Mat4, Quat, Vec3};
 
+use crate::render::vk::cache::Mesh3dCache;
 use crate::render::vk::{Mesh3dPushConstants, Mesh3dRenderer, Pass3d, SceneUniform, VkContext};
-use crate::scene::SceneState;
+use crate::scene::{SceneState, Shading3D};
 
 /// Begin the `[colour, depth]` pass, draw every 3-D object, end it. Leaves the
 /// colour image in `COLOR_ATTACHMENT_OPTIMAL` for the 2-D pass's `LOAD` flavour.
@@ -23,7 +23,7 @@ pub unsafe fn record_3d_pass(
     background: vk::ClearColorValue,
     wireframe: bool,
     scene: &SceneState,
-    debug_cube: bool,
+    meshes: &Mesh3dCache,
 ) {
     let extent = ctx.extent;
     let aspect = extent.width as f32 / extent.height.max(1) as f32;
@@ -88,49 +88,51 @@ pub unsafe fn record_3d_pass(
             &[],
         );
 
-        if debug_cube {
-            let cube = &mesh3d.debug_cube;
-            device.cmd_bind_vertex_buffers(cb, 0, &[cube.vertex_buffer], &[0]);
-            device.cmd_bind_index_buffer(cb, cube.index_buffer, 0, vk::IndexType::UINT32);
-            for model in debug_cube_models(scene.runtime.frame_count) {
-                let pc = Mesh3dPushConstants {
-                    model: model.to_cols_array_2d(),
-                    albedo: [1.0; 4],
-                    emissive: [0.0; 3],
-                    shading: 0,
-                };
-                device.cmd_push_constants(
-                    cb,
-                    pipe.layout,
-                    vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
-                    0,
-                    bytemuck::bytes_of(&pc),
-                );
-                device.cmd_draw_indexed(cb, cube.index_count, 1, 0, 0, 0);
+        // Scene order, like the 2-D pass; the depth buffer sorts opaque geometry.
+        // Vertex and index buffers are rebound only when the mesh changes, so a
+        // run of same-geometry stimuli costs one push-constant update each.
+        let mut bound = None;
+        for entry in scene.stimuli.values() {
+            let stim = &entry.stimulus;
+            let Some(m) = stim.mesh3d() else { continue };
+            if !stim.is_visible() {
+                continue;
             }
+            let geometry = m.geometry.live;
+            let key = geometry.mesh_key();
+            let Some(mesh) = meshes.get(key) else {
+                continue;
+            };
+            if bound != Some(key) {
+                device.cmd_bind_vertex_buffers(cb, 0, &[mesh.vertex_buffer], &[0]);
+                device.cmd_bind_index_buffer(cb, mesh.index_buffer, 0, vk::IndexType::UINT32);
+                bound = Some(key);
+            }
+            let material = m.material.live;
+            let pc = Mesh3dPushConstants {
+                model: m
+                    .transform
+                    .live
+                    .model_matrix(geometry.model_scale())
+                    .to_cols_array_2d(),
+                albedo: material.albedo.scaled_alpha(stim.opacity().live).into(),
+                emissive: material.emissive,
+                shading: match material.shading {
+                    Shading3D::Unlit => 0,
+                    Shading3D::Phong => 1,
+                },
+            };
+            device.cmd_push_constants(
+                cb,
+                pipe.layout,
+                vk::ShaderStageFlags::VERTEX | vk::ShaderStageFlags::FRAGMENT,
+                0,
+                bytemuck::bytes_of(&pc),
+            );
+            device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
         }
 
         ctx.cmd_end_label(cb);
         device.cmd_end_render_pass(cb);
     }
-}
-
-/// Temporary (#68). A 20 cm cube spinning 60 cm in front of the default camera,
-/// and a non-uniformly scaled box pushed through it, up and to the right — so
-/// one look checks depth testing, culling, non-uniform scale and that world +Y
-/// is screen up.
-fn debug_cube_models(frame_count: u64) -> [Mat4; 2] {
-    let t = frame_count as f32 / 60.0;
-    [
-        Mat4::from_scale_rotation_translation(
-            Vec3::splat(10.0),
-            Quat::from_rotation_y(t) * Quat::from_rotation_x(0.6 * t),
-            Vec3::new(0.0, 0.0, -60.0),
-        ),
-        Mat4::from_scale_rotation_translation(
-            Vec3::new(14.0, 3.0, 3.0),
-            Quat::from_rotation_z(0.3),
-            Vec3::new(10.0, 12.0, -60.0),
-        ),
-    ]
 }

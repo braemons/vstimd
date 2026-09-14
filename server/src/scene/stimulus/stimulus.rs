@@ -189,6 +189,13 @@ impl Stimulus {
         }
     }
 
+    pub fn mesh3d(&self) -> Option<&Mesh3d> {
+        match &self.body {
+            StimulusBody::Mesh3d(m) => Some(m),
+            _ => None,
+        }
+    }
+
     /// Shape appearance (fill/outline/draw-mode) — `None` for other kinds.
     pub fn shape_appearance(&self) -> Option<&Deferred<ShapeAppearance>> {
         match &self.body {
