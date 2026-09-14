@@ -8,6 +8,7 @@ from vstimd._proto.vstimd.v1 import input_pb2, scene3d_pb2
 from vstimd._proto.vstimd.v1 import color_pb2
 from vstimd.response import ServerResponse
 from vstimd.stimuli.color import Color
+from .zones_models import CameraZone, CameraZoneStatus
 from .system_models import (
     Camera3D,
     InputDeviceInfo,
@@ -229,6 +230,29 @@ class SystemClient:
             query_camera=scene3d_pb2.QueryCameraRequest(),
         ))
         return Camera3D.from_proto(resp.camera)
+
+    def set_camera_zones(self, zones: list[CameraZone]) -> ServerResponse:
+        """Replace every camera zone; ``[]`` removes them all. See :class:`CameraZone`.
+
+        Raises:
+            InvalidArgumentError: an output line, a line or name used twice, or
+                an inverted range.
+        """
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            set_camera_zones=scene3d_pb2.SetCameraZonesRequest(zones=[z.to_proto() for z in zones]),
+        )))
+
+    def list_camera_zones(self) -> list[CameraZoneStatus]:
+        """Every camera zone, and whether the camera was inside it last frame."""
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            list_camera_zones=scene3d_pb2.ListCameraZonesRequest(),
+        ))
+        return [
+            CameraZoneStatus(CameraZone.from_proto(z.zone), z.inside)
+            for z in resp.camera_zone_list.zones
+        ]
 
     def set_lighting(self, lighting: Lighting3D) -> ServerResponse:
         """Replace the scene lighting. Respects deferred mode.

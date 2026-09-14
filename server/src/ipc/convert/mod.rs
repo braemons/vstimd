@@ -53,7 +53,8 @@ pub(super) use mesh3d::{
     transform3d_to_proto,
 };
 pub(super) use scene3d::{
-    camera3d_from_proto, camera3d_to_proto, lighting3d_from_proto, lighting3d_to_proto,
+    camera_zone_from_proto, camera_zone_to_proto, camera3d_from_proto, camera3d_to_proto,
+    lighting3d_from_proto, lighting3d_to_proto,
 };
 pub(super) use text::{anchor_from_str, language_style_from_proto, text_params_to_proto,
     text_render_params_from_proto};

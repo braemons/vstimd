@@ -161,6 +161,8 @@ message Request {
     QueryCameraRequest query_camera = 86; // system target
     QueryLightingRequest query_lighting = 87; // system target
     ListInputDevicesRequest list_input_devices = 88; // system target
+    SetCameraZonesRequest set_camera_zones = 89; // system target
+    ListCameraZonesRequest list_camera_zones = 96; // system target
 
     // ── Timing / synchronisation (system target) ─────────────────────────────
     WaitForFramesRequest wait_for_frames = 83;
@@ -241,6 +243,7 @@ message Response {
     Camera3D camera = 24;
     Lighting3D lighting = 25;
     ListInputDevicesResponse input_device_list = 26;
+    ListCameraZonesResponse camera_zone_list = 27;
   }
 
   // Server-side monotonic clock at response time, nanoseconds since server

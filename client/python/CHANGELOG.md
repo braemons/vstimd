@@ -116,6 +116,11 @@ server and the client move together, and nothing has shipped yet.
 
 ### Added
 
+- **Camera zones.** `conn.system.set_camera_zones([CameraZone(...)])` turns a
+  region of the 3-D world into a trigger-line input: HIGH while the camera is
+  inside, edges on entry and exit, so any trigger-reacting animation — including
+  one that pulses a DAQ output — responds to where the animal is in a corridor.
+  `list_camera_zones()` reports which zones the camera is in.
 - **Input devices.** `vstimd.shm.InputDevice` publishes a wheel, treadmill or eye
   tracker for the server to read every frame (the Rust `vinput` layout, seqlock
   and heartbeat included). Rig-config devices then drive animations:

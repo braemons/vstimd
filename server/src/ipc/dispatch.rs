@@ -230,6 +230,8 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::SetLighting(_)) => "SetLighting".into(),
         Some(request::Body::QueryLighting(_)) => "QueryLighting".into(),
         Some(request::Body::ListInputDevices(_)) => "ListInputDevices".into(),
+        Some(request::Body::SetCameraZones(c)) => format!("SetCameraZones({})", c.zones.len()),
+        Some(request::Body::ListCameraZones(_)) => "ListCameraZones".into(),
         Some(request::Body::SetNavSpeed(c)) => {
             format!("SetNavSpeed({}, {:.1}cm/s)", c.handle, c.speed_cm_per_s)
         }
@@ -331,6 +333,8 @@ impl SceneState {
             request::Body::SetLighting(cmd) => self.cmd_set_lighting(cmd),
             request::Body::QueryLighting(_) => self.cmd_query_lighting(),
             request::Body::ListInputDevices(_) => self.cmd_list_input_devices(),
+            request::Body::SetCameraZones(cmd) => self.cmd_set_camera_zones(cmd, vtl.as_deref()),
+            request::Body::ListCameraZones(_) => self.cmd_list_camera_zones(),
             request::Body::CreatePolygon(_) => err(
                 proto::ErrorCode::NotSupported,
                 "CreatePolygon is not yet implemented",
@@ -417,6 +421,8 @@ impl SceneState {
             | request::Body::SetLighting(_)
             | request::Body::QueryLighting(_)
             | request::Body::ListInputDevices(_)
+            | request::Body::SetCameraZones(_)
+            | request::Body::ListCameraZones(_)
             | request::Body::CreatePolygon(_)
             | request::Body::SetBackground(_)
             | request::Body::SetDeferredMode(_)

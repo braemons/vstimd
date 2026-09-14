@@ -2,6 +2,7 @@ syntax = "proto3";
 package vstimd.v1;
 
 import "vstimd/v1/vec3.proto";
+import "vstimd/v1/vtl.proto";
 
 // ── The 3-D scene: camera and lighting ────────────────────────────────────────
 //
@@ -48,3 +49,46 @@ message SetLightingRequest {
 
 // System command. Returns Lighting3D in Response.body.
 message QueryLightingRequest {}
+
+// ── Camera zones ──────────────────────────────────────────────────────────────
+//
+// A region of the world whose entry and exit by the camera act as a trigger-line
+// input: rising edge on entry, falling on exit, level HIGH while inside. Name an
+// input line the DAQ does not drive, then use it anywhere a trigger line goes —
+// an animation's start_trigger, EnableOnTriggerEdge, CoupleVisibilityToTriggerLine
+// — and pulse an output line from that animation to reach the DAQ. The edges
+// also appear on the event stream as input edges.
+//
+// Tested against the camera as last rendered, so a reaction starts one frame
+// after the crossing. With a wrapping corridor, define zones within one period.
+// Saved in the scene-config.
+message CameraZone {
+  string name = 1;
+  VirtualTriggerLineHandle line = 2;  // kind INPUT; bank/bit or a registered name
+  // World-space extent along each axis, cm. An axis with neither bound is
+  // unbounded; give both bounds or neither.
+  optional float x_min_cm = 3;
+  optional float x_max_cm = 4;
+  optional float y_min_cm = 5;
+  optional float y_max_cm = 6;
+  optional float z_min_cm = 7;
+  optional float z_max_cm = 8;
+}
+
+// System command. Replaces every zone; an empty list removes them all.
+// INVALID_ARGUMENT for an output line, a line or name used twice, or a bad range.
+message SetCameraZonesRequest {
+  repeated CameraZone zones = 1;
+}
+
+// System command. Returns ListCameraZonesResponse in Response.body.
+message ListCameraZonesRequest {}
+
+message CameraZoneInfo {
+  CameraZone zone = 1;
+  bool inside = 2;  // the camera was inside on the last frame
+}
+
+message ListCameraZonesResponse {
+  repeated CameraZoneInfo zones = 1;
+}

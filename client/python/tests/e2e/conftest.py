@@ -129,6 +129,7 @@ def scene_reset(conn: Connection, stage: Stage):
     # Scene-wide 3-D state is not a stimulus, so clear_all leaves it alone.
     conn.system.set_camera(Camera3D())
     conn.system.set_lighting(Lighting3D())
+    conn.system.set_camera_zones([])
     for anim in conn.animations.list_animations():
         conn.animations.delete(anim.handle)
     for line in conn.vtl.list_lines():

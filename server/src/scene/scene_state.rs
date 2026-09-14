@@ -496,6 +496,16 @@ impl SceneState {
         }
     }
 
+    /// Merge this frame's camera-zone transitions into `input_edges`, before the
+    /// edges are published and animations run. A no-op without zones.
+    pub fn evaluate_camera_zones(&mut self, input_edges: &mut crate::vtl_state::VtlEdges) {
+        if self.config.camera_zones.is_empty() {
+            return;
+        }
+        let camera = self.config.camera.live.position_cm.0;
+        super::zones::evaluate(&mut self.config.camera_zones, camera, input_edges);
+    }
+
     /// Real time this frame stands for, s: the nominal frame period times the
     /// vblanks since the last frame. Device-driven motion integrates over it.
     /// Scripted motion uses the nominal period alone, so a config replays

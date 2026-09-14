@@ -4,7 +4,9 @@ use super::mesh3d::{Refusal, vec3_from_proto, vec3_to_proto};
 use crate::ipc::response::err;
 use crate::proto;
 use crate::scene::units::Pos3Cm;
+use crate::scene::zones::CameraZone;
 use crate::scene::{Camera3D, Lighting3D};
+use crate::vtl_state::VtlNameEntry;
 
 fn invalid(msg: impl Into<String>) -> Refusal {
     Box::new(err(proto::ErrorCode::InvalidArgument, msg))
@@ -95,5 +97,44 @@ pub(crate) fn lighting3d_to_proto(l: &Lighting3D) -> proto::Lighting3D {
         ambient_color: Some(vec3_to_proto(glam::Vec3::from(l.ambient_color))),
         sun_direction: Some(vec3_to_proto(l.sun_direction)),
         sun_color: Some(vec3_to_proto(glam::Vec3::from(l.sun_color))),
+    }
+}
+
+pub(crate) fn camera_zone_from_proto(
+    z: &proto::CameraZone,
+    names: &[VtlNameEntry],
+) -> Result<CameraZone, Refusal> {
+    let range = |axis: &str, lo: Option<f32>, hi: Option<f32>| match (lo, hi) {
+        (None, None) => Ok(None),
+        (Some(lo), Some(hi)) => Ok(Some([lo, hi])),
+        _ => Err(invalid(format!("zone '{}': give both {axis} bounds or neither", z.name))),
+    };
+    let zone = CameraZone {
+        name: z.name.clone(),
+        line: super::vtl_bit_from_proto(z.line.as_ref(), names)?,
+        x_cm: range("x", z.x_min_cm, z.x_max_cm)?,
+        y_cm: range("y", z.y_min_cm, z.y_max_cm)?,
+        z_cm: range("z", z.z_min_cm, z.z_max_cm)?,
+        inside: false,
+    };
+    zone.validate().map_err(invalid)?;
+    Ok(zone)
+}
+
+pub(crate) fn camera_zone_to_proto(z: &CameraZone) -> proto::CameraZoneInfo {
+    let lo = |r: Option<[f32; 2]>| r.map(|r| r[0]);
+    let hi = |r: Option<[f32; 2]>| r.map(|r| r[1]);
+    proto::CameraZoneInfo {
+        zone: Some(proto::CameraZone {
+            name: z.name.clone(),
+            line: Some(super::vtl_bit_to_proto(z.line)),
+            x_min_cm: lo(z.x_cm),
+            x_max_cm: hi(z.x_cm),
+            y_min_cm: lo(z.y_cm),
+            y_max_cm: hi(z.y_cm),
+            z_min_cm: lo(z.z_cm),
+            z_max_cm: hi(z.z_cm),
+        }),
+        inside: z.inside,
     }
 }

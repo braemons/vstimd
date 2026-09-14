@@ -7,6 +7,7 @@ pub mod scene_config;
 mod scene_state;
 pub mod stimulus;
 pub mod units;
+pub mod zones;
 
 pub use camera3d::{Camera3D, Lighting3D};
 pub use units::{Pos2Px, Pos3Cm};

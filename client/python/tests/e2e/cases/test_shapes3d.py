@@ -187,3 +187,48 @@ def test_camera_navigation(conn: Connection, stage: Stage) -> None:
     conn.animations.delete(nav)
     for h in [*balls, floor]:
         conn.stimuli.delete(h)
+
+
+@pytest.mark.onscreen(
+    "3D-08",
+    "a striped corridor the camera walks down; a red square in the corner shows "
+    "only while the camera passes through the zone in each period",
+)
+def test_camera_zone_drives_a_trigger_line(conn: Connection, stage: Stage) -> None:
+    import time
+
+    from vstimd.animations import VtlPolarity
+    from vstimd.stimuli import Corridor3DParams, RectParams, ShapeAppearance
+    from vstimd.system import CameraZone
+    from vstimd.vtl import VtlHandle
+
+    line = VtlHandle.input(3, 0)
+    conn.stimuli.shapes3d.create_corridor(params=Corridor3DParams(periods_ahead=20, periods_behind=1))
+    marker = conn.stimuli.shapes.create_rect(
+        position_px=Vec2(400, 300),
+        params=RectParams(width_px=80, height_px=80, appearance=ShapeAppearance(fill_color=Color(1, 0, 0))),
+    )
+    conn.system.set_camera_zones([CameraZone("marker", line, z_cm=(30.0, 70.0))])
+    couple = conn.animations.create_couple_visibility_to_trigger_line(line, marker, polarity=VtlPolarity.ACTIVE_HIGH)
+    conn.animations.arm(couple)
+    conn.system.set_camera(Camera3D(position_cm=Vec3(0, 20, 99.0)))
+    nav = conn.animations.create_linear_nav_3d(120.0, wrap_period_cm=100.0)
+    conn.animations.arm(nav)
+
+    saw_inside = saw_outside = False
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline and not (saw_inside and saw_outside):
+        conn.system.wait_for_frames(2)
+        inside = conn.system.list_camera_zones()[0].inside
+        shown = conn.stimuli.query(marker).anim_enabled
+        if inside and shown:
+            saw_inside = True
+        if not inside and not shown:
+            saw_outside = True
+    assert saw_inside and saw_outside, (saw_inside, saw_outside)
+    stage.hold()
+
+    conn.animations.delete(nav)
+    conn.animations.delete(couple)
+    conn.system.set_camera_zones([])
+    assert conn.system.list_camera_zones() == []

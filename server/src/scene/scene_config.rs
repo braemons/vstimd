@@ -37,6 +37,9 @@ pub struct SceneConfig {
     /// camera.
     #[serde(default, skip_serializing_if = "lighting_is_default")]
     pub lighting: Deferred<Lighting3D>,
+    /// Camera zones — see [`super::zones`]. Omitted on save when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub camera_zones: Vec<super::zones::CameraZone>,
 }
 
 fn lighting_is_default(lighting: &Deferred<Lighting3D>) -> bool {
@@ -61,6 +64,7 @@ impl Default for SceneConfig {
             conditions: Conditions::default(),
             camera: Deferred::new(Camera3D::default()),
             lighting: Deferred::new(Lighting3D::default()),
+            camera_zones: Vec::new(),
         }
     }
 }

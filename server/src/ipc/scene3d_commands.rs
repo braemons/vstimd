@@ -1,11 +1,12 @@
 //! The 3-D scene's camera and lighting — scene-wide, like the background.
 
 use super::convert::{
-    camera3d_from_proto, camera3d_to_proto, lighting3d_from_proto, lighting3d_to_proto,
+    camera_zone_from_proto, camera_zone_to_proto, camera3d_from_proto, camera3d_to_proto, lighting3d_from_proto, lighting3d_to_proto,
 };
 use super::response::{ok_ack, ok_body};
 use crate::proto;
 use crate::scene::SceneState;
+use crate::vtl_state::VtlState;
 
 impl SceneState {
     pub(super) fn cmd_set_camera(&mut self, cmd: proto::SetCameraRequest) -> proto::Response {
@@ -41,5 +42,35 @@ impl SceneState {
         ok_body(proto::response::Body::Lighting(lighting3d_to_proto(
             &self.config.lighting.live,
         )))
+    }
+
+    /// Replace every camera zone. Zones keep no "inside" memory across a
+    /// replace: a zone the camera is already in fires its entry next frame.
+    pub(super) fn cmd_set_camera_zones(
+        &mut self,
+        cmd: proto::SetCameraZonesRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let names = vtl.map_or(&[][..], |v| v.names.as_slice());
+        let zones = match cmd
+            .zones
+            .iter()
+            .map(|z| camera_zone_from_proto(z, names))
+            .collect::<Result<Vec<_>, _>>()
+        {
+            Ok(z) => z,
+            Err(refusal) => return *refusal,
+        };
+        if let Err(msg) = crate::scene::zones::validate_zones(&zones) {
+            return super::response::err(proto::ErrorCode::InvalidArgument, msg);
+        }
+        self.config.camera_zones = zones;
+        ok_ack()
+    }
+
+    pub(super) fn cmd_list_camera_zones(&self) -> proto::Response {
+        ok_body(proto::response::Body::CameraZoneList(proto::ListCameraZonesResponse {
+            zones: self.config.camera_zones.iter().map(camera_zone_to_proto).collect(),
+        }))
     }
 }
