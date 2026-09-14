@@ -3,6 +3,7 @@ package vstimd.v1;
 
 import "vstimd/v1/animations.proto";
 import "vstimd/v1/conditions.proto";
+import "vstimd/v1/input.proto";
 import "vstimd/v1/stimuli/circle.proto";
 import "vstimd/v1/stimuli/dots.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
@@ -159,6 +160,7 @@ message Request {
     ListStimuliRequest list_stimuli = 82; // system target
     QueryCameraRequest query_camera = 86; // system target
     QueryLightingRequest query_lighting = 87; // system target
+    ListInputDevicesRequest list_input_devices = 88; // system target
 
     // ── Timing / synchronisation (system target) ─────────────────────────────
     WaitForFramesRequest wait_for_frames = 83;
@@ -238,6 +240,7 @@ message Response {
     CaptureFrameResponse captured_frame = 23;
     Camera3D camera = 24;
     Lighting3D lighting = 25;
+    ListInputDevicesResponse input_device_list = 26;
   }
 
   // Server-side monotonic clock at response time, nanoseconds since server

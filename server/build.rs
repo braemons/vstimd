@@ -36,6 +36,7 @@ fn main() {
     for proto in &[
         "../proto/vstimd/v1/vec2.proto",
         "../proto/vstimd/v1/vec3.proto",
+        "../proto/vstimd/v1/input.proto",
         "../proto/vstimd/v1/scene3d.proto",
         "../proto/vstimd/v1/stimuli/shapes3d.proto",
         "../proto/vstimd/v1/transform.proto",
@@ -68,6 +69,7 @@ fn main() {
             &[
                 "../proto/vstimd/v1/vec2.proto",
                 "../proto/vstimd/v1/vec3.proto",
+                "../proto/vstimd/v1/input.proto",
                 "../proto/vstimd/v1/scene3d.proto",
                 "../proto/vstimd/v1/stimuli/shapes3d.proto",
                 "../proto/vstimd/v1/transform.proto",

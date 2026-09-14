@@ -113,6 +113,7 @@ nav:
       - Saving & loading: concepts/saving-loading.md
       - The event stream: concepts/event-stream.md
       - Integrating recording systems: concepts/recording-integration.md
+      - Input devices: concepts/input-devices.md
   - Stimuli:
       - Overview: stimuli/index.md
       - Shapes: stimuli/shapes.md

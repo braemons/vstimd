@@ -25,6 +25,7 @@ mod animation;
 mod condition;
 mod dots;
 mod grating;
+mod input;
 mod mesh3d;
 mod scene3d;
 mod text;
@@ -44,6 +45,7 @@ pub(super) use dots::{
 pub(super) use grating::{
     grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,
 };
+pub(super) use input::input_device_to_proto;
 pub(super) use mesh3d::{
     Mesh3dParts, Refusal, corridor3d_from_proto, cube_size_from_proto, cube3d_from_proto, material3d_from_proto,
     mesh3d_params_to_proto, plane_size_from_proto, plane3d_from_proto,

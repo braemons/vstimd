@@ -116,6 +116,15 @@ server and the client move together, and nothing has shipped yet.
 
 ### Added
 
+- **Input devices.** `vstimd.shm.InputDevice` publishes a wheel, treadmill or eye
+  tracker for the server to read every frame (the Rust `vinput` layout, seqlock
+  and heartbeat included). Rig-config devices then drive animations:
+  `create_device_driven_transform` maps axes onto transform channels of stimuli
+  or the camera, `create_linear_nav_3d(source=AxisRef(...))` walks the camera
+  from a device, and `create_external_position_2d` now works (it was refused)
+  against a named device. `conn.system.list_input_devices()` and
+  `AnimationDetails.device_stale` report when a producer has stopped.
+  See `examples/wheel_reader.py`.
 - **3-D stimuli.** `conn.stimuli.shapes3d` creates cubes, spheres and planes
   (`create_cube` / `create_sphere` / `create_plane`) placed by a `Transform3D` in
   centimetres, with a `Material3D` that is either `Shading.UNLIT` — exactly the

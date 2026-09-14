@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field
 
 from vstimd._handles import StimulusHandle
-from vstimd._proto.vstimd.v1 import scene3d_pb2
+from vstimd._proto.vstimd.v1 import input_pb2, scene3d_pb2
 from vstimd.stimuli.vec import Vec3
 from vstimd.stimuli.color import Color
 
@@ -189,4 +189,48 @@ class Lighting3D:
             ambient_color=Vec3.from_proto(proto.ambient_color),
             sun_direction=Vec3.from_proto(proto.sun_direction),
             sun_color=Vec3.from_proto(proto.sun_color),
+        )
+
+
+@dataclass(frozen=True)
+class InputAxisInfo:
+    name: str
+    #: "absolute", "cumulative" or "rate".
+    semantic: str
+    scale: float
+    #: The last frame's scaled value, and change (cumulative axes).
+    value: float
+    delta: float
+
+
+@dataclass(frozen=True)
+class InputDeviceInfo:
+    """One rig-config input device, as :meth:`SystemClient.list_input_devices` reports it."""
+
+    name: str
+    #: "shm /vstimd_wheel" in production; "keyboard (…)" under ``--input-override``.
+    backend: str
+    connected: bool
+    #: The producer is missing or silent: the targets it drives hold still.
+    stale: bool
+    torn_reads: int
+    axes: tuple[InputAxisInfo, ...]
+
+    @classmethod
+    def from_proto(cls, d: input_pb2.InputDeviceInfo) -> InputDeviceInfo:
+        semantics = {
+            input_pb2.INPUT_SEMANTIC_ABSOLUTE: "absolute",
+            input_pb2.INPUT_SEMANTIC_CUMULATIVE: "cumulative",
+            input_pb2.INPUT_SEMANTIC_RATE: "rate",
+        }
+        return cls(
+            name=d.name,
+            backend=d.backend,
+            connected=d.connected,
+            stale=d.stale,
+            torn_reads=d.torn_reads,
+            axes=tuple(
+                InputAxisInfo(a.name, semantics.get(a.semantic, "unknown"), a.scale, a.value, a.delta)
+                for a in d.axes
+            ),
         )

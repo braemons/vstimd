@@ -259,6 +259,17 @@ impl SceneState {
             None => (None, 0),
         };
 
+        // The input device the animation reads, if it reads one.
+        let device_name = match &entry.animation {
+            Animation::DeviceDrivenTransform { device, .. } => Some(device.as_str()),
+            Animation::LinearNav3D { source: Some(s), .. } => Some(s.device.as_str()),
+            Animation::ExternalPosition2D { shm_name, .. } => Some(shm_name.as_str()),
+            _ => None,
+        };
+        let device = device_name.and_then(|n| {
+            crate::scene::animation::animation_input::find_device_opt(&self.runtime.input, n)
+        });
+
         let params = proto::CreateAnimationRequest {
             name: entry.name.clone(),
             start_action_mask: entry.start_action.bits() as u32,
@@ -286,6 +297,8 @@ impl SceneState {
                 condition_action: condition_action_to_proto(entry.condition_action) as i32,
                 condition_enabled: entry.cond_enabled,
                 distance_travelled_cm: entry.distance_travelled_cm,
+                device_backend: device.map(|d| d.backend.label()).unwrap_or_default(),
+                device_stale: device.is_some_and(|d| d.stale),
             },
         ))
     }

@@ -294,6 +294,12 @@ message QueryAnimationResponse {
   // LinearNav3D: net distance moved since the animation last started, cm. Never
   // wrapped, so it is the number to log. Zero for every other kind.
   double                 distance_travelled_cm = 8;
+  // Animations that read an input device (DeviceDrivenTransform, a LinearNav3D
+  // with a source, ExternalPosition2D): the device's backend and whether it is
+  // stale right now. A treadmill that died shows up here. Empty / false for
+  // every other kind.
+  string                 device_backend = 9;
+  bool                   device_stale = 10;
 }
 
 // Change a LinearNav3D animation's speed, effective next frame. For scripted

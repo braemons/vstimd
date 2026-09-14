@@ -4,12 +4,13 @@ from typing import Callable
 
 from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2, system_pb2
-from vstimd._proto.vstimd.v1 import scene3d_pb2
+from vstimd._proto.vstimd.v1 import input_pb2, scene3d_pb2
 from vstimd._proto.vstimd.v1 import color_pb2
 from vstimd.response import ServerResponse
 from vstimd.stimuli.color import Color
 from .system_models import (
     Camera3D,
+    InputDeviceInfo,
     Lighting3D,
     CapturedFrame,
     DeferredModeStatus,
@@ -192,6 +193,20 @@ class SystemClient:
         while resp.frame_count < frame_count:
             resp = self.wait_for_frames(frame_count - resp.frame_count)
         return resp
+
+    # ── Input devices ────────────────────────────────────────────────────────
+
+    def list_input_devices(self) -> list[InputDeviceInfo]:
+        """The rig's input devices, with live backend, staleness and axis readings.
+
+        Check ``stale`` before and during a session: a stale treadmill means its
+        reader process has stopped, and the camera it drives is standing still.
+        """
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            list_input_devices=input_pb2.ListInputDevicesRequest(),
+        ))
+        return [InputDeviceInfo.from_proto(d) for d in resp.input_device_list.devices]
 
     # ── 3-D scene ────────────────────────────────────────────────────────────
 

@@ -38,7 +38,7 @@ test-e2e-interactive: proto
 	uv run --group dev python tests/e2e/review.py $(PYTEST_ARGS)
 
 test-e2e-null: proto
-	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v $(PYTEST_ARGS)
+	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py tests/input_devices -v $(PYTEST_ARGS)
 
 # The event stream against a real server with a real frame clock. Separate from
 # test-e2e-null because it needs an event port of its own, and because it is the

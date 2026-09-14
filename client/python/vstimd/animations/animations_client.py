@@ -9,6 +9,7 @@ from vstimd._proto.vstimd.v1 import animations_pb2, vtl_pb2
 from vstimd.conditions import ConditionAction
 from vstimd.response import ServerResponse
 from vstimd.vtl import VtlHandle
+from .device_models import AxisMap, AxisRef
 from .animations_models import AnimationDetails, AnimationInfo, AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
 from vstimd.stimuli import RectParams, ShapeAppearance
 
@@ -179,6 +180,8 @@ class AnimationClient:
             condition_enabled=r.condition_enabled,
             camera=p.target.WhichOneof("target") == "camera",
             distance_travelled_cm=r.distance_travelled_cm,
+            device_backend=r.device_backend,
+            device_stale=r.device_stale,
         )
 
     # ── Shared keyword args (passed through _make_req) ────────────────────────
@@ -500,10 +503,6 @@ class AnimationClient:
         self,
         stimuli: Stimuli,
         shm_name: str,
-        # NOT IMPLEMENTED — the server refuses this with NotSupportedError. The
-        # shared-memory segment is never read, so an accepted animation would
-        # report success and never move the stimulus. See
-        # https://github.com/braemons/vstimd/issues/84.
         *,
         x_offset_px: float = 0.0,
         y_offset_px: float = 0.0,
@@ -520,13 +519,16 @@ class AnimationClient:
         cancel_action_mask: CancelAction = CancelAction(0),
         cancel_action_trigger_line: Optional[VtlHandle] = None,
     ) -> AnimationHandle:
-        """Read stimulus position from a POSIX shared memory float array each frame.
+        """Set stimulus position every frame from a rig-config input device.
 
-        .. warning::
+        ``shm_name`` names the device — its rig-config name (``"eye_tracker"``) or
+        its segment (``"/vstimd_gaze"``). Its first two axes must be absolute; they
+        give the position in pixels after the rig-config's scale, plus the
+        offsets. While the device is stale the stimulus holds its last position.
 
-            TODO(#84): unimplemented server-side. The animation is created and
-            reports ``Running``, but the server never reads the segment and the
-            stimulus does not move.
+        Raises:
+            InvalidArgumentError: the rig declares no such device, or its first
+                two axes are not absolute.
         """
         req = self._make_req(
             stimuli, {
@@ -554,6 +556,7 @@ class AnimationClient:
         speed_cm_per_s: float,
         *,
         wrap_period_cm: float | None = None,
+        source: AxisRef | None = None,
         name: str = "",
         start_action_mask: StartAction = StartAction(0),
         start_action_trigger_line: Optional[VtlHandle] = None,
@@ -577,7 +580,11 @@ class AnimationClient:
         position.
 
         Change the speed with :meth:`set_nav_speed`. It is meant for scripted
-        changes, not for streaming a treadmill's speed every frame.
+        changes, not for streaming a treadmill's speed every frame — for that,
+        give a ``source``: an axis of a rig-config input device. A rate axis is
+        then the speed in cm/s, integrated over real frame time; a cumulative
+        axis moves the camera by exactly its change. ``speed_cm_per_s`` is
+        ignored while a source is set.
 
         Raises:
             InvalidArgumentError: a stimulus-only action bit (``ENABLE``,
@@ -588,6 +595,7 @@ class AnimationClient:
                 "linear_nav_3d": animations_pb2.LinearNav3D(
                     speed_cm_per_s=speed_cm_per_s,
                     wrap_period_cm=wrap_period_cm or 0.0,
+                    source=source.to_proto() if source else None,
                 ),
             },
             name=name,
@@ -600,6 +608,57 @@ class AnimationClient:
             cancel_trigger=cancel_trigger, cancel_edge=cancel_edge,
             cancel_action_mask=cancel_action_mask,
             cancel_action_trigger_line=cancel_action_trigger_line,
+        )
+        return self._create(req)
+
+    def create_device_driven_transform(
+        self,
+        stimuli: Stimuli | None,
+        device: str,
+        axes: list[AxisMap],
+        *,
+        name: str = "",
+        start_trigger: Optional[VtlHandle] = None,
+        start_edge: VtlEdge = VtlEdge.RISING,
+        cancel_trigger: Optional[VtlHandle] = None,
+        cancel_edge: VtlEdge = VtlEdge.RISING,
+    ) -> AnimationHandle:
+        """Drive stimuli — or, with ``stimuli=None``, the 3-D camera — from an
+        input device declared in the rig-config, every frame.
+
+        Each :class:`AxisMap` names one of the device's axes and the transform
+        channel it drives. The animation never finishes on its own. While the
+        device is stale (its producer silent) the target holds still; check
+        :meth:`query`'s ``device_stale``.
+
+        Example — a treadmill walks the camera, a knob turns it::
+
+            conn.animations.create_device_driven_transform(None, "treadmill", [
+                AxisMap("distance", TransformChannel.FORWARD),
+                AxisMap("knob", TransformChannel.YAW, gain=0.5),
+            ])
+
+        Raises:
+            InvalidArgumentError: the device or an axis is unknown, a camera
+                channel lacks a camera target, an absolute axis drives FORWARD
+                or STRAFE, or a scale channel targets the camera.
+        """
+        req = self._make_req(
+            stimuli, {
+                "device_driven_transform": animations_pb2.DeviceDrivenTransform(
+                    device=device, axes=[a.to_proto() for a in axes],
+                ),
+            },
+            name=name,
+            start_action_mask=StartAction(0),
+            start_action_trigger_line=None,
+            final_action_mask=FinalAction(0),
+            final_action_trigger_line=None,
+            final_action_level_line=None,
+            start_trigger=start_trigger, start_edge=start_edge,
+            cancel_trigger=cancel_trigger, cancel_edge=cancel_edge,
+            cancel_action_mask=CancelAction(0),
+            cancel_action_trigger_line=None,
         )
         return self._create(req)
 

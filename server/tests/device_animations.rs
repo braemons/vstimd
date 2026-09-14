@@ -258,3 +258,44 @@ fn a_device_driven_animation_saves_the_device_name() {
     let back: vstimd::scene::SceneConfig = serde_json::from_str(&json).unwrap();
     assert_eq!(back.animations.len(), 1);
 }
+
+#[test]
+fn list_input_devices_and_query_report_staleness() {
+    let mut scene = scene_60hz();
+    let mut owner = attach(&mut scene, "listed", &[("speed", Semantic::Rate)], 2.0);
+    let anim = add_armed(
+        &mut scene,
+        Animation::DeviceDrivenTransform { device: "listed".into(), axes: vec![map("speed", TransformChannel::Forward, 1.0)] },
+        AnimationTarget::Camera,
+    );
+    owner.write(&[5.0]);
+    advance(&mut scene, 1);
+    let sys = || Some(request::Target::System(proto::SystemTarget {}));
+    let resp = scene.handle_request(
+        proto::Request { target: sys(), body: Some(Body::ListInputDevices(proto::ListInputDevicesRequest {})) },
+        None,
+    );
+    let Some(proto::response::Body::InputDeviceList(list)) = resp.body else { panic!("{resp:?}") };
+    let d = &list.devices[0];
+    assert_eq!(d.name, "listed");
+    assert!(d.connected && !d.stale);
+    assert_eq!(d.axes[0].semantic, proto::InputSemantic::Rate as i32);
+    assert_eq!(d.axes[0].value, 10.0);
+
+    let query = |scene: &mut SceneState| {
+        let resp = scene.handle_request(
+            proto::Request {
+                target: sys(),
+                body: Some(Body::QueryAnimation(proto::QueryAnimationRequest { handle: anim })),
+            },
+            None,
+        );
+        let Some(proto::response::Body::QueryAnimationResponse(q)) = resp.body else { panic!() };
+        q
+    };
+    let q = query(&mut scene);
+    assert!(q.device_backend.starts_with("shm ") && !q.device_stale);
+    std::thread::sleep(Duration::from_millis(250));
+    advance(&mut scene, 1);
+    assert!(query(&mut scene).device_stale);
+}
