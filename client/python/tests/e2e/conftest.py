@@ -6,6 +6,7 @@ import pytest
 import zmq
 
 from vstimd import Connection
+from vstimd.system import Camera3D, Lighting3D
 from vstimd._proto import service_pb2, system_pb2
 
 from .cases._helpers import Stage
@@ -125,6 +126,9 @@ def scene_reset(conn: Connection, stage: Stage):
     # wrong thing to ask for when there may be nothing staged at all.
     conn.system.set_deferred_mode(False, cancel=True)
     conn.system.clear_all()
+    # Scene-wide 3-D state is not a stimulus, so clear_all leaves it alone.
+    conn.system.set_camera(Camera3D())
+    conn.system.set_lighting(Lighting3D())
     for anim in conn.animations.list_animations():
         conn.animations.delete(anim.handle)
     for line in conn.vtl.list_lines():

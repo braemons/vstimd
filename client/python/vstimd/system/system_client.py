@@ -4,10 +4,13 @@ from typing import Callable
 
 from vstimd._handles import StimulusHandle
 from vstimd._proto import service_pb2, system_pb2
+from vstimd._proto.vstimd.v1 import scene3d_pb2
 from vstimd._proto.vstimd.v1 import color_pb2
 from vstimd.response import ServerResponse
 from vstimd.stimuli.color import Color
 from .system_models import (
+    Camera3D,
+    Lighting3D,
     CapturedFrame,
     DeferredModeStatus,
     ServerInfo,
@@ -189,6 +192,46 @@ class SystemClient:
         while resp.frame_count < frame_count:
             resp = self.wait_for_frames(frame_count - resp.frame_count)
         return resp
+
+    # ── 3-D scene ────────────────────────────────────────────────────────────
+
+    def set_camera(self, camera: Camera3D) -> ServerResponse:
+        """Replace the camera 3-D stimuli are seen through. Respects deferred mode.
+
+        Raises:
+            InvalidArgumentError: a field is out of range (``fov_y_deg`` outside
+                (0, 180), ``near_cm`` not below ``far_cm``, …).
+        """
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            set_camera=scene3d_pb2.SetCameraRequest(camera=camera.to_proto()),
+        )))
+
+    def query_camera(self) -> Camera3D:
+        """The camera as currently on screen."""
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            query_camera=scene3d_pb2.QueryCameraRequest(),
+        ))
+        return Camera3D.from_proto(resp.camera)
+
+    def set_lighting(self, lighting: Lighting3D) -> ServerResponse:
+        """Replace the scene lighting. Respects deferred mode.
+
+        Raises:
+            InvalidArgumentError: ``sun_direction`` is zero.
+        """
+        return ServerResponse._from_proto(self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            set_lighting=scene3d_pb2.SetLightingRequest(lighting=lighting.to_proto()),
+        )))
+
+    def query_lighting(self) -> Lighting3D:
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            query_lighting=scene3d_pb2.QueryLightingRequest(),
+        ))
+        return Lighting3D.from_proto(resp.lighting)
 
     # ── Frame capture ────────────────────────────────────────────────────────
 

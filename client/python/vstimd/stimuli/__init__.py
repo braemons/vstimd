@@ -19,6 +19,15 @@ from .dots_models import (
 from .grating_client import GratingClient
 from .grating_models import GratingMask, GratingParams, GratingTexture
 from .shapes_client import ShapesClient
+from .shapes3d_client import Shapes3DClient
+from .shapes3d_models import (
+    Cube3DParams,
+    Material3D,
+    Plane3DParams,
+    Shading,
+    Sphere3DParams,
+    Transform3D,
+)
 from .shapes_models import (
     CircleParams,
     EllipseParams,
@@ -32,7 +41,7 @@ from .stimuli_models import StimulusInfo, StimulusParams, StimulusType
 from .text_client import TextClient
 from .text_models import LanguageStyle, TextParams
 from .color import Color
-from .vec import Vec2
+from .vec import Vec2, Vec3
 
 __all__ = [
     "StimuliClient",
@@ -42,6 +51,14 @@ __all__ = [
     "TextClient",
     "Color",
     "Vec2",
+    "Vec3",
+    "Shapes3DClient",
+    "Cube3DParams",
+    "Material3D",
+    "Plane3DParams",
+    "Shading",
+    "Sphere3DParams",
+    "Transform3D",
     "CircleParams",
     "EllipseParams",
     "GratingMask",

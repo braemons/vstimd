@@ -4,6 +4,8 @@ import os
 from dataclasses import dataclass, field
 
 from vstimd._handles import StimulusHandle
+from vstimd._proto.vstimd.v1 import scene3d_pb2
+from vstimd.stimuli.vec import Vec3
 from vstimd.stimuli.color import Color
 
 
@@ -117,3 +119,74 @@ class StimulusListEntry:
     name: str
     #: Conditions this stimulus is active in; empty means every condition.
     condition_indices: list[int] = field(default_factory=list)
+
+
+@dataclass
+class Camera3D:
+    """The camera 3-D stimuli are seen through.
+
+    World space is right-handed and Y-up, in centimetres. At zero rotation the
+    camera looks down −Z. Positive ``yaw_deg`` turns the view left, positive
+    ``pitch_deg`` tilts it up; they apply yaw, then pitch, then roll.
+    """
+
+    position_cm: Vec3 = field(default_factory=lambda: Vec3(0.0, 0.0, 0.0))
+    yaw_deg: float = 0.0
+    pitch_deg: float = 0.0
+    roll_deg: float = 0.0
+    #: Vertical field of view, in (0, 180); the horizontal one follows from the
+    #: display's aspect ratio.
+    fov_y_deg: float = 60.0
+    near_cm: float = 1.0
+    far_cm: float = 50_000.0
+
+    def to_proto(self) -> scene3d_pb2.Camera3D:
+        return scene3d_pb2.Camera3D(
+            position_cm=self.position_cm.to_proto(),
+            yaw_deg=self.yaw_deg,
+            pitch_deg=self.pitch_deg,
+            roll_deg=self.roll_deg,
+            fov_y_deg=self.fov_y_deg,
+            near_cm=self.near_cm,
+            far_cm=self.far_cm,
+        )
+
+    @classmethod
+    def from_proto(cls, proto: scene3d_pb2.Camera3D) -> Camera3D:
+        return cls(
+            position_cm=Vec3.from_proto(proto.position_cm),
+            yaw_deg=proto.yaw_deg,
+            pitch_deg=proto.pitch_deg,
+            roll_deg=proto.roll_deg,
+            fov_y_deg=proto.fov_y_deg,
+            near_cm=proto.near_cm,
+            far_cm=proto.far_cm,
+        )
+
+
+@dataclass
+class Lighting3D:
+    """Scene lighting for ``Shading.PHONG`` surfaces; unlit ones ignore it.
+
+    Colours are linear RGB multipliers and may exceed 1.
+    """
+
+    ambient_color: Vec3 = field(default_factory=lambda: Vec3(0.1, 0.1, 0.1))
+    #: The direction light travels, from the sun. Any non-zero length.
+    sun_direction: Vec3 = field(default_factory=lambda: Vec3(-0.5, -1.0, -0.3))
+    sun_color: Vec3 = field(default_factory=lambda: Vec3(1.0, 1.0, 1.0))
+
+    def to_proto(self) -> scene3d_pb2.Lighting3D:
+        return scene3d_pb2.Lighting3D(
+            ambient_color=self.ambient_color.to_proto(),
+            sun_direction=self.sun_direction.to_proto(),
+            sun_color=self.sun_color.to_proto(),
+        )
+
+    @classmethod
+    def from_proto(cls, proto: scene3d_pb2.Lighting3D) -> Lighting3D:
+        return cls(
+            ambient_color=Vec3.from_proto(proto.ambient_color),
+            sun_direction=Vec3.from_proto(proto.sun_direction),
+            sun_color=Vec3.from_proto(proto.sun_color),
+        )

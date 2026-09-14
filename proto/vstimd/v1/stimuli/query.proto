@@ -5,7 +5,7 @@ import "vstimd/v1/stimuli/circle.proto";
 import "vstimd/v1/stimuli/dots.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
 import "vstimd/v1/stimuli/grating.proto";
-import "vstimd/v1/stimuli/mesh3d.proto";
+import "vstimd/v1/stimuli/shapes3d.proto";
 import "vstimd/v1/stimuli/polygon.proto";
 import "vstimd/v1/stimuli/rect.proto";
 import "vstimd/v1/stimuli/stimulus_type.proto";

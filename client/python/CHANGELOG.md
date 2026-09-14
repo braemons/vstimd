@@ -116,6 +116,14 @@ server and the client move together, and nothing has shipped yet.
 
 ### Added
 
+- **3-D stimuli.** `conn.stimuli.shapes3d` creates cubes, spheres and planes
+  (`create_cube` / `create_sphere` / `create_plane`) placed by a `Transform3D` in
+  centimetres, with a `Material3D` that is either `Shading.UNLIT` — exactly the
+  albedo, matching a 2-D shape of the same colour — or `Shading.PHONG`.
+  `conn.system.set_camera` / `query_camera` and `set_lighting` / `query_lighting`
+  control the scene they are seen through. `StimulusInfo` gains `transform_3d`,
+  and `StimulusType` gains `CUBE_3D`, `SPHERE_3D` and `PLANE_3D`. See
+  `examples/scene_3d.py`.
 - **`conn.system.capture_frame()`** returns the next presented frame as a PNG
   (`CapturedFrame`, with `.save(path)`), read back from the server's own
   swapchain — overlay included, every acknowledged command applied. The CLI

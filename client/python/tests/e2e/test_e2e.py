@@ -120,3 +120,57 @@ def test_capture_frame_shows_what_was_drawn(conn):
     assert pixel(width, rgb, cx, cy - 150) == (255, 0, 0)
     assert pixel(width, rgb, cx, cy + 150) == (0, 255, 0)
     assert pixel(width, rgb, cx, cy) == (0, 0, 255)
+
+
+@pytest.mark.onscreen(
+    "3D-05",
+    "a grey 2-D circle on the left and a grey unlit 3-D sphere in the middle, "
+    "identical in brightness; then the sphere turns Phong-lit from the left",
+    deferred=True,  # no caption: it would be in the captured pixels
+)
+def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn):
+    """An unlit sphere writes exactly the pixel values a 2-D circle of the same
+    colour does; a Phong sphere lit from -X is bright on its left, dark on its right."""
+    from vstimd.stimuli import (
+        CircleParams, Color, Material3D, Shading, ShapeAppearance, Sphere3DParams,
+        Transform3D, Vec2, Vec3,
+    )
+    from vstimd.system import Lighting3D
+
+    from .png_pixels import decode_rgb, pixel
+
+    grey = Color(0.6, 0.6, 0.6)
+    conn.system.set_background(0.0, 0.0, 0.0)
+    conn.stimuli.shapes.create_circle(
+        position_px=Vec2(-400.0, 0.0),
+        params=CircleParams(diameter_px=120.0, appearance=ShapeAppearance(fill_color=grey)),
+    )
+    ball = conn.stimuli.shapes3d.create_sphere(
+        transform=Transform3D(position_cm=Vec3(0.0, 0.0, -60.0)),
+        params=Sphere3DParams(diameter_cm=20.0, material=Material3D(albedo=grey)),
+    )
+
+    shot = conn.system.capture_frame()
+    width, height, rgb = decode_rgb(shot.png)
+    cx, cy = width // 2, height // 2
+    circle = pixel(width, rgb, cx - 400, cy)
+    sphere = pixel(width, rgb, cx, cy)
+    assert circle == sphere, f"2-D {circle} vs unlit 3-D {sphere}"
+    assert circle[0] in (152, 153), circle  # 0.6 of 255, however the driver rounds
+
+    # Light travelling +X, so from the viewer's left.
+    conn.system.set_lighting(Lighting3D(
+        ambient_color=Vec3(0.0, 0.0, 0.0),
+        sun_direction=Vec3(1.0, 0.0, 0.0),
+        sun_color=Vec3(1.0, 1.0, 1.0),
+    ))
+    conn.stimuli.shapes3d.set_material(ball, Material3D(albedo=grey, shading=Shading.PHONG))
+    shot = conn.system.capture_frame()
+    width, height, rgb = decode_rgb(shot.png)
+    # The sphere is ~20 cm at 60 cm with a 60° vertical FOV: about 29% of the
+    # height across. Sample well inside its left and right edges.
+    offset = int(height * 0.10)
+    left = pixel(width, rgb, cx - offset, cy)
+    right = pixel(width, rgb, cx + offset, cy)
+    assert left[0] > 100, f"lit side too dark: {left}"
+    assert right[0] < 20, f"unlit side should fall to the zero ambient: {right}"

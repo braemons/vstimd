@@ -7,6 +7,7 @@
 shapes
 grating
 text
+shapes3d
 ```
 
 ## StimuliClient
