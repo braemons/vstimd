@@ -116,6 +116,52 @@ pub struct AnimationEntry {
     /// the animation keeps its own copy and resyncs from the camera only when
     /// something else has moved it. Not serialized.
     pub nav_position_cm: Option<NavPosition>,
+    /// Where a finite-track navigation animation is on its track. Reset with
+    /// `nav_position_cm`; not serialized.
+    pub track_progress: TrackProgress,
+}
+
+/// Progress along a [`Track3D`](super::Track3D).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct TrackProgress {
+    /// The camera `(x, z)` and yaw when the animation started — the track's
+    /// beginning, and where the camera is sent back to. `None` until the first
+    /// frame the animation runs.
+    pub start: Option<TrackStart>,
+    pub phase: TrackPhase,
+    /// Times the camera has been sent back to the start.
+    pub laps: u32,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct TrackStart {
+    pub x: f64,
+    pub z: f64,
+    pub yaw_deg: f32,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TrackPhase {
+    #[default]
+    Moving,
+    /// Fading out, frames left before the jump. The camera holds still.
+    FadingOut(u32),
+    /// Fading in after the jump, frames left. The camera moves.
+    FadingIn(u32),
+}
+
+impl TrackProgress {
+    /// How far the 3-D view is faded to the background this frame: 0 clear,
+    /// 1 fully faded. Reaches exactly 1 on the frame of the jump, so the jump is
+    /// never seen.
+    pub fn fade(&self, fade_frames: u32) -> f32 {
+        let f = fade_frames.max(1) as f32;
+        match self.phase {
+            TrackPhase::Moving => 0.0,
+            TrackPhase::FadingOut(left) => 1.0 - left as f32 / f,
+            TrackPhase::FadingIn(left) => left as f32 / f,
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -148,6 +194,7 @@ impl<'de> serde::Deserialize<'de> for AnimationEntry {
             cond_enabled: true,
             distance_travelled_cm: 0.0,
             nav_position_cm: None,
+            track_progress: TrackProgress::default(),
         })
     }
 }
@@ -176,6 +223,7 @@ impl AnimationEntry {
             cond_enabled: true,
             distance_travelled_cm: 0.0,
             nav_position_cm: None,
+            track_progress: TrackProgress::default(),
         }
     }
 

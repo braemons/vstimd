@@ -102,6 +102,27 @@ message Corridor3DParams {
   Material3D material = 10;
 }
 
+// A trained 3-D Gaussian splat scene (3DGS), loaded from a file on the server.
+//
+// Splats are drawn after every other 3-D stimulus, sorted back to front and
+// blended; they are depth-tested against opaque 3-D stimuli but do not occlude
+// them. Colours are baked in by training: no material, no lighting, and not a
+// calibrated luminance. SetAlpha multiplies every splat's own opacity.
+//
+// Placement matters more than for a primitive: a trained scene has arbitrary
+// units and, from COLMAP, a Y-down frame. Transform3D.scale sets centimetres per
+// scene unit, and a 180° pitch usually turns a COLMAP scene upright.
+//
+// The file loads in the background; the stimulus draws nothing until it has.
+message GaussianSplat3DParams {
+  // Server-side path to a .ply (the 3DGS reference layout; only the view-
+  // independent colour is used) or an antimatter15 .splat file. Interim: this
+  // becomes an asset reference once the asset store exists. A missing,
+  // unreadable or unrecognised file → INVALID_ARGUMENT, naming the problem.
+  // (Not FILE_NOT_FOUND: that code means a scene-config.)
+  string path = 1;
+}
+
 // System commands. NOT_SUPPORTED when the display has no usable depth format.
 message CreateCube3DRequest {
   StimulusIdentity identity = 1;
@@ -127,6 +148,12 @@ message CreateCorridor3DRequest {
   Corridor3DParams params = 3;
 }
 
+message CreateGaussianSplat3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  GaussianSplat3DParams params = 3;
+}
+
 // ── 3-D stimulus mutations (stimulus target) ──────────────────────────────────
 //
 // SetPosition and SetRotation are 2-D commands and refuse a 3-D stimulus; its
@@ -138,7 +165,7 @@ message SetTransform3DRequest {
   Transform3D transform = 1;
 }
 
-// Any 3-D type. Same defaults as Material3D.
+// Any 3-D type except GaussianSplat3D (WRONG_STIMULUS_TYPE). Same defaults as Material3D.
 message SetMaterial3DRequest {
   Material3D material = 1;
 }

@@ -3,8 +3,11 @@
 
 use ash::vk;
 
-use crate::render::vk::cache::Mesh3dCache;
-use crate::render::vk::{Mesh3dPushConstants, Mesh3dRenderer, Pass3d, SceneUniform, VkContext};
+use crate::render::vk::cache::{Mesh3dCache, SplatCache};
+use crate::render::vk::{
+    Mesh3dPushConstants, Mesh3dRenderer, Pass3d, SceneUniform, SplatPushConstants, SplatRenderer,
+    VeilPushConstants, VkContext,
+};
 use crate::scene::{SceneState, Shading3D};
 
 /// Begin the `[colour, depth]` pass, draw every 3-D object, end it. Leaves the
@@ -24,6 +27,8 @@ pub unsafe fn record_3d_pass(
     wireframe: bool,
     scene: &SceneState,
     meshes: &Mesh3dCache,
+    splat: Option<&SplatRenderer>,
+    splats: &SplatCache,
 ) {
     let extent = ctx.extent;
     let aspect = extent.width as f32 / extent.height.max(1) as f32;
@@ -140,6 +145,71 @@ pub unsafe fn record_3d_pass(
                 );
                 device.cmd_draw_indexed(cb, mesh.index_count, 1, 0, 0, 0);
             });
+        }
+
+        // Splats after every mesh: they test against the meshes' depth but do
+        // not write it, and blend over whatever is behind them.
+        if let Some(sr) = splat {
+            let view = camera.view_matrix();
+            let proj = camera.proj_matrix(aspect);
+            let proj_params = [proj.x_axis.x, proj.y_axis.y, proj.z_axis.z, proj.w_axis.z];
+            let mut bound = false;
+            for (handle, entry) in scene.stimuli.iter() {
+                let stim = &entry.stimulus;
+                let Some(g) = stim.gaussian_splat() else { continue };
+                if !stim.is_visible() {
+                    continue;
+                }
+                let Some(cloud) = splats.get(*handle) else { continue };
+                if !bound {
+                    device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, sr.pipeline);
+                    device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+                    device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+                    bound = true;
+                }
+                device.cmd_bind_descriptor_sets(
+                    cb,
+                    vk::PipelineBindPoint::GRAPHICS,
+                    sr.layout,
+                    0,
+                    &[cloud.sets[frame_slot]],
+                    &[],
+                );
+                let pc = SplatPushConstants {
+                    model_view: (view * g.transform.live.model_matrix(glam::Vec3::ONE))
+                        .to_cols_array_2d(),
+                    proj: proj_params,
+                    viewport_px: [extent.width as f32, extent.height as f32],
+                    opacity: stim.opacity().live,
+                    _pad: 0.0,
+                };
+                device.cmd_push_constants(
+                    cb,
+                    sr.layout,
+                    vk::ShaderStageFlags::VERTEX,
+                    0,
+                    bytemuck::bytes_of(&pc),
+                );
+                device.cmd_draw(cb, 4, cloud.count, 0, 0);
+            }
+
+            // The veil: the whole 3-D view faded towards the background, over
+            // splats and meshes alike, under every 2-D stimulus.
+            let fade = scene.view_fade_3d();
+            if fade > 0.0 {
+                let [r, g, b, _] = background.float32;
+                device.cmd_bind_pipeline(cb, vk::PipelineBindPoint::GRAPHICS, sr.veil_pipeline);
+                device.cmd_set_viewport(cb, 0, std::slice::from_ref(&viewport));
+                device.cmd_set_scissor(cb, 0, std::slice::from_ref(&render_area));
+                device.cmd_push_constants(
+                    cb,
+                    sr.veil_layout,
+                    vk::ShaderStageFlags::FRAGMENT,
+                    0,
+                    bytemuck::bytes_of(&VeilPushConstants { color: [r, g, b, fade.min(1.0)] }),
+                );
+                device.cmd_draw(cb, 3, 1, 0, 0);
+            }
         }
 
         ctx.cmd_end_label(cb);

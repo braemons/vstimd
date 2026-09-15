@@ -3,6 +3,17 @@
 
 use crate::vtl_state::{VtlEdge, VtlBit, VtlPolarity};
 
+/// A finite navigation track: see [`Animation::LinearNav3D`].
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct Track3D {
+    /// How far ahead of its start, along its starting heading, the camera may
+    /// go before it is sent back.
+    pub length_cm: f32,
+    /// Frames to fade the 3-D view out before the jump, and again to fade it in
+    /// after. Zero jumps with no fade.
+    pub fade_frames: u32,
+}
+
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
 pub enum Animation {
     /// Mirror stimulus enabled state to the level of a trigger line (input or output).
@@ -53,6 +64,10 @@ pub enum Animation {
     /// that grows. The true distance is kept separately, unwrapped, in
     /// `AnimationEntry::distance_travelled_cm`.
     ///
+    /// With `track`, the camera instead travels a finite track from where it
+    /// started and, at its end, fades the 3-D view out, jumps back and fades in
+    /// — for content that does not repeat, such as a scanned corridor.
+    ///
     /// Speed is set by command. Driving it from a treadmill is the input-device
     /// work (#79), not a per-frame command stream.
     LinearNav3D {
@@ -64,6 +79,10 @@ pub enum Animation {
         /// camera by exactly its change each frame.
         #[serde(default, skip_serializing_if = "Option::is_none")]
         source: Option<AxisRef>,
+        /// A finite track instead of a wrap. Never set together with
+        /// `wrap_period_cm`.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        track: Option<Track3D>,
     },
     /// Map input-device axes onto transform channels of the target — stimuli
     /// or the camera — every frame. How an axis becomes a channel update is its

@@ -22,6 +22,7 @@ from .shapes_client import ShapesClient
 from .shapes3d_client import Shapes3DClient
 from .shapes3d_models import (
     Corridor3DParams,
+    GaussianSplat3DParams,
     Cube3DParams,
     Material3D,
     Plane3DParams,
@@ -56,6 +57,7 @@ __all__ = [
     "Vec3",
     "Shapes3DClient",
     "Corridor3DParams",
+    "GaussianSplat3DParams",
     "Cube3DParams",
     "Repeat3D",
     "Material3D",

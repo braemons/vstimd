@@ -92,7 +92,9 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                                 format!("{} dots in {}", d.params.live.dot_count,
                                         wh(d.params.live.field_size_px))
                             }
-                            StimulusBody::Mesh3d(_) => "3-D".to_string(),
+                            StimulusBody::Mesh3d(_) | StimulusBody::GaussianSplat(_) => {
+                                "3-D".to_string()
+                            }
                         };
                         let name_label = entry.name().to_string();
                         let uuid_str = entry.id().to_string();

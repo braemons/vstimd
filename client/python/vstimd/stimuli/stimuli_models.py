@@ -12,6 +12,7 @@ from .grating_models import GratingParams
 from .shapes3d_models import (
     Corridor3DParams,
     Cube3DParams,
+    GaussianSplat3DParams,
     Plane3DParams,
     Sphere3DParams,
     Transform3D,
@@ -52,6 +53,7 @@ class StimulusType(Enum):
     SPHERE_3D = "sphere3d"
     PLANE_3D = "plane3d"
     CORRIDOR_3D = "corridor3d"
+    GAUSSIAN_SPLAT_3D = "gaussiansplat3d"
 
 
 StimulusParams = Union[
@@ -66,6 +68,7 @@ StimulusParams = Union[
     Sphere3DParams,
     Plane3DParams,
     Corridor3DParams,
+    GaussianSplat3DParams,
 ]
 
 _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
@@ -80,6 +83,7 @@ _STIMULUS_TYPE_MAP: dict[int, StimulusType] = {
     stimulus_type_pb2.STIMULUS_TYPE_SPHERE_3D: StimulusType.SPHERE_3D,
     stimulus_type_pb2.STIMULUS_TYPE_PLANE_3D: StimulusType.PLANE_3D,
     stimulus_type_pb2.STIMULUS_TYPE_CORRIDOR_3D: StimulusType.CORRIDOR_3D,
+    stimulus_type_pb2.STIMULUS_TYPE_GAUSSIAN_SPLAT_3D: StimulusType.GAUSSIAN_SPLAT_3D,
 }
 
 
@@ -160,6 +164,8 @@ class StimulusInfo:
             params = Plane3DParams.from_proto(proto.params.plane_3d)
         elif shape_which == "corridor_3d":
             params = Corridor3DParams.from_proto(proto.params.corridor_3d)
+        elif shape_which == "gaussian_splat_3d":
+            params = GaussianSplat3DParams.from_proto(proto.params.gaussian_splat_3d)
         else:
             params = None
 

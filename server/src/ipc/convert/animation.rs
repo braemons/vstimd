@@ -4,7 +4,9 @@
 use super::super::response::err;
 use super::vtl::{vtl_bit_from_proto, vtl_bit_to_proto};
 use crate::proto;
-use crate::scene::animation::{Animation, AxisMap, AxisRef, TransformChannel, VtlEdge, VtlPolarity};
+use crate::scene::animation::{
+    Animation, AxisMap, AxisRef, Track3D, TransformChannel, VtlEdge, VtlPolarity,
+};
 use crate::scene::VtlBit;
 use crate::vtl_state::VtlNameEntry;
 
@@ -77,8 +79,10 @@ pub(crate) fn animation_body_to_proto(anim: &Animation) -> proto::create_animati
             x_offset_px: *x_offset_px,
             y_offset_px: *y_offset_px,
         }),
-        Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm, source } => {
+        Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm, source, track } => {
             PBody::LinearNav3d(proto::LinearNav3D {
+                track_length_cm: track.map_or(0.0, |t| t.length_cm),
+                fade_frames: track.map_or(0, |t| t.fade_frames),
                 speed_cm_per_s: *speed_cm_per_s,
                 wrap_period_cm: wrap_period_cm.unwrap_or(0.0),
                 source: source
@@ -191,9 +195,25 @@ pub(crate) fn animation_from_proto(
                     "LinearNav3D: speed_cm_per_s must be finite and wrap_period_cm finite and non-negative",
                 )));
             }
+            if !c.track_length_cm.is_finite() || c.track_length_cm < 0.0 {
+                return Err(Box::new(err(
+                    proto::ErrorCode::InvalidArgument,
+                    "LinearNav3D: track_length_cm must be finite and non-negative",
+                )));
+            }
+            if c.track_length_cm > 0.0 && c.wrap_period_cm > 0.0 {
+                return Err(Box::new(err(
+                    proto::ErrorCode::InvalidArgument,
+                    "LinearNav3D: give wrap_period_cm (an endless corridor) or track_length_cm (a finite track), not both",
+                )));
+            }
             Ok(Animation::LinearNav3D {
                 speed_cm_per_s: c.speed_cm_per_s,
                 wrap_period_cm: (c.wrap_period_cm > 0.0).then_some(c.wrap_period_cm),
+                track: (c.track_length_cm > 0.0).then_some(Track3D {
+                    length_cm: c.track_length_cm,
+                    fade_frames: c.fade_frames,
+                }),
                 source: c
                     .source
                     .as_ref()

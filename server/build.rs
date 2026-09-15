@@ -103,6 +103,8 @@ fn main() {
     compile_shader("shaders/text.wgsl", "text.spv");
     compile_shader("shaders/egui.wgsl", "egui.spv");
     compile_shader("shaders/mesh3d.wgsl", "mesh3d.spv");
+    compile_shader("shaders/splat.wgsl", "splat.spv");
+    compile_shader("shaders/veil.wgsl", "veil.spv");
 }
 
 /// The version reported by `vstimd --version` and over the wire, resolved at

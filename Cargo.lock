@@ -4216,6 +4216,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "vsplat"
+version = "0.0.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "log",
+]
+
+[[package]]
 name = "vstimd"
 version = "0.0.0"
 dependencies = [
@@ -4256,6 +4265,7 @@ dependencies = [
  "tower-http",
  "uuid",
  "vinput",
+ "vsplat",
  "vtl",
  "wayland-backend",
  "wayland-client",

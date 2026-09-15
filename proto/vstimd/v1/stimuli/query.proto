@@ -30,6 +30,7 @@ message StimulusParams {
     Sphere3DParams sphere_3d = 9;
     Plane3DParams plane_3d = 10;
     Corridor3DParams corridor_3d = 11;
+    GaussianSplat3DParams gaussian_splat_3d = 12;
   }
 }
 

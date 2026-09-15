@@ -1,7 +1,8 @@
-//! Create/modify commands for 3-D stimuli: cube, sphere, plane.
+//! Create/modify commands for 3-D stimuli: cube, sphere, plane, corridor and
+//! Gaussian splat scene.
 
 use super::convert::{
-    Mesh3dParts, Refusal, corridor3d_from_proto, cube_size_from_proto, cube3d_from_proto, identity_from_proto, material3d_from_proto,
+    Mesh3dParts, Refusal, corridor3d_from_proto, gaussian_splat3d_from_proto, cube_size_from_proto, cube3d_from_proto, identity_from_proto, material3d_from_proto,
     plane_size_from_proto, plane3d_from_proto, sphere_diameter_from_proto, sphere3d_from_proto,
     transform3d_from_proto,
 };
@@ -9,21 +10,28 @@ use super::response::{err, err_not_found, err_wrong_type, ok_ack, ok_handle_with
 use crate::proto;
 use crate::scene::SceneState;
 use crate::scene::stimulus::{
-    Mesh3d, Mesh3dGeometry, Stimulus, StimulusBody, StimulusSceneEntry, StimulusType, Transform3D,
+    GaussianSplat, Mesh3d, Mesh3dGeometry, Stimulus, StimulusBody, StimulusSceneEntry, StimulusType,
+    Transform3D,
 };
 
 impl SceneState {
+    fn refuse_if_3d_unavailable(&self) -> Option<proto::Response> {
+        self.runtime.render_3d_unavailable.then(|| {
+            err(
+                proto::ErrorCode::NotSupported,
+                "this display has no depth buffer format, so it cannot draw 3-D stimuli",
+            )
+        })
+    }
+
     fn create_mesh3d(
         &mut self,
         identity: Option<proto::StimulusIdentity>,
         placement: Option<proto::Transform3D>,
         params: Result<Mesh3dParts, Refusal>,
     ) -> proto::Response {
-        if self.runtime.render_3d_unavailable {
-            return err(
-                proto::ErrorCode::NotSupported,
-                "this display has no depth buffer format, so it cannot draw 3-D stimuli",
-            );
+        if let Some(refusal) = self.refuse_if_3d_unavailable() {
+            return refusal;
         }
         let transform = match transform3d_from_proto(placement) {
             Ok(t) => t,
@@ -77,6 +85,32 @@ impl SceneState {
         self.create_mesh3d(cmd.identity, cmd.placement, params)
     }
 
+    pub(super) fn cmd_create_gaussian_splat_3d(
+        &mut self,
+        cmd: proto::CreateGaussianSplat3DRequest,
+    ) -> proto::Response {
+        if let Some(refusal) = self.refuse_if_3d_unavailable() {
+            return refusal;
+        }
+        let transform = match transform3d_from_proto(cmd.placement) {
+            Ok(t) => t,
+            Err(refusal) => return *refusal,
+        };
+        let (path, info) = match gaussian_splat3d_from_proto(cmd.params.unwrap_or_default()) {
+            Ok(p) => p,
+            Err(refusal) => return *refusal,
+        };
+        log::info!("vstimd: GaussianSplat3D {path}: {} splats ({:?})", info.count, info.format);
+        let identity = identity_from_proto(cmd.identity);
+        let id = identity.id;
+        let handle = self.alloc_stim_handle();
+        self.config.stimuli.insert(
+            handle,
+            StimulusSceneEntry::new(identity, Stimulus::from(GaussianSplat::new(transform, path))),
+        );
+        ok_handle_with_id(handle, &id)
+    }
+
     /// Run `f` on the 3-D stimulus at `handle`. `expected` narrows further to one
     /// geometry, for the size setters; the error then names that type.
     ///
@@ -111,7 +145,12 @@ impl SceneState {
             };
         }
         let StimulusBody::Mesh3d(m) = &mut entry.stimulus.body else {
-            unreachable!("every 3-D stimulus type is a Mesh3d body");
+            // The only 3-D type that is not a mesh: it has a placement but no
+            // material or size, and SetTransform3D does not come through here.
+            return err(
+                proto::ErrorCode::WrongStimulusType,
+                format!("{cmd} does not apply to {}", entry.stimulus.type_name()),
+            );
         };
         match f(m, deferred) {
             Ok(()) => ok_ack(),
@@ -124,11 +163,25 @@ impl SceneState {
         handle: u32,
         cmd: proto::SetTransform3DRequest,
     ) -> proto::Response {
-        self.with_mesh3d(handle, "SetTransform3D", None, |m, deferred| {
-            let t: Transform3D = transform3d_from_proto(cmd.transform)?;
-            m.transform.set(deferred, t);
-            Ok(())
-        })
+        let deferred = self.runtime.deferred_mode;
+        let Some(entry) = self.config.stimuli.get_mut(&handle) else {
+            return err_not_found(handle);
+        };
+        let type_name = entry.stimulus.type_name();
+        let Some(transform) = entry.stimulus.transform3d_mut() else {
+            return err(
+                proto::ErrorCode::WrongStimulusType,
+                format!("SetTransform3D requires a 3-D stimulus, got {type_name}"),
+            );
+        };
+        match transform3d_from_proto(cmd.transform) {
+            Ok(t) => {
+                let t: Transform3D = t;
+                transform.set(deferred, t);
+                ok_ack()
+            }
+            Err(refusal) => *refusal,
+        }
     }
 
     pub(super) fn cmd_set_material_3d(

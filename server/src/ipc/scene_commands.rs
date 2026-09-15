@@ -3,7 +3,7 @@
 
 use super::convert::{
     dots_params_to_proto,
-    grating_params_to_proto, mesh3d_params_to_proto, nonempty, parse_version, shape_appearance_to_proto,
+    gaussian_splat3d_params_to_proto, grating_params_to_proto, mesh3d_params_to_proto, nonempty, parse_version, shape_appearance_to_proto,
     stimulus_type_to_proto, text_params_to_proto, transform3d_to_proto,
 };
 use super::response::{err, err_not_found, ok_ack, ok_body};
@@ -195,13 +195,12 @@ impl SceneState {
                 .shape
                 .expect("dots_params_to_proto always sets a shape"),
             StimulusBody::Mesh3d(m) => mesh3d_params_to_proto(m),
+            StimulusBody::GaussianSplat(g) => gaussian_splat3d_params_to_proto(g),
         };
 
         let draw_order = self.config.stimuli.get_index_of(&handle).unwrap_or(0) as u32;
-        let placement_3d = stim.mesh3d().map(|m| {
-            proto::query_stimulus_response::Placement::Transform3d(transform3d_to_proto(
-                &m.transform.live,
-            ))
+        let placement_3d = stim.transform3d().map(|t| {
+            proto::query_stimulus_response::Placement::Transform3d(transform3d_to_proto(&t.live))
         });
         let placement = stim.transform2d().map(|t| {
             proto::query_stimulus_response::Placement::Transform2d(proto::Transform2D {

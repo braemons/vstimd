@@ -130,6 +130,7 @@ impl SceneState {
                 cond_enabled: true,
                 distance_travelled_cm: 0.0,
                 nav_position_cm: None,
+                track_progress: Default::default(),
             },
         );
         ok_handle(handle)

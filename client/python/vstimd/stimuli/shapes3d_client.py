@@ -10,6 +10,7 @@ from vstimd.response import ServerResponse
 from .shapes3d_models import (
     Corridor3DParams,
     Cube3DParams,
+    GaussianSplat3DParams,
     Material3D,
     Plane3DParams,
     Sphere3DParams,
@@ -22,7 +23,7 @@ _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
 
 
 class Shapes3DClient:
-    """Create and mutate 3-D stimuli: cubes, spheres and planes.
+    """Create and mutate 3-D stimuli: cubes, spheres, planes, corridors and splats.
 
     Accessed as ``conn.stimuli.shapes3d``. 3-D stimuli are seen through the scene
     camera (``conn.system.set_camera``) and drawn underneath every 2-D stimulus.
@@ -112,6 +113,31 @@ class Shapes3DClient:
                 identity=StimulusIdentity(name=name).to_proto(),
                 placement=(transform or Transform3D()).to_proto(),
                 params=(params or Corridor3DParams()).to_proto(),
+            ),
+        )
+        return StimulusHandle(self._send(req).handle)
+
+    def create_gaussian_splat(
+        self,
+        path: str,
+        *,
+        name: str = "",
+        transform: Transform3D | None = None,
+    ) -> StimulusHandle:
+        """Create a Gaussian splat scene from a file on the server.
+
+        See :class:`GaussianSplat3DParams` for formats and placement.
+
+        Raises:
+            InvalidArgumentError: the file is missing, unreadable, or not a
+                splat file the server reads; the message says which.
+        """
+        req = service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            create_gaussian_splat_3d=shapes3d_pb2.CreateGaussianSplat3DRequest(
+                identity=StimulusIdentity(name=name).to_proto(),
+                placement=(transform or Transform3D()).to_proto(),
+                params=GaussianSplat3DParams(path=path).to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)

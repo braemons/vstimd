@@ -43,6 +43,7 @@ prost      = "0.13"
 # crates.io, and it would have to track the workspace's 0.0.0 sentinel.
 vtl        = { path = "../vtl", features = ["serde"] }
 vinput     = { path = "../vinput" }
+vsplat     = { path = "../vsplat" }
 gilrs      = { version = "0.11", optional = true }
 nvml-wrapper = "0.10"
 rand         = "0.10.1"

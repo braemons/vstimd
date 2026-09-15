@@ -24,6 +24,7 @@
 mod animation;
 mod condition;
 mod dots;
+mod gaussian_splat;
 mod grating;
 mod input;
 mod mesh3d;
@@ -42,6 +43,7 @@ pub(super) use condition::{
 pub(super) use dots::{
     aperture_from_proto, dots_params_from_proto, dots_params_to_proto,
 };
+pub(super) use gaussian_splat::{gaussian_splat3d_from_proto, gaussian_splat3d_params_to_proto};
 pub(super) use grating::{
     grating_params_from_proto, grating_params_to_proto, mask_from_proto, waveform_from_proto,
 };
@@ -106,6 +108,7 @@ pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusTyp
         SceneStimulusType::Sphere3D => proto::StimulusType::Sphere3d,
         SceneStimulusType::Plane3D => proto::StimulusType::Plane3d,
         SceneStimulusType::Corridor3D => proto::StimulusType::Corridor3d,
+        SceneStimulusType::GaussianSplat3D => proto::StimulusType::GaussianSplat3d,
     }
 }
 
@@ -246,6 +249,11 @@ mod stimulus_type_tests {
             (SceneStimulusType::Sphere3D, proto::StimulusType::Sphere3d, "Sphere3D"),
             (SceneStimulusType::Plane3D, proto::StimulusType::Plane3d, "Plane3D"),
             (SceneStimulusType::Corridor3D, proto::StimulusType::Corridor3d, "Corridor3D"),
+            (
+                SceneStimulusType::GaussianSplat3D,
+                proto::StimulusType::GaussianSplat3d,
+                "GaussianSplat3D",
+            ),
         ] {
             assert_eq!(stimulus_type_to_proto(scene), wire, "wire value for {name}");
             assert_eq!(scene.type_name(), name);

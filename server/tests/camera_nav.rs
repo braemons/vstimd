@@ -31,6 +31,7 @@ fn nav(speed_cm_per_s: f32, wrap_period_cm: f32) -> Option<proto::create_animati
         speed_cm_per_s,
         wrap_period_cm,
         source: None,
+        ..Default::default()
     }))
 }
 
@@ -190,4 +191,87 @@ fn camera_target_round_trips_through_query_and_config() {
     let json = serde_json::to_string(&scene.config).unwrap();
     let loaded: vstimd::scene::SceneConfig = serde_json::from_str(&json).unwrap();
     assert!(matches!(loaded.animations[&h].target, AnimationTarget::Camera));
+}
+
+// ── Finite track ──────────────────────────────────────────────────────────────
+
+fn start_track(scene: &mut SceneState, speed: f32, length_cm: f32, fade_frames: u32) -> u32 {
+    let resp = send(scene, Body::CreateAnimation(proto::CreateAnimationRequest {
+        target: camera_target(),
+        body: Some(proto::create_animation_request::Body::LinearNav3d(proto::LinearNav3D {
+            speed_cm_per_s: speed,
+            track_length_cm: length_cm,
+            fade_frames,
+            ..Default::default()
+        })),
+        ..Default::default()
+    }));
+    assert_eq!(code(&resp), proto::ErrorCode::Ok, "{}", resp.error);
+    let handle = resp.handle as u32;
+    let resp = send(scene, Body::ArmAnimation(proto::ArmAnimationRequest { handle }));
+    assert_eq!(code(&resp), proto::ErrorCode::Ok, "{}", resp.error);
+    handle
+}
+
+#[test]
+fn a_track_fades_out_jumps_back_and_fades_in() {
+    let mut scene = scene_at_60hz();
+    scene.camera.live.position_cm.0 = glam::Vec3::new(0.0, 5.0, 20.0);
+    // 60 cm/s → 1 cm a frame; the end is 30 cm ahead of z = 20.
+    let h = start_track(&mut scene, 60.0, 30.0, 4);
+
+    advance(&mut scene, 29);
+    assert!((scene.camera.live.position_cm.0.z - -9.0).abs() < 1e-3);
+    assert_eq!(scene.view_fade_3d(), 0.0);
+
+    // Frame 30 reaches the end and starts the fade; the camera then holds.
+    advance(&mut scene, 1);
+    let end_z = scene.camera.live.position_cm.0.z;
+    assert!((end_z - -10.0).abs() < 1e-3, "{end_z}");
+    let mut fades = Vec::new();
+    for _ in 0..3 {
+        advance(&mut scene, 1);
+        fades.push(scene.view_fade_3d());
+        assert_eq!(scene.camera.live.position_cm.0.z, end_z, "holds while fading out");
+    }
+    assert!(fades.windows(2).all(|w| w[0] < w[1]), "fade rises: {fades:?}");
+
+    // The jump happens on the fully faded frame.
+    advance(&mut scene, 1);
+    assert_eq!(scene.view_fade_3d(), 1.0);
+    assert_eq!(scene.camera.live.position_cm.0, glam::Vec3::new(0.0, 5.0, 20.0));
+
+    // Fading in, the camera moves again, and the fade clears.
+    advance(&mut scene, 4);
+    assert_eq!(scene.view_fade_3d(), 0.0);
+    assert!(scene.camera.live.position_cm.0.z < 20.0);
+    // Distance counts real movement only, never the jump.
+    assert!((distance(&mut scene, h) - 34.0).abs() < 1e-6, "{}", distance(&mut scene, h));
+}
+
+#[test]
+fn a_track_without_a_fade_jumps_at_once() {
+    let mut scene = scene_at_60hz();
+    start_track(&mut scene, 60.0, 10.0, 0);
+    advance(&mut scene, 10);
+    assert_eq!(scene.camera.live.position_cm.0.z, 0.0);
+    assert_eq!(scene.view_fade_3d(), 0.0);
+    advance(&mut scene, 3);
+    assert!((scene.camera.live.position_cm.0.z - -3.0).abs() < 1e-3);
+}
+
+#[test]
+fn a_track_and_a_wrap_are_refused_together() {
+    let mut scene = scene_at_60hz();
+    let resp = send(&mut scene, Body::CreateAnimation(proto::CreateAnimationRequest {
+        target: camera_target(),
+        body: Some(proto::create_animation_request::Body::LinearNav3d(proto::LinearNav3D {
+            speed_cm_per_s: 10.0,
+            wrap_period_cm: 100.0,
+            track_length_cm: 100.0,
+            ..Default::default()
+        })),
+        ..Default::default()
+    }));
+    assert_eq!(code(&resp), proto::ErrorCode::InvalidArgument);
 }

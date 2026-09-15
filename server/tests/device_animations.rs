@@ -178,6 +178,7 @@ fn device_sourced_nav_keeps_distance_and_wraps_position() {
             speed_cm_per_s: 999.0, // ignored with a source
             wrap_period_cm: Some(100.0),
             source: Some(AxisRef { device: "treadmill".into(), axis: "distance".into() }),
+            track: None,
         },
         AnimationTarget::Camera,
     );
@@ -238,6 +239,7 @@ fn nonsense_pairings_are_refused_at_create() {
         speed_cm_per_s: 0.0,
         wrap_period_cm: None,
         source: Some(AxisRef { device: "mixed".into(), axis: "pos".into() }),
+        track: None,
     };
     assert!(check_animation(&AnimationTarget::Camera, &nav_abs, input).is_err());
     let ext = Animation::ExternalPosition2D { shm_name: "nobody".into(), x_offset_px: 0.0, y_offset_px: 0.0 };
