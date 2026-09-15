@@ -1,5 +1,5 @@
 [workspace]
-members = ["server", "vtl", "gpiochip-daqd", "vinput", "vsplat"]
+members = ["server", "vtl", "gpiochip-daqd", "vinput", "vsplat", "reconstruct"]
 resolver = "2"
 
 # NOT the version of anything shipped — a deliberately invalid sentinel.

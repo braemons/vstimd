@@ -1,0 +1,26 @@
+[package]
+name    = "vstimd-reconstruct"
+# Sentinel inherited from the workspace; the shipped version comes from the git
+# tag. See [workspace.package] in the root Cargo.toml.
+version.workspace = true
+edition = "2024"
+description = "Turn a folder of corridor photos into a Gaussian splat scene aligned for vstimd"
+license = "AGPL-3.0-only"
+repository = "https://github.com/braemons/vstimd"
+
+[lib]
+name = "reconstruct"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vstimd-reconstruct"
+path = "src/main.rs"
+
+[dependencies]
+anyhow     = "1"
+clap       = { version = "4", features = ["derive"] }
+glam       = { version = "0.33", features = ["serde"] }
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml       = "0.8"
+vsplat     = { path = "../vsplat" }

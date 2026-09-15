@@ -1,0 +1,37 @@
+#!/bin/sh
+# COLMAP from the official Docker image, for machines without a COLMAP install:
+#
+#   vstimd-reconstruct run ... --colmap reconstruct/scripts/colmap-docker
+#
+# Directories are mounted at the same path inside the container, so the absolute
+# paths vstimd-reconstruct passes work unchanged. By default that is $HOME and
+# /tmp; add more, colon-separated, with COLMAP_DOCKER_MOUNTS=/data:/mnt/share.
+#
+# With the NVIDIA container runtime installed, COLMAP uses the GPU. Without it,
+# feature extraction and matching are switched to the CPU — slower, but fine
+# for a few hundred images.
+set -eu
+
+image=${COLMAP_DOCKER_IMAGE:-colmap/colmap:latest}
+cmd=$1
+shift
+
+mounts=""
+for dir in $(printf '%s' "$HOME:/tmp${COLMAP_DOCKER_MOUNTS:+:$COLMAP_DOCKER_MOUNTS}" | tr ':' ' '); do
+    mounts="$mounts -v $dir:$dir"
+done
+
+gpu=""
+cpu_flags=""
+if docker info --format '{{json .Runtimes}}' 2>/dev/null | grep -q nvidia; then
+    gpu="--gpus all"
+else
+    case "$cmd" in
+        feature_extractor) cpu_flags="--FeatureExtraction.use_gpu 0" ;;
+        sequential_matcher | exhaustive_matcher) cpu_flags="--FeatureMatching.use_gpu 0" ;;
+    esac
+fi
+
+# shellcheck disable=SC2086  # the flag strings are meant to split
+exec docker run --rm --init $gpu -u "$(id -u):$(id -g)" $mounts -w "$PWD" \
+    "$image" colmap "$cmd" "$@" $cpu_flags
