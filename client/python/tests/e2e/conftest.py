@@ -9,7 +9,7 @@ from vstimd import Connection
 from vstimd.system import Camera3D, Lighting3D
 from vstimd._proto import service_pb2, system_pb2
 
-from .cases._helpers import Stage
+from .cases._helpers import Pacing, Stage
 
 #: Where to look for a server when nothing says otherwise. The null suites take
 #: this as "no server was asked for" and start one of their own instead.
@@ -98,7 +98,14 @@ def stage(
     if marker is not None:
         deferred = marker.kwargs.get("deferred", False)
 
-    s = Stage(conn, test_id, description, step_delay, node_id=request.node.nodeid)
+    s = Stage(
+        conn,
+        test_id,
+        description,
+        step_delay,
+        node_id=request.node.nodeid,
+        pacing=request.config.pluginmanager.get_plugin(Pacing.PLUGIN_NAME),
+    )
     if not deferred:
         s.show()
     yield s

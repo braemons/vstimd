@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 
 from vstimd import Connection, HandleNotFoundError
@@ -34,6 +35,54 @@ def _caption_geometry(conn: Connection) -> tuple[Vec2, Vec2, float]:
     return Vec2(0.0, top), box, letter_height_px
 
 
+class Pacing:
+    """How long each dwell lasts, changeable from another thread mid-test.
+
+    The review app runs tests on a worker thread and owns one of these: it can
+    override the step delay, switch to *manual* — every dwell waits until
+    ``advance`` is called — or ``rush`` the rest of a test through with no
+    dwells at all. Dwells wake every few tens of milliseconds, so a change
+    reaches a hold that is already under way.
+
+    Registered with pytest's plugin manager as ``PLUGIN_NAME`` rather than
+    imported, because pytest and the review app import this module under two
+    different package names and would otherwise each get their own copy.
+    """
+
+    PLUGIN_NAME = "e2e-review-pacing"
+    _TICK_S = 0.05
+
+    def __init__(self, step_delay: float | None = None, manual: bool = False) -> None:
+        #: Seconds per step; None leaves it to the ``--step-delay`` option.
+        self.step_delay = step_delay
+        self.manual = manual
+        self.rush = False
+        #: The caption of the hold under way, or None when no test is dwelling.
+        self.holding: str | None = None
+        self._advance = threading.Event()
+
+    def advance(self) -> None:
+        """End the hold under way — the next state in manual mode."""
+        self._advance.set()
+
+    def dwell(self, step_delay: float, factor: float, caption: str = "") -> None:
+        self._advance.clear()
+        start = time.monotonic()
+        self.holding = caption
+        try:
+            while not self.rush:
+                if self.manual:
+                    if self._advance.wait(self._TICK_S):
+                        return
+                    continue
+                delay = self.step_delay if self.step_delay is not None else step_delay
+                remaining = delay * factor - (time.monotonic() - start)
+                if remaining <= 0 or self._advance.wait(min(remaining, self._TICK_S)):
+                    return
+        finally:
+            self.holding = None
+
+
 class Stage:
     """The on-screen caption for one e2e test, plus the dwells that make it readable.
 
@@ -54,8 +103,11 @@ class Stage:
         description: str,
         step_delay: float,
         node_id: str = "",
+        pacing: Pacing | None = None,
     ) -> None:
         self.conn = conn
+        #: Who decides how long a dwell lasts, when not the fixed step delay.
+        self.pacing = pacing
         self.test_id = test_id
         #: What the test as a whole should show — the marker's description. The
         #: caption below it changes as the test walks through its states.
@@ -122,8 +174,13 @@ class Stage:
 
     def hold(self, factor: float = 1.0) -> None:
         """Leave the current frame up for ``factor`` step delays.
+
+        Under the review app a ``Pacing`` decides instead, so the operator can
+        lengthen, shorten or hand-step the dwells while the test is running.
         """
-        if self.step_delay > 0:
+        if self.pacing is not None:
+            self.pacing.dwell(self.step_delay, factor, self._caption(self.description))
+        elif self.step_delay > 0:
             time.sleep(self.step_delay * factor)
 
     def close(self) -> None:

@@ -89,7 +89,7 @@ def server_process(server_address: str):
     "the capture must show them where they are",
     deferred=True,  # no caption: it would be in the captured pixels
 )
-def test_capture_frame_shows_what_was_drawn(conn):
+def test_capture_frame_shows_what_was_drawn(conn, stage):
     """CaptureFrame returns the presented frame, commands already applied."""
     from vstimd.stimuli.color import Color
     from vstimd.stimuli.shapes_models import RectParams, ShapeAppearance
@@ -109,6 +109,9 @@ def test_capture_frame_shows_what_was_drawn(conn):
     square(150.0, Color(1.0, 0.0, 0.0))
     square(-150.0, Color(0.0, 1.0, 0.0))
     before = conn.system.wait_for_frames(0).frame_count
+    # Captionless tests have nothing else to dwell on: hold the frame about to be
+    # captured, so it is on screen long enough to judge by eye.
+    stage.hold()
 
     shot = conn.system.capture_frame()
     width, height, rgb = decode_rgb(shot.png)
@@ -128,7 +131,7 @@ def test_capture_frame_shows_what_was_drawn(conn):
     "identical in brightness; then the sphere turns Phong-lit from the left",
     deferred=True,  # no caption: it would be in the captured pixels
 )
-def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn):
+def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn, stage):
     """An unlit sphere writes exactly the pixel values a 2-D circle of the same
     colour does; a Phong sphere lit from -X is bright on its left, dark on its right."""
     from vstimd.stimuli import (
@@ -150,6 +153,7 @@ def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn):
         params=Sphere3DParams(diameter_cm=20.0, material=Material3D(albedo=grey)),
     )
 
+    stage.hold()
     shot = conn.system.capture_frame()
     width, height, rgb = decode_rgb(shot.png)
     cx, cy = width // 2, height // 2
@@ -165,6 +169,7 @@ def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn):
         sun_color=Vec3(1.0, 1.0, 1.0),
     ))
     conn.stimuli.shapes3d.set_material(ball, Material3D(albedo=grey, shading=Shading.PHONG))
+    stage.hold()
     shot = conn.system.capture_frame()
     width, height, rgb = decode_rgb(shot.png)
     # The sphere is ~20 cm at 60 cm with a 60° vertical FOV: about 29% of the
@@ -182,7 +187,7 @@ def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn):
     "period; the two captures, one period apart, must be identical",
     deferred=True,  # no caption: it would be in the captured pixels
 )
-def test_corridor_has_no_seam_one_period_apart(conn):
+def test_corridor_has_no_seam_one_period_apart(conn, stage):
     """A camera one period further down the corridor sees the same frame, bit for
     bit — which is what lets LinearNav3D wrap the camera without a visible jump."""
     from vstimd.stimuli import (
@@ -206,6 +211,7 @@ def test_corridor_has_no_seam_one_period_apart(conn):
 
     def capture_at(z_cm: float) -> bytes:
         conn.system.set_camera(Camera3D(position_cm=Vec3(0.0, 20.0, z_cm)))
+        stage.hold()
         return conn.system.capture_frame().png
 
     near = capture_at(0.5)
