@@ -5,7 +5,7 @@
 //! - **vstimd** (as `vstimd::splat`): the ZMQ thread probes a file when a
 //!   `GaussianSplat3D` is created, and the render thread loads and sorts it.
 //!   The GPU half is `render::vk::cache::SplatCache`.
-//! - **vstimd-reconstruct**: reads a trained scene with every parameter kept
+//! - **vstimd-scene-from-capture**: reads a trained scene with every parameter kept
 //!   ([`Gaussians`]), moves it into vstimd's world and writes it back.
 
 mod gaussians;

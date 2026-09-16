@@ -2,12 +2,12 @@
 
 A `GaussianSplat3D` stimulus draws a photorealistic 3-D scene reconstructed from
 photos of a real place — typically a corridor the animal walks through in VR.
-`vstimd-reconstruct` turns a folder of photos into such a scene, already placed
+`vstimd-scene-from-capture` turns a folder of photos into such a scene, already placed
 where vstimd expects it: in centimetres, with the floor at `y = 0` and the
 corridor running down −Z from where the first photo was taken.
 
 !!! warning "Early"
-    `vstimd-reconstruct` is new and has been run on one real capture so far. The
+    `vstimd-scene-from-capture` is new and has been run on one real capture so far. The
     alignment assumes a single straight walk; corners are not supported yet.
 
 The pipeline wraps two external tools — [COLMAP](https://colmap.github.io/)
@@ -75,8 +75,8 @@ capturing the whole corridor.
 Build the tool (release builds only):
 
 ```bash
-cargo build --release -p vstimd-reconstruct
-# → target/release/vstimd-reconstruct
+cargo build --release -p vstimd-scene-from-capture
+# → target/release/vstimd-scene-from-capture
 ```
 
 **Brush:** download `brush-app-x86_64-unknown-linux-gnu.tar.xz` from the
@@ -99,7 +99,7 @@ a minute for 120 photos.
 Check that everything is found:
 
 ```bash
-vstimd-reconstruct check --colmap reconstruct/scripts/colmap-docker --brush ~/brush/brush_app
+vstimd-scene-from-capture check --colmap reconstruct/scripts/colmap-docker --brush ~/brush/brush_app
 ```
 
 Instead of the flags, you can set `VSTIMD_COLMAP` and `VSTIMD_BRUSH`, or put
@@ -108,7 +108,7 @@ Instead of the flags, you can set `VSTIMD_COLMAP` and `VSTIMD_BRUSH`, or put
 ## 3. Run
 
 ```bash
-vstimd-reconstruct run photos/ --out corridor.ply \
+vstimd-scene-from-capture run photos/ --out corridor.ply \
     --capture-path-length-cm 500 --capture-height-cm 8 \
     --colmap reconstruct/scripts/colmap-docker --brush ~/brush/brush_app
 ```
@@ -128,7 +128,7 @@ On the development desktop (GTX 1650, COLMAP on the CPU), 118 photos at
 7 000 training steps took under four minutes. The default of 30 000 steps
 takes proportionally longer and gives a sharper scene.
 
-Useful options (`vstimd-reconstruct run --help` lists all):
+Useful options (`vstimd-scene-from-capture run --help` lists all):
 
 | Option | Default | Use |
 |---|---|---|
@@ -152,7 +152,7 @@ Everything about a run lives in `corridor.ply.reconstruction/` (or `--work`):
 - `report.json` holds the result.
 
 **Resume:** if a run stops — a crash, Ctrl-C, a reboot — run the same command
-again, or `vstimd-reconstruct resume corridor.ply.reconstruction`. Finished
+again, or `vstimd-scene-from-capture resume corridor.ply.reconstruction`. Finished
 stages are skipped. Running with different options against the same directory is
 refused; choose another `--work`.
 

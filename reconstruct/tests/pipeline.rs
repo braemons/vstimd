@@ -1,4 +1,4 @@
-//! The whole `vstimd-reconstruct` binary against fake `colmap` and `brush`
+//! The whole `vstimd-scene-from-capture` binary against fake `colmap` and `brush`
 //! scripts, which hand back a synthetic corridor: stage order, resume, the
 //! lock, and that the scene comes out where vstimd expects it.
 
@@ -173,7 +173,7 @@ impl Fixture {
     }
 
     fn command(&self, args: &[&str]) -> Command {
-        let mut cmd = Command::new(env!("CARGO_BIN_EXE_vstimd-reconstruct"));
+        let mut cmd = Command::new(env!("CARGO_BIN_EXE_vstimd-scene-from-capture"));
         cmd.args(args)
             .arg("--colmap")
             .arg(&self.colmap)
@@ -381,7 +381,7 @@ fn check_reports_the_tools() {
     assert_eq!(report["colmap_global_mapper"], true);
     assert_eq!(report["brush"]["version"], "brush-cli 0.3.0");
 
-    let out = Command::new(env!("CARGO_BIN_EXE_vstimd-reconstruct"))
+    let out = Command::new(env!("CARGO_BIN_EXE_vstimd-scene-from-capture"))
         .args(["check", "--colmap", "/nonexistent/colmap", "--brush"])
         .arg(&f.brush)
         .output()

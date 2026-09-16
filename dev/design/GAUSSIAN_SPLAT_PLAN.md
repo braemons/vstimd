@@ -290,7 +290,7 @@ Camera motion is 1-D, which buys three things:
    to allow any view. Here the set of views an experiment will ever render is a
    known 1-D track, so the score is exact rather than a proxy, and the pruning
    can be far more aggressive than any published figure. This belongs in
-   `vstimd-reconstruct`, which owns the scene end to end.
+   `vstimd-scene-from-capture`, which owns the scene end to end.
 3. **Per-segment visible sets** drop straight into the existing design: the
    order buffer is already a `u32` index list, so a segment's set is a shorter
    one, and culling becomes a table lookup.

@@ -4290,7 +4290,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "vstimd-reconstruct"
+name = "vstimd-scene-from-capture"
 version = "0.0.0"
 dependencies = [
  "anyhow",

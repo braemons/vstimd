@@ -1,7 +1,7 @@
 //! Align a COLMAP text model on its own and print the result as JSON — for
 //! trying the alignment on a real capture without running a job.
 //!
-//! `cargo run --release -p vstimd-reconstruct --example align_model -- <sparse_txt_dir> <path_length_cm> [capture_height_cm]`
+//! `cargo run --release -p vstimd-scene-from-capture --example align_model -- <sparse_txt_dir> <path_length_cm> [capture_height_cm]`
 
 use reconstruct::align;
 use reconstruct::colmap::Model;

@@ -130,7 +130,7 @@ impl Job {
             if existing != params {
                 bail!(
                     "{} already holds a job with different parameters.\n\
-                     Continue it with `vstimd-reconstruct resume {}`, or pass another --work.\n\
+                     Continue it with `vstimd-scene-from-capture resume {}`, or pass another --work.\n\
                      existing:\n{}\nrequested:\n{}",
                     dir.display(),
                     dir.display(),

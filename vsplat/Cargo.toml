@@ -4,7 +4,7 @@ name    = "vsplat"
 # tag. See [workspace.package] in the root Cargo.toml.
 version.workspace = true
 edition = "2024"
-description = "Gaussian splat scene files and CPU sorting, shared by vstimd and vstimd-reconstruct"
+description = "Gaussian splat scene files and CPU sorting, shared by vstimd and vstimd-scene-from-capture"
 license = "AGPL-3.0-only"
 repository = "https://github.com/braemons/vstimd"
 

@@ -1,5 +1,5 @@
 [package]
-name    = "vstimd-reconstruct"
+name    = "vstimd-scene-from-capture"
 # Sentinel inherited from the workspace; the shipped version comes from the git
 # tag. See [workspace.package] in the root Cargo.toml.
 version.workspace = true
@@ -13,7 +13,7 @@ name = "reconstruct"
 path = "src/lib.rs"
 
 [[bin]]
-name = "vstimd-reconstruct"
+name = "vstimd-scene-from-capture"
 path = "src/main.rs"
 
 [dependencies]

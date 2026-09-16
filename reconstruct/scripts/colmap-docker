@@ -1,10 +1,10 @@
 #!/bin/sh
 # COLMAP from the official Docker image, for machines without a COLMAP install:
 #
-#   vstimd-reconstruct run ... --colmap reconstruct/scripts/colmap-docker
+#   vstimd-scene-from-capture run ... --colmap reconstruct/scripts/colmap-docker
 #
 # Directories are mounted at the same path inside the container, so the absolute
-# paths vstimd-reconstruct passes work unchanged. By default that is $HOME and
+# paths vstimd-scene-from-capture passes work unchanged. By default that is $HOME and
 # /tmp; add more, colon-separated, with COLMAP_DOCKER_MOUNTS=/data:/mnt/share.
 #
 # With the NVIDIA container runtime installed, COLMAP uses the GPU. Without it,

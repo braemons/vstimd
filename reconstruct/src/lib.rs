@@ -1,4 +1,4 @@
-//! `vstimd-reconstruct`: a folder of corridor photos in, a Gaussian splat scene
+//! `vstimd-scene-from-capture`: a folder of corridor photos in, a Gaussian splat scene
 //! out, already in vstimd's world (centimetres, floor at `y = 0`, running down
 //! −Z from the origin).
 //!

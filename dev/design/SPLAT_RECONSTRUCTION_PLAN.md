@@ -1,7 +1,7 @@
 # Reconstructing splat scenes from image assets
 
 **Status:** phases 0 and 1 implemented (2026-09-15, branch `feat/gaussian-splat-corridor`):
-the `vsplat` crate and the `vstimd-reconstruct` CLI (`reconstruct/`). Run end to end on one
+the `vsplat` crate and the `vstimd-scene-from-capture` CLI (`reconstruct/`). Run end to end on one
 real capture (§12, "First real run"); not yet on a phone capture of a corridor. Server-side jobs, the protocol and the asset types come later, once
 the asset store exists (phases 2–4). Where the implementation departs from this document, §12
 says so.
@@ -82,7 +82,7 @@ direction) in minutes rather than after an hour of training.
 
 ## 4. Where compute runs
 
-**v1 is the CLI alone:** the user runs `vstimd-reconstruct` on whatever machine has the GPU,
+**v1 is the CLI alone:** the user runs `vstimd-scene-from-capture` on whatever machine has the GPU,
 usually a workstation or a desktop rig between sessions, and copies or loads the result. The
 table below is where this goes once vstimd runs jobs itself. Three deployments, one worker binary:
 
@@ -90,7 +90,7 @@ table below is where this goes once vstimd runs jobs itself. Three deployments, 
 |---|---|---|
 | **Desktop rig with a discrete GPU** | vstimd spawns it | `idle` — only while no experiment is running |
 | **Jetson / Pi rig** | vstimd refuses (`NOT_SUPPORTED`, naming the policy) | `never` |
-| **Offload** | a user runs `vstimd-reconstruct run` on a workstation against the project folder on the rig's Samba share | the rig does nothing but serve files |
+| **Offload** | a user runs `vstimd-scene-from-capture run` on a workstation against the project folder on the rig's Samba share | the rig does nothing but serve files |
 
 Offload needs **no protocol at all**, because job state is files (§5.2): the workstation
 worker reads and writes the same job directory, and the rig's `ListReconstructions` sees its
@@ -154,17 +154,17 @@ projects/<project>/reconstructions/<name>/
 - **Cleanup** — `keep_work = false` (the default) deletes `work/` after a successful
   `finish`, leaving the request, the log, the report and the preview. `work/` is the large part.
 
-### 5.3 The worker: `vstimd-reconstruct`
+### 5.3 The worker: `vstimd-scene-from-capture`
 
 A new workspace binary crate `reconstruct/`, separate from the server. **This is the v1
 deliverable, used by hand:**
 
 ```
-vstimd-reconstruct run <images-dir> --out <file.ply> --path-length-cm 500 [--work <dir>] [options]
+vstimd-scene-from-capture run <images-dir> --out <file.ply> --path-length-cm 500 [--work <dir>] [options]
                                         create a job directory (default: <out>.reconstruction/)
                                         and run it; run again with the same --work to resume
-vstimd-reconstruct resume <job-dir>     resume a job from its job.toml
-vstimd-reconstruct check                report which tools and GPUs are usable, as JSON
+vstimd-scene-from-capture resume <job-dir>     resume a job from its job.toml
+vstimd-scene-from-capture check                report which tools and GPUs are usable, as JSON
 ```
 
 The options are the fields of `ReconstructionParams` (§5.4) spelled as flags
@@ -363,7 +363,7 @@ therefore part of the report, and the client warns when the camera is placed mor
 | # | Phase | Depends on | Useful on its own |
 |---|---|---|---|
 | 0 | Move `server/src/splat` to a `vsplat` crate; add `.ply` writing | — | — |
-| 1 | **Now.** `vstimd-reconstruct`: every stage, job directory, resume, `check`, report, docs for the capture protocol. A CLI on a workstation or desktop rig, pointed at a folder of images | 0 | **Yes** — reconstruct a corridor by hand and load the result through #148's path field |
+| 1 | **Now.** `vstimd-scene-from-capture`: every stage, job directory, resume, `check`, report, docs for the capture protocol. A CLI on a workstation or desktop rig, pointed at a folder of images | 0 | **Yes** — reconstruct a corridor by hand and load the result through #148's path field |
 | 2 | **Later, with the asset store.** Asset types `splats/` and `reconstructions/`; `GaussianSplat3D.path` → `AssetRef`; the CLI accepts a project folder | asset store 1–2 | Running the CLI against a project on the Samba share needs no further code |
 | 3 | `reconstruction.proto`, supervisor, spawning, idle policy, events, errors | 1, 2 | Desktop rigs reconstruct on request |
 | 4 | Python, CLI, web panel, overlay line, docs including the capture protocol | 3 | — |

@@ -20,7 +20,7 @@ use reconstruct::tools::{self, Tools};
 /// y = 0 and the corridor running down −Z from the first photo, so it loads
 /// with an identity transform.
 #[derive(Parser)]
-#[command(name = "vstimd-reconstruct", version = option_env!("VSTIMD_VERSION").unwrap_or("dev"))]
+#[command(name = "vstimd-scene-from-capture", version = option_env!("VSTIMD_VERSION").unwrap_or("dev"))]
 struct Cli {
     #[command(subcommand)]
     command: Commands,
