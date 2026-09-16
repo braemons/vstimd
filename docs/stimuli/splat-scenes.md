@@ -56,15 +56,26 @@ In order of importance:
       some cloud uploads strip the EXIF data, which holds the focal length.
     - Keep the phone's own file numbering: photos are used in file-name order.
 
-**Video instead of photos** is often easier to capture well. Film at 4K, 30 fps,
-walking slowly, with exposure locked and electronic stabilisation off, then
-extract frames:
+**Video instead of photos** is often easier to capture well, and the tool takes
+a video directly — pass the file where you would pass the folder. Film at 4K,
+30 fps, walking slowly, with exposure locked and electronic stabilisation off.
 
 ```bash
-ffmpeg -i walk.mp4 -vf fps=3 -qscale:v 2 photos/%05d.jpg
+vstimd-scene-from-capture run walk.mp4 --out corridor.ply \
+    --capture-path-length-cm 500
 ```
 
-Choose the rate so frames are 20–30 cm apart at your walking speed.
+`--fps` (default 3) sets how many frames a second are kept; choose it so frames
+land 20–30 cm apart at your walking speed. Frames are **not** taken blindly at
+that rate: `--frame-oversample` (default 3) frames are examined for each one
+kept, and the sharpest of each group wins. A handheld walk blurs unevenly, and a
+fixed rate lands on a blurred frame as often as a sharp one — this is rule 5
+applied for you. `--frame-oversample 1` turns the pass off and keeps every frame.
+
+Two things to know about video. It needs **ffmpeg** on `PATH` (Debian/Ubuntu:
+`apt install ffmpeg`), or `--ffmpeg`/`$VSTIMD_FFMPEG`. And video frames carry
+**no EXIF focal length**, so COLMAP estimates it from the frame size; the same
+walk shot as stills usually reconstructs a little better for that reason alone.
 
 **Test before the real capture.** Capture one or two metres, run it with
 `--train-steps 7000` (a few minutes, see below) and read the report before

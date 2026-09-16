@@ -39,7 +39,7 @@ fn run_stages(job: &mut Job, tools: &Tools) -> anyhow::Result<Report> {
         job.begin_stage(stage);
         let t0 = Instant::now();
         match stage {
-            Stage::Ingest => ingest(job),
+            Stage::Ingest => ingest(job, tools),
             Stage::Sfm => sfm(job, tools),
             Stage::Undistort => undistort(job, tools),
             Stage::Align => align_stage(job),
@@ -74,7 +74,11 @@ fn write_json(path: &Path, value: &impl Serialize) -> anyhow::Result<()> {
 #[derive(Serialize, Deserialize)]
 struct IngestedImage {
     name: String,
+    /// The photo it was linked from, or the video it was taken out of.
     source: PathBuf,
+    /// Index in the extracted candidate stream; video captures only.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    frame: Option<u32>,
 }
 
 /// `a2.jpg` before `a10.jpg`: runs of digits compare as numbers.
@@ -105,9 +109,37 @@ pub fn natural_cmp(a: &str, b: &str) -> std::cmp::Ordering {
     ca.len().cmp(&cb.len()).then_with(|| a.cmp(b))
 }
 
-fn ingest(job: &mut Job) -> anyhow::Result<()> {
-    let src = job.params.images_dir.clone();
-    let entries = std::fs::read_dir(&src).with_context(|| format!("reading {}", src.display()))?;
+fn ingest(job: &mut Job, tools: &Tools) -> anyhow::Result<()> {
+    let images = job.work().join("images");
+    fresh_dir(&images)?;
+    let input = job.params.input.clone();
+    let ingested = if crate::video::is_video(&input) {
+        ingest_video(job, tools, &input, &images)?
+    } else {
+        ingest_folder(job, &input, &images)?
+    };
+
+    if ingested.len() < MIN_IMAGES {
+        bail!(
+            "{} yielded {} images; at least {MIN_IMAGES} are needed",
+            input.display(),
+            ingested.len()
+        );
+    }
+    if ingested.len() < FEW_IMAGES {
+        job.note(&format!(
+            "warning: only {} images; a corridor usually needs a hundred or more",
+            ingested.len()
+        ));
+    }
+    job.note(&format!("{} images", ingested.len()));
+    write_json(&job.dir.join("images.json"), &ingested)
+}
+
+/// Every JPEG and PNG directly inside `src`, linked into the job in natural
+/// file-name order.
+fn ingest_folder(job: &mut Job, src: &Path, images: &Path) -> anyhow::Result<Vec<IngestedImage>> {
+    let entries = std::fs::read_dir(src).with_context(|| format!("reading {}", src.display()))?;
     let mut files: Vec<(String, PathBuf)> = entries
         .filter_map(|e| {
             let path = e.ok()?.path();
@@ -119,22 +151,7 @@ fn ingest(job: &mut Job) -> anyhow::Result<()> {
         })
         .collect();
     files.sort_by(|a, b| natural_cmp(&a.0, &b.0));
-    if files.len() < MIN_IMAGES {
-        bail!(
-            "{} holds {} JPEG or PNG images; at least {MIN_IMAGES} are needed",
-            src.display(),
-            files.len()
-        );
-    }
-    if files.len() < FEW_IMAGES {
-        job.note(&format!(
-            "warning: only {} images; a corridor usually needs a hundred or more",
-            files.len()
-        ));
-    }
 
-    let images = job.work().join("images");
-    fresh_dir(&images)?;
     let mut ingested = Vec::with_capacity(files.len());
     for (i, (_, source)) in files.iter().enumerate() {
         let source = source
@@ -155,11 +172,123 @@ fn ingest(job: &mut Job) -> anyhow::Result<()> {
             .or_else(|_| std::fs::hard_link(&source, &dst))
             .or_else(|_| std::fs::copy(&source, &dst).map(|_| ()))
             .with_context(|| format!("linking {} into the job", source.display()))?;
-        ingested.push(IngestedImage { name, source });
-        job.progress(Some((i + 1) as f32 / files.len() as f32));
+        ingested.push(IngestedImage { name, source, frame: None });
+        job.progress(Some((i + 1) as f32 / files.len().max(1) as f32));
     }
-    job.note(&format!("{} images", ingested.len()));
-    write_json(&job.dir.join("images.json"), &ingested)
+    Ok(ingested)
+}
+
+/// Frames from a video, the sharpest of each group of `frame_oversample` kept.
+///
+/// Two ffmpeg passes: the first writes small grayscale PGMs of every candidate,
+/// which `video::sharpness` scores, and the second writes only the winners at
+/// full quality. Extracting every candidate at full size and deleting the
+/// rejects would cost gigabytes of `work/` for a 4K walk.
+fn ingest_video(
+    job: &mut Job,
+    tools: &Tools,
+    video: &Path,
+    images: &Path,
+) -> anyhow::Result<Vec<IngestedImage>> {
+    let ffmpeg = tools.ffmpeg()?.to_path_buf();
+    let video = video
+        .canonicalize()
+        .with_context(|| format!("resolving {}", video.display()))?;
+    let fps = job.params.fps;
+    let oversample = job.params.frame_oversample.max(1);
+    let candidate_fps = fps * oversample as f32;
+
+    // Pass 1: every candidate, grayscale and small, for scoring only.
+    let scores_dir = job.work().join("frame-scores");
+    fresh_dir(&scores_dir)?;
+    let mut cmd = Command::new(&ffmpeg);
+    cmd.arg("-nostdin")
+        .arg("-i")
+        .arg(&video)
+        .arg("-vf")
+        .arg(crate::video::score_filter(candidate_fps))
+        .arg(scores_dir.join("%06d.pgm"));
+    run_tool(job, cmd, &|_| None, &mut || None)
+        .with_context(|| format!("extracting frames from {}", video.display()))?;
+
+    let mut pgms: Vec<PathBuf> = std::fs::read_dir(&scores_dir)
+        .with_context(|| format!("reading {}", scores_dir.display()))?
+        .filter_map(|e| Some(e.ok()?.path()))
+        .filter(|p| p.extension().is_some_and(|e| e == "pgm"))
+        .collect();
+    pgms.sort();
+    if pgms.is_empty() {
+        bail!(
+            "ffmpeg read no frames from {}: is it a video this ffmpeg can decode?",
+            video.display()
+        );
+    }
+
+    let mut scores = Vec::with_capacity(pgms.len());
+    for (i, p) in pgms.iter().enumerate() {
+        let bytes = std::fs::read(p).with_context(|| format!("reading {}", p.display()))?;
+        scores.push(
+            crate::video::sharpness(&bytes).with_context(|| format!("scoring {}", p.display()))?,
+        );
+        job.progress(Some(0.5 * (i + 1) as f32 / pgms.len() as f32));
+    }
+    let keep = crate::video::pick_sharpest(&scores, oversample);
+
+    // The kept-vs-overall ratio is the one number that says whether the walk was
+    // steady enough for the sharpness pass to have had anything to choose from.
+    let kept_mean = keep.iter().map(|&i| scores[i]).sum::<f64>() / keep.len().max(1) as f64;
+    let all_mean = scores.iter().sum::<f64>() / scores.len() as f64;
+    job.note(&format!(
+        "video: {} frames examined at {candidate_fps:.3} fps, {} kept at {fps:.3} fps \
+         (mean sharpness {kept_mean:.0} kept vs {all_mean:.0} overall)",
+        pgms.len(),
+        keep.len(),
+    ));
+
+    // Pass 2: only the winners, full size and quality.
+    let mut cmd = Command::new(&ffmpeg);
+    cmd.arg("-nostdin")
+        .arg("-i")
+        .arg(&video)
+        .arg("-vf")
+        .arg(crate::video::select_filter(candidate_fps, &keep))
+        .arg("-vsync")
+        .arg("0")
+        .arg("-qscale:v")
+        .arg("2")
+        .arg(images.join("%05d.jpg"));
+    run_tool(job, cmd, &|_| None, &mut || None)
+        .with_context(|| format!("extracting the chosen frames from {}", video.display()))?;
+
+    let mut written: Vec<PathBuf> = std::fs::read_dir(images)
+        .with_context(|| format!("reading {}", images.display()))?
+        .filter_map(|e| Some(e.ok()?.path()))
+        .filter(|p| p.extension().is_some_and(|e| e == "jpg"))
+        .collect();
+    written.sort();
+    if written.len() != keep.len() {
+        job.note(&format!(
+            "warning: asked ffmpeg for {} frames and got {}",
+            keep.len(),
+            written.len()
+        ));
+    }
+    // A video frame carries no EXIF, so COLMAP has no focal length to read and
+    // falls back to guessing from the frame size. Worth saying: it is the most
+    // likely reason a video reconstructs worse than the same walk shot as stills.
+    job.note("video frames carry no EXIF focal length; COLMAP estimates it from the frame size");
+
+    Ok(written
+        .iter()
+        .zip(keep.iter())
+        .filter_map(|(path, &frame)| {
+            Some(IngestedImage {
+                name: path.file_name()?.to_str()?.to_string(),
+                source: video.clone(),
+                frame: Some(frame as u32),
+            })
+        })
+        .collect())
 }
 
 // ── sfm ───────────────────────────────────────────────────────────────────────

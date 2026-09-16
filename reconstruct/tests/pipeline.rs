@@ -53,6 +53,45 @@ mkdir -p "$path"
 cp "$FIXTURE/trained.ply" "$path/$(echo "$name" | sed "s/{iter}/$steps/")"
 "#;
 
+/// Writes the PGMs the scoring pass reads, then one JPEG per frame the select
+/// filter names. Frames 2, 5 and 8 (1-based) are a checkerboard and the rest are
+/// flat, so the sharpness pass has an unambiguous winner in each group of three.
+const FAKE_FFMPEG: &str = r#"#!/bin/sh
+echo "ffmpeg $*" >> "$FAKE_CALLS"
+for last; do :; done
+out=$last
+vf=""
+while [ $# -gt 0 ]; do
+  case "$1" in -vf) vf=$2; shift;; esac
+  shift
+done
+dir=$(dirname "$out")
+mkdir -p "$dir"
+case "$out" in
+  *.pgm)
+    i=1
+    while [ $i -le 9 ]; do
+      n=$(printf %06d $i)
+      printf 'P5\n4 4\n255\n' > "$dir/$n.pgm"
+      case $i in
+        2|5|8) printf '\000\377\000\377\377\000\377\000\000\377\000\377\377\000\377\000' >> "$dir/$n.pgm";;
+        *)     printf '\177\177\177\177\177\177\177\177\177\177\177\177\177\177\177\177' >> "$dir/$n.pgm";;
+      esac
+      i=$((i+1))
+    done
+    ;;
+  *.jpg)
+    echo "$vf" > "$FAKE_SELECT"
+    k=$(echo "$vf" | tr '+' '\n' | grep -c 'eq(n')
+    i=1
+    while [ $i -le "$k" ]; do
+      printf %05d.jpg $i | xargs -I{} sh -c 'printf jpeg > "$1/{}"' _ "$dir"
+      i=$((i+1))
+    done
+    ;;
+esac
+"#;
+
 /// SfM's arbitrary frame: small, turned and displaced.
 fn to_model(p: DVec3) -> DVec3 {
     DQuat::from_euler(glam::EulerRot::YXZ, 0.8, 2.6, -0.4) * p / 23.0 + DVec3::new(1.0, 2.0, -3.0)
@@ -68,6 +107,7 @@ struct Fixture {
     out: PathBuf,
     colmap: PathBuf,
     brush: PathBuf,
+    ffmpeg: PathBuf,
     calls: PathBuf,
     /// Splats the fake trainer returns that lie inside the corridor.
     inside: usize,
@@ -160,6 +200,7 @@ impl Fixture {
         Fixture {
             colmap: script("colmap", FAKE_COLMAP),
             brush: script("brush", FAKE_BRUSH),
+            ffmpeg: script("ffmpeg", FAKE_FFMPEG),
             calls: root.join("calls.txt"),
             out: root.join("scenes").join("corridor.ply"),
             images,
@@ -179,6 +220,9 @@ impl Fixture {
             .arg(&self.colmap)
             .arg("--brush")
             .arg(&self.brush)
+            .arg("--ffmpeg")
+            .arg(&self.ffmpeg)
+            .env("FAKE_SELECT", self.root.join("select.txt"))
             .env("FAKE_CALLS", &self.calls)
             .env("FIXTURE", self.root.join("fixture"))
             .env_remove("FAKE_BRUSH_FAIL")
@@ -387,4 +431,93 @@ fn check_reports_the_tools() {
         .output()
         .unwrap();
     assert!(!out.status.success());
+}
+
+#[test]
+fn a_video_capture_keeps_the_sharpest_frame_of_each_group() {
+    let f = Fixture::new("video");
+    let video = f.root.join("walk.mp4");
+    std::fs::write(&video, b"not really a video; the fake ffmpeg never reads it").unwrap();
+
+    let out = f.command(&[
+        "run",
+        video.to_str().unwrap(),
+        "--out",
+        f.out.to_str().unwrap(),
+        "--capture-path-length-cm",
+        "500",
+        "--train-steps",
+        "100",
+        "--fps",
+        "3",
+        "--frame-oversample",
+        "3",
+    ])
+    .output()
+    .unwrap();
+    assert!(out.status.success(), "{}", stderr(&out));
+
+    // Twice over the video: score every candidate, then fetch only the winners.
+    assert_eq!(f.calls("ffmpeg"), 2, "expected a scoring pass and a fetch pass");
+
+    // The fake makes frames 2, 5 and 8 (1-based) sharp, so with groups of three
+    // the winners are stream indices 1, 4 and 7. This is the assertion that
+    // would catch the sharpness pass silently picking by position instead.
+    let select = std::fs::read_to_string(f.root.join("select.txt")).unwrap();
+    assert!(
+        select.contains(r"eq(n\,1)") && select.contains(r"eq(n\,4)") && select.contains(r"eq(n\,7)"),
+        "the second pass should ask for the sharp frames, got {select}"
+    );
+    assert!(
+        !select.contains(r"eq(n\,0)") && !select.contains(r"eq(n\,2)"),
+        "the second pass should not ask for the blurred ones, got {select}"
+    );
+    // Candidates are taken at fps x oversample.
+    assert!(select.starts_with("fps=9"), "got {select}");
+
+    // images.json records which frame of the video each image came from, so a
+    // scene stays traceable to its capture.
+    let images: serde_json::Value = read_json(&f.job_dir().join("images.json"));
+    let entries = images.as_array().expect("images.json is a list");
+    assert_eq!(entries.len(), 3);
+    assert_eq!(entries[0]["frame"], 1);
+    assert_eq!(entries[2]["frame"], 7);
+    assert!(
+        entries[0]["source"].as_str().unwrap().ends_with("walk.mp4"),
+        "each frame's source is the video it came from"
+    );
+}
+
+#[test]
+fn a_video_capture_without_ffmpeg_says_so() {
+    let f = Fixture::new("video-no-ffmpeg");
+    let video = f.root.join("walk.mp4");
+    std::fs::write(&video, b"x").unwrap();
+
+    // No --ffmpeg, and nothing on PATH to find.
+    let out = Command::new(env!("CARGO_BIN_EXE_vstimd-scene-from-capture"))
+        .args([
+            "run",
+            video.to_str().unwrap(),
+            "--out",
+            f.out.to_str().unwrap(),
+            "--capture-path-length-cm",
+            "500",
+        ])
+        .arg("--colmap")
+        .arg(&f.colmap)
+        .arg("--brush")
+        .arg(&f.brush)
+        .env("PATH", "")
+        .env("FAKE_CALLS", &f.calls)
+        .env_remove("VSTIMD_FFMPEG")
+        .output()
+        .unwrap();
+    assert!(!out.status.success());
+    let err = stderr(&out);
+    assert!(err.contains("ffmpeg"), "{err}");
+    assert!(
+        err.contains("folder of extracted frames"),
+        "the error should offer the way out that needs no ffmpeg: {err}"
+    );
 }

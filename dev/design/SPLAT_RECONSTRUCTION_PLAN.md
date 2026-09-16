@@ -126,7 +126,7 @@ Two new types in the asset store's fixed set:
 
 Input images stay in `images/`, in a subfolder per capture (`images/corridor_a/0001.jpg`).
 No `captures/` type: a capture is images, and fewer types is the asset store's rule.
-Video input is an open question (§11).
+Video input is implemented; see §12.
 
 ### 5.2 A job is a directory
 
@@ -389,10 +389,9 @@ alignment heuristics hold on real walked captures — before any wire format is 
 
 ## 11. Open questions
 
-1. **Video input** — extract frames in the worker (needs ffmpeg on the host, and picks frames
-   by sharpness), or client-side before upload (keeps the rig lean)? Recommend **the worker**:
-   uploading one video beats uploading 400 JPEGs over ZMQ, and sharpness-based selection
-   belongs with the pipeline that cares about it.
+1. **Video input** — *answered, and implemented in the CLI (§12)*: in the worker, picking
+   frames by sharpness. Uploading one video beats uploading 400 JPEGs over ZMQ, and
+   sharpness-based selection belongs with the pipeline that cares about it.
 2. **More than one job at a time per host** — no in v1. A second one queues.
 3. **Should the capture's scale come from markers** (AprilTags of known size) instead of a
    walked distance? More accurate, but more setup at capture time. Recommend the walked
@@ -414,6 +413,25 @@ Departures from the sections above, each deliberate:
   root, not `work/`, and so do `alignment.json`, `trained.ply` and `images.json`. `work/` is
   then only disposable data, and `resume <job> --from finish` can recrop or recap after
   `work/` is deleted. No `preview.png` yet (§11 question 4).
+- **Video ingest** (§11 question 1): `input` may be a video file instead of a folder, and
+  ffmpeg is run over it twice. The first pass writes small grayscale PGMs of every candidate
+  frame at `fps × frame_oversample`; each is scored by the variance of its Laplacian; the
+  sharpest of each group of `frame_oversample` is kept; the second pass extracts only those,
+  full size, via a `select` filter naming their stream indices. Two passes because extracting
+  every candidate at full size and deleting the rejects costs gigabytes of `work/` for a 4K
+  walk, and PGM because it needs no image decoder on our side.
+
+  Grouping rather than a global sharpness threshold: SfM matches neighbours, so the job is the
+  best frame *near each moment*, not the best frames overall — a threshold would drop a whole
+  blurred stretch and leave a gap that no sharpness elsewhere repairs. A trailing partial group
+  still yields its best frame, so the end of the walk survives.
+
+  The report records frames examined, frames kept, and mean sharpness kept versus overall —
+  the one number that says whether the walk was steady enough for the pass to have had a
+  choice. Video frames carry no EXIF focal length, so COLMAP estimates it from the frame size;
+  ingest says so, because it is the likeliest reason a video reconstructs worse than the same
+  walk shot as stills. ffmpeg is found like the other tools (`--ffmpeg`, `VSTIMD_FFMPEG`,
+  `PATH`) and is required only for a video.
 - **Ingest** (§3 stage 1) only collects: every JPEG/PNG directly in the folder, in natural
   file-name order, linked (else copied) into `work/images/00001.jpg…`. No EXIF rotation, no
   downscaling and no exposure check — COLMAP's `image_undistorter --max_image_size` and
@@ -465,4 +483,6 @@ Aligned cameras against ground truth: height above the floor off by 1.2 cm (medi
 corridor walk (the camera looks sideways at a structure), and the report says so.
 
 Still to do in phase 1: a phone capture of a real corridor, VRAM at 1600 px and 30 000 steps,
-and packaging. The capture guide is `docs/stimuli/splat-scenes.md`.
+packaging, and a video capture run against a real ffmpeg — the video path's scoring and
+selection are unit-tested and its ffmpeg invocations are covered by a fake, but no real video
+has been through it. The capture guide is `docs/stimuli/splat-scenes.md`.

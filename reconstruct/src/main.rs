@@ -6,7 +6,8 @@ use clap::{Args, Parser, Subcommand};
 
 use reconstruct::job::{Job, Stage, format_seconds};
 use reconstruct::params::{
-    Alignment, CaptureOrder, Crop, DEFAULT_MARGIN_CM, DEFAULT_MAX_IMAGE_PX, DEFAULT_MAX_SPLATS,
+    Alignment, CaptureOrder, Crop, DEFAULT_FPS, DEFAULT_FRAME_OVERSAMPLE, DEFAULT_MARGIN_CM,
+    DEFAULT_MAX_IMAGE_PX, DEFAULT_MAX_SPLATS,
     DEFAULT_TRAIN_STEPS, JobParams, Mapper, TrainerKind,
 };
 use reconstruct::stages::{self, Report};
@@ -56,11 +57,15 @@ struct ToolArgs {
     /// Brush binary [default: $VSTIMD_BRUSH, else `brush_app` or `brush` on PATH].
     #[arg(long)]
     brush: Option<PathBuf>,
+    /// ffmpeg binary, needed only for a video capture
+    /// [default: $VSTIMD_FFMPEG, else `ffmpeg` on PATH].
+    #[arg(long)]
+    ffmpeg: Option<PathBuf>,
 }
 
 impl ToolArgs {
     fn find(self) -> Tools {
-        Tools::find(self.colmap, self.brush)
+        Tools::find(self.colmap, self.brush, self.ffmpeg)
     }
 }
 
@@ -75,8 +80,9 @@ struct CommonArgs {
 
 #[derive(Args)]
 struct RunArgs {
-    /// Folder of JPEG or PNG photos, in capture order by file name.
-    images_dir: PathBuf,
+    /// The capture: a folder of JPEG or PNG photos in capture order by file
+    /// name, or one walk-through video to take frames from.
+    input: PathBuf,
     /// The scene to write: .ply (every viewer reads it) or .splat.
     #[arg(long)]
     out: PathBuf,
@@ -93,6 +99,15 @@ struct RunArgs {
     /// Long edge of the images used for training.
     #[arg(long, default_value_t = DEFAULT_MAX_IMAGE_PX)]
     max_image_px: u32,
+    /// Video only: frames a second to keep. At a slow walk 3 puts them
+    /// 20-30 cm apart, which is the overlap the reconstruction wants.
+    #[arg(long, default_value_t = DEFAULT_FPS)]
+    fps: f32,
+    /// Video only: frames scored per frame kept; the sharpest of each group
+    /// survives, so a blurred stretch costs sharpness and not coverage.
+    /// 1 keeps every frame and skips the scoring pass.
+    #[arg(long, default_value_t = DEFAULT_FRAME_OVERSAMPLE)]
+    frame_oversample: u32,
     #[arg(long, value_enum, default_value_t = CaptureOrder::Sequential)]
     order: CaptureOrder,
     #[arg(long, value_enum, default_value_t = Mapper::Global)]
@@ -162,7 +177,9 @@ fn run(cli: Cli) -> anyhow::Result<ExitCode> {
                 }
             };
             let params = JobParams {
-                images_dir: absolute(&a.images_dir)?,
+                input: absolute(&a.input)?,
+                fps: a.fps,
+                frame_oversample: a.frame_oversample,
                 output,
                 max_image_px: a.max_image_px,
                 order: a.order,

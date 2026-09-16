@@ -20,12 +20,14 @@ use crate::job::Job;
 pub struct Tools {
     pub colmap: Option<PathBuf>,
     pub brush: Option<PathBuf>,
+    /// Only needed when the capture is a video; a folder of stills needs none.
+    pub ffmpeg: Option<PathBuf>,
 }
 
 impl Tools {
     /// Each tool from its flag, else its environment variable (`VSTIMD_COLMAP`,
-    /// `VSTIMD_BRUSH`), else `PATH`.
-    pub fn find(colmap: Option<PathBuf>, brush: Option<PathBuf>) -> Tools {
+    /// `VSTIMD_BRUSH`, `VSTIMD_FFMPEG`), else `PATH`.
+    pub fn find(colmap: Option<PathBuf>, brush: Option<PathBuf>, ffmpeg: Option<PathBuf>) -> Tools {
         let pick = |flag: Option<PathBuf>, env: &str, names: &[&str]| {
             flag.or_else(|| std::env::var_os(env).map(PathBuf::from))
                 .or_else(|| names.iter().find_map(|n| which(n)))
@@ -33,6 +35,7 @@ impl Tools {
         Tools {
             colmap: pick(colmap, "VSTIMD_COLMAP", &["colmap"]),
             brush: pick(brush, "VSTIMD_BRUSH", &["brush_app", "brush"]),
+            ffmpeg: pick(ffmpeg, "VSTIMD_FFMPEG", &["ffmpeg"]),
         }
     }
 
@@ -40,6 +43,16 @@ impl Tools {
         self.colmap.as_deref().context(
             "COLMAP was not found: install it (https://colmap.github.io/install.html), \
              or point --colmap or VSTIMD_COLMAP at the binary",
+        )
+    }
+
+    /// Only asked for when the capture is a video, so the error says that
+    /// rather than implying the tool is always required.
+    pub fn ffmpeg(&self) -> anyhow::Result<&Path> {
+        self.ffmpeg.as_deref().context(
+            "ffmpeg was not found, and this capture is a video: install it \
+             (Debian/Ubuntu: apt install ffmpeg), point --ffmpeg or VSTIMD_FFMPEG at it, \
+             or pass a folder of extracted frames instead",
         )
     }
 

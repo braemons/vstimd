@@ -14,6 +14,12 @@ pub const DEFAULT_MAX_IMAGE_PX: u32 = 1600;
 pub const DEFAULT_TRAIN_STEPS: u32 = 30_000;
 pub const DEFAULT_MAX_SPLATS: u32 = 1_000_000;
 pub const DEFAULT_MARGIN_CM: f32 = 50.0;
+/// Frames a second kept from a video. The capture guide's rule of thumb: at a
+/// slow walk this puts frames 20–30 cm apart, which is the overlap SfM wants.
+pub const DEFAULT_FPS: f32 = 3.0;
+/// Frames examined per frame kept. 3 gives the sharpness pass a real choice
+/// without tripling what a 4K walk costs to decode.
+pub const DEFAULT_FRAME_OVERSAMPLE: u32 = 3;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize, clap::ValueEnum)]
 #[serde(rename_all = "snake_case")]
@@ -82,14 +88,24 @@ impl Default for Crop {
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct JobParams {
-    /// Every PNG and JPEG directly inside, in natural file-name order.
-    pub images_dir: PathBuf,
+    /// The capture: a folder holding every PNG and JPEG directly inside, in
+    /// natural file-name order, or a single video file to take frames from.
+    ///
+    /// `images_dir` is accepted as an old spelling, so a job written before
+    /// video ingest still resumes.
+    #[serde(alias = "images_dir")]
+    pub input: PathBuf,
     /// `.ply` or `.splat`.
     pub output: PathBuf,
     pub max_image_px: u32,
     pub order: CaptureOrder,
     pub mapper: Mapper,
     pub trainer: TrainerKind,
+    /// Video only: frames a second to keep.
+    pub fps: f32,
+    /// Video only: frames scored per frame kept; the sharpest of each group
+    /// survives. 1 disables the sharpness pass and keeps every frame.
+    pub frame_oversample: u32,
     pub train_steps: u32,
     pub max_splats: u32,
     pub sh_degree: u32,
@@ -129,6 +145,14 @@ impl JobParams {
         }
         if self.max_image_px < 64 {
             bail!("max_image_px must be at least 64");
+        }
+        if crate::video::is_video(&self.input) {
+            if !(self.fps.is_finite() && self.fps > 0.0) {
+                bail!("fps must be > 0 for a video capture, got {}", self.fps);
+            }
+            if self.frame_oversample == 0 {
+                bail!("frame_oversample must be at least 1");
+            }
         }
         if self.train_steps == 0 || self.max_splats == 0 {
             bail!("train_steps and max_splats must be > 0");
@@ -173,9 +197,11 @@ mod tests {
 
     fn params() -> JobParams {
         JobParams {
-            images_dir: "/data/corridor".into(),
+            input: "/data/corridor".into(),
             output: "/data/corridor.ply".into(),
             max_image_px: DEFAULT_MAX_IMAGE_PX,
+            fps: DEFAULT_FPS,
+            frame_oversample: DEFAULT_FRAME_OVERSAMPLE,
             order: CaptureOrder::Sequential,
             mapper: Mapper::Global,
             trainer: TrainerKind::Brush,

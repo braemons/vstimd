@@ -1,4 +1,5 @@
-//! `vstimd-scene-from-capture`: a folder of corridor photos in, a Gaussian splat scene
+//! `vstimd-scene-from-capture`: a capture of a corridor in — a folder of photos
+//! or a walk-through video — and a Gaussian splat scene
 //! out, already in vstimd's world (centimetres, floor at `y = 0`, running down
 //! −Z from the origin).
 //!
@@ -15,3 +16,4 @@ pub mod params;
 pub mod stages;
 pub mod tools;
 pub mod trainer;
+pub mod video;
