@@ -977,6 +977,13 @@ pub fn render_frame(
     // What input integration needs next frame: how long this one really took.
     // Warm-up gaps are swapchain start-up, not time an animal was running.
     rs.timing.last_dropped_frames = if warming_up { 0 } else { dropped_frames as u32 };
+    // Warm-up is swapchain start-up: its frames count as presented, but neither
+    // its gaps nor its "drops" say anything about the display.
+    if warming_up {
+        rs.timing.window.record(None, 0);
+    } else {
+        rs.timing.window.record(rs.timing.stats.last_interval_ns(), dropped_frames);
+    }
     if dropped_frames > 0 && !warming_up {
         // Stated, not judged: whether a trial that lost a frame is still a
         // trial is the decision authority's call, and this server has no idea

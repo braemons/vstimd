@@ -1582,3 +1582,51 @@ fn create_ellipse_appearance_fields_fall_back_individually() {
     assert_eq!(app.outline_color, default_outline, "outline should fall back");
     assert_eq!(app.stroke_width_px, 2.0, "width_px 0 means unset, not hairline");
 }
+
+// ── Frame statistics ──────────────────────────────────────────────────────────
+
+fn frame_stats(resp: proto::Response) -> proto::FrameStats {
+    assert!(is_ok(&resp), "unexpected error: {}", resp.error);
+    match resp.body {
+        Some(proto::response::Body::FrameStats(s)) => s,
+        other => panic!("expected FrameStats, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_frame_stats_query_and_reset() {
+    let mut scene = SceneState::new();
+    let query = || proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::QueryFrameStats(proto::QueryFrameStatsRequest {})),
+    };
+    let reset = || proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::ResetFrameStats(proto::ResetFrameStatsRequest {})),
+    };
+
+    // What a render loop records between two commands.
+    scene.runtime.frame_stats.record(None, 0);
+    scene.runtime.frame_stats.record(Some(16_666_667), 0);
+    scene.runtime.frame_stats.record(Some(33_333_333), 1);
+    scene.runtime.frame_count = 3;
+
+    let s = frame_stats(scene.handle_request(query(), None));
+    assert_eq!((s.presented_frames, s.dropped_frames), (3, 1));
+    assert!((s.max_frame_interval_ms - 33.333333).abs() < 1e-3);
+    assert!((s.nominal_frame_interval_ms - 1000.0 / 60.0).abs() < 1e-3);
+
+    // Reset answers with the window it closed, then starts from zero.
+    let closed = frame_stats(scene.handle_request(reset(), None));
+    assert_eq!(closed, s);
+    let fresh = frame_stats(scene.handle_request(query(), None));
+    assert_eq!((fresh.presented_frames, fresh.dropped_frames), (0, 0));
+    assert_eq!(fresh.window_start_frame, 3);
+
+    // A system command: a stimulus target is refused.
+    let resp = scene.handle_request(
+        proto::Request { target: Some(stim(1)), ..query() },
+        None,
+    );
+    assert_eq!(resp.code, proto::ErrorCode::WrongTarget as i32);
+}

@@ -24,7 +24,7 @@ from vstimd.stimuli import (
 )
 from vstimd.system import Camera3D, Lighting3D
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 PHONG = Material3D(shading=Shading.PHONG)
 
@@ -34,6 +34,7 @@ PHONG = Material3D(shading=Shading.PHONG)
     "a lit blue sphere in the middle, sitting on a grey floor that runs away "
     "from the viewer; the sphere is brightest on its upper right",
 )
+@check_frame_stats
 def test_create_and_query_sphere(conn: Connection, stage: Stage) -> None:
     floor = conn.stimuli.shapes3d.create_plane(
         name="floor",
@@ -72,6 +73,7 @@ def test_create_and_query_sphere(conn: Connection, stage: Stage) -> None:
     "a red box in the middle that turns to face a new direction and stretches "
     "tall, then turns yellow and flat-shaded",
 )
+@check_frame_stats
 def test_mutate_cube(conn: Connection, stage: Stage) -> None:
     cube = conn.stimuli.shapes3d.create_cube(
         transform=Transform3D(position_cm=Vec3(0, 0, -70), rotation_deg=Vec3(20, 20, 0)),
@@ -100,6 +102,7 @@ def test_mutate_cube(conn: Connection, stage: Stage) -> None:
     "nothing new on screen: 2-D commands refuse a sphere, 3-D commands refuse a "
     "rect, a cube refuses a sphere's resize, and bad sizes are refused",
 )
+@check_frame_stats
 def test_commands_check_type_and_dimension(conn: Connection, stage: Stage) -> None:
     ball = conn.stimuli.shapes3d.create_sphere(
         transform=Transform3D(position_cm=Vec3(0, 0, -5000)))
@@ -125,6 +128,7 @@ def test_commands_check_type_and_dimension(conn: Connection, stage: Stage) -> No
     "a white cube straight ahead, then the view turns so the cube slides to the "
     "right edge and the scene goes dim and reddish",
 )
+@check_frame_stats
 def test_camera_and_lighting(conn: Connection, stage: Stage) -> None:
     cube = conn.stimuli.shapes3d.create_cube(
         transform=Transform3D(position_cm=Vec3(0, 0, -60), rotation_deg=Vec3(25, 25, 0)),
@@ -154,6 +158,7 @@ def test_camera_and_lighting(conn: Connection, stage: Stage) -> None:
     "a floor with spheres along it; the camera glides forward and the scene "
     "loops every metre, with no visible jump",
 )
+@check_frame_stats
 def test_camera_navigation(conn: Connection, stage: Stage) -> None:
     from vstimd.animations import AnimationState
 
@@ -198,6 +203,7 @@ def test_camera_navigation(conn: Connection, stage: Stage) -> None:
     "a striped corridor the camera walks down; a red square in the corner shows "
     "only while the camera passes through the zone in each period",
 )
+@check_frame_stats
 def test_camera_zone_drives_a_trigger_line(conn: Connection, stage: Stage) -> None:
     import time
 

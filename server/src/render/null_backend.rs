@@ -29,6 +29,8 @@ impl NullBackend {
             let s = scene.read().unwrap();
             std::time::Duration::from_secs_f32(1.0 / s.runtime.frame_rate_hz)
         };
+        let frame_stats = scene.read().unwrap().runtime.frame_stats.clone();
+        let mut last_frame: Option<std::time::Instant> = None;
         loop {
             if crate::process::shutdown::is_requested() {
                 break;
@@ -53,6 +55,11 @@ impl NullBackend {
             // the only clock, and it is the one the events carry.
             s.runtime.next_render_frame = s.runtime.frame_count + 1;
             drop(s);
+            // Paced by a sleep, not a display: there is no refresh to miss, so
+            // the null renderer counts frames and intervals but never a drop.
+            let now = std::time::Instant::now();
+            frame_stats.record(last_frame.map(|t| now.duration_since(t).as_nanos() as u64), 0);
+            last_frame = Some(now);
 
             if let Some(remaining) = frame_period.checked_sub(t0.elapsed()) {
                 std::thread::sleep(remaining);

@@ -7,13 +7,14 @@ from vstimd import Connection
 from vstimd.stimuli import TextParams
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
     "TEXT-01",
     "white 48 px text reading 'Hello vstimd' in the centre of the screen",
 )
+@check_frame_stats
 def test_create_text(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.text.create_text(
         position_px=Vec2(0, 0),
@@ -33,6 +34,7 @@ def test_create_text(conn: Connection, stage: Stage) -> None:
     "TEXT-02",
     "centre text reading 'before', which is then replaced in place by 'after'",
 )
+@check_frame_stats
 def test_set_text(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.text.create_text(
         position_px=Vec2(0, 0),
@@ -54,6 +56,7 @@ def test_set_text(conn: Connection, stage: Stage) -> None:
     "centre text reading 'Color test' in white, which then turns pure red "
     "without changing its wording or position",
 )
+@check_frame_stats
 def test_set_text_color(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.text.create_text(
         position_px=Vec2(0, 0),
@@ -83,6 +86,7 @@ def test_set_text_color(conn: Connection, stage: Stage) -> None:
     "and colour four times: white 'Hello vstimd' → white 'Updated text!' → "
     "yellow → green 'Step 7 works!'",
 )
+@check_frame_stats
 def test_text_visual(conn: Connection, stage: Stage) -> None:
     """Show text stimuli in various states so a human can visually verify rendering."""
     conn.system.set_background(r=0.1, g=0.1, b=0.1)

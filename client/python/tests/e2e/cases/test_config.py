@@ -19,7 +19,7 @@ from vstimd import (
 )
 from vstimd.stimuli import RectParams
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -27,6 +27,7 @@ from ._helpers import Stage
     "nothing on screen: the current scene is retrieved as JSON and checked for "
     "a version-5 envelope with scene and io sections",
 )
+@check_frame_stats
 def test_retrieve_returns_valid_json(conn: Connection, stage: Stage) -> None:
     """retrieve() returns a non-empty string that parses as JSON."""
     raw = conn.scene_config.retrieve()
@@ -43,6 +44,7 @@ def test_retrieve_returns_valid_json(conn: Connection, stage: Stage) -> None:
     "nothing on screen: the retrieved JSON carries the background, stimuli and "
     "animations a scene is made of",
 )
+@check_frame_stats
 def test_retrieve_scene_structure(conn: Connection, stage: Stage) -> None:
     """retrieve() JSON contains expected scene keys."""
     data = json.loads(conn.scene_config.retrieve())
@@ -58,6 +60,7 @@ def test_retrieve_scene_structure(conn: Connection, stage: Stage) -> None:
     "nothing on screen: the scene is uploaded as 'e2e_test_list' and then "
     "found in the server's list of saved configs",
 )
+@check_frame_stats
 def test_upload_and_list(conn: Connection, stage: Stage) -> None:
     """Uploaded config appears in list_configs()."""
     raw = conn.scene_config.retrieve()
@@ -72,6 +75,7 @@ def test_upload_and_list(conn: Connection, stage: Stage) -> None:
     "nothing on screen: save() does retrieve() plus upload() in one call and "
     "leaves 'e2e_test_save' on the server",
 )
+@check_frame_stats
 def test_save_convenience(conn: Connection, stage: Stage) -> None:
     """save() is equivalent to retrieve() + upload()."""
     conn.scene_config.save("e2e_test_save", overwrite=True)
@@ -85,6 +89,7 @@ def test_save_convenience(conn: Connection, stage: Stage) -> None:
     "(screen goes blank), and loading the config brings the rect back",
     deferred=True,
 )
+@check_frame_stats
 def test_upload_and_load_roundtrip(conn: Connection, stage: Stage) -> None:
     """A config saved via upload() is restored correctly via load()."""
     # Create a rect, save config, delete everything, load back.
@@ -112,6 +117,7 @@ def test_upload_and_load_roundtrip(conn: Connection, stage: Stage) -> None:
     "additive load appends the saved copy instead of replacing the scene",
     deferred=True,
 )
+@check_frame_stats
 def test_load_additive(conn: Connection, stage: Stage) -> None:
     """load(additive=True) appends to the existing scene without clearing it."""
     conn.system.clear_all()
@@ -138,6 +144,7 @@ def test_load_additive(conn: Connection, stage: Stage) -> None:
     "nothing on screen: uploading over an existing config name without "
     "overwrite=True is refused with SceneConfigAlreadyExistsError",
 )
+@check_frame_stats
 def test_upload_overwrite_false_raises(conn: Connection, stage: Stage) -> None:
     """Uploading a config that already exists without overwrite=True raises."""
     raw = conn.scene_config.retrieve()
@@ -152,6 +159,7 @@ def test_upload_overwrite_false_raises(conn: Connection, stage: Stage) -> None:
     "nothing on screen: loading a config name that was never saved is refused "
     "with SceneConfigNotFoundError",
 )
+@check_frame_stats
 def test_load_nonexistent_raises(conn: Connection, stage: Stage) -> None:
     """Loading a config that does not exist raises SceneConfigNotFoundError."""
     with pytest.raises(SceneConfigNotFoundError):
@@ -164,6 +172,7 @@ def test_load_nonexistent_raises(conn: Connection, stage: Stage) -> None:
     "nothing on screen: uploading a string that is not JSON is refused with "
     "SceneConfigFormatError, and the scene is left alone",
 )
+@check_frame_stats
 def test_upload_invalid_json_raises(conn: Connection, stage: Stage) -> None:
     """Uploading a malformed JSON string raises SceneConfigFormatError."""
     with pytest.raises(SceneConfigFormatError):
@@ -177,6 +186,7 @@ def test_upload_invalid_json_raises(conn: Connection, stage: Stage) -> None:
     "config with apply_now=True puts the rect straight back without a load",
     deferred=True,
 )
+@check_frame_stats
 def test_upload_apply_now(conn: Connection, stage: Stage) -> None:
     """upload(apply_now=True) applies the config immediately."""
     conn.system.clear_all()

@@ -112,6 +112,22 @@ pub(super) fn stimulus_type_to_proto(t: SceneStimulusType) -> proto::StimulusTyp
     }
 }
 
+pub(super) fn frame_stats_to_proto(
+    s: crate::timing::FrameStatsSnapshot,
+    nominal_hz: f32,
+) -> proto::FrameStats {
+    proto::FrameStats {
+        presented_frames: s.presented_frames,
+        dropped_frames: s.dropped_frames,
+        mean_frame_interval_ms: s.mean_frame_interval_ms,
+        std_frame_interval_ms: s.std_frame_interval_ms,
+        min_frame_interval_ms: s.min_frame_interval_ms,
+        max_frame_interval_ms: s.max_frame_interval_ms,
+        nominal_frame_interval_ms: if nominal_hz > 0.0 { 1000.0 / f64::from(nominal_hz) } else { 0.0 },
+        window_start_frame: s.window_start_frame,
+    }
+}
+
 pub(super) fn draw_mode_from_proto(mode: i32) -> Result<SceneDrawMode, Box<proto::Response>> {
     match proto::ShapeDrawMode::try_from(mode).unwrap_or(proto::ShapeDrawMode::Unspecified) {
         proto::ShapeDrawMode::Unspecified => Ok(SceneDrawMode::Fill),

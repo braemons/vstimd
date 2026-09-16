@@ -4,7 +4,7 @@ from __future__ import annotations
 import pytest
 
 import vstimd.psychopy.visual as visual
-from ..cases._helpers import Stage
+from ..cases._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -12,6 +12,7 @@ from ..cases._helpers import Stage
     "white 56 px text reading 'Hello vstimd' in the centre, built through "
     "visual.TextBox2",
 )
+@check_frame_stats
 def test_create_textbox2(win: visual.Window, stage: Stage) -> None:
     tb = visual.TextBox2(
         win, text="Hello vstimd",
@@ -27,6 +28,7 @@ def test_create_textbox2(win: visual.Window, stage: Stage) -> None:
     "PSY-08",
     "centre text reading 'Before' that is rewritten in place to 'After'",
 )
+@check_frame_stats
 def test_textbox2_text_update(win: visual.Window, stage: Stage) -> None:
     tb = visual.TextBox2(win, text="Before", pos=(0, 0),
                          size=(600, 100), letterHeight=56,
@@ -47,6 +49,7 @@ def test_textbox2_text_update(win: visual.Window, stage: Stage) -> None:
     "centre text reading 'Color test' in white, then red, then cyan, then "
     "yellow — same wording throughout",
 )
+@check_frame_stats
 def test_textbox2_colors(win: visual.Window, stage: Stage) -> None:
     tb = visual.TextBox2(win, text="Color test", pos=(0, 0),
                          size=(500, 100), letterHeight=56,

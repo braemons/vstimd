@@ -2,8 +2,8 @@
 //! info, and the stimulus query/list payloads.
 
 use super::convert::{
-    dots_params_to_proto,
-    gaussian_splat3d_params_to_proto, grating_params_to_proto, mesh3d_params_to_proto, nonempty, parse_version, shape_appearance_to_proto,
+    dots_params_to_proto, frame_stats_to_proto, gaussian_splat3d_params_to_proto,
+    grating_params_to_proto, mesh3d_params_to_proto, nonempty, parse_version, shape_appearance_to_proto,
     stimulus_type_to_proto, text_params_to_proto, transform3d_to_proto,
 };
 use super::response::{err, err_not_found, ok_ack, ok_body};
@@ -114,6 +114,21 @@ impl SceneState {
                 version: Some(version),
             },
         ))
+    }
+
+    // ── Frame statistics ──────────────────────────────────────────────────────
+
+    pub(super) fn cmd_query_frame_stats(&self) -> proto::Response {
+        let stats = self.runtime.frame_stats.snapshot();
+        let nominal_hz = self.runtime.nominal_frame_rate_hz;
+        ok_body(proto::response::Body::FrameStats(frame_stats_to_proto(stats, nominal_hz)))
+    }
+
+    /// Answers with the window it closes — see `ResetFrameStatsRequest`.
+    pub(super) fn cmd_reset_frame_stats(&mut self) -> proto::Response {
+        let closed = self.runtime.frame_stats.reset(self.runtime.frame_count);
+        let nominal_hz = self.runtime.nominal_frame_rate_hz;
+        ok_body(proto::response::Body::FrameStats(frame_stats_to_proto(closed, nominal_hz)))
     }
 
     // ── SetName ───────────────────────────────────────────────────────────────

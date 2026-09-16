@@ -5,10 +5,17 @@ from __future__ import annotations
 import threading
 import time
 
+import pytest
+
 from vstimd import Connection, HandleNotFoundError
 from vstimd.animations import AnimationHandle, AnimationState
 from vstimd.stimuli import RectParams, ShapeAppearance, StimulusHandle, TextParams
 from vstimd.stimuli.stimuli_models import Color, Vec2
+
+#: Fail the test if the server drops a frame while its body runs. See the
+#: ``check_frame_stats`` marker in ``conftest.py``; pass ``max_dropped=`` to
+#: allow some, as ``@check_frame_stats(max_dropped=2)``.
+check_frame_stats = pytest.mark.check_frame_stats
 
 #: Screen size per connection, so the caption can be placed relative to it
 #: rather than at a pixel offset that falls off a small window.

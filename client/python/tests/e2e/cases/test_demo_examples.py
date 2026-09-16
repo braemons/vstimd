@@ -25,7 +25,7 @@ import pytest
 
 from vstimd import Connection
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 _PYTHON_CLIENT = pathlib.Path(__file__).parents[3]
 _REPO_ROOT = _PYTHON_CLIENT.parents[1]
@@ -230,6 +230,7 @@ def _run_demo_script(
     DEMO_SCRIPTS,
     ids=[test_id for test_id, *_ in DEMO_SCRIPTS],
 )
+@check_frame_stats
 def test_demo_script_rebuilds_shipped_demo(
     conn: Connection,
     server_address: str,
@@ -268,6 +269,7 @@ def test_demo_script_rebuilds_shipped_demo(
     "blank screen, and then rebuilt from the config file it saved",
     deferred=True,
 )
+@check_frame_stats
 def test_demo_script_saves_a_loadable_config(
     conn: Connection, server_address: str, scene_cleanup: None, stage: Stage
 ) -> None:
@@ -302,6 +304,7 @@ def test_demo_script_saves_a_loadable_config(
     ("DEMO-08", "gratings_triggered", "gratings_triggered", "--fire"),
     ("DEMO-09", "trigger_gate",       "trigger_gate",       "--toggle"),
 ], ids=["DEMO-08", "DEMO-09"])
+@check_frame_stats
 def test_demo_script_software_trigger_flag(
     server_address: str,
     scene_cleanup: None,

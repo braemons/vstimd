@@ -169,6 +169,8 @@ message Request {
     WaitForFramesRequest wait_for_frames = 83;
     WaitUntilRequest wait_until = 84;
     CaptureFrameRequest capture_frame = 85;
+    QueryFrameStatsRequest query_frame_stats = 150;
+    ResetFrameStatsRequest reset_frame_stats = 151;
 
     // ── VTL (Virtual Trigger Lines) ─────────────────────────────────────────
     SetVirtualTriggerLineNameRequest set_virtual_trigger_line_name = 90;
@@ -245,6 +247,8 @@ message Response {
     Lighting3D lighting = 25;
     ListInputDevicesResponse input_device_list = 26;
     ListCameraZonesResponse camera_zone_list = 27;
+    // QueryFrameStats and ResetFrameStats (the closed window, for the latter).
+    FrameStats frame_stats = 28;
   }
 
   // Server-side monotonic clock at response time, nanoseconds since server

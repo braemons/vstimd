@@ -8,7 +8,7 @@ from vstimd import Connection
 from vstimd.stimuli import CircleParams, EllipseParams, RectParams, ShapeAppearance, ShapeDrawMode
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -16,6 +16,7 @@ from ._helpers import Stage
     "a 100×100 px square drawn OUTLINED: a hollow white frame in the centre, "
     "background showing through the middle",
 )
+@check_frame_stats
 def test_set_draw_mode_outlined(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=100))
     conn.stimuli.shapes.set_draw_mode(handle, ShapeDrawMode.OUTLINED)
@@ -31,6 +32,7 @@ def test_set_draw_mode_outlined(conn: Connection, stage: Stage) -> None:
     "a 100 px disc drawn FILLED_AND_OUTLINED: a solid disc in the centre with "
     "an outline ring around its rim",
 )
+@check_frame_stats
 def test_set_draw_mode_filled_and_outlined(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_circle(params=CircleParams(diameter_px=100))
     conn.stimuli.shapes.set_draw_mode(handle, ShapeDrawMode.FILLED_AND_OUTLINED)
@@ -46,6 +48,7 @@ def test_set_draw_mode_filled_and_outlined(conn: Connection, stage: Stage) -> No
     "a 100×80 px rect in the centre. Its outline colour is set to orange, but "
     "the draw mode stays FILLED, so the rect still looks plain white",
 )
+@check_frame_stats
 def test_set_outline_color_roundtrip(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=80))
     conn.stimuli.shapes.set_outline_color(handle, Color(1.0, 0.5, 0.0, 0.8))
@@ -64,6 +67,7 @@ def test_set_outline_color_roundtrip(conn: Connection, stage: Stage) -> None:
     "a 120×80 px ellipse in the centre. Its outline width is set to 6 px, but "
     "the draw mode stays FILLED, so the outline itself is not drawn",
 )
+@check_frame_stats
 def test_set_outline_width_roundtrip(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_ellipse(params=EllipseParams(width_px=120, height_px=80))
     conn.stimuli.shapes.set_outline_width(handle, 6.0)
@@ -79,6 +83,7 @@ def test_set_outline_width_roundtrip(conn: Connection, stage: Stage) -> None:
     "a square, then a disc, then an ellipse in turn — each solid white with no "
     "outline, because FILLED is what a shape defaults to",
 )
+@check_frame_stats
 def test_draw_mode_default_is_filled(conn: Connection, stage: Stage) -> None:
     shapes = [
         ("square", lambda: conn.stimuli.shapes.create_rect(
@@ -103,6 +108,7 @@ def test_draw_mode_default_is_filled(conn: Connection, stage: Stage) -> None:
     "(OUTLINED), then solid with a rim (FILLED_AND_OUTLINED), then plain solid "
     "(FILLED)",
 )
+@check_frame_stats
 def test_draw_mode_cycle(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=100))
     conn.stimuli.shapes.set_outline_color(handle, Color(1.0, 1.0, 0.0))
@@ -125,6 +131,7 @@ def test_draw_mode_cycle(conn: Connection, stage: Stage) -> None:
     "ellipse — shown three times over, once per draw mode, with 6 px yellow "
     "outlines",
 )
+@check_frame_stats
 def test_outline_visual(conn: Connection, stage: Stage) -> None:
     """Display each draw mode so a human can visually verify outlines."""
     conn.system.set_background(r=0.15, g=0.15, b=0.15)
@@ -180,6 +187,7 @@ def test_outline_visual(conn: Connection, stage: Stage) -> None:
     "a square whose fill goes red then green while its outline colour stays "
     "blue. Draw mode is FILLED, so only the fill change is visible",
 )
+@check_frame_stats
 def test_outline_independent_of_fill_color(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(
         params=RectParams(

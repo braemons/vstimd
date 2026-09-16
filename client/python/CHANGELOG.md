@@ -116,6 +116,12 @@ server and the client move together, and nothing has shipped yet.
 
 ### Added
 
+- **Frame statistics.** `conn.system.query_frame_stats()` reports presented and
+  dropped frames and frame-interval mean/std/min/max since the last
+  `conn.system.reset_frame_stats()`, which opens a new window and returns the one
+  it closed — so "what did this trial cost" is one round trip.
+- `EventSubscriber.unsubscribe(topic)` drops one of the topics a subscriber was
+  created with.
 - **Gaussian splat scenes.** `conn.stimuli.shapes3d.create_gaussian_splat(path)`
   draws a trained 3-D Gaussian splat scene (a 3DGS `.ply`, or a `.splat`) from a
   file on the server, placed by a `Transform3D` whose `scale` sets centimetres

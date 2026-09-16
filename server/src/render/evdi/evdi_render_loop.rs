@@ -92,6 +92,8 @@ impl EvdiBackend {
             clock_source: ClockSource::GpuCompletion,
         };
 
+        let frame_stats_window = scene_renderer.frame_stats_window();
+
         let mut rs = RenderState {
             scene_renderer,
             text,
@@ -100,7 +102,7 @@ impl EvdiBackend {
             // bursts, so loss is measured cumulatively rather than per
             // interval (see `Pacing::AveragedRate`) — a real shortfall is
             // still reported, ordinary jitter is not.
-            timing: FrameTiming::new_rate_averaged(display_info.refresh_hz),
+            timing: FrameTiming::new_rate_averaged(display_info.refresh_hz, frame_stats_window),
             events,
             system_info,
             display_info,

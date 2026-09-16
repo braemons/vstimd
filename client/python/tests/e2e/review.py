@@ -31,6 +31,7 @@ import sys
 import time
 
 import pytest
+from rich.markup import escape
 from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
@@ -56,7 +57,7 @@ from vstimd.tui import ServerStatus, StimulusList, TriggerLines
 sys.path.insert(0, str(pathlib.Path(__file__).parents[2]))
 
 from tests.e2e.cases._helpers import Pacing  # noqa: E402
-from tests.e2e.conftest import onscreen_marker, reachable  # noqa: E402
+from tests.e2e.conftest import FRAME_STATS_PROPERTY, onscreen_marker, reachable  # noqa: E402
 
 _PYTHON_CLIENT = pathlib.Path(__file__).parents[2]
 _REPO_ROOT = _PYTHON_CLIENT.parents[1]
@@ -102,6 +103,8 @@ class Entry:
     status: str = ""
     note: str | None = None
     failure: str = ""
+    #: Frame statistics from the last run, for a ``check_frame_stats`` test.
+    frame_stats: str = ""
 
     @property
     def flagged(self) -> bool:
@@ -149,6 +152,7 @@ class Session:
             entry.status = record.get("status", "")
             entry.note = record.get("note")
             entry.failure = record.get("failure", "")
+            entry.frame_stats = record.get("frame_stats", "")
             restored += 1
         self.unmatched = saved
         return restored
@@ -162,6 +166,7 @@ class Session:
                 "status": entry.status,
                 "note": entry.note,
                 "failure": entry.failure,
+                "frame_stats": entry.frame_stats,
                 "node_id": entry.node_id,
             }
         payload = {
@@ -410,6 +415,8 @@ class ReviewApp(App[None]):
             lines += ["", f"last run: {_STATUS.get(entry.status, '')} {entry.status}"]
         if entry.flagged:
             lines += ["", f"[b]flagged:[/b] {entry.note or '(no note)'}"]
+        if entry.frame_stats:
+            lines += ["", "[b]frames[/b]", escape(entry.frame_stats)]
         if entry.failure:
             lines += ["", "[b]failure[/b]", entry.failure[-2000:]]
         self.query_one("#detail", Static).update("\n".join(lines))
@@ -594,14 +601,17 @@ class ReviewApp(App[None]):
         stop silently doing nothing.
         """
         try:
-            outcome, failure = self.driver.run(entry.node_id)
+            outcome, failure, frame_stats = self.driver.run(entry.node_id)
         except BaseException as exc:  # noqa: BLE001 — the UI must survive anything
-            outcome, failure = "failed", f"the runner raised: {exc!r}"
-        self.call_from_thread(self._finished, entry, outcome, failure, advance)
+            outcome, failure, frame_stats = "failed", f"the runner raised: {exc!r}", ""
+        self.call_from_thread(self._finished, entry, outcome, failure, frame_stats, advance)
 
-    def _finished(self, entry: Entry, outcome: str, failure: str, advance: bool) -> None:
+    def _finished(
+        self, entry: Entry, outcome: str, failure: str, frame_stats: str, advance: bool
+    ) -> None:
         entry.status = outcome
         entry.failure = failure
+        entry.frame_stats = frame_stats
         self._update_leaf(entry)
         self.running = False
         self.session.save(self.entries)
@@ -694,8 +704,14 @@ class ReviewApp(App[None]):
                 "",
                 f"- should show: {entry.summary}",
                 f"- test: `{entry.node_id}`",
-                "",
             ]
+            if entry.status:
+                lines.append(f"- last run: {entry.status}")
+            if entry.frame_stats:
+                lines += ["- frames:", "", "  ```", *(f"  {line}" for line in entry.frame_stats.splitlines()), "  ```"]
+            if entry.failure:
+                lines += ["- failure:", "", "  ```", *(f"  {line}" for line in entry.failure.splitlines()), "  ```"]
+            lines.append("")
         node_ids = " ".join(f'"{e.node_id}"' for e in flagged)
         lines += ["Re-run just these:", "", "```bash", f"uv run pytest {node_ids}", "```", ""]
         self.report_path.write_text("\n".join(lines), encoding="utf-8")
@@ -719,7 +735,7 @@ class PytestDriver:
         self.report_path = pathlib.Path("e2e-review.md")
         self.session = Session(pathlib.Path(".e2e-review-session.json"))
         self.pacing = Pacing()
-        self._outcome = ("", "")
+        self._outcome = ("", "", "")
 
     def pytest_configure(self, config: pytest.Config) -> None:
         # Where the `stage` fixture finds it — see `Pacing` for why not an import.
@@ -741,7 +757,8 @@ class PytestDriver:
         # take the first thing that is not a plain pass as the outcome.
         if report.when == "call" or (report.when == "setup" and report.outcome != "passed"):
             failure = str(report.longrepr) if report.failed else ""
-            self._outcome = (report.outcome, failure)
+            frame_stats = dict(report.user_properties).get(FRAME_STATS_PROPERTY, "")
+            self._outcome = (report.outcome, failure, str(frame_stats))
 
     def pytest_runtestloop(self, session: pytest.Session) -> bool:
         if not self.items:
@@ -752,14 +769,14 @@ class PytestDriver:
 
     # ── what the app calls ───────────────────────────────────────────────────
 
-    def run(self, node_id: str) -> tuple[str, str]:
+    def run(self, node_id: str) -> tuple[str, str, str]:
         item = next(i for i in self.items if i.nodeid == node_id)
         position = self.items.index(item)
         # A *next* item that shares the session keeps session-scoped fixtures
         # alive; with None, pytest would tear the server connection down after
         # every single test.
         nextitem = self.items[(position + 1) % len(self.items)]
-        self._outcome = ("", "")
+        self._outcome = ("", "", "")
         item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
         return self._outcome
 
@@ -830,6 +847,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--server-log", default="vstimd-review.log", help="Where the server's output goes"
     )
+    parser.add_argument(
+        "--check-frame-stats",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fail a test that dropped frames while it ran (default: on). A "
+        "desktop compositor drops frames a rig would not, which is why the "
+        "make target turns this off; the frame statistics are shown either way",
+    )
+    parser.add_argument(
+        "--allow-dropped-frames",
+        type=int,
+        default=0,
+        help="Frames a test may drop before it fails (default: 0). An allowance "
+        "keeps the check on where --no-check-frame-stats would switch it off",
+    )
     parser.add_argument("suites", nargs="*", default=_SUITES)
     args = parser.parse_args(argv)
 
@@ -854,6 +886,8 @@ def main(argv: list[str] | None = None) -> int:
                 f"--server={args.server}",
                 f"--step-delay={args.step_delay}",
                 f"--recv-timeout={args.recv_timeout}",
+                "--check-frame-stats" if args.check_frame_stats else "--no-check-frame-stats",
+                f"--allow-dropped-frames={args.allow_dropped_frames}",
             ],
             plugins=[driver],
         )

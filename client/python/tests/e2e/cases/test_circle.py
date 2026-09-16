@@ -7,13 +7,14 @@ from vstimd import Connection
 from vstimd.stimuli import CircleParams, ShapeAppearance, StimulusType
 from vstimd.stimuli.stimuli_models import Color, Vec2
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
     "CIRC-01",
     "a pure blue disc, 120 px across, in the exact centre of the screen",
 )
+@check_frame_stats
 def test_create_circle(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_circle(
         position_px=Vec2(0, 0),
@@ -40,6 +41,7 @@ def test_create_circle(conn: Connection, stage: Stage) -> None:
     "a white disc 80 px across, which then grows to 180 px — same centre, "
     "more than twice the diameter",
 )
+@check_frame_stats
 def test_set_circle_diameter(conn: Connection, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_circle(params=CircleParams(diameter_px=80))
     stage.step("before: an 80 px disc", hold=0.5)

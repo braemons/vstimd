@@ -245,11 +245,13 @@ impl DrmRenderLoopData {
             clock_source: vblank.clock_source(ctx.present_wait.is_some()),
         };
 
+        let frame_stats_window = scene_renderer.frame_stats_window();
+
         let rs = RenderState {
             scene_renderer,
             text,
             ui: Some(ui),
-            timing: FrameTiming::new(display_info.refresh_hz),
+            timing: FrameTiming::new(display_info.refresh_hz, frame_stats_window),
             events,
             system_info,
             display_info,

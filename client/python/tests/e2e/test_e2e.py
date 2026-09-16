@@ -18,6 +18,7 @@ import pytest
 
 from .cases import *  # noqa: F401, F403
 from .conftest import reachable
+from .cases._helpers import check_frame_stats
 
 _REPO_ROOT = pathlib.Path(__file__).parents[4]
 
@@ -89,6 +90,7 @@ def server_process(server_address: str):
     "the capture must show them where they are",
     deferred=True,  # no caption: it would be in the captured pixels
 )
+@check_frame_stats
 def test_capture_frame_shows_what_was_drawn(conn, stage):
     """CaptureFrame returns the presented frame, commands already applied."""
     from vstimd.stimuli.color import Color
@@ -131,6 +133,7 @@ def test_capture_frame_shows_what_was_drawn(conn, stage):
     "identical in brightness; then the sphere turns Phong-lit from the left",
     deferred=True,  # no caption: it would be in the captured pixels
 )
+@check_frame_stats
 def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn, stage):
     """An unlit sphere writes exactly the pixel values a 2-D circle of the same
     colour does; a Phong sphere lit from -X is bright on its left, dark on its right."""
@@ -187,6 +190,7 @@ def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn, stage):
     "period; the two captures, one period apart, must be identical",
     deferred=True,  # no caption: it would be in the captured pixels
 )
+@check_frame_stats
 def test_corridor_has_no_seam_one_period_apart(conn, stage):
     """A camera one period further down the corridor sees the same frame, bit for
     bit — which is what lets LinearNav3D wrap the camera without a visible jump."""
