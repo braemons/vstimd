@@ -63,8 +63,9 @@ def pytest_addoption(parser: pytest.Parser) -> None:
         action=argparse.BooleanOptionalAction,
         default=True,
         help="Fail a test marked @check_frame_stats that drops frames while it "
-        "runs (default: on). The null renderer never drops, so this only bites "
-        "on a real display.",
+        "runs (default: on). Off, the statistics are still measured and reported "
+        "— what goes away is the verdict, which is what a desktop compositor's "
+        "drops make meaningless. The null renderer never drops at all.",
     )
 
 
@@ -81,7 +82,8 @@ def pytest_configure(config: pytest.Config) -> None:
         "markers",
         "check_frame_stats(max_dropped=0): reset the server's frame statistics "
         "before the test body and fail the test if more than max_dropped frames "
-        "were dropped by the end of it. Disabled with --no-check-frame-stats.",
+        "were dropped by the end of it. --no-check-frame-stats keeps the "
+        "measurement and drops the verdict.",
     )
 
 
@@ -187,18 +189,20 @@ def frame_drop_watch(conn: Connection, server_address: str, event_port: int):
 def _frame_stats_subscription(request: pytest.FixtureRequest) -> None:
     """Hand a ``check_frame_stats`` test's hook the drop subscriber.
 
-    Requested lazily, so a run with no such test, or with the check off, never
-    opens the event socket at all.
+    Requested lazily, so a run with no such test never opens the event socket at
+    all. Requested even with the check off, because the statistics are still
+    measured then — only the verdict goes away.
     """
-    if request.node.get_closest_marker("check_frame_stats") and request.config.getoption(
-        "--check-frame-stats"
-    ):
+    if request.node.get_closest_marker("check_frame_stats"):
         request.node.stash[_FRAME_DROP_WATCH] = request.getfixturevalue("frame_drop_watch")
 
 
 @pytest.hookimpl(hookwrapper=True)
 def pytest_runtest_call(item: pytest.Item):
     """Wrap a ``check_frame_stats`` test body in a frame-statistics window.
+
+    Always measured, so the review TUI can show what a passing test cost;
+    --no-check-frame-stats takes away the verdict, not the measurement.
 
     A hook around the call rather than a fixture, so a drop fails the test
     itself instead of erroring its teardown — and so the window covers exactly
@@ -207,7 +211,7 @@ def pytest_runtest_call(item: pytest.Item):
     """
     marker = item.get_closest_marker("check_frame_stats")
     conn = getattr(item, "funcargs", {}).get("conn")
-    if marker is None or conn is None or not item.config.getoption("--check-frame-stats"):
+    if marker is None or conn is None:
         yield
         return
 
@@ -239,7 +243,7 @@ def pytest_runtest_call(item: pytest.Item):
 
     if outcome.excinfo is not None:
         return  # the test already failed; say why, not that it also dropped
-    if stats.dropped_frames > max_dropped:
+    if stats.dropped_frames > max_dropped and item.config.getoption("--check-frame-stats"):
         outcome.force_exception(pytest.fail.Exception(
             f"{stats.dropped_frames} frame(s) dropped during the test\n  {summary}",
             pytrace=False,

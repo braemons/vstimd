@@ -847,6 +847,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--server-log", default="vstimd-review.log", help="Where the server's output goes"
     )
+    parser.add_argument(
+        "--check-frame-stats",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fail a test that dropped frames while it ran (default: on). A "
+        "desktop compositor drops frames a rig would not, which is why the "
+        "make target turns this off; the frame statistics are shown either way",
+    )
+    parser.add_argument(
+        "--allow-dropped-frames",
+        type=int,
+        default=0,
+        help="Frames a test may drop before it fails (default: 0). An allowance "
+        "keeps the check on where --no-check-frame-stats would switch it off",
+    )
     parser.add_argument("suites", nargs="*", default=_SUITES)
     args = parser.parse_args(argv)
 
@@ -871,6 +886,8 @@ def main(argv: list[str] | None = None) -> int:
                 f"--server={args.server}",
                 f"--step-delay={args.step_delay}",
                 f"--recv-timeout={args.recv_timeout}",
+                "--check-frame-stats" if args.check_frame_stats else "--no-check-frame-stats",
+                f"--allow-dropped-frames={args.allow_dropped_frames}",
             ],
             plugins=[driver],
         )
