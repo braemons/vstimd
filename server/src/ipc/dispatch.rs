@@ -177,6 +177,8 @@ fn command_summary(req: &proto::Request) -> String {
         Some(request::Body::WaitForFrames(c)) => format!("WaitForFrames({})", c.count),
         Some(request::Body::WaitUntil(c)) => format!("WaitUntil({}ns)", c.server_time_ns),
         Some(request::Body::CaptureFrame(_)) => "CaptureFrame".into(),
+        Some(request::Body::QueryFrameStats(_)) => "QueryFrameStats".into(),
+        Some(request::Body::ResetFrameStats(_)) => "ResetFrameStats".into(),
         Some(request::Body::ListSceneConfigs(_)) => "ListSceneConfigs".into(),
         Some(request::Body::LoadSceneConfig(c)) => format!("LoadSceneConfig({:?})", c.name),
         Some(request::Body::UploadSceneConfig(c)) => format!("UploadSceneConfig({:?})", c.name),
@@ -346,6 +348,8 @@ impl SceneState {
             request::Body::ClearAll(_) => self.cmd_clear_all(),
             request::Body::SetAllEnabled(cmd) => self.cmd_set_all_enabled(cmd),
             request::Body::QueryServerInfo(_) => self.cmd_query_server_info(),
+            request::Body::QueryFrameStats(_) => self.cmd_query_frame_stats(),
+            request::Body::ResetFrameStats(_) => self.cmd_reset_frame_stats(),
             request::Body::ListStimuli(_) => self.cmd_list_stimuli(),
             request::Body::SetVirtualTriggerLineName(cmd) => {
                 self.cmd_set_virtual_trigger_line_name(cmd, vtl)
@@ -431,6 +435,8 @@ impl SceneState {
             | request::Body::ClearAll(_)
             | request::Body::SetAllEnabled(_)
             | request::Body::QueryServerInfo(_)
+            | request::Body::QueryFrameStats(_)
+            | request::Body::ResetFrameStats(_)
             | request::Body::ListStimuli(_)
             | request::Body::SetVirtualTriggerLineName(_)
             | request::Body::ListVirtualTriggerLines(_)

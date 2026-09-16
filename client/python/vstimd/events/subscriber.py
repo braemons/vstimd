@@ -205,6 +205,17 @@ class EventSubscriber:
     def close(self) -> None:
         self._socket.close()
 
+    def unsubscribe(self, topic: str) -> None:
+        """Stop receiving `topic`, a prefix passed when this was created.
+
+        Events of that topic already queued for this subscriber still arrive;
+        only new ones are filtered out.
+        """
+        if topic not in self.topics:
+            raise ValueError(f"not subscribed to {topic!r}: {self.topics!r}")
+        self._socket.setsockopt_string(zmq.UNSUBSCRIBE, topic)
+        self.topics = tuple(t for t in self.topics if t != topic)
+
     def __enter__(self) -> EventSubscriber:
         return self
 

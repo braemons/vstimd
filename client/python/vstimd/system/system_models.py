@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass, field
 
 from vstimd._handles import StimulusHandle
-from vstimd._proto.vstimd.v1 import input_pb2, scene3d_pb2
+from vstimd._proto.vstimd.v1 import input_pb2, scene3d_pb2, system_pb2
 from vstimd.stimuli.vec import Vec3
 from vstimd.stimuli.color import Color
 
@@ -89,6 +89,42 @@ class CapturedFrame:
         return (
             f"CapturedFrame(frame={self.frame}, {self.width_px}x{self.height_px}, "
             f"{len(self.png)} bytes)"
+        )
+
+
+@dataclass
+class FrameStats:
+    """Frame timing over one window, from :meth:`SystemClient.query_frame_stats`
+    or :meth:`SystemClient.reset_frame_stats`.
+
+    A dropped frame is a refresh the display showed without a new frame: the
+    previous one stayed up a refresh longer. Swapchain start-up is not counted,
+    and the null renderer, which has no display, never reports a drop.
+    """
+
+    presented_frames: int
+    dropped_frames: int
+    #: Intervals between consecutive presented frames; zero until two exist.
+    mean_frame_interval_ms: float
+    std_frame_interval_ms: float
+    min_frame_interval_ms: float
+    max_frame_interval_ms: float
+    #: The display mode's nominal refresh period, for comparison.
+    nominal_frame_interval_ms: float
+    #: Frame index (``ServerResponse.frame_count`` numbering) the window began at.
+    window_start_frame: int
+
+    @classmethod
+    def from_proto(cls, msg: system_pb2.FrameStats) -> FrameStats:
+        return cls(
+            presented_frames=msg.presented_frames,
+            dropped_frames=msg.dropped_frames,
+            mean_frame_interval_ms=msg.mean_frame_interval_ms,
+            std_frame_interval_ms=msg.std_frame_interval_ms,
+            min_frame_interval_ms=msg.min_frame_interval_ms,
+            max_frame_interval_ms=msg.max_frame_interval_ms,
+            nominal_frame_interval_ms=msg.nominal_frame_interval_ms,
+            window_start_frame=msg.window_start_frame,
         )
 
 

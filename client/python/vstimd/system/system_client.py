@@ -15,6 +15,7 @@ from .system_models import (
     Lighting3D,
     CapturedFrame,
     DeferredModeStatus,
+    FrameStats,
     ServerInfo,
     ServerVersion,
     StimulusListEntry,
@@ -194,6 +195,33 @@ class SystemClient:
         while resp.frame_count < frame_count:
             resp = self.wait_for_frames(frame_count - resp.frame_count)
         return resp
+
+    # ── Frame statistics ─────────────────────────────────────────────────────
+
+    def query_frame_stats(self) -> FrameStats:
+        """Frame timing since the last :meth:`reset_frame_stats` (or server start)."""
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            query_frame_stats=system_pb2.QueryFrameStatsRequest(),
+        ))
+        return FrameStats.from_proto(resp.frame_stats)
+
+    def reset_frame_stats(self) -> FrameStats:
+        """Start a new frame-statistics window, returning the one it closes.
+
+        Returning the closed window makes "what did this trial cost" a single
+        round trip, with no frame able to fall between a query and a reset::
+
+            conn.system.reset_frame_stats()
+            run_trial()
+            if conn.system.reset_frame_stats().dropped_frames:
+                ...
+        """
+        resp = self._send(service_pb2.Request(
+            system=service_pb2.SystemTarget(),
+            reset_frame_stats=system_pb2.ResetFrameStatsRequest(),
+        ))
+        return FrameStats.from_proto(resp.frame_stats)
 
     # ── Input devices ────────────────────────────────────────────────────────
 

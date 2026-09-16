@@ -23,6 +23,12 @@ pub struct SceneRenderer {
 }
 
 impl SceneRenderer {
+    /// The scene's client-resettable frame-statistics window, for the render
+    /// loop's [`crate::timing::FrameTiming`] to record into.
+    pub fn frame_stats_window(&self) -> Arc<crate::timing::FrameStatsWindow> {
+        self.scene.read().expect("scene lock poisoned").runtime.frame_stats.clone()
+    }
+
     pub fn new(ctx: &VkContext, scene: Arc<RwLock<SceneState>>) -> Self {
         let wf_mode = if ctx.supports_wireframe {
             ash::vk::PolygonMode::LINE

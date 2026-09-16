@@ -88,6 +88,9 @@ pub struct SceneRuntimeState {
     /// stuttering display does not shorten a corridor. Set by the render loop;
     /// always 1 on the null renderer.
     pub vblanks_elapsed: u32,
+    /// The frame-statistics window clients query and reset over the wire. The
+    /// render loop holds a clone and records into it lock-free.
+    pub frame_stats: std::sync::Arc<crate::timing::FrameStatsWindow>,
     /// Set by the render thread when it could not set up 3-D (no depth format).
     /// The 3-D create commands then answer `NOT_SUPPORTED` rather than accepting
     /// a stimulus that will never be drawn.
@@ -129,6 +132,7 @@ impl SceneRuntimeState {
             events: crate::ipc::EventPublisher::disabled(),
             input: Default::default(),
             vblanks_elapsed: 1,
+            frame_stats: Default::default(),
             render_3d_unavailable: false,
             capture_requests: capture_tx,
             capture_receiver: std::sync::Mutex::new(Some(capture_rx)),

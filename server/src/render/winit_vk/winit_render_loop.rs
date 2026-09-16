@@ -150,11 +150,12 @@ impl WinitRenderLoopData {
         }
 
         let size = window.inner_size();
+        let frame_stats_window = scene_renderer.frame_stats_window();
         let rs = RenderState {
             scene_renderer,
             text,
             ui: Some(ui),
-            timing: FrameTiming::new(hz),
+            timing: FrameTiming::new(hz, frame_stats_window),
             events,
             system_info,
             display_info: StimulusDisplayInfo {
