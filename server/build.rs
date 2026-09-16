@@ -107,6 +107,7 @@ fn main() {
     compile_shader("shaders/mesh3d.wgsl", "mesh3d.spv");
     compile_shader("shaders/splat.wgsl", "splat.spv");
     compile_shader("shaders/veil.wgsl", "veil.spv");
+    compile_shader("shaders/splat_tile_preprocess.wgsl", "splat_tile_preprocess.spv");
 }
 
 /// The version reported by `vstimd --version` and over the wire, resolved at

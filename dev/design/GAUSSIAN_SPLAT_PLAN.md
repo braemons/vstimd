@@ -4,9 +4,16 @@ Exploration for rendering a corridor from a trained 3-D Gaussian splat (3DGS) sc
 generated planes. Builds on `dev/3D_ROADMAP.md` §8 (Phase E), which only kept the door open;
 this document checks that door against the 3-D code as it landed on `0.3`.
 
-## 0. Status (2026-09-15, branch `feat/gaussian-splat-corridor`)
+## 0. Status (2026-09-16, branch `feat/gaussian-splat-corridor`)
 
-Phase 1 is implemented, following this plan with the decisions below:
+Phase 1 is implemented, following this plan with the decisions below.
+
+**Where to pick up (2026-09-16):** performance is understood and written up in
+§10 — the scene is fill-bound, and the hardware-rasterised path cannot
+early-terminate, which is the whole gap. §11 starts the tile rasteriser that
+closes it; stage 1 is written and the open decision is §11.1, how the per-tile
+sort is done. An FX panel (F8) carries the knobs measured so far.
+
 
 - **`GaussianSplat3D`** stimulus (`StimulusBody::GaussianSplat`), created from a
   server-side `.ply` or `.splat` path — interim until the asset store. The path is
@@ -177,3 +184,120 @@ about X is the usual import fix. Baked colours are not calibrated luminance.
 - Target Gaussian count — sized once a real corridor is scanned.
 - Should the jump back emit an event or pulse a trigger line, so a lap boundary lands in the
   experiment record? Not done; `distance_travelled_cm` never counts the jump.
+
+## 10. Performance: where the time actually goes (2026-09-16)
+
+Measured on the desktop (GTX 1650, `room-7k.splat`, 1.13 M splats), against the
+hardware-rasterised path as it stands. **The scene is fill-bound, not
+instance-bound**, and by a wide margin:
+
+| configuration | frame cost |
+|---|---|
+| 1.13 M splats, camera inside the room | 8.04 ms |
+| 1.13 M splats, camera 200 m away — same instances, no fill | **0.36 ms** |
+
+So 95% of the cost is blended fragments. Two corollaries, both measured, both
+the opposite of what looked obvious:
+
+- **Shrinking quads to the 1/255 boundary buys nothing** (8.04 → 8.04 ms). The
+  fragments it removes were already being `discard`ed, and a discard is nearly
+  free. Only fragments that *blend* cost anything.
+- **Raising the visibility floor does buy something** (8.04 → 5.70 ms at 8/255,
+  ~1% mean pixel difference), because that removes fragments that were blending.
+  This is the FX panel's `alpha floor`.
+- Clamping the longest drawn axis is weak here: nothing at 128 px, 5% at 32 px.
+  This scene's fill is many moderate splats, not a few huge near ones.
+
+Cost is also strongly superlinear in resolution — 1.4 Mpx costs 0.21 ms, 3.6 Mpx
+costs 8.04 ms — which is what heavy overdraw into a blender looks like.
+
+**Beware a probe that does not do what it says.** An earlier round concluded
+"fill is free" from turning the camera 180°. The room capture surrounds the
+camera, so turning around renders just as much; it never removed any fill.
+Moving the camera far outside the scene is the test that separates the two.
+
+### 10.1 Why this renderer is the slow shape
+
+The reference rasteriser (Kerbl et al.) is tile-based: 16×16 tiles, per-tile
+depth sort, **front-to-back** blending, and each tile stops once transmittance
+saturates. In a dense scene a pixel is opaque after a few dozen splats and the
+hundreds behind it are never touched. vstimd uses the fixed-function pipeline —
+one instanced quad per splat, back-to-front `ONE, ONE_MINUS_SRC_ALPHA` — which
+**cannot** early-terminate: every fragment must blend. That is the whole gap.
+
+2026 work worth reading: **HiGS** (arXiv 2606.00352) decouples binning
+granularity from rasterisation granularity and reports up to 15.8× over 3DGS,
+rendering-only, and — directly relevant here — frame time growing 1.6× from
+1080p to 4K where the baseline grows 2.8×. **VkSplat** (arXiv 2605.00219) is the
+Vulkan-compute reference, with exact Gaussian-tile overlap tests. **LODGE** and
+**FilterGS** cover LOD for large scenes. **RadSplat** (arXiv 2403.13806) and
+**LightGaussian** prune by per-Gaussian importance scored over the training
+views.
+
+### 10.2 The corridor is worth more than it looks
+
+Camera motion is 1-D, which buys three things:
+
+1. **Sorting is already solved, by accident.** §4's order depends only on the
+   view *axis*, never position, so a straight walk sorts once and never again.
+   This is why sorting never appears in any measurement above.
+2. **Pruning can be scored against the actual track.** RadSplat's importance is
+   `max` blending weight over the *training views*, because general rendering has
+   to allow any view. Here the set of views an experiment will ever render is a
+   known 1-D track, so the score is exact rather than a proxy, and the pruning
+   can be far more aggressive than any published figure. This belongs in
+   `vstimd-reconstruct`, which owns the scene end to end.
+3. **Per-segment visible sets** drop straight into the existing design: the
+   order buffer is already a `u32` index list, so a segment's set is a shorter
+   one, and culling becomes a table lookup.
+
+Note which splats actually cost: screen area goes as (size/distance)², so fill
+is dominated by *near* splats. Culling removes instances, and instances are
+0.36 ms of 8 ms. Pruning helps because it removes overlapping faint splats that
+blend — the same reason the alpha floor works — not because it shortens the draw.
+
+## 11. Tile rasteriser (in progress, WIP)
+
+The long-term fix, chosen over the alpha floor and a half-resolution 3-D pass
+because those two buy speed by changing what reaches the screen, which a
+calibrated stimulus should not do if it can be avoided. They remain available on
+top if this is not enough.
+
+Goes in **alongside** the hardware path, toggled from the FX panel, so the two
+can be compared on speed and on image, and so it stays removable like the rest of
+the prototype.
+
+| stage | what |
+|---|---|
+| 1. preprocess (compute) | project each splat once, cull, inverse 2-D covariance, pixel bound, histogram the tiles touched |
+| 2. scan | per-tile counts → per-tile offsets |
+| 3. scatter (compute) | splat indices into per-tile slots, ordered |
+| 4. rasterise (compute) | one workgroup per tile; batch into shared memory, blend front-to-back, stop on saturated transmittance, depth-test against the mesh depth buffer |
+| 5. composite | storage image into the 3-D pass |
+
+Stage 1 is written (`shaders/splat_tile_preprocess.wgsl`) and validating. It
+reads the existing `order` buffer, so §4's sorter keeps earning its keep.
+
+### 11.1 The open decision: how the per-tile sort is done
+
+**The sort is the bulk of this work, not the rasteriser.** The global order
+removes *depth* from the sort key — that much the corridor gives us. What it does
+not remove is the need for the sort to be **stable**: the obvious scatter
+(`atomicAdd` for a slot) leaves an arbitrary order within each tile, and since
+blending is order-dependent that is a stimulus whose pixels change frame to frame
+for no reason. A stable counting sort with 14 400 buckets would need a
+per-block-per-bucket offset matrix, which is why real GPU radix sorts work in
+7–8 bit digits.
+
+Three ways, undecided:
+
+1. **Write the radix sort** — two stable passes over the tile id. Standard and
+   deterministic, and a scan/sort primitive is what vstimd will want again if
+   more of the render path moves to compute. Biggest piece of new code.
+2. **Vendor an existing Vulkan radix sort** — less risk, but a new dependency in
+   a rig binary, which is a policy call.
+3. **Atomic scatter plus a per-tile sort in shared memory** — skips the global
+   sort, correct only while tile lists fit in shared memory, and dense tiles are
+   exactly where they will not.
+
+Leaning 1, for the determinism and the reusable primitive.
