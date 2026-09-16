@@ -72,10 +72,20 @@ kept, and the sharpest of each group wins. A handheld walk blurs unevenly, and a
 fixed rate lands on a blurred frame as often as a sharp one — this is rule 5
 applied for you. `--frame-oversample 1` turns the pass off and keeps every frame.
 
-Two things to know about video. It needs **ffmpeg** on `PATH` (Debian/Ubuntu:
-`apt install ffmpeg`), or `--ffmpeg`/`$VSTIMD_FFMPEG`. And video frames carry
-**no EXIF focal length**, so COLMAP estimates it from the frame size; the same
-walk shot as stills usually reconstructs a little better for that reason alone.
+Two things to know about video. It needs **ffmpeg 5.1 or newer** on `PATH`
+(Debian/Ubuntu: `apt install ffmpeg`), or `--ffmpeg`/`$VSTIMD_FFMPEG`; on a
+machine without one, `reconstruct/scripts/ffmpeg-docker` runs it from a
+container, like `colmap-docker` does for COLMAP:
+
+```bash
+vstimd-scene-from-capture run walk.mp4 --out corridor.ply \
+    --capture-path-length-cm 500 \
+    --ffmpeg reconstruct/scripts/ffmpeg-docker
+```
+
+And video frames carry **no EXIF focal length**, so COLMAP estimates it from the
+frame size; the same walk shot as stills usually reconstructs a little better
+for that reason alone.
 
 **Test before the real capture.** Capture one or two metres, run it with
 `--train-steps 7000` (a few minutes, see below) and read the report before

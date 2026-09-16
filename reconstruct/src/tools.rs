@@ -51,8 +51,9 @@ impl Tools {
     pub fn ffmpeg(&self) -> anyhow::Result<&Path> {
         self.ffmpeg.as_deref().context(
             "ffmpeg was not found, and this capture is a video: install it \
-             (Debian/Ubuntu: apt install ffmpeg), point --ffmpeg or VSTIMD_FFMPEG at it, \
-             or pass a folder of extracted frames instead",
+             (Debian/Ubuntu: apt install ffmpeg), point --ffmpeg or VSTIMD_FFMPEG at it \
+             (reconstruct/scripts/ffmpeg-docker runs it from a container), or pass a folder \
+             of extracted frames instead. ffmpeg 5.1 or newer is needed, for -fps_mode",
         )
     }
 

@@ -460,6 +460,21 @@ fn a_video_capture_keeps_the_sharpest_frame_of_each_group() {
     // Twice over the video: score every candidate, then fetch only the winners.
     assert_eq!(f.calls("ffmpeg"), 2, "expected a scoring pass and a fetch pass");
 
+    // Both passes must write one file per filtered frame. Without -fps_mode,
+    // ffmpeg pads back to a constant rate: measured against ffmpeg 9, the fetch
+    // pass wrote 8 files for the 3 frames asked for, and the scoring pass's
+    // numbering would stop being the index `select` addresses. (-vsync 0 did
+    // the same job and was removed in ffmpeg 8.)
+    let calls = std::fs::read_to_string(&f.calls).unwrap();
+    let ffmpeg_calls: Vec<&str> = calls.lines().filter(|l| l.starts_with("ffmpeg")).collect();
+    for call in &ffmpeg_calls {
+        assert!(
+            call.contains("-fps_mode passthrough"),
+            "every ffmpeg pass needs -fps_mode passthrough, got {call}"
+        );
+        assert!(!call.contains("-vsync"), "-vsync is gone in ffmpeg 8+: {call}");
+    }
+
     // The fake makes frames 2, 5 and 8 (1-based) sharp, so with groups of three
     // the winners are stream indices 1, 4 and 7. This is the assertion that
     // would catch the sharpness pass silently picking by position instead.

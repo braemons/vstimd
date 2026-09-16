@@ -431,7 +431,14 @@ Departures from the sections above, each deliberate:
   choice. Video frames carry no EXIF focal length, so COLMAP estimates it from the frame size;
   ingest says so, because it is the likeliest reason a video reconstructs worse than the same
   walk shot as stills. ffmpeg is found like the other tools (`--ffmpeg`, `VSTIMD_FFMPEG`,
-  `PATH`) and is required only for a video.
+  `PATH`) and is required only for a video; `reconstruct/scripts/ffmpeg-docker` runs it from
+  a container, as `colmap-docker` already does for COLMAP.
+
+  Both passes pass `-fps_mode passthrough`, which is why ffmpeg 5.1 is the minimum. It is not
+  cosmetic: without it ffmpeg pads its output back to a constant rate, which against ffmpeg 9
+  wrote 8 files for the 3 frames the select filter asked for — and in the scoring pass would
+  break the assumption the whole design rests on, that a PGM's number is the index `select`
+  addresses in the second pass. (`-vsync 0` did the same job and was removed in ffmpeg 8.)
 - **Ingest** (§3 stage 1) only collects: every JPEG/PNG directly in the folder, in natural
   file-name order, linked (else copied) into `work/images/00001.jpg…`. No EXIF rotation, no
   downscaling and no exposure check — COLMAP's `image_undistorter --max_image_size` and
@@ -483,6 +490,8 @@ Aligned cameras against ground truth: height above the floor off by 1.2 cm (medi
 corridor walk (the camera looks sideways at a structure), and the report says so.
 
 Still to do in phase 1: a phone capture of a real corridor, VRAM at 1600 px and 30 000 steps,
-packaging, and a video capture run against a real ffmpeg — the video path's scoring and
-selection are unit-tested and its ffmpeg invocations are covered by a fake, but no real video
-has been through it. The capture guide is `docs/stimuli/splat-scenes.md`.
+and packaging. The video path has been run against a real ffmpeg 9 (in Docker) on a synthetic
+walk whose sharp frames were known in advance: 9 candidates at 9 fps, the 3 planted sharp ones
+kept, mean sharpness 990 against 335 overall, and the extracted frames are the sharp ones. That
+run is what found the `-fps_mode` bug above. Still unrun: a real phone video of a real
+corridor, end to end through COLMAP and Brush. The capture guide is `docs/stimuli/splat-scenes.md`.

@@ -207,6 +207,12 @@ fn ingest_video(
         .arg(&video)
         .arg("-vf")
         .arg(crate::video::score_filter(candidate_fps))
+        // One file per filtered frame. Without it ffmpeg pads back to a
+        // constant rate, and the PGM numbering stops being the index that
+        // `select` addresses in the second pass — the two passes would
+        // disagree about which frame is which.
+        .arg("-fps_mode")
+        .arg("passthrough")
         .arg(scores_dir.join("%06d.pgm"));
     run_tool(job, cmd, &|_| None, &mut || None)
         .with_context(|| format!("extracting frames from {}", video.display()))?;
@@ -252,8 +258,10 @@ fn ingest_video(
         .arg(&video)
         .arg("-vf")
         .arg(crate::video::select_filter(candidate_fps, &keep))
-        .arg("-vsync")
-        .arg("0")
+        // Without this ffmpeg duplicates the chosen frames back up to a
+        // constant rate: measured 8 files written for 3 frames asked for.
+        .arg("-fps_mode")
+        .arg("passthrough")
         .arg("-qscale:v")
         .arg("2")
         .arg(images.join("%05d.jpg"));

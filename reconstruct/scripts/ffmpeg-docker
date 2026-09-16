@@ -1,0 +1,24 @@
+#!/bin/sh
+# ffmpeg from a Docker image, for machines without an ffmpeg install:
+#
+#   vstimd-scene-from-capture run walk.mp4 ... --ffmpeg reconstruct/scripts/ffmpeg-docker
+#
+# Same shape as colmap-docker: directories are mounted at the same path inside
+# the container, so the absolute paths vstimd-scene-from-capture passes work
+# unchanged. By default that is $HOME and /tmp; add more, colon-separated, with
+# FFMPEG_DOCKER_MOUNTS=/data:/mnt/share.
+#
+# Only frame extraction is done here, which is CPU work: no GPU flags, unlike
+# COLMAP.
+set -eu
+
+image=${FFMPEG_DOCKER_IMAGE:-linuxserver/ffmpeg:latest}
+
+mounts=""
+for dir in $(printf '%s' "$HOME:/tmp${FFMPEG_DOCKER_MOUNTS:+:$FFMPEG_DOCKER_MOUNTS}" | tr ':' ' '); do
+    mounts="$mounts -v $dir:$dir"
+done
+
+# shellcheck disable=SC2086  # the mount string is meant to split
+exec docker run --rm --init -u "$(id -u):$(id -g)" $mounts -w "$PWD" \
+    --entrypoint /usr/local/bin/ffmpeg "$image" "$@"
