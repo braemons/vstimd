@@ -211,6 +211,15 @@ the opposite of what looked obvious:
 Cost is also strongly superlinear in resolution — 1.4 Mpx costs 0.21 ms, 3.6 Mpx
 costs 8.04 ms — which is what heavy overdraw into a blender looks like.
 
+**On an RTX 4070** (2026-09-16, windowed 1280×720, same `room-7k.splat` scene,
+hardware-rasterised path, no FX-panel knobs touched): steady 100 fps — the
+display's own refresh cap — at ~40% GPU utilisation, camera inside the room.
+Eyeballed only (no `query_frame_stats` numbers taken this round), but the
+headroom is wide enough that the fill-bound wall the GTX 1650 hit is not
+visible on this GPU at this resolution and scene size. Does not retire the
+tile rasteriser: the Jetson Orin Nano is still the binding target, and a
+larger/denser scene may reopen the wall on this GPU too.
+
 **Beware a probe that does not do what it says.** An earlier round concluded
 "fill is free" from turning the camera 180°. The room capture surrounds the
 camera, so turning around renders just as much; it never removed any fill.
