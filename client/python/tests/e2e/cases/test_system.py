@@ -7,7 +7,7 @@ from vstimd import Connection
 from vstimd.response import ErrorCode, ServerResponse
 from vstimd.stimuli.stimuli_models import Vec2
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -15,6 +15,7 @@ from ._helpers import Stage
     "nothing new on screen: the server reports its resolution, frame rate and "
     "version, and all of them look sane",
 )
+@check_frame_stats
 def test_query_server_info(conn: Connection, stage: Stage) -> None:
     info = conn.system.query_server_info()
     assert info.width_px >= 0
@@ -29,6 +30,7 @@ def test_query_server_info(conn: Connection, stage: Stage) -> None:
     "the whole background turns steel blue (0.2, 0.4, 0.6) for a moment and "
     "then goes back to black",
 )
+@check_frame_stats
 def test_set_background(conn: Connection, stage: Stage) -> None:
     conn.system.set_background(r=0.2, g=0.4, b=0.6)
     info = conn.system.query_server_info()
@@ -46,6 +48,7 @@ def test_set_background(conn: Connection, stage: Stage) -> None:
     "a white rect and a white disc, both centred and overlapping; the server "
     "lists them with the names 'stim_a' and 'stim_b'",
 )
+@check_frame_stats
 def test_list_stimuli(conn: Connection, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect(name="stim_a")
     h2 = conn.stimuli.shapes.create_circle(name="stim_b")
@@ -67,6 +70,7 @@ def test_list_stimuli(conn: Connection, stage: Stage) -> None:
     "a rect and a disc appear, then clear_stimuli wipes the screen completely "
     "— the caption goes with them, as it is a stimulus too",
 )
+@check_frame_stats
 def test_clear_stimuli(conn: Connection, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_circle()
@@ -85,6 +89,7 @@ def test_clear_stimuli(conn: Connection, stage: Stage) -> None:
     "a rect with a flash animation attached; clear_stimuli empties the screen "
     "but the animation stays registered on the server",
 )
+@check_frame_stats
 def test_clear_stimuli_leaves_animations(conn: Connection, stage: Stage) -> None:
     """The three clear commands are separable: this one takes stimuli only."""
     h = conn.stimuli.shapes.create_rect()
@@ -103,6 +108,7 @@ def test_clear_stimuli_leaves_animations(conn: Connection, stage: Stage) -> None
     "a white rect that stays on screen while clear_animations removes the "
     "flash attached to it — the mirror image of SYS-05",
 )
+@check_frame_stats
 def test_clear_animations_leaves_stimuli(conn: Connection, stage: Stage) -> None:
     h = conn.stimuli.shapes.create_rect()
     a = conn.animations.create_flash(h, duration_frames=60)
@@ -120,6 +126,7 @@ def test_clear_animations_leaves_stimuli(conn: Connection, stage: Stage) -> None
     "a rect with a flash animation, both swept away by clear_all: the screen "
     "ends up blank and no animations remain",
 )
+@check_frame_stats
 def test_clear_all_takes_both(conn: Connection, stage: Stage) -> None:
     h = conn.stimuli.shapes.create_rect()
     a = conn.animations.create_flash(h, duration_frames=60)
@@ -137,6 +144,7 @@ def test_clear_all_takes_both(conn: Connection, stage: Stage) -> None:
     "a rect and a disc that blank out together when everything is disabled, "
     "then reappear together when everything is enabled again",
 )
+@check_frame_stats
 def test_set_all_enabled(conn: Connection, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_circle()
@@ -161,6 +169,7 @@ def test_set_all_enabled(conn: Connection, stage: Stage) -> None:
     "nothing on screen: every mutation answers with an OK response carrying a "
     "frame count and a server timestamp, and the frame count keeps advancing",
 )
+@check_frame_stats
 def test_server_response_fields(conn: Connection, stage: Stage) -> None:
     """Every mutation returns a ServerResponse with sensible metadata."""
     resp = conn.system.clear_all()
@@ -182,6 +191,7 @@ def test_server_response_fields(conn: Connection, stage: Stage) -> None:
     "nothing on screen: wait_until(timestamp) returns OK for a server time "
     "that has already passed",
 )
+@check_frame_stats
 def test_wait_until(conn: Connection, stage: Stage) -> None:
     r1 = conn.system.wait_for_frames(1)
     r2 = conn.system.wait_until(r1.server_time_ns)
@@ -194,6 +204,7 @@ def test_wait_until(conn: Connection, stage: Stage) -> None:
     "nothing on screen: a second connection to the already-running server "
     "becomes ready immediately",
 )
+@check_frame_stats
 def test_wait_until_ready_already_running(server_address: str, stage: Stage) -> None:
     """wait_until_ready returns immediately when the server is already up."""
     with Connection(server_address) as c:
@@ -206,6 +217,7 @@ def test_wait_until_ready_already_running(server_address: str, stage: Stage) -> 
     "nothing on screen: Connection(wait_ready=True) is usable as soon as the "
     "constructor returns",
 )
+@check_frame_stats
 def test_wait_ready_constructor_flag(server_address: str, stage: Stage) -> None:
     """Connection(wait_ready=True) connects and becomes ready without extra calls."""
     with Connection(server_address, wait_ready=True, ready_timeout_s=5.0) as c:
@@ -219,6 +231,7 @@ def test_wait_ready_constructor_flag(server_address: str, stage: Stage) -> None:
     "nothing on screen: waiting on a port with no server behind it gives up "
     "with TimeoutError after a second",
 )
+@check_frame_stats
 def test_wait_until_ready_timeout(stage: Stage) -> None:
     """wait_until_ready raises TimeoutError when nothing is listening."""
     with Connection("tcp://localhost:19876") as c:
@@ -232,6 +245,7 @@ def test_wait_until_ready_timeout(stage: Stage) -> None:
     "a white rect that only moves to (100, 50) px once deferred mode is turned "
     "off — the move is staged, then applied on the next frame",
 )
+@check_frame_stats
 def test_set_deferred_mode(conn: Connection, stage: Stage) -> None:
     h = conn.stimuli.shapes.create_rect(position_px=Vec2(0, 0))
     stage.step("rect centred, deferred mode about to be turned on", hold=0.5)
@@ -268,3 +282,28 @@ def test_set_deferred_mode(conn: Connection, stage: Stage) -> None:
     assert again.flip_frame == 0
 
     conn.stimuli.delete(h)
+
+
+@pytest.mark.onscreen(
+    "SYS-15",
+    "nothing new on screen: the frame-statistics window is reset, counts the "
+    "frames drawn while the test waits, and reset again",
+)
+@check_frame_stats
+def test_frame_stats_query_and_reset(conn: Connection, stage: Stage) -> None:
+    # Resetting mid-test closes the window the check_frame_stats hook opened;
+    # its final reset still covers the rest of the body.
+    conn.system.reset_frame_stats()
+    conn.system.wait_for_frames(10)
+
+    stats = conn.system.query_frame_stats()
+    assert stats.presented_frames >= 10
+    assert stats.dropped_frames == 0
+    assert stats.nominal_frame_interval_ms > 0
+    assert 0 < stats.min_frame_interval_ms <= stats.mean_frame_interval_ms <= stats.max_frame_interval_ms
+
+    closed = conn.system.reset_frame_stats()
+    assert closed.presented_frames >= stats.presented_frames
+    fresh = conn.system.query_frame_stats()
+    assert fresh.window_start_frame >= stats.window_start_frame + 10
+    assert fresh.presented_frames < closed.presented_frames

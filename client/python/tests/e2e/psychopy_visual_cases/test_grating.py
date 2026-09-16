@@ -5,7 +5,7 @@ import pytest
 
 import vstimd.psychopy.visual as visual
 from vstimd.stimuli import GratingMask, GratingParams, GratingTexture, StimulusType
-from ..cases._helpers import Stage
+from ..cases._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -13,6 +13,7 @@ from ..cases._helpers import Stage
     "a 200 px sinusoidal grating patch in the centre, unmasked, at full "
     "contrast — the defaults of visual.GratingStim",
 )
+@check_frame_stats
 def test_create_grating_default(win: visual.Window, stage: Stage) -> None:
     grat = visual.GratingStim(win, tex="sin", size=200, autoDraw=True)
 
@@ -34,6 +35,7 @@ def test_create_grating_default(win: visual.Window, stage: Stage) -> None:
     "a 300 px square-wave grating masked to a disc, tilted 30°, at 0.75 "
     "contrast with fairly coarse stripes",
 )
+@check_frame_stats
 def test_create_grating_sqr_circle_mask(win: visual.Window, stage: Stage) -> None:
     grat = visual.GratingStim(
         win, tex="sqr", mask="circle", size=(300, 300),
@@ -59,6 +61,7 @@ def test_create_grating_sqr_circle_mask(win: visual.Window, stage: Stage) -> Non
     "a 200 px sine grating whose stripes get twice as fine, shift half a "
     "cycle and drop to 0.6 contrast, all in one step",
 )
+@check_frame_stats
 def test_grating_mutate_sf_phase_contrast(win: visual.Window, stage: Stage) -> None:
     grat = visual.GratingStim(win, tex="sin", size=200, sf_cycles_per_px=0.05, autoDraw=True)
     win.flip()
@@ -85,6 +88,7 @@ def test_grating_mutate_sf_phase_contrast(win: visual.Window, stage: Stage) -> N
     "a 200 px sine grating drifting at 1.5 Hz across its stripes, then "
     "drifting at 45° to them once the direction is decoupled",
 )
+@check_frame_stats
 def test_grating_drift_extension(win: visual.Window, stage: Stage) -> None:
     grat = visual.GratingStim(win, tex="sin", size=200, drift_speed_hz=1.5, autoDraw=True)
     win.flip()
@@ -113,6 +117,7 @@ def test_grating_drift_extension(win: visual.Window, stage: Stage) -> None:
     "a 100 px sine grating that disappears when autoDraw is switched off — "
     "the stimulus still exists on the server, it is just not drawn",
 )
+@check_frame_stats
 def test_grating_autodraw(win: visual.Window, stage: Stage) -> None:
     grat = visual.GratingStim(win, tex="sin", size=100, autoDraw=True)
     win.flip()
@@ -135,6 +140,7 @@ def test_grating_autodraw(win: visual.Window, stage: Stage) -> None:
     "a 200 px grating made of red and blue bars instead of greys, set "
     "through color/backColor in rgb1",
 )
+@check_frame_stats
 def test_grating_two_color_create(win: visual.Window, stage: Stage) -> None:
     grat = visual.GratingStim(
         win, tex="sin", size=200,
@@ -161,6 +167,7 @@ def test_grating_two_color_create(win: visual.Window, stage: Stage) -> None:
     "a grey sine grating whose bars go orange, then red, then get blue "
     "backgrounds, then the whole patch fades to 0.5 opacity",
 )
+@check_frame_stats
 def test_grating_color_setters(win: visual.Window, stage: Stage) -> None:
     grat = visual.GratingStim(win, tex="sin", size=200, autoDraw=True)
     win.flip()
@@ -209,6 +216,7 @@ def test_grating_color_setters(win: visual.Window, stage: Stage) -> None:
     "a 200 px sine grating tilted 45°, which then turns to 90° — stripes "
     "diagonal, then horizontal",
 )
+@check_frame_stats
 def test_grating_ori(win: visual.Window, stage: Stage) -> None:
     grat = visual.GratingStim(win, tex="sin", size=200, ori=45.0, autoDraw=True)
     win.flip()

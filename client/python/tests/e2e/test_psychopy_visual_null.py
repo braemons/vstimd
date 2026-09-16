@@ -17,11 +17,11 @@ from .psychopy_visual_cases import *  # noqa: F401, F403
 from .conftest import reachable
 # The same server this suite's sibling starts: one port, one server, whichever
 # of the two files runs first.
-from .test_e2e_null import _server_binary, server_address  # noqa: F401
+from .test_e2e_null import _server_binary, event_port, server_address  # noqa: F401
 
 
 @pytest.fixture(scope="session", autouse=True)
-def server_process(server_address: str):
+def server_process(server_address: str, event_port: int):
     """Build and start the server in null mode. Never skipped."""
     if reachable(server_address):
         yield
@@ -29,7 +29,8 @@ def server_process(server_address: str):
 
     port = server_address.rsplit(":", 1)[-1]
     proc = subprocess.Popen(
-        [str(_server_binary()), "--null", "--zmq-port", port, "--no-web"]
+        [str(_server_binary()), "--null", "--zmq-port", port,
+         "--event-port", str(event_port), "--no-web"]
     )
 
     for _ in range(20):
