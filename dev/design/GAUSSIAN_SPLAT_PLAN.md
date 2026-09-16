@@ -13,6 +13,11 @@ Phase 1 is implemented, following this plan with the decisions below.
 early-terminate, which is the whole gap. §11 starts the tile rasteriser that
 closes it. Stage 1 and the stable GPU radix sort behind stage 3 are written and
 tested (§11.1); §11.2 lists what is left. An FX panel (F8) carries the knobs measured so far.
+On an RTX 4070 the fill-bound wall does not reproduce even at 9.13 M splats
+overlapping (§10) — the tile rasteriser stops being urgent on desktop-class
+GPUs and stays needed for the Jetson Orin Nano. A separate, unexplained 2×
+frame-time regression turned up moving the camera far from a multi-scene
+stack; see §10's last paragraph before relying on any "camera far away" probe.
 
 
 - **`GaussianSplat3D`** stimulus (`StimulusBody::GaussianSplat`), created from a
@@ -211,14 +216,42 @@ the opposite of what looked obvious:
 Cost is also strongly superlinear in resolution — 1.4 Mpx costs 0.21 ms, 3.6 Mpx
 costs 8.04 ms — which is what heavy overdraw into a blender looks like.
 
-**On an RTX 4070** (2026-09-16, windowed 1280×720, same `room-7k.splat` scene,
-hardware-rasterised path, no FX-panel knobs touched): steady 100 fps — the
-display's own refresh cap — at ~40% GPU utilisation, camera inside the room.
-Eyeballed only (no `query_frame_stats` numbers taken this round), but the
-headroom is wide enough that the fill-bound wall the GTX 1650 hit is not
-visible on this GPU at this resolution and scene size. Does not retire the
-tile rasteriser: the Jetson Orin Nano is still the binding target, and a
-larger/denser scene may reopen the wall on this GPU too.
+**On an RTX 4070** (2026-09-16, windowed 1280×720, hardware-rasterised path, no
+FX-panel knobs touched). First, eyeballed: `room-7k.splat` (1.13 M splats)
+holds a steady 100 fps — the display's own refresh cap — at ~40% GPU
+utilisation, camera inside the room. Then measured with
+`SystemClient.query_frame_stats`, three MipNeRF-360 captures loaded
+simultaneously and made to overlap at the origin (`room-7k.splat` 1.13 M +
+`garden-7k.splat` 4.39 M + `bicycle-7k.splat` 3.62 M = **9.13 M splats**,
+`scale=100`):
+
+| configuration | mean frame interval | dropped |
+|---|---|---|
+| single `garden-7k.splat` (4.39 M), camera walking through | 10.002 ms | 0/320 |
+| all three stacked (9.13 M), camera inside, at the origin | 10.002 ms | 0/240 |
+| all three stacked (9.13 M), camera moved to `z=20000` cm | 20.004 ms | 240/240 |
+
+The display's nominal frame interval is 10.002 ms (99.981 Hz), so the first two
+rows are a perfect lock — the fill-bound wall the GTX 1650 hit at 1.13 M splats
+is nowhere near visible here even at 8× the splat count, overlapping. The
+headroom means the tile rasteriser is not urgent on this GPU at this
+resolution; it stays needed for the Jetson Orin Nano target, and a
+denser/closer scene could still find a wall here too.
+
+The third row is the surprise, and is **not yet explained** — flagging it per
+the warning just above rather than guessing. The naive story ("far away removes
+fill") predicts *faster*, as it did for the room alone (§10 top: 8.04 ms →
+0.36 ms on the GTX 1650). Instead it locked to exactly half rate. One fact that
+complicates the naive story: `garden-7k.splat` and `bicycle-7k.splat` are
+whole MipNeRF-360 captures, not a small room — bounding boxes (scene units,
+`×100` = cm) are roughly `[-63, 86]` and `[-67, 85]` on `bicycle` and
+`[-43, 53]` and `[-24, 43]` on `garden`, i.e. 50–85 m across at this scale, so
+`z=20000` cm (200 m) is not obviously clear of them the way it was clear of the
+4 m room. That alone would predict *less* shrinkage than expected, not a clean
+2× regression, so something else is likely going on (sort contention across
+three simultaneous scenes, a per-instance cost that does not fall off with
+distance, or something in the depth/culling path) — worth a follow-up with the
+wireframe toggle or a frame capture before trusting either scene at long range.
 
 **Beware a probe that does not do what it says.** An earlier round concluded
 "fill is free" from turning the camera 180°. The room capture surrounds the
