@@ -47,6 +47,9 @@ pub struct SceneRuntimeState {
     /// Screen size at which meshes were last tessellated. When this changes all
     /// stimuli are re-uploaded (NDC coordinates depend on screen dimensions).
     pub last_uploaded_size: (u32, u32),
+    /// Graphics-debugging knobs from the overlay's FX panel. Render tuning
+    /// only — never serialized, and never something a result depends on.
+    pub fx: crate::scene::FxSettings,
     pub error_mask: u16,
     pub error_code: i16,
     /// Command ring buffer — written by ZMQ thread, read by overlay.
@@ -120,6 +123,7 @@ impl SceneRuntimeState {
             nominal_frame_rate_hz: 60.0,
             screen_size: None,
             last_uploaded_size: (0, 0),
+            fx: crate::scene::FxSettings::default(),
             error_mask: 0,
             error_code: 0,
             command_log: std::collections::VecDeque::new(),

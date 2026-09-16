@@ -28,6 +28,9 @@ struct Push {
     proj:        vec4<f32>,
     viewport_px: vec2<f32>,
     opacity:     f32,
+    // Both from the overlay's FX panel (`scene::FxSettings`).
+    alpha_floor: f32,   // 1/255 units; 1 = draw everything that can show
+    max_axis_px: f32,
     _pad:        f32,
 }
 var<push_constant> pc: Push;
@@ -37,23 +40,36 @@ struct VertexOutput {
     @location(0)       color:    vec4<f32>,
     // Position inside the quad, in units where the Gaussian is exp(−|p|²).
     @location(1)       offset:   vec2<f32>,
+    // Where this splat stops being drawn, in the same units. Flat: every
+    // vertex of the quad carries the splat's one value.
+    @location(2) @interpolate(flat) extent: f32,
 }
 
-// Quad half-extent in those units: exp(−4) ≈ 0.018 at the edge.
-const EXTENT: f32 = 2.0;
+// Largest quad half-extent in those units, and the cap on the per-splat one
+// computed in `extent_for`: exp(−4) ≈ 0.018 at the edge.
+const MAX_EXTENT: f32 = 2.0;
 // Low-pass added to the 2-D covariance, px², so a splat never covers less than
 // about a pixel (the reference renderer's 0.3).
 const DILATION: f32 = 0.3;
-// Longest drawn axis, px: bounds the cost of a splat that fills the view.
-const MAX_AXIS_PX: f32 = 1024.0;
-
 fn culled() -> VertexOutput {
     var out: VertexOutput;
     // Outside the depth range, so the whole degenerate quad is clipped.
     out.clip_pos = vec4<f32>(0.0, 0.0, 2.0, 1.0);
     out.color = vec4<f32>(0.0);
     out.offset = vec2<f32>(0.0);
+    out.extent = 0.0;
     return out;
+}
+
+// How far out this splat is still drawn: the radius at which exp(−r²)·alpha
+// falls to the floor, so every fragment beyond it would be discarded anyway.
+//
+// A fixed half-extent has to assume the brightest splat a scene might hold; a
+// trained scene is mostly faint ones (median alpha 0.15 in the MipNeRF-360 room
+// capture), and the fragments this trims are the ones that would have reached
+// the blender — which is what a splat scene is actually limited by.
+fn extent_for(alpha: f32) -> f32 {
+    return min(MAX_EXTENT, sqrt(log(alpha * 255.0 / pc.alpha_floor)));
 }
 
 @vertex
@@ -104,8 +120,16 @@ fn vs_main(
         dir = vec2<f32>(0.0, 1.0);
     }
     // sqrt(2λ): the offset unit at which exp(−|p|²) is the Gaussian's value.
-    let major = min(sqrt(2.0 * lambda1), MAX_AXIS_PX) * dir;
-    let minor = min(sqrt(2.0 * lambda2), MAX_AXIS_PX) * vec2<f32>(dir.y, -dir.x);
+    let major = min(sqrt(2.0 * lambda1), pc.max_axis_px) * dir;
+    let minor = min(sqrt(2.0 * lambda2), pc.max_axis_px) * vec2<f32>(dir.y, -dir.x);
+
+    let rgba = unpack4x8unorm(s.color);
+    let alpha = rgba.a * pc.opacity;
+    // Never drawable: even at its centre this splat is under the floor.
+    if (alpha * 255.0 <= pc.alpha_floor) {
+        return culled();
+    }
+    let extent = extent_for(alpha);
 
     // Triangle-strip corners.
     var corners = array<vec2<f32>, 4>(
@@ -114,26 +138,26 @@ fn vs_main(
         vec2<f32>(-1.0,  1.0),
         vec2<f32>( 1.0,  1.0),
     );
-    let q = corners[vertex] * EXTENT;
+    let q = corners[vertex] * extent;
     let offset_px = q.x * major + q.y * minor;
     let ndc = clip.xy / clip.w + offset_px * 2.0 / pc.viewport_px;
 
-    let rgba = unpack4x8unorm(s.color);
     var out: VertexOutput;
     out.clip_pos = vec4<f32>(ndc, clip.z / clip.w, 1.0);
-    out.color = vec4<f32>(rgba.rgb, rgba.a * pc.opacity);
+    out.color = vec4<f32>(rgba.rgb, alpha);
     out.offset = q;
+    out.extent = extent;
     return out;
 }
 
 @fragment
 fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
     let power = -dot(in.offset, in.offset);
-    if (power < -EXTENT * EXTENT) {
+    if (power < -in.extent * in.extent) {
         discard;
     }
     let alpha = min(0.99, exp(power) * in.color.a);
-    if (alpha < 1.0 / 255.0) {
+    if (alpha < pc.alpha_floor / 255.0) {
         discard;
     }
     // Premultiplied: the pipeline blends ONE, ONE_MINUS_SRC_ALPHA.

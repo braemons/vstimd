@@ -9,15 +9,12 @@ use crate::system_info::{ClockSource, SystemInfo};
 use crate::system_metrics::SystemMetrics;
 use crate::timing::{FramePhases, FrameStats};
 
-#[allow(clippy::too_many_arguments)]
 pub(in crate::render::overlay_ui) fn system_panel(
     ui: &mut egui::Ui,
     sys: &SystemInfo,
     display: &StimulusDisplayInfo,
-    wireframe: Option<bool>,
     metrics: &SystemMetrics,
     scene: &Arc<RwLock<SceneState>>,
-    wireframe_toggle_requested: &mut bool,
 ) {
     ui.label(format!("HW: {}", sys.host.hardware_model));
     let mode_suffix = display.mode_index.map(|i| format!("  [mode {i}]")).unwrap_or_default();
@@ -82,13 +79,6 @@ pub(in crate::render::overlay_ui) fn system_panel(
                 sc.photodiode.flicker = true;
                 sc.photodiode.lit = false;
             }
-        }
-        if let Some(wf) = wireframe {
-            if ui.button(if wf { "Wireframe: ON" } else { "Wireframe: off" }).clicked() {
-                *wireframe_toggle_requested = true;
-            }
-        } else {
-            ui.add_enabled(false, egui::Button::new("Wireframe: n/a"));
         }
     });
 

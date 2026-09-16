@@ -181,6 +181,8 @@ pub unsafe fn record_3d_pass(
                     proj: proj_params,
                     viewport_px: [extent.width as f32, extent.height as f32],
                     opacity: stim.opacity().live,
+                    alpha_floor: scene.runtime.fx.splat_alpha_floor,
+                    max_axis_px: scene.runtime.fx.splat_max_axis_px,
                     _pad: 0.0,
                 };
                 device.cmd_push_constants(

@@ -11,11 +11,14 @@ use ash::vk;
 
 /// Must match `struct Push` in `shaders/splat.wgsl` (push constants, std430).
 ///
-/// Layout (96 bytes, of the 128 Vulkan guarantees):
-///   offset  0: model_view   [[f32; 4]; 4]
-///   offset 64: proj         [f32; 4]   ← [m00, m11, m22, m32] of the projection
-///   offset 80: viewport_px  [f32; 2]
-///   offset 88: opacity      f32        + _pad f32
+/// Layout (104 bytes, of the 128 Vulkan guarantees):
+///   offset  0: model_view    [[f32; 4]; 4]
+///   offset 64: proj          [f32; 4]   ← [m00, m11, m22, m32] of the projection
+///   offset 80: viewport_px   [f32; 2]
+///   offset 88: opacity       f32
+///   offset 92: alpha_floor   f32        ← FX panel, 1/255 units
+///   offset 96: max_axis_px   f32        ← FX panel
+///   offset 100: _pad         f32
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct SplatPushConstants {
@@ -23,6 +26,10 @@ pub struct SplatPushConstants {
     pub proj: [f32; 4],
     pub viewport_px: [f32; 2],
     pub opacity: f32,
+    /// `FxSettings::splat_alpha_floor`, in 1/255 units.
+    pub alpha_floor: f32,
+    /// `FxSettings::splat_max_axis_px`.
+    pub max_axis_px: f32,
     pub _pad: f32,
 }
 
@@ -235,10 +242,12 @@ mod tests {
 
     #[test]
     fn push_constant_sizes_match_the_shaders() {
-        assert_eq!(std::mem::size_of::<SplatPushConstants>(), 96);
+        assert_eq!(std::mem::size_of::<SplatPushConstants>(), 104);
         assert_eq!(std::mem::offset_of!(SplatPushConstants, proj), 64);
         assert_eq!(std::mem::offset_of!(SplatPushConstants, viewport_px), 80);
         assert_eq!(std::mem::offset_of!(SplatPushConstants, opacity), 88);
+        assert_eq!(std::mem::offset_of!(SplatPushConstants, alpha_floor), 92);
+        assert_eq!(std::mem::offset_of!(SplatPushConstants, max_axis_px), 96);
         assert_eq!(std::mem::size_of::<VeilPushConstants>(), 16);
     }
 }

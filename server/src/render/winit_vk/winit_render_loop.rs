@@ -367,7 +367,7 @@ impl ApplicationHandler for WinitEventHandler {
         }
 
         // ── Global hotkeys — handled BEFORE egui so a focused widget cannot
-        //   swallow them. F1–F7 and backtick must always reach the app.
+        //   swallow them. F1–F8 and backtick must always reach the app.
         //   Plain Fn: show + focus that panel.
         //   Shift+Fn: hide that panel. ─────────────────────────────────────────
         if let WindowEvent::KeyboardInput {
@@ -388,6 +388,7 @@ impl ApplicationHandler for WinitEventHandler {
                 KeyCode::F5 => Some(OverlayGroup::System),
                 KeyCode::F6 => Some(OverlayGroup::SceneConfig),
                 KeyCode::F7 => Some(OverlayGroup::Benchmarks),
+                KeyCode::F8 => Some(OverlayGroup::Fx),
                 _ => None,
             };
             if let Some(group) = group {
