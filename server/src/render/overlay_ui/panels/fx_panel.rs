@@ -58,8 +58,10 @@ pub(in crate::render::overlay_ui) fn fx_panel(
     )
     .on_hover_text(
         "Longest a single splat's quad may be drawn. Bounds what one splat \
-         close to the camera can cost; too low and near surfaces are clipped \
-         into rectangles.",
+         close to the camera can cost; too low and near surfaces clip into \
+         rectangles. Weak on the room capture (5% even clamped to 32 px), \
+         because its fill comes from many moderate splats, not a few huge \
+         ones -- a scene where it matters looks different.",
     );
 
     ui.horizontal(|ui| {

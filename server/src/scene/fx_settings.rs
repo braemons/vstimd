@@ -26,6 +26,13 @@ pub struct FxSettings {
     pub splat_alpha_floor: f32,
     /// Longest axis, in pixels, that one splat's quad may be drawn at. Bounds
     /// what a single splat close to the camera can cost.
+    ///
+    /// Measured weak on the MipNeRF-360 room capture: clamping all the way down
+    /// to 32 px bought 5% (7.71 ms -> 7.34 ms) and 128 px bought nothing at all,
+    /// because that scene's fill comes from many moderate splats rather than a
+    /// few huge near ones. Kept because a scene *can* be the other shape -- a
+    /// corridor trained from too few views grows large splats close in -- and
+    /// this is the knob that finds out.
     pub splat_max_axis_px: f32,
 }
 
