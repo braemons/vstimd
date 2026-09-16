@@ -11,8 +11,8 @@ Phase 1 is implemented, following this plan with the decisions below.
 **Where to pick up (2026-09-16):** performance is understood and written up in
 §10 — the scene is fill-bound, and the hardware-rasterised path cannot
 early-terminate, which is the whole gap. §11 starts the tile rasteriser that
-closes it; stage 1 is written and the open decision is §11.1, how the per-tile
-sort is done. An FX panel (F8) carries the knobs measured so far.
+closes it. Stage 1 and the stable GPU radix sort behind stage 3 are written and
+tested (§11.1); §11.2 lists what is left. An FX panel (F8) carries the knobs measured so far.
 
 
 - **`GaussianSplat3D`** stimulus (`StimulusBody::GaussianSplat`), created from a
@@ -278,26 +278,49 @@ the prototype.
 Stage 1 is written (`shaders/splat_tile_preprocess.wgsl`) and validating. It
 reads the existing `order` buffer, so §4's sorter keeps earning its keep.
 
-### 11.1 The open decision: how the per-tile sort is done
+### 11.1 The per-tile sort — decided, and built
 
-**The sort is the bulk of this work, not the rasteriser.** The global order
-removes *depth* from the sort key — that much the corridor gives us. What it does
-not remove is the need for the sort to be **stable**: the obvious scatter
-(`atomicAdd` for a slot) leaves an arbitrary order within each tile, and since
-blending is order-dependent that is a stimulus whose pixels change frame to frame
-for no reason. A stable counting sort with 14 400 buckets would need a
+**Decided: write the radix sort** (`shaders/radix_sort.wgsl`,
+`render/vk/vk_radix_sort.rs`). Done and tested.
+
+Why it was a decision at all: the global order removes *depth* from the sort
+key — that much the corridor gives us — but not the need for the sort to be
+**stable**. An `atomicAdd` scatter leaves an arbitrary order inside each tile,
+and splats blend, so that is a stimulus whose pixels change between frames for
+no reason. A stable counting sort with 14 400 buckets would need a
 per-block-per-bucket offset matrix, which is why real GPU radix sorts work in
 7–8 bit digits.
 
-Three ways, undecided:
+Shape: least-significant-digit, 4-bit digits, 256 items per block, three kernels
+(histogram, scan, scatter) run once per digit. Stability comes from two places —
+within a block, four single-bit splits, each of which preserves the relative
+order of equal elements; across blocks, a digit-major scan of the histogram, so
+every `(digit, block)` pair gets a global slot that respects block order. The
+pass count is rounded to even so the ping-pong ends in the caller's buffers.
 
-1. **Write the radix sort** — two stable passes over the tile id. Standard and
-   deterministic, and a scan/sort primitive is what vstimd will want again if
-   more of the render path moves to compute. Biggest piece of new code.
-2. **Vendor an existing Vulkan radix sort** — less risk, but a new dependency in
-   a rig binary, which is a policy call.
-3. **Atomic scatter plus a per-tile sort in shared memory** — skips the global
-   sort, correct only while tile lists fit in shared memory, and dense tiles are
-   exactly where they will not.
+It takes a `&ash::Device` and a command buffer and owns nothing else, so the
+renderer drives it with its own queue and `server/tests/radix_sort.rs` drives it
+with a headless one — no window, no rig, no display. That test asserts
+*stability*, not just sortedness: values are input positions, so the assertion
+reads as "equal keys kept their input order". It covers a block exactly, a
+partial tail block, 100 000 pairs over 14 400 distinct keys (the real tile case),
+all-equal keys, all-distinct keys, and a full 32-bit key. It skips rather than
+fails where there is no Vulkan.
 
-Leaning 1, for the determinism and the reusable primitive.
+### 11.2 Still to do
+
+Stages 2–5. The sort is stage 3's engine; what remains around it:
+
+- expand each splat's tile rectangle into `(tile_id, splat_index)` pairs, which
+  needs a scan over per-splat tile counts to allocate the pair array, and a cap
+  plus a graceful overflow path since the pair count is data-dependent
+- per-tile ranges from the sorted pairs (find each tile's first and last)
+- the rasterise kernel: one workgroup per tile, batch into shared memory, blend
+  front-to-back, stop once transmittance saturates, depth-test against the mesh
+  depth buffer (which needs `SAMPLED` usage and a layout transition — splats
+  currently test against it through fixed-function state, see
+  `vk_splat_pipeline.rs`)
+- composite the storage image into the 3-D pass, and an FX-panel toggle to pick
+  between this path and the hardware one so they can be compared on speed and on
+  image
+

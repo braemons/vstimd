@@ -108,6 +108,7 @@ fn main() {
     compile_shader("shaders/splat.wgsl", "splat.spv");
     compile_shader("shaders/veil.wgsl", "veil.spv");
     compile_shader("shaders/splat_tile_preprocess.wgsl", "splat_tile_preprocess.spv");
+    compile_shader("shaders/radix_sort.wgsl", "radix_sort.spv");
 }
 
 /// The version reported by `vstimd --version` and over the wire, resolved at
