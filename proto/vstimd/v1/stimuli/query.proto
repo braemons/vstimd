@@ -4,6 +4,7 @@ package vstimd.v1;
 import "vstimd/v1/stimuli/circle.proto";
 import "vstimd/v1/stimuli/dots.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
+import "vstimd/v1/stimuli/gaussian_splat.proto";
 import "vstimd/v1/stimuli/grating.proto";
 import "vstimd/v1/stimuli/shapes3d.proto";
 import "vstimd/v1/stimuli/polygon.proto";
@@ -30,6 +31,7 @@ message StimulusParams {
     Sphere3DParams sphere_3d = 9;
     Plane3DParams plane_3d = 10;
     Corridor3DParams corridor_3d = 11;
+    // Gaussian splatting (prototype): see stimuli/gaussian_splat.proto.
     GaussianSplat3DParams gaussian_splat_3d = 12;
   }
 }

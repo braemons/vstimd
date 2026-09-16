@@ -23,5 +23,6 @@ enum StimulusType {
   STIMULUS_TYPE_SPHERE_3D   = 21;
   STIMULUS_TYPE_PLANE_3D    = 22;
   STIMULUS_TYPE_CORRIDOR_3D = 23;
+  // Gaussian splatting (prototype): see stimuli/gaussian_splat.proto.
   STIMULUS_TYPE_GAUSSIAN_SPLAT_3D = 24;
 }

@@ -9,6 +9,7 @@ from vstimd._proto.vstimd.v1.stimuli import (
 from vstimd.response import ServerResponse
 
 from .dots_client import DotsClient
+from .gaussian_splat_client import GaussianSplatClient
 from .grating_client import GratingClient
 from .shapes_client import ShapesClient, _SendFn
 from .shapes3d_client import Shapes3DClient
@@ -29,6 +30,7 @@ class StimuliClient:
     * ``text`` — :class:`~vstimd.stimuli.TextClient`: text stimuli
     * ``dots`` — :class:`~vstimd.stimuli.DotsClient`: random dot kinematograms
     * ``shapes3d`` — :class:`~vstimd.stimuli.Shapes3DClient`: cubes, spheres and planes in 3-D
+    * ``gaussian_splat`` — :class:`~vstimd.stimuli.GaussianSplatClient`: trained 3DGS scenes
 
     Example::
 
@@ -50,6 +52,7 @@ class StimuliClient:
         self.text = TextClient(send)
         self.dots = DotsClient(send)
         self.shapes3d = Shapes3DClient(send)
+        self.gaussian_splat = GaussianSplatClient(send)
         self._send = send
 
     # ── Generic mutations ──────────────────────────────────────────────────────

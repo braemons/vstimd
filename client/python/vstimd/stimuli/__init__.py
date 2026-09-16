@@ -16,13 +16,15 @@ from .dots_models import (
     lifetime_from_psychopy,
     px_per_deg,
 )
+# Gaussian splatting (prototype): its own client and models, removable together.
+from .gaussian_splat_client import GaussianSplatClient
+from .gaussian_splat_models import GaussianSplat3DParams
 from .grating_client import GratingClient
 from .grating_models import GratingMask, GratingParams, GratingTexture
 from .shapes_client import ShapesClient
 from .shapes3d_client import Shapes3DClient
 from .shapes3d_models import (
     Corridor3DParams,
-    GaussianSplat3DParams,
     Cube3DParams,
     Material3D,
     Plane3DParams,
@@ -56,8 +58,9 @@ __all__ = [
     "Vec2",
     "Vec3",
     "Shapes3DClient",
-    "Corridor3DParams",
+    "GaussianSplatClient",
     "GaussianSplat3DParams",
+    "Corridor3DParams",
     "Cube3DParams",
     "Repeat3D",
     "Material3D",

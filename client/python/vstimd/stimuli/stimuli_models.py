@@ -9,10 +9,10 @@ from vstimd._proto.vstimd.v1.stimuli import query_pb2, stimulus_type_pb2
 from .color import Color
 from .dots_models import DotsParams
 from .grating_models import GratingParams
+from .gaussian_splat_models import GaussianSplat3DParams
 from .shapes3d_models import (
     Corridor3DParams,
     Cube3DParams,
-    GaussianSplat3DParams,
     Plane3DParams,
     Sphere3DParams,
     Transform3D,

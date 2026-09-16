@@ -315,7 +315,7 @@ splats by opacity × volume until `max_splats` is met and writes the output.
 **The result is used with an identity transform:**
 
 ```python
-conn.stimuli.shapes3d.create_gaussian_splat("splats/corridor_a.ply")
+conn.stimuli.gaussian_splat.create("splats/corridor_a.ply")
 conn.system.set_camera(Camera3D(position_cm=Vec3(0, report.capture_height_cm, 0)))
 conn.animations.create_linear_nav_3d(20.0, track_length_cm=report.path_length_cm, fade_frames=30)
 ```

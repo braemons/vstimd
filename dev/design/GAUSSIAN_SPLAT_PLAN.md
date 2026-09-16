@@ -11,6 +11,27 @@ Phase 1 is implemented, following this plan with the decisions below:
 - **`GaussianSplat3D`** stimulus (`StimulusBody::GaussianSplat`), created from a
   server-side `.ply` or `.splat` path — interim until the asset store. The path is
   probed at create time (bad path → `INVALID_ARGUMENT`) and loaded on a thread.
+- **Kept separable.** Splatting is a prototype, so it is additive: everything
+  splat-specific lives in a file of its own, and the shared files carry only the
+  entries that cannot live anywhere else. Removing splatting is deleting those
+  files and the entries below.
+
+  | Own file | |
+  |---|---|
+  | `proto/vstimd/v1/stimuli/gaussian_splat.proto` | `GaussianSplat3DParams`, `CreateGaussianSplat3DRequest` |
+  | `server/src/ipc/gaussian_splat_commands.rs` | the create command |
+  | `server/src/ipc/convert/gaussian_splat.rs` | proto <-> scene |
+  | `server/src/scene/stimulus/gaussian_splat.rs` | the stimulus |
+  | `server/src/render/vk/vk_splat_pipeline.rs`, `.../cache/splat_cache.rs`, `server/shaders/splat.wgsl` | the render path |
+  | `client/python/vstimd/stimuli/gaussian_splat_{client,models}.py` | `conn.stimuli.gaussian_splat` |
+  | `client/python/tests/e2e/cases/test_gaussian_splat.py` | its e2e case |
+
+  In shared files the whole wire footprint is three lines — one `Request` arm
+  (`service.proto` 24), one `StimulusParams` arm (`query.proto` 12) and one
+  `StimulusType` value (24) — each marked with a comment pointing back here. The
+  Rust match arms that go with them are enforced by exhaustive matches, so the
+  compiler lists them if they are ever removed.
+
 - **CPU sort on a worker thread** (§4), instanced draw from storage buffers, SH degree 0.
 - **Finite track with a fade** (§6 option 1): `LinearNav3D.track_length_cm` +
   `fade_frames`. At the end the 3-D view fades to the background (a veil drawn last

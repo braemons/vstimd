@@ -122,7 +122,7 @@ server and the client move together, and nothing has shipped yet.
   it closed — so "what did this trial cost" is one round trip.
 - `EventSubscriber.unsubscribe(topic)` drops one of the topics a subscriber was
   created with.
-- **Gaussian splat scenes.** `conn.stimuli.shapes3d.create_gaussian_splat(path)`
+- **Gaussian splat scenes.** `conn.stimuli.gaussian_splat.create(path)`
   draws a trained 3-D Gaussian splat scene (a 3DGS `.ply`, or a `.splat`) from a
   file on the server, placed by a `Transform3D` whose `scale` sets centimetres
   per scene unit. `StimulusType` gains `GAUSSIAN_SPLAT_3D` and the query params
