@@ -56,9 +56,11 @@ stack; see §10's last paragraph before relying on any "camera far away" probe.
 
 Measured on the desktop (GTX 1650, `room-7k.splat`): read 60 ms, upload 100 ms,
 one sort 16 ms. Frame time could not be measured — the session's screen was
-locked, which throttles the window to 1 Hz. **Still to do:** frame time on this
-desktop and on the Jetson Orin Nano, a validation-layer run, `.ply` checked
-against a real scene on screen (only unit-tested so far), and the web client.
+locked, which throttles the window to 1 Hz. **Still to do:** frame time on the
+Jetson Orin Nano (desktop done — §10), a validation-layer run, and the web
+client. `.ply` is done: `bonsai-7k.ply` (the 3DGS reference layout) draws
+correctly on screen at the same placement the `.splat` captures use, so the
+loader is confirmed against a real scene and not only unit tests.
 
 ## 1. Verdict
 
@@ -297,6 +299,47 @@ Note which splats actually cost: screen area goes as (size/distance)², so fill
 is dominated by *near* splats. Culling removes instances, and instances are
 0.36 ms of 8 ms. Pruning helps because it removes overlapping faint splats that
 blend — the same reason the alpha floor works — not because it shortens the draw.
+
+### 10.3 The "camera far away" probe, and why it inverted
+
+The 2× regression at `z=20000` in the table above has a mechanism, offered here
+as a **hypothesis with a test, not a measurement** — the desktop window was
+compositor-throttled to 1 Hz when this was written, so it could not be checked
+on the GTX 1650 either.
+
+Two things work against the naive "far away removes fill" story, and both get
+worse as the scene gets bigger:
+
+1. **`DILATION = 0.3` px² is a floor, not a tweak.** It is added to the
+   projected 2-D covariance precisely so "a splat never covers less than about a
+   pixel" (`splat.wgsl`). So the fragment count can never fall below roughly one
+   or two pixels *per drawn splat*, however far away the camera goes. Distance
+   does not shrink the fill toward zero; it concentrates it into fewer pixels.
+2. **Distance removes frustum culling.** Inside a capture the camera is
+   surrounded, so a large share of splats are behind it or outside the frustum
+   and take `culled()`'s early-out. From outside, the whole scene is in view and
+   *every* splat survives to rasterise.
+
+Together: far away there are *more* rasterising splats, each pinned at ~1–2 px
+by the dilation, piled into a small screen region — and blending is a serialised
+read-modify-write per pixel. For 9.13 M splats that is on the order of 18 M
+fragments concentrated into a few tens of thousands of pixels. That is closer to
+a worst-case fill probe than a no-fill one. It only behaved on the GTX 1650
+because that scene was 1.13 M splats in a 4 m room.
+
+Three predictions, cheap to run, that would confirm or kill it:
+
+- moving *further* (`z = 200000`) should cost the **same**, not less — the
+  dilation floor pins per-splat area regardless of distance. This is the sharp
+  one: distance-independence implicates the floor directly.
+- far-away cost should scale about linearly with total splat count.
+- raising the FX panel's alpha floor should cut the far-away case hard.
+
+If it holds, the fix is a **screen-size cull**: drop splats whose projected
+extent is below a threshold before they reach the rasteriser. They cost a full
+fragment each and contribute almost nothing, and this is what the LOD papers in
+§10.1 do by other means. Cheap, and it helps the Orin Nano more per unit of
+effort than the tile rasteriser does.
 
 ## 11. Tile rasteriser (in progress, WIP)
 
