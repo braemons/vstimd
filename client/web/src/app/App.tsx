@@ -4,6 +4,7 @@ import { StimuliPanel } from "./StimuliPanel.js";
 import { VtlPanel } from "./VtlPanel.js";
 import { AnimationsPanel } from "./AnimationsPanel.js";
 import { SystemPanel } from "./SystemPanel.js";
+import { InputPanel } from "./InputPanel.js";
 import { SceneConfigPanel } from "./SceneConfigPanel.js";
 
 export function App() {
@@ -29,6 +30,7 @@ export function App() {
         <VtlPanel conn={conn} snapshot={snapshot} />
         <AnimationsPanel conn={conn} snapshot={snapshot} />
         <SystemPanel conn={conn} snapshot={snapshot} />
+        <InputPanel conn={conn} snapshot={snapshot} />
         <SceneConfigPanel conn={conn} />
       </div>
       <p style={{ color: "#666", fontSize: 12, marginTop: 12 }}>

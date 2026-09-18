@@ -5,6 +5,10 @@
 // Each stimulus carries both its stable UUID `id` and its u32 server `handle`
 // (the map key used to address mutations like SetPosition during RF mapping).
 
+import {
+  InputSemantic,
+  type InputDeviceInfo,
+} from "./_proto/vstimd/v1/input_pb.js";
 import type { SceneSnapshot as ProtoSnapshot } from "./_proto/vstimd/v1/snapshot_pb.js";
 import type { QueryStimulusResponse } from "./_proto/vstimd/v1/stimuli/query_pb.js";
 // Aliased: the client's own user-facing name for this taxonomy is StimulusType.
@@ -57,10 +61,62 @@ export function toVtlLineView(l: VirtualTriggerLineInfo): VtlLineView {
   };
 }
 
+export interface InputAxisView {
+  name: string;
+  semantic: "absolute" | "cumulative" | "rate" | "unknown";
+  /** The last frame's scaled value, and its change (cumulative axes only). */
+  value: number;
+  delta: number;
+}
+
+export interface InputDeviceView {
+  name: string;
+  /** "shm /vstimd_wheel" in production, "keyboard (…)" under --input-override. */
+  backend: string;
+  connected: boolean;
+  /** The producer is missing or silent: whatever it drives is holding still. */
+  stale: boolean;
+  /** Reads abandoned because the producer was mid-write. */
+  tornReads: bigint;
+  /**
+   * Frames that found no new sample. A few mean nothing — the producer's clock
+   * and the display's are unrelated — but a count climbing with the frame
+   * counter means the producer samples at or below the display rate, and what
+   * it drives moves in uneven steps.
+   */
+  starvedFrames: bigint;
+  axes: InputAxisView[];
+}
+
+/** Map a proto input device onto the public view. */
+export function toInputDeviceView(d: InputDeviceInfo): InputDeviceView {
+  const semantics = {
+    [InputSemantic.ABSOLUTE]: "absolute",
+    [InputSemantic.CUMULATIVE]: "cumulative",
+    [InputSemantic.RATE]: "rate",
+  } as const;
+  return {
+    name: d.name,
+    backend: d.backend,
+    connected: d.connected,
+    stale: d.stale,
+    tornReads: d.tornReads,
+    starvedFrames: d.starvedFrames,
+    axes: d.axes.map((a) => ({
+      name: a.name,
+      semantic: semantics[a.semantic as keyof typeof semantics] ?? "unknown",
+      value: a.value,
+      delta: a.delta,
+    })),
+  };
+}
+
 export interface SceneSnapshot {
   serverInfo?: ServerInfo;
   stimuli: StimulusView[];
   vtlLines: VtlLineView[];
+  /** The rig's input devices, as of this snapshot. Empty on a rig with none. */
+  inputDevices: InputDeviceView[];
   frameCount: bigint;
   serverTimeNs: bigint;
 }
@@ -139,6 +195,7 @@ export function toSceneSnapshot(p: ProtoSnapshot): SceneSnapshot {
       drawOrder: s.drawOrder,
     })),
     vtlLines: (p.vtlLines?.lines ?? []).map(toVtlLineView),
+    inputDevices: (p.inputDevices?.devices ?? []).map(toInputDeviceView),
     frameCount: p.frameCount,
     serverTimeNs: p.serverTimeNs,
   };

@@ -27,7 +27,13 @@ export {
   type Stimuli,
 } from "./animations.js";
 
-export type { SceneSnapshot, StimulusView, VtlLineView } from "./snapshot.js";
+export type {
+  InputAxisView,
+  InputDeviceView,
+  SceneSnapshot,
+  StimulusView,
+  VtlLineView,
+} from "./snapshot.js";
 
 export { rgb } from "./types.js";
 export type {
