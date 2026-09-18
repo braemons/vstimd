@@ -7,6 +7,7 @@ import "vstimd/v1/input.proto";
 import "vstimd/v1/stimuli/circle.proto";
 import "vstimd/v1/stimuli/dots.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
+import "vstimd/v1/stimuli/gaussian_splat.proto";
 import "vstimd/v1/stimuli/grating.proto";
 import "vstimd/v1/stimuli/shapes3d.proto";
 import "vstimd/v1/stimuli/polygon.proto";
@@ -85,6 +86,8 @@ message Request {
     CreateSphere3DRequest create_sphere_3d = 21;
     CreatePlane3DRequest create_plane_3d = 22;
     CreateCorridor3DRequest create_corridor_3d = 23;
+    // Gaussian splatting (prototype): see stimuli/gaussian_splat.proto.
+    CreateGaussianSplat3DRequest create_gaussian_splat_3d = 24;
 
     // ── Generic stimulus mutations (stimulus target only) ───────────────────
     SetEnabledRequest set_enabled = 30;

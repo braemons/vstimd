@@ -10,6 +10,7 @@ use super::file_browser::BrowserMode;
 use super::overlay_state::{OverlayGroup, OverlayState};
 use super::panels::animations_panel::animations_panel;
 use super::panels::benchmarks_panel::benchmarks_panel;
+use super::panels::fx_panel::fx_panel;
 use super::panels::scene_config_panel::scene_config_panel;
 use super::panels::log_panel::log_panel;
 use super::panels::stimuli_panel::stimuli_panel;
@@ -213,8 +214,7 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                 group_panel_header(ui, OverlayGroup::System,
                     foc(OverlayGroup::System), want(OverlayGroup::System), &mut closed,
                     |ui, _| {
-                    system_panel(ui, sys, display, *wireframe, metrics, scene,
-                        wireframe_toggle_requested);
+                    system_panel(ui, sys, display, metrics, scene);
                     ui.separator();
                     frame_timing(ui, frame_stats, last_phases);
                 });
@@ -235,6 +235,21 @@ pub fn build_overlay_ui(ctx: &egui::Context, args: &mut OverlayArgs<'_>) {
                 });
             });
             if closed { visible[OverlayGroup::SceneConfig.index()] = false; }
+        }
+
+        // ── FX ────────────────────────────────────────────────────────────────
+        if visible[OverlayGroup::Fx.index()] {
+            let mut closed = false;
+            egui::Panel::left("ovl_fx").resizable(false).default_size(GROUP_W)
+                .frame(group_frame(OverlayGroup::Fx, &style))
+                .show_inside(ui, |ui| {
+                group_panel_header(ui, OverlayGroup::Fx,
+                    foc(OverlayGroup::Fx), want(OverlayGroup::Fx), &mut closed,
+                    |ui, _| {
+                    fx_panel(ui, *wireframe, wireframe_toggle_requested, scene);
+                });
+            });
+            if closed { visible[OverlayGroup::Fx.index()] = false; }
         }
 
         // ── Benchmarks ────────────────────────────────────────────────────────

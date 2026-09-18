@@ -10,7 +10,7 @@ use crate::scene::SceneState;
 use crate::scene::units::Pos2Px;
 use super::animation_input::{self, AxisMap, TransformChannel, Update};
 use super::AnimationTarget;
-use crate::scene::{Camera3D, Stimulus, StimulusBody};
+use crate::scene::{Camera3D, Stimulus};
 use crate::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs};
 use vtl::VtlKind;
 
@@ -155,6 +155,7 @@ pub(crate) fn advance_one(
                     entry.state = AnimState::Running { frame_counter: 0 };
                     entry.distance_travelled_cm = 0.0;
                     entry.nav_position_cm = None;
+                    entry.track_progress = Default::default();
                 }
             }
         }
@@ -361,7 +362,7 @@ pub(crate) fn advance_one(
                 false
             }
 
-            Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm, source } => {
+            Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm, source, track } => {
                 let step_cm = match source {
                     // Nominal rate, like MoveAlongSegments2D: a scripted run covers
                     // the same distance in the same number of frames every time (#120).
@@ -373,11 +374,17 @@ pub(crate) fn advance_one(
                     }
                 };
                 let wrap = *wrap_period_cm;
+                let track = *track;
                 let nav = entry.nav_position_cm;
-                let nav = advance_camera_along_forward(scene, nav, step_cm, wrap);
+                let mut progress = entry.track_progress;
+                let (nav, moved_cm) = match track {
+                    None => (advance_camera_along_forward(scene, nav, step_cm, wrap), step_cm),
+                    Some(track) => advance_on_track(scene, nav, step_cm, track, &mut progress),
+                };
                 if let Some(entry) = scene.config.animations.get_mut(&handle) {
-                    entry.distance_travelled_cm += step_cm;
+                    entry.distance_travelled_cm += moved_cm;
                     entry.nav_position_cm = Some(nav);
+                    entry.track_progress = progress;
                 }
                 false
             }
@@ -447,6 +454,90 @@ fn advance_camera_along_forward(
     super::NavPosition { x, z, written }
 }
 
+/// One frame of a finite track: move, fade out at the end, jump back to the
+/// start, fade in. Returns the integration state and how far the camera moved.
+///
+/// The end is measured along the heading the camera started with, so strafing
+/// or turning never ends the track early. The jump restores the start's yaw as
+/// well as its position: the next lap begins facing down the track again.
+fn advance_on_track(
+    scene: &mut SceneState,
+    nav: Option<super::NavPosition>,
+    step_cm: f64,
+    track: super::Track3D,
+    progress: &mut super::TrackProgress,
+) -> (super::NavPosition, f64) {
+    use super::TrackPhase;
+    let start = *progress.start.get_or_insert_with(|| {
+        let c = &scene.config.camera.live;
+        super::animation_entry::TrackStart {
+            x: f64::from(c.position_cm.0.x),
+            z: f64::from(c.position_cm.0.z),
+            yaw_deg: c.yaw_deg,
+        }
+    });
+    let fade_frames = track.fade_frames;
+
+    if let TrackPhase::FadingOut(left) = progress.phase {
+        if left > 1 {
+            progress.phase = TrackPhase::FadingOut(left - 1);
+            return (hold_camera(scene, nav), 0.0);
+        }
+        let nav = jump_to_track_start(scene, start);
+        progress.laps += 1;
+        progress.phase = TrackPhase::FadingIn(fade_frames);
+        return (nav, 0.0);
+    }
+
+    let nav = advance_camera_along_forward(scene, nav, step_cm, None);
+    if let TrackPhase::FadingIn(left) = progress.phase {
+        progress.phase = match left {
+            0 | 1 => TrackPhase::Moving,
+            _ => TrackPhase::FadingIn(left - 1),
+        };
+    }
+    let yaw = f64::from(start.yaw_deg).to_radians();
+    // Forward is -Z at yaw 0; positive yaw turns left, towards -X.
+    let along_cm = -(nav.x - start.x) * yaw.sin() - (nav.z - start.z) * yaw.cos();
+    if along_cm >= f64::from(track.length_cm) && progress.phase == TrackPhase::Moving {
+        if fade_frames == 0 {
+            progress.laps += 1;
+            return (jump_to_track_start(scene, start), step_cm);
+        }
+        progress.phase = TrackPhase::FadingOut(fade_frames);
+    }
+    (nav, step_cm)
+}
+
+/// The integration state for a frame the camera does not move.
+fn hold_camera(scene: &SceneState, nav: Option<super::NavPosition>) -> super::NavPosition {
+    let current = scene.config.camera.live.position_cm.0;
+    match nav {
+        Some(n) if n.written == current => n,
+        _ => super::NavPosition {
+            x: f64::from(current.x),
+            z: f64::from(current.z),
+            written: current,
+        },
+    }
+}
+
+/// Put the camera back at a track's start, in both the live and staged camera
+/// (see [`advance_camera_along_forward`]).
+fn jump_to_track_start(
+    scene: &mut SceneState,
+    start: super::animation_entry::TrackStart,
+) -> super::NavPosition {
+    let camera = &mut scene.config.camera;
+    let y = camera.live.position_cm.0.y;
+    let written = glam::Vec3::new(start.x as f32, y, start.z as f32);
+    for cam in [&mut camera.live, &mut camera.copy] {
+        cam.position_cm = crate::scene::units::Pos3Cm(written);
+        cam.yaw_deg = start.yaw_deg;
+    }
+    super::NavPosition { x: start.x, z: start.z, written }
+}
+
 /// Apply one device-driven update to a camera.
 fn apply_to_camera(cam: &mut Camera3D, map: &AxisMap, update: Update) {
     use animation_input::apply;
@@ -486,8 +577,8 @@ fn apply_to_camera(cam: &mut Camera3D, map: &AxisMap, update: Update) {
 /// one. Channels the stimulus does not have are ignored.
 fn apply_to_stimulus(stim: &mut Stimulus, map: &AxisMap, update: Update) {
     use animation_input::apply;
-    if let StimulusBody::Mesh3d(m) = &mut stim.body {
-        let t = &mut m.transform.live;
+    if let Some(transform) = stim.transform3d_mut() {
+        let t = &mut transform.live;
         let (p, r, s) = (&mut t.position_cm.0, &mut t.rotation_deg, &mut t.scale);
         match map.channel {
             TransformChannel::PosX => p.x = apply(p.x, update, map),

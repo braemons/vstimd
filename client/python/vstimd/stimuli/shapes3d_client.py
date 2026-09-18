@@ -22,7 +22,7 @@ _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
 
 
 class Shapes3DClient:
-    """Create and mutate 3-D stimuli: cubes, spheres and planes.
+    """Create and mutate 3-D stimuli: cubes, spheres, planes and corridors.
 
     Accessed as ``conn.stimuli.shapes3d``. 3-D stimuli are seen through the scene
     camera (``conn.system.set_camera``) and drawn underneath every 2-D stimulus.

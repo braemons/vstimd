@@ -93,6 +93,14 @@ message LinearNav3D {
   // cm/s over real frame time (dropped frames included), a cumulative axis moves
   // the camera by exactly its change. An absolute axis is INVALID_ARGUMENT.
   AxisRef source = 3;
+  // A finite track instead of a wrap: once the camera is track_length_cm ahead
+  // of where it started (measured along its starting heading), the 3-D view
+  // fades to the background colour over fade_frames, the camera jumps back to
+  // its start, and the view fades in again over fade_frames. The camera does
+  // not move while fading out. 2-D stimuli are not faded.
+  // (0 → no track; INVALID_ARGUMENT together with wrap_period_cm)
+  float track_length_cm = 4;
+  uint32 fade_frames = 5;  // (0 → an instant jump)
 }
 
 // One axis of a rig-config input device, by name.

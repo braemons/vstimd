@@ -328,7 +328,21 @@ impl FrameStats {
         let dropped = if let Some(last) = self.last_present {
             let dur_ns = vblank_time.duration_since(last).as_nanos() as u64;
             let d = match self.pacing {
-                Pacing::Vblank => self.count_missed_vblanks(dur_ns),
+                // Both, because they catch different failures. Per-interval
+                // detection names a *specific* missed vblank the moment it
+                // happens, which is what the log warning needs; but it judges
+                // each interval on its own, so a sustained shortfall whose
+                // every interval sits under the 1.25x threshold — 120 fps on a
+                // 144 Hz display, say — never registers. The cumulative
+                // deficit catches exactly that. Taking the larger of the two
+                // reports each refresh that went unfilled once: the deficit
+                // baseline advances either way, so a gap already counted
+                // per-interval is not counted again later.
+                Pacing::Vblank => {
+                    let missed = self.count_missed_vblanks(dur_ns);
+                    let deficit = self.count_rate_deficit(vblank_time);
+                    missed.max(deficit)
+                }
                 Pacing::AveragedRate => self.count_rate_deficit(vblank_time),
             };
             self.drop_count += d as u64;
@@ -483,6 +497,28 @@ mod tests {
         // One interval of two periods = one vblank missed.
         let drops = replay(&mut s, &[PERIOD, PERIOD * 2, PERIOD]);
         assert_eq!(drops, 1);
+    }
+
+    #[test]
+    fn vblank_pacing_reports_a_sustained_shortfall() {
+        // 120 fps against a 144 Hz display: 8.333 ms intervals against a
+        // 6.944 ms period. Every interval is under the 1.25x threshold, so
+        // per-interval detection sees nothing -- but a sixth of the display's
+        // refreshes showed no new frame, which is exactly what an experiment
+        // needs flagged.
+        let hz = 144.0;
+        let period_ns = 1e9 / hz;
+        let intervals = vec![Duration::from_nanos((1e9 / 120.0) as u64); 600];
+        let mut s = FrameStats::new(hz);
+        let drops = replay(&mut s, &intervals);
+        // 600 frames at 120 fps span 5 s; a 144 Hz display refreshed 720 times
+        // in that window, so 120 refreshes went unfilled.
+        let expected = 600.0 * (1e9 / 120.0) / period_ns - 600.0;
+        assert!(
+            (drops as f64) > expected * 0.9,
+            "sustained 120 fps on a 144 Hz display must report about {expected:.0} \
+             dropped frames, got {drops}"
+        );
     }
 
     #[test]

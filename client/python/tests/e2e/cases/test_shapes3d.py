@@ -1,6 +1,9 @@
-"""E2E tests for 3-D stimuli (cube, sphere, plane), the camera and lighting."""
+"""E2E tests for 3-D stimuli (cube, sphere, plane, corridor), the camera and lighting."""
 
 from __future__ import annotations
+
+import pathlib
+import struct
 
 import pytest
 

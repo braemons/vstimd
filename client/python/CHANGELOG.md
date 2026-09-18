@@ -131,7 +131,14 @@ server and the client move together, and nothing has shipped yet.
   it closed — so "what did this trial cost" is one round trip.
 - `EventSubscriber.unsubscribe(topic)` drops one of the topics a subscriber was
   created with.
-
+- **Gaussian splat scenes.** `conn.stimuli.gaussian_splat.create(path)`
+  draws a trained 3-D Gaussian splat scene (a 3DGS `.ply`, or a `.splat`) from a
+  file on the server, placed by a `Transform3D` whose `scale` sets centimetres
+  per scene unit. `StimulusType` gains `GAUSSIAN_SPLAT_3D` and the query params
+  `GaussianSplat3DParams`. For content that does not repeat, such as a scanned
+  corridor, `create_linear_nav_3d(track_length_cm=..., fade_frames=...)` walks a
+  finite track: at its end the 3-D view fades out, the camera jumps back to its
+  start, and the view fades in.
 - **Camera zones.** `conn.system.set_camera_zones([CameraZone(...)])` turns a
   region of the 3-D world into a trigger-line input: HIGH while the camera is
   inside, edges on entry and exit, so any trigger-reacting animation — including

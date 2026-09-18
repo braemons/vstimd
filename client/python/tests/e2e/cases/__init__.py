@@ -11,6 +11,8 @@ from .test_query import *       # noqa: F401, F403
 from .test_rect import *        # noqa: F401, F403
 from .test_shapes import *      # noqa: F401, F403
 from .test_shapes3d import *    # noqa: F401, F403
+# Gaussian splatting (prototype): its own case file, removable on its own.
+from .test_gaussian_splat import *  # noqa: F401, F403
 from .test_shared import *      # noqa: F401, F403
 from .test_system import *      # noqa: F401, F403
 from .test_text import *        # noqa: F401, F403

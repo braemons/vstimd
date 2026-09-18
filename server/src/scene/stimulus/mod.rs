@@ -1,4 +1,5 @@
 pub mod dots;
+mod gaussian_splat;
 pub mod grating;
 mod mesh3d;
 mod shape;
@@ -16,6 +17,7 @@ pub use dots::{
     Aperture, ApertureClip, ApertureShape, DotShape, Dots, DotsConfig, DotsParams, NoiseRule,
     Reinsertion, SignalRule,
 };
+pub use gaussian_splat::GaussianSplat;
 pub use grating::{Grating, GratingMask, GratingParams, Waveform};
 pub use mesh3d::{CorridorParams, Mesh3d, Mesh3dGeometry, MeshKey, Repeat3D};
 pub use shape::{Shape, ShapeGeometry};

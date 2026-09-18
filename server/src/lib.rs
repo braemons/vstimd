@@ -9,6 +9,7 @@ pub mod proto;
 pub mod render;
 pub mod rig_config;
 pub mod scene;
+pub use vsplat as splat;
 pub mod scene_config_file;
 pub mod system_info;
 pub mod system_metrics;

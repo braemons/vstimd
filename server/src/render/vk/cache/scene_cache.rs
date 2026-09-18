@@ -1,7 +1,7 @@
 use ash::vk;
 
 use crate::render::vk::cache::{
-    DotsInstanceCache, Mesh3dCache, PhotodiodeCache, SolidMeshCache, TextMeshCache,
+    DotsInstanceCache, Mesh3dCache, PhotodiodeCache, SolidMeshCache, SplatCache, TextMeshCache,
 };
 
 /// Unified GPU-side cache for all stimulus types.
@@ -19,6 +19,11 @@ pub struct SceneCache {
     /// Shared unit meshes for 3-D stimuli, keyed by geometry. Empty, and never
     /// touched, in a pure 2-D scene.
     pub mesh3d: Mesh3dCache,
+    /// Gaussian splat clouds, keyed by stimulus handle. Empty in a scene
+    /// without splats.
+    pub splats: SplatCache,
+    /// Reused by [`SplatCache::sync`] so following the scene does not allocate.
+    pub splat_handles: Vec<u32>,
 }
 
 impl SceneCache {
@@ -33,6 +38,8 @@ impl SceneCache {
             dots: DotsInstanceCache::new(instance, physical_device, frames_in_flight),
             photodiode: PhotodiodeCache::default(),
             mesh3d: Mesh3dCache::new(instance, physical_device),
+            splats: SplatCache::new(instance, physical_device, frames_in_flight),
+            splat_handles: Vec::new(),
         }
     }
 
@@ -41,5 +48,6 @@ impl SceneCache {
         self.text.destroy_all(device);
         self.dots.destroy_all(device);
         self.mesh3d.destroy_all(device);
+        self.splats.destroy_all(device);
     }
 }

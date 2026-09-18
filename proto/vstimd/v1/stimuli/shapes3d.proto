@@ -138,7 +138,7 @@ message SetTransform3DRequest {
   Transform3D transform = 1;
 }
 
-// Any 3-D type. Same defaults as Material3D.
+// Any 3-D type with a material (WRONG_STIMULUS_TYPE otherwise). Same defaults as Material3D.
 message SetMaterial3DRequest {
   Material3D material = 1;
 }
