@@ -236,15 +236,23 @@ for ticks in read_serial_wheel():
 
 ### 4.5 Consumer side (render thread)
 
-Reads are atomic loads against an already-mapped region: no syscall, no allocation, no lock. The
-mapping is established on the **ZMQ thread** when the animation is created or the config is
-loaded — never inside `advance()`, which runs on the render thread and must not block or allocate
+Reads are atomic loads against an already-mapped region: no syscall, no allocation, no lock —
+never inside `advance()`, which runs on the render thread and must not block or allocate
 (`CLAUDE.md`).
 
-Devices are opened once and shared: `SceneState.runtime.input_devices: HashMap<String,
-Arc<InputDevice>>`, refcounted, so two animations naming `/vstimd_wheel` map it once. This map is
-runtime state and is **not** serialized into the config JSON — the animation stores the device
-*name*, and the mapping is re-established on load (same split as `GratingStimulus::phase_accum`).
+**As built** (`server/src/input/devices.rs`): the devices are the rig's, not an animation's, so
+`SceneState.runtime.input` is an `InputRegistry` holding one `InputDevice` per `[[input.device]]`
+entry, created at startup whether or not anything names it, and `sample_all` reads every one of
+them once per frame under the write lock the render thread already takes. Two animations naming
+one device therefore share a mapping by construction, with nothing to refcount.
+
+Opening is a syscall, so it happens on a **reconnect thread** (`spawn_reconnector`), not the ZMQ
+thread as an earlier revision of this section had it: a device with no segment, or one whose
+producer has gone stale, is retried outside the lock and the result swapped in under it. That is
+what lets a producer be restarted — or started *after* vstimd — without restarting the display.
+
+The registry is runtime state and is **not** serialized into the config JSON — an animation stores
+the device *name*, and resolution happens per frame (same split as `GratingStimulus::phase_accum`).
 
 ---
 
@@ -357,14 +365,14 @@ POSIX shm names take a leading `/`, by convention prefixed `vstimd_`:
 | Source | shm name | Axes |
 |---|---|---|
 | Eye tracker (gaze) | `/vstimd_gaze` | `x`, `y` — `Absolute`, screen px, centre = 0 |
-| Treadmill / mouse wheel | `/vstimd_wheel` | `distance` — `Cumulative`, encoder counts |
+| Treadmill / mouse wheel | `/vstimd_wheel` | `distance` — `Cumulative`, centimetres (see *Who owns calibration* below) |
 | Joystick / lever | `/vstimd_joystick` | `x`, `y` — `Absolute`, normalised −1..1 |
 | Custom DAQ | `/vstimd_daq` | user-defined |
 
-**Devices are declared in the rig config, not in the animation.** Calibration (counts → cm), axis
-semantics and staleness thresholds are properties of the *hardware on this rig*, and belong
-alongside the existing `[vtl]` section in `rig-config.toml` — not embedded in every animation that
-happens to use the device, and not re-sent by every experiment script.
+**Devices are declared in the rig config, not in the animation.** Axis names, semantics and
+staleness thresholds are properties of the *hardware on this rig*, and belong alongside the
+existing `[vtl]` section in `rig-config.toml` — not embedded in every animation that happens to
+use the device, and not re-sent by every experiment script.
 
 ```toml
 [[input.device]]
@@ -375,11 +383,26 @@ stale_after_ms = 100
   [[input.device.axis]]
   name     = "distance"
   semantic = "cumulative"
-  scale    = 0.0127                 # counts → cm (encoder-specific)
+  scale    = 1.0                    # the producer already publishes cm
 ```
 
 Animations then say `device = "treadmill"`, and a rig with a different encoder needs no script
 change. This mirrors how VTL lines get names rather than raw bank/bit indices.
+
+### Who owns calibration
+
+**The producer does, and it publishes the unit.** An earlier revision of this section put the
+encoder factor here (`scale = 0.0127  # counts → cm`), which makes two copies of one hardware
+fact — and the copy the rest of the rig can see is the wrong one. A wheel daemon needs
+centimetres anyway, for its own API, its records and any distance-triggered TTL it fires; a trial
+recorder needs them too, and neither can read vstimd's `rig-config.toml`. So the counts-per-cm
+lives with the encoder (`mousewheeld/dev/PLAN.md`, *Calibration*), the segment carries
+centimetres, and vstimd restates nothing.
+
+`scale` stays, because it is still the right answer for a producer that cannot be changed — a
+vendor eye tracker writing raw ADC units — and because a unit trim is cheap where it is read.
+It is **not** where a rig's calibration is recorded: a value other than `1.0` means "this
+producer publishes something other than the axis' unit", and nothing else.
 
 `ExternalPosition2D` keeps its literal `shm_name` field for backward compatibility with its
 existing proto message; new work uses the logical-name path.

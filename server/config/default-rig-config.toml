@@ -129,4 +129,11 @@
 #   [[input.device.axis]]
 #   name     = "distance"
 #   semantic = "cumulative"    # absolute | cumulative | rate
-#   scale    = 0.0127          # encoder counts → cm
+#   scale    = 1.0             # the producer publishes cm already
+#
+# scale is a unit trim for a producer that cannot be changed -- a vendor eye
+# tracker writing raw ADC units -- and NOT where a rig's calibration lives.
+# Counts-per-cm belongs with the encoder, in the daemon that reads it: it needs
+# centimetres for its own API and records, and nothing else on the rig can read
+# this file.  A value other than 1.0 says "this producer publishes something
+# other than this axis' unit", and nothing more.

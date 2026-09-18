@@ -77,7 +77,10 @@ impl InputDeviceRigConfig {
 pub struct InputAxisRigConfig {
     pub name: String,
     pub semantic: InputSemantic,
-    /// Raw producer value → the axis' unit, e.g. encoder counts → cm. Default 1.
+    /// Raw producer value → the axis' unit. Default 1, which is what a producer
+    /// that publishes the unit itself wants. This is a unit trim for a producer
+    /// that cannot be changed, not the rig's calibration: counts-per-cm belongs
+    /// with the encoder (`dev/INPUT_LATENCY.md` §6, *Who owns calibration*).
     #[serde(default = "InputAxisRigConfig::default_scale")]
     pub scale: f32,
     /// Scaled absolute or rate values within ±deadzone of zero read as zero.
