@@ -65,6 +65,9 @@ fn is_ok(resp: &proto::Response) -> bool {
 fn placement_2d(info: &proto::QueryStimulusResponse) -> proto::Transform2D {
     match info.placement.clone() {
         Some(proto::query_stimulus_response::Placement::Transform2d(t)) => t,
+        Some(proto::query_stimulus_response::Placement::Transform3d(_)) => {
+            panic!("expected a 2-D placement, got a 3-D one")
+        }
         None => panic!("query response carried no placement"),
     }
 }
@@ -278,7 +281,7 @@ fn test_set_position() {
         body: Some(request::Body::SetPosition(proto::SetPositionRequest { x_px: 42.0, y_px: -7.0 })),
     }, None);
     assert!(is_ok(&resp));
-    assert_eq!(scene.stimuli[&h].stimulus.get_pos_2d(), Some([42.0, -7.0]));
+    assert_eq!(scene.stimuli[&h].stimulus.get_pos_2d(), Some(vstimd::scene::Pos2Px([42.0, -7.0])));
 }
 
 #[test]
@@ -351,7 +354,7 @@ fn test_immediate_mode_composes_mutations_and_marks_dirty() {
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+    assert_eq!(t.live.pos_px, vstimd::scene::Pos2Px([15.0, 25.0]));
     assert_eq!(t.live.angle_deg, 30.0);
 
     let app = stim.shape_appearance().expect("expected shape");
@@ -434,7 +437,7 @@ fn test_ending_deferred_mode_that_never_began_leaves_the_scene_alone() {
         scene.apply_flip();
     }
     let t = scene.stimuli.get(&h).unwrap().stimulus.transform2d().expect("2-D");
-    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+    assert_eq!(t.live.pos_px, vstimd::scene::Pos2Px([15.0, 25.0]));
 }
 
 #[test]
@@ -446,7 +449,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
 
     let stim_obj = &mut scene.stimuli.get_mut(&h).unwrap().stimulus;
     stim_obj.transform2d_mut().expect("expected 2-D stimulus").live =
-        vstimd::scene::Transform2D { pos_px: [1.0, 2.0], angle_deg: 3.0 };
+        vstimd::scene::Transform2D { pos_px: vstimd::scene::Pos2Px([1.0, 2.0]), angle_deg: 3.0 };
     {
         let app = stim_obj.shape_appearance_mut().expect("expected shape");
         app.live.fill_color = Color::new(0.11, 0.12, 0.13, 0.14);
@@ -505,9 +508,9 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos_px, [1.0, 2.0]);
+    assert_eq!(t.live.pos_px, vstimd::scene::Pos2Px([1.0, 2.0]));
     assert_eq!(t.live.angle_deg, 3.0);
-    assert_eq!(t.copy.pos_px, [15.0, 25.0]);
+    assert_eq!(t.copy.pos_px, vstimd::scene::Pos2Px([15.0, 25.0]));
     assert_eq!(t.copy.angle_deg, 30.0);
 
     let app = stim.shape_appearance().expect("expected shape");
@@ -534,7 +537,7 @@ fn test_deferred_mode_stages_composed_mutations_until_flip() {
     let entry = scene.stimuli.get(&h).unwrap();
     let stim = &entry.stimulus;
     let t = stim.transform2d().expect("expected 2-D stimulus");
-    assert_eq!(t.live.pos_px, [15.0, 25.0]);
+    assert_eq!(t.live.pos_px, vstimd::scene::Pos2Px([15.0, 25.0]));
     assert_eq!(t.live.angle_deg, 30.0);
     let app = stim.shape_appearance().expect("expected shape");
     assert_eq!(app.live.fill_color, Color::new(0.1, 0.2, 0.3, 0.4));
@@ -759,7 +762,7 @@ fn test_create_text() {
     assert_eq!(t.font_family, "Open Sans");
     assert_eq!(t.letter_height_px, 32.0);
     assert_eq!(t.box_size_px.live, [400.0, 80.0]);
-    assert_eq!(t.transform.live.pos_px, [10.0, -20.0]);
+    assert_eq!(t.transform.live.pos_px, vstimd::scene::Pos2Px([10.0, -20.0]));
     assert_eq!(t.params.live.color, Color::new(1.0, 1.0, 0.0, 1.0));
     assert_eq!(t.params.live.fill_color.a, 0.0); // transparent by default
 }
@@ -1578,4 +1581,52 @@ fn create_ellipse_appearance_fields_fall_back_individually() {
     assert_eq!(app.fill_color, default_fill, "fill should fall back");
     assert_eq!(app.outline_color, default_outline, "outline should fall back");
     assert_eq!(app.stroke_width_px, 2.0, "width_px 0 means unset, not hairline");
+}
+
+// ── Frame statistics ──────────────────────────────────────────────────────────
+
+fn frame_stats(resp: proto::Response) -> proto::FrameStats {
+    assert!(is_ok(&resp), "unexpected error: {}", resp.error);
+    match resp.body {
+        Some(proto::response::Body::FrameStats(s)) => s,
+        other => panic!("expected FrameStats, got {other:?}"),
+    }
+}
+
+#[test]
+fn test_frame_stats_query_and_reset() {
+    let mut scene = SceneState::new();
+    let query = || proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::QueryFrameStats(proto::QueryFrameStatsRequest {})),
+    };
+    let reset = || proto::Request {
+        target: Some(sys()),
+        body: Some(request::Body::ResetFrameStats(proto::ResetFrameStatsRequest {})),
+    };
+
+    // What a render loop records between two commands.
+    scene.runtime.frame_stats.record(None, 0);
+    scene.runtime.frame_stats.record(Some(16_666_667), 0);
+    scene.runtime.frame_stats.record(Some(33_333_333), 1);
+    scene.runtime.frame_count = 3;
+
+    let s = frame_stats(scene.handle_request(query(), None));
+    assert_eq!((s.presented_frames, s.dropped_frames), (3, 1));
+    assert!((s.max_frame_interval_ms - 33.333333).abs() < 1e-3);
+    assert!((s.nominal_frame_interval_ms - 1000.0 / 60.0).abs() < 1e-3);
+
+    // Reset answers with the window it closed, then starts from zero.
+    let closed = frame_stats(scene.handle_request(reset(), None));
+    assert_eq!(closed, s);
+    let fresh = frame_stats(scene.handle_request(query(), None));
+    assert_eq!((fresh.presented_frames, fresh.dropped_frames), (0, 0));
+    assert_eq!(fresh.window_start_frame, 3);
+
+    // A system command: a stimulus target is refused.
+    let resp = scene.handle_request(
+        proto::Request { target: Some(stim(1)), ..query() },
+        None,
+    );
+    assert_eq!(resp.code, proto::ErrorCode::WrongTarget as i32);
 }

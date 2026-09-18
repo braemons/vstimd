@@ -165,6 +165,7 @@ impl DrmRenderLoopData {
 
         // Build scene + text sub-renderers first (before ctx moves).
         let storage_dir = scene.read().unwrap().runtime.storage_dir.clone();
+        let capture_rx = scene.read().unwrap().runtime.take_capture_receiver();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
         let text = TextRenderer::new(&ctx);
 
@@ -244,11 +245,13 @@ impl DrmRenderLoopData {
             clock_source: vblank.clock_source(ctx.present_wait.is_some()),
         };
 
+        let frame_stats_window = scene_renderer.frame_stats_window();
+
         let rs = RenderState {
             scene_renderer,
             text,
             ui: Some(ui),
-            timing: FrameTiming::new(display_info.refresh_hz),
+            timing: FrameTiming::new(display_info.refresh_hz, frame_stats_window),
             events,
             system_info,
             display_info,
@@ -256,7 +259,7 @@ impl DrmRenderLoopData {
         };
 
         Self {
-            shot: crate::render::Screenshotter::new(),
+            shot: crate::render::Screenshotter::new(capture_rx),
             rs,
             vtl,
             input,
@@ -407,8 +410,9 @@ impl DrmRenderLoopData {
             // render state can be held at once.
             let Self { rs, shot, vtl, .. } = &mut self;
             let readback = shot.begin(&rs.ctx);
-            render_frame(rs, screen_clock, egui_raw_input, vtl.as_deref(), readback);
-            shot.finish(&rs.ctx);
+            let (tick, _) =
+                render_frame(rs, screen_clock, egui_raw_input, vtl.as_deref(), readback);
+            shot.finish(&rs.ctx, tick.as_ref().map(|t| t.frame));
 
         }
         // When the loop exits, `self` is consumed and fields drop in

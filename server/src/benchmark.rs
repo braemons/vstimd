@@ -76,7 +76,7 @@ impl BenchmarkState {
                         StimulusSceneEntry::new(
                             StimulusIdentity::new(None),
                             Stimulus::from(Grating::new(
-                                [cx, cy],
+                                crate::scene::Pos2Px::new(cx, cy),
                                 angle_deg,
                                 [stim_w / 2.0, stim_h / 2.0],
                                 GratingParams {

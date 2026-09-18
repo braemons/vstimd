@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Self
 
-from vstimd._proto.vstimd.v1 import vec2_pb2
+from vstimd._proto.vstimd.v1 import vec2_pb2, vec3_pb2
 
 
 @dataclass
@@ -23,6 +23,9 @@ class Vec3:
     y: float
     z: float
 
-    # @classmethod
-    # def from_proto(cls, proto: vec2_pb2.Vec3) -> Self:
-    #     return cls(x=proto.x, y=proto.y, z=proto.z)
+    @classmethod
+    def from_proto(cls, proto: vec3_pb2.Vec3) -> Self:
+        return cls(x=proto.x, y=proto.y, z=proto.z)
+
+    def to_proto(self) -> vec3_pb2.Vec3:
+        return vec3_pb2.Vec3(x=self.x, y=self.y, z=self.z)

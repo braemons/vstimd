@@ -174,6 +174,8 @@ pub fn init(width: u32, height: u32) -> VkContext {
         surface_counter_enabled: false,
         self_presented: true,
         owned_image_memory,
+        present_layout: vk::ImageLayout::GENERAL,
+        pass_3d: None,
     }
 }
 

@@ -147,6 +147,13 @@ async fn zmq_loop(
                                     ..Default::default()
                                 }
                             }
+                            Some(proto::request::Body::CaptureFrame(_)) => {
+                                let mut resp = capture_frame(&scene).await;
+                                let s = scene.read().expect("scene lock poisoned");
+                                resp.frame_count = s.runtime.frame_count;
+                                resp.server_time_ns = s.runtime.server_start.elapsed().as_nanos() as u64;
+                                resp
+                            }
                             _ => {
                                 let mut scene = scene.write().expect("scene lock poisoned");
                                 let mut vtl_guard = vtl.as_ref().and_then(|v| v.lock().ok());
@@ -171,5 +178,65 @@ async fn zmq_loop(
                 }
             }
         }
+    }
+}
+
+/// How long `CaptureFrame` waits for the render loop. Generous: a minimised
+/// desktop window may render only about once a second.
+const CAPTURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Serve `CaptureFrame`: queue a request for the render loop, wait for the
+/// pixels, encode them here rather than on the render thread.
+///
+/// Never holds the scene lock while waiting — the render thread needs it to
+/// produce the very frame being waited for.
+async fn capture_frame(scene: &RwLock<SceneState>) -> proto::Response {
+    use super::response::err;
+    use crate::render::screenshot::{CaptureRequest, encode_png};
+    use std::sync::mpsc::TrySendError;
+
+    let (reply, reply_rx) = tokio::sync::oneshot::channel();
+    {
+        let s = scene.read().expect("scene lock poisoned");
+        match s.runtime.capture_requests.try_send(CaptureRequest { reply }) {
+            Ok(()) => {}
+            Err(TrySendError::Full(_)) => {
+                return err(
+                    proto::ErrorCode::NotReady,
+                    "an earlier capture is still waiting for the render loop",
+                );
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                return err(
+                    proto::ErrorCode::NotSupported,
+                    "this server has no rendered frames to capture (null renderer or evdi)",
+                );
+            }
+        }
+    }
+
+    let frame = match tokio::time::timeout(CAPTURE_TIMEOUT, reply_rx).await {
+        Ok(Ok(frame)) => frame,
+        Ok(Err(_)) => return err(proto::ErrorCode::Unknown, "the render loop dropped the capture"),
+        Err(_) => {
+            return err(
+                proto::ErrorCode::NotReady,
+                "no frame was rendered in time (is the window minimised?)",
+            );
+        }
+    };
+    match encode_png(&frame.bgra, frame.width, frame.height) {
+        Ok(png) => proto::Response {
+            code: proto::ErrorCode::Ok as i32,
+            handle: -1,
+            body: Some(proto::response::Body::CapturedFrame(proto::CaptureFrameResponse {
+                png,
+                width_px: frame.width,
+                height_px: frame.height,
+                frame: frame.frame,
+            })),
+            ..Default::default()
+        },
+        Err(e) => err(proto::ErrorCode::Unknown, format!("PNG encoding failed: {e}")),
     }
 }

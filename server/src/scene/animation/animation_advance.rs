@@ -7,6 +7,10 @@
 
 use super::{AnimState, Animation, CancelAction, FinalAction, StartAction};
 use crate::scene::SceneState;
+use crate::scene::units::Pos2Px;
+use super::animation_input::{self, AxisMap, TransformChannel, Update};
+use super::AnimationTarget;
+use crate::scene::{Camera3D, Stimulus, StimulusBody};
 use crate::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs};
 use vtl::VtlKind;
 
@@ -149,6 +153,8 @@ pub(crate) fn advance_one(
 
                 if let Some(entry) = scene.config.animations.get_mut(&handle) {
                     entry.state = AnimState::Running { frame_counter: 0 };
+                    entry.distance_travelled_cm = 0.0;
+                    entry.nav_position_cm = None;
                 }
             }
         }
@@ -237,7 +243,7 @@ pub(crate) fn advance_one(
                     let [x, y] = coords_px[idx];
                     for &sh in &stim_handles {
                         if let Some(e) = scene.config.stimuli.get_mut(&sh)
-                            && e.stimulus.move_to_2d(false, x, y).is_err()
+                            && e.stimulus.move_to_2d(false, Pos2Px::new(x, y)).is_err()
                         {
                             // A 2-D path animation over a 3-D stimulus is a
                             // config error; dropping the frame silently would
@@ -304,7 +310,7 @@ pub(crate) fn advance_one(
                     }
                     for &sh in &stim_handles {
                         if let Some(e) = scene.config.stimuli.get_mut(&sh)
-                            && e.stimulus.move_to_2d(false, pos_px[0], pos_px[1]).is_err()
+                            && e.stimulus.move_to_2d(false, Pos2Px(pos_px)).is_err()
                         {
                             log::warn!(
                                 "animation #{handle}: stimulus #{sh} is 3-D; \
@@ -315,13 +321,66 @@ pub(crate) fn advance_one(
                     frame_counter + 1 >= total_frames
                 }
             }
-            // TODO(#84): unimplemented. The shm segment is never opened and the stimulus
-            // never moves, yet CreateAnimation reports success. Implement the per-frame
-            // read (mapping the segment on the ZMQ thread, never here) or reject the
-            // command at create time.
-            //
-            // External position is driven by an external process; never self-terminates.
-            Animation::ExternalPosition2D { .. } => false,
+            // Driven by an external process through an input device; never finishes.
+            // A stale device holds its last sample, so the stimulus holds still.
+            Animation::ExternalPosition2D { shm_name, x_offset_px, y_offset_px } => {
+                if let Some(dev) = animation_input::find_device_opt(&scene.runtime.input, shm_name) {
+                    let pos = Pos2Px::new(
+                        dev.frame[0].value as f32 + *x_offset_px,
+                        dev.frame[1].value as f32 + *y_offset_px,
+                    );
+                    for &sh in &stim_handles {
+                        if let Some(e) = scene.config.stimuli.get_mut(&sh) {
+                            let _ = e.stimulus.move_to_2d(false, pos);
+                        }
+                    }
+                }
+                false
+            }
+
+            Animation::DeviceDrivenTransform { device, axes } => {
+                let dt_s = scene.frame_dt_s();
+                let camera = matches!(entry.config.target, AnimationTarget::Camera);
+                for map in axes {
+                    let Some(update) =
+                        animation_input::axis_update(&scene.runtime.input, device, map, dt_s)
+                    else {
+                        continue;
+                    };
+                    if camera {
+                        apply_to_camera(&mut scene.config.camera.live, map, update);
+                        apply_to_camera(&mut scene.config.camera.copy, map, update);
+                    } else {
+                        for &sh in &stim_handles {
+                            if let Some(e) = scene.config.stimuli.get_mut(&sh) {
+                                apply_to_stimulus(&mut e.stimulus, map, update);
+                            }
+                        }
+                    }
+                }
+                false
+            }
+
+            Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm, source } => {
+                let step_cm = match source {
+                    // Nominal rate, like MoveAlongSegments2D: a scripted run covers
+                    // the same distance in the same number of frames every time (#120).
+                    None => f64::from(*speed_cm_per_s)
+                        / f64::from(scene.runtime.nominal_frame_rate_hz.max(1.0)),
+                    // A device's speed is real: integrate over real frame time.
+                    Some(src) => {
+                        animation_input::nav_step_cm(&scene.runtime.input, src, scene.frame_dt_s())
+                    }
+                };
+                let wrap = *wrap_period_cm;
+                let nav = entry.nav_position_cm;
+                let nav = advance_camera_along_forward(scene, nav, step_cm, wrap);
+                if let Some(entry) = scene.config.animations.get_mut(&handle) {
+                    entry.distance_travelled_cm += step_cm;
+                    entry.nav_position_cm = Some(nav);
+                }
+                false
+            }
         }
     };
 
@@ -349,6 +408,120 @@ pub(crate) fn advance_one(
         };
         finalize(handle, scene, &stim_handles, outputs, action, trigger_line, level_line, true, true);
     }
+}
+
+/// Move the camera `step_cm` along its horizontal forward direction, wrapping
+/// `z` into `[0, wrap_period_cm)` when given. Returns the new integration state.
+///
+/// The position is integrated in `f64` (`nav`) and only narrowed to write the
+/// camera, so the rendered position stays exact however far the camera goes.
+/// If the camera is not where this animation last left it — a `SetCamera`, say —
+/// integration restarts from where it now is.
+///
+/// The position is written to both the live and the staged camera: an animation
+/// is not a staged command, and a deferred block that flipped the stale staged
+/// position back in would jump the camera backwards. Every other camera field in
+/// the staged copy is left as the client staged it.
+fn advance_camera_along_forward(
+    scene: &mut SceneState,
+    nav: Option<super::NavPosition>,
+    step_cm: f64,
+    wrap_period_cm: Option<f32>,
+) -> super::NavPosition {
+    let camera = &mut scene.config.camera;
+    let current = camera.live.position_cm.0;
+    let (x, z) = match nav {
+        Some(n) if n.written == current => (n.x, n.z),
+        _ => (f64::from(current.x), f64::from(current.z)),
+    };
+    let yaw = f64::from(camera.live.yaw_deg).to_radians();
+    // Forward is -Z at yaw 0; positive yaw turns left, towards -X.
+    let x = x - yaw.sin() * step_cm;
+    let mut z = z - yaw.cos() * step_cm;
+    if let Some(period) = wrap_period_cm.filter(|p| *p > 0.0) {
+        z = z.rem_euclid(f64::from(period));
+    }
+    let written = glam::Vec3::new(x as f32, current.y, z as f32);
+    camera.live.position_cm = crate::scene::units::Pos3Cm(written);
+    camera.copy.position_cm = crate::scene::units::Pos3Cm(written);
+    super::NavPosition { x, z, written }
+}
+
+/// Apply one device-driven update to a camera.
+fn apply_to_camera(cam: &mut Camera3D, map: &AxisMap, update: Update) {
+    use animation_input::apply;
+    let p = &mut cam.position_cm.0;
+    match map.channel {
+        TransformChannel::PosX => p.x = apply(p.x, update, map),
+        TransformChannel::PosY => p.y = apply(p.y, update, map),
+        TransformChannel::PosZ => p.z = apply(p.z, update, map),
+        TransformChannel::Yaw => cam.yaw_deg = apply(cam.yaw_deg, update, map),
+        TransformChannel::Pitch => cam.pitch_deg = apply(cam.pitch_deg, update, map),
+        TransformChannel::Roll => cam.roll_deg = apply(cam.roll_deg, update, map),
+        TransformChannel::Forward | TransformChannel::Strafe => {
+            // Validation admits only rate and cumulative axes here, so this is
+            // always a movement.
+            let Update::Add(d) = update else { return };
+            let yaw = cam.yaw_deg.to_radians();
+            // Forward is -Z at yaw 0; right is +X. Positive yaw turns left.
+            let (dx, dz) = match map.channel {
+                TransformChannel::Forward => (-yaw.sin(), -yaw.cos()),
+                _ => (yaw.cos(), -yaw.sin()),
+            };
+            p.x += dx * d as f32;
+            p.z += dz * d as f32;
+            if let Some(w) = map.wrap {
+                p.z = p.z.rem_euclid(w);
+            }
+        }
+        TransformChannel::ScaleX
+        | TransformChannel::ScaleY
+        | TransformChannel::ScaleZ
+        | TransformChannel::ScaleUniform => {}
+    }
+}
+
+/// Apply one device-driven update to a stimulus: position and rotation for a
+/// 2-D stimulus (in pixels and degrees), position, rotation and scale for a 3-D
+/// one. Channels the stimulus does not have are ignored.
+fn apply_to_stimulus(stim: &mut Stimulus, map: &AxisMap, update: Update) {
+    use animation_input::apply;
+    if let StimulusBody::Mesh3d(m) = &mut stim.body {
+        let t = &mut m.transform.live;
+        let (p, r, s) = (&mut t.position_cm.0, &mut t.rotation_deg, &mut t.scale);
+        match map.channel {
+            TransformChannel::PosX => p.x = apply(p.x, update, map),
+            TransformChannel::PosY => p.y = apply(p.y, update, map),
+            TransformChannel::PosZ => p.z = apply(p.z, update, map),
+            TransformChannel::Yaw => r.x = apply(r.x, update, map),
+            TransformChannel::Pitch => r.y = apply(r.y, update, map),
+            TransformChannel::Roll => r.z = apply(r.z, update, map),
+            TransformChannel::ScaleX => s.x = apply(s.x, update, map),
+            TransformChannel::ScaleY => s.y = apply(s.y, update, map),
+            TransformChannel::ScaleZ => s.z = apply(s.z, update, map),
+            TransformChannel::ScaleUniform => {
+                let v = apply(s.x, update, map);
+                *s = glam::Vec3::splat(v);
+            }
+            TransformChannel::Forward | TransformChannel::Strafe => {}
+        }
+        return;
+    }
+    if !animation_input::applies_to_2d(map.channel) {
+        return;
+    }
+    let Some(t) = stim.transform2d().map(|t| t.live) else { return };
+    let _ = match map.channel {
+        TransformChannel::PosX => stim.move_to_2d(
+            false,
+            Pos2Px::new(apply(t.pos_px.x(), update, map), t.pos_px.y()),
+        ),
+        TransformChannel::PosY => stim.move_to_2d(
+            false,
+            Pos2Px::new(t.pos_px.x(), apply(t.pos_px.y(), update, map)),
+        ),
+        _ => stim.set_angle_2d(false, apply(t.angle_deg, update, map)),
+    };
 }
 
 /// Cancel an animation: distinct from disarm. Applies the animation's

@@ -85,7 +85,7 @@ impl ShapeGeometry {
 
 impl Shape {
     pub fn new(
-        pos_px: [f32; 2],
+        pos_px: crate::scene::units::Pos2Px,
         angle_deg: f32,
         appearance: ShapeAppearance,
         geometry: ShapeGeometry,

@@ -48,12 +48,12 @@ message FlickerForNFrames {
   bool            start_on_phase = 4; // true (default) = start in the on-phase
 }
 
-// Read stimulus position from a POSIX shared memory float array each frame.
-//
-// TODO(#84): unimplemented. The server accepts this animation and reports success,
-// but never opens the segment; the stimulus does not move.
+// Set stimulus position every frame from an input device: its first two axes,
+// both absolute, in pixels after the rig-config scale, plus the offsets.
+// shm_name names a rig-config input device, by its name or its segment.
+// INVALID_ARGUMENT if no such device, or its first two axes are not absolute.
 message ExternalPosition2D {
-  string shm_name  = 1; // e.g. "/vstimd_pos_myobj"
+  string shm_name  = 1; // e.g. "eye_tracker" or "/vstimd_gaze"
   float  x_offset_px = 2;
   float  y_offset_px = 3;
 }
@@ -76,6 +76,75 @@ message MoveAlongSegments2D {
   float          speed_px_per_sec = 3;
 }
 
+// Move the camera straight ahead at a constant speed, along its horizontal
+// forward direction (pitch tilts the view but does not fly the camera into the
+// floor). Never finishes on its own. Requires target.camera.
+//
+// With wrap_period_cm > 0 the camera's z wraps into [0, wrap_period_cm): an
+// endless corridor is periodic geometry the camera circulates through. The true
+// distance is QueryAnimationResponse.distance_travelled_cm, which never wraps.
+//
+// Speed changes go through SetNavSpeedRequest. It is not a per-frame channel —
+// driving the camera from a treadmill is an input-device animation.
+message LinearNav3D {
+  float speed_cm_per_s = 1;  // negative moves backwards; ignored with a source
+  float wrap_period_cm = 2;  // (0 → no wrapping)
+  // Drive the speed from an input device instead: a rate axis is a speed in
+  // cm/s over real frame time (dropped frames included), a cumulative axis moves
+  // the camera by exactly its change. An absolute axis is INVALID_ARGUMENT.
+  AxisRef source = 3;
+}
+
+// One axis of a rig-config input device, by name.
+message AxisRef {
+  string device = 1;
+  string axis = 2;
+}
+
+// What an AxisMap drives.
+enum TransformChannel {
+  TRANSFORM_CHANNEL_UNSPECIFIED = 0;
+  // Position: pixels on a 2-D stimulus, cm on a 3-D stimulus or the camera.
+  TRANSFORM_CHANNEL_POS_X = 1;
+  TRANSFORM_CHANNEL_POS_Y = 2;
+  TRANSFORM_CHANNEL_POS_Z = 3;
+  // Degrees. YAW is a 2-D stimulus' rotation.
+  TRANSFORM_CHANNEL_YAW = 4;
+  TRANSFORM_CHANNEL_PITCH = 5;
+  TRANSFORM_CHANNEL_ROLL = 6;
+  // 3-D stimuli only.
+  TRANSFORM_CHANNEL_SCALE_X = 7;
+  TRANSFORM_CHANNEL_SCALE_Y = 8;
+  TRANSFORM_CHANNEL_SCALE_Z = 9;
+  TRANSFORM_CHANNEL_SCALE_UNIFORM = 10;
+  // Along the camera's horizontal forward / rightward direction, cm. Camera
+  // target only, and rate or cumulative axes only.
+  TRANSFORM_CHANNEL_FORWARD = 11;
+  TRANSFORM_CHANNEL_STRAFE = 12;
+}
+
+// One device axis driving one channel. The axis' semantic decides how: absolute
+// sets the channel, cumulative adds its change, rate adds value × frame time.
+message AxisMap {
+  string axis = 1;
+  TransformChannel channel = 2;
+  float gain = 3;                // device units → px, cm or degrees
+  float deadzone = 4;            // absolute and rate values within ±deadzone read 0
+  bool invert = 5;
+  optional float clamp_min = 6;  // both or neither
+  optional float clamp_max = 7;
+  float wrap = 8;                // wrap the channel into [0, wrap); 0 → none
+}
+
+// Map input-device axes onto the target's transform every frame — stimuli or
+// the camera. Never finishes on its own. INVALID_ARGUMENT for an unknown device
+// or axis, a camera-only channel without a camera target, an absolute axis on
+// FORWARD / STRAFE, or a scale channel on the camera.
+message DeviceDrivenTransform {
+  string device = 1;
+  repeated AxisMap axes = 2;
+}
+
 // ── What an animation drives ──────────────────────────────────────────────────
 
 // The set of stimuli an animation drives. Every animation type fans out over
@@ -92,17 +161,18 @@ message AnimationStimuli {
 // other animation (dev/3D_ROADMAP.md §11.1). Adding that arm costs one field
 // number and no break here.
 //
-// It would not be a general-purpose target. Only the animations that drive a
-// *transform* mean anything for a camera: MoveAlongPath2D, MoveAlongSegments2D
-// and ExternalPosition2D. The four that drive visibility — Flash, Flicker,
-// CoupleVisibilityToTriggerLine, EnableOnTriggerEdge — have nothing to act on,
-// and neither do the ENABLE / DISABLE / RESTORE_VISIBILITY action bits. A target arm
-// that is not stimuli therefore has to be rejected for those at create time,
-// not silently ignored.
+// The camera is not a general-purpose target. It takes only the animations that
+// move a camera — LinearNav3D today. The visibility kinds have nothing to act
+// on, and the 2-D motion kinds move in pixels, which mean nothing in world
+// centimetres. Any other pairing, and the ENABLE / DISABLE / RESTORE_VISIBILITY
+// action bits on a camera animation, are INVALID_ARGUMENT at create time.
+// The scene's 3-D camera. No fields: there is one.
+message AnimationCamera {}
+
 message AnimationTarget {
   oneof target {
     AnimationStimuli stimuli = 1;
-    // CameraTarget camera = 2;  — arrives with the 3-D camera (Phase A)
+    AnimationCamera camera = 2;
   }
 }
 
@@ -179,6 +249,8 @@ message CreateAnimationRequest {
     MoveAlongPath2D    move_along_path_2d    = 14;
     MoveAlongSegments2D move_along_segments_2d = 15;
     ExternalPosition2D external_position_2d  = 18;
+    LinearNav3D        linear_nav_3d         = 22;
+    DeviceDrivenTransform device_driven_transform = 23;
   }
 }
 
@@ -219,6 +291,22 @@ message QueryAnimationResponse {
   ConditionAction        condition_action = 6;
   // False while the active condition excludes it, which stops it advancing.
   bool                   condition_enabled = 7;
+  // LinearNav3D: net distance moved since the animation last started, cm. Never
+  // wrapped, so it is the number to log. Zero for every other kind.
+  double                 distance_travelled_cm = 8;
+  // Animations that read an input device (DeviceDrivenTransform, a LinearNav3D
+  // with a source, ExternalPosition2D): the device's backend and whether it is
+  // stale right now. A treadmill that died shows up here. Empty / false for
+  // every other kind.
+  string                 device_backend = 9;
+  bool                   device_stale = 10;
+}
+
+// Change a LinearNav3D animation's speed, effective next frame. For scripted
+// changes ("now run at 20 cm/s"), not a per-frame control loop.
+message SetNavSpeedRequest {
+  uint32 handle = 1;
+  float speed_cm_per_s = 2;
 }
 
 message ListAnimationsResponse {

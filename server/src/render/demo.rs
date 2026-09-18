@@ -2,7 +2,7 @@ pub(crate) fn spawn_demo_stimuli(
     scene: &std::sync::Arc<std::sync::RwLock<crate::scene::SceneState>>,
 ) {
     use crate::scene::{
-        Anchor, Grating, GratingParams, LanguageStyle, Shape, ShapeAppearance, ShapeGeometry,
+        Anchor, Grating, GratingParams, LanguageStyle, Pos2Px, Shape, ShapeAppearance, ShapeGeometry,
         Stimulus, StimulusIdentity, StimulusSceneEntry, Text, TextRenderParams, Waveform,
     };
     use rand::RngExt;
@@ -16,7 +16,10 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             StimulusIdentity::new(Some("demo_circle".into())),
             Stimulus::from(Shape::new(
-                [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
+                Pos2Px::new(
+                    rng.random_range(-500.0..500.0),
+                    rng.random_range(-500.0..500.0),
+                ),
                 0.0,
                 ShapeAppearance {
                     fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
@@ -32,13 +35,18 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             StimulusIdentity::new(Some("demo_rect".into())),
             Stimulus::from(Shape::new(
-                [rng.random_range(-500.0..500.0), rng.random_range(-500.0..500.0)],
+                Pos2Px::new(
+                    rng.random_range(-500.0..500.0),
+                    rng.random_range(-500.0..500.0),
+                ),
                 30.0,
                 ShapeAppearance {
                     fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
                     ..Default::default()
                 },
-                ShapeGeometry::Rect { size_px: [240.0, 100.0] },
+                ShapeGeometry::Rect {
+                    size_px: [240.0, 100.0],
+                },
             )),
         ),
     );
@@ -48,7 +56,7 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             StimulusIdentity::new(Some("demo_grating".into())),
             Stimulus::from(Grating::new(
-                [100.0, -200.0],
+                Pos2Px::new(100.0, -200.0),
                 0.0,
                 [100.0, 100.0],
                 GratingParams {
@@ -67,7 +75,7 @@ pub(crate) fn spawn_demo_stimuli(
         StimulusSceneEntry::new(
             StimulusIdentity::new(Some("demo_text".into())),
             Stimulus::from(Text::new(
-                [0.0, 200.0],
+                Pos2Px::new(0.0, 200.0),
                 0.0,
                 [400.0, 80.0],
                 "vstimd".into(),

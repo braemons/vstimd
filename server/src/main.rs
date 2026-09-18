@@ -96,6 +96,35 @@ fn main() {
         if let Some(hz) = rig.display.refresh_hz {
             s.runtime.frame_rate_hz = hz as f32;
         }
+
+        // Input devices come from the rig; `--input-override` may stand the
+        // keyboard in for one. Their segments are opened by the reconnect
+        // thread, never here and never on the render thread.
+        s.runtime.input = vstimd::input::InputRegistry::from_rig(&rig.input);
+        for (name, backend) in &args.input_overrides {
+            if let Err(e) = s.runtime.input.override_backend(name, backend.to_backend()) {
+                eprintln!("vstimd: --input-override: {e}");
+                std::process::exit(1);
+            }
+        }
+        if !s.runtime.input.devices.is_empty() {
+            log::info!(
+                "input: {} device(s): {}",
+                s.runtime.input.devices.len(),
+                s.runtime
+                    .input
+                    .devices
+                    .iter()
+                    .map(|d| format!("{} ({})", d.name, d.backend.label()))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            );
+        }
+    }
+    vstimd::input::devices::spawn_reconnector(scene.clone(), std::time::Duration::from_millis(250));
+    #[cfg(feature = "gamepad")]
+    if args.input_overrides.iter().any(|(_, o)| matches!(o, InputOverride::Gamepad { .. })) {
+        vstimd::input::gamepad_axes::spawn();
     }
 
     // Create VTL shared memory on Linux using rig-config parameters.
@@ -168,6 +197,14 @@ fn main() {
             }
             Err(e) => log::error!("vstimd: failed to load startup scene-config '{name}': {e}"),
         }
+    }
+
+    // A backend with no swapchain frames to read back never serves CaptureFrame.
+    // Dropping the receiver before the ZMQ thread starts makes that a prompt
+    // NOT_SUPPORTED; a backend that can capture claims it once its render loop
+    // exists, and a request that arrives before then waits in the channel.
+    if matches!(render_target, RenderTarget::Null | RenderTarget::Evdi) {
+        drop(scene.read().unwrap().runtime.take_capture_receiver());
     }
 
     let (zmq_thread, zmq_shutdown, zmq_bound) = vstimd::ipc::spawn_zmq_thread(
@@ -349,7 +386,65 @@ fn main() {
 
 // ── Argument parsing ──────────────────────────────────────────────────────────
 
+/// One `--input-override NAME=BACKEND`.
+#[derive(Clone, Debug)]
+enum InputOverride {
+    Keyboard { speed: f64 },
+    Gamepad { pad: usize, speed: f64 },
+}
+
+impl InputOverride {
+    fn to_backend(&self) -> vstimd::input::devices::Backend {
+        match *self {
+            InputOverride::Keyboard { speed } => vstimd::input::devices::Backend::Keyboard { speed },
+            InputOverride::Gamepad { pad, speed } => vstimd::input::devices::Backend::Gamepad { pad, speed },
+        }
+    }
+
+    /// `keyboard[:SPEED]` or `gamepad[:PAD[:SPEED]]` (SPEED in axis units per
+    /// second, default 1; PAD from 0).
+    fn parse(spec: &str) -> Result<(String, Self), String> {
+        let (name, backend) = spec
+            .split_once('=')
+            .ok_or_else(|| format!("expected NAME=BACKEND, got '{spec}'"))?;
+        let mut parts = backend.split(':');
+        let kind = parts.next().unwrap_or_default();
+        let speed_of = |a: Option<&str>| -> Result<f64, String> {
+            match a {
+                None => Ok(1.0),
+                Some(a) => a
+                    .parse::<f64>()
+                    .ok()
+                    .filter(|v| v.is_finite() && *v > 0.0)
+                    .ok_or_else(|| format!("speed must be a positive number, got '{a}'")),
+            }
+        };
+        match kind {
+            "keyboard" => {
+                let speed = speed_of(parts.next())?;
+                Ok((name.to_string(), InputOverride::Keyboard { speed }))
+            }
+            "gamepad" => {
+                let pad = match parts.next() {
+                    None => 0,
+                    Some(p) => p.parse().map_err(|_| format!("gamepad index must be a number, got '{p}'"))?,
+                };
+                let speed = speed_of(parts.next())?;
+                if !cfg!(feature = "gamepad") {
+                    return Err("this vstimd was built without the `gamepad` feature".into());
+                }
+                Ok((name.to_string(), InputOverride::Gamepad { pad, speed }))
+            }
+            other => Err(format!(
+                "unknown input backend '{other}' (supported: keyboard[:SPEED], gamepad[:PAD[:SPEED]])"
+            )),
+        }
+    }
+}
+
 struct Args {
+    /// `--input-override NAME=BACKEND`, in order given.
+    input_overrides: Vec<(String, InputOverride)>,
     /// `Some(_)` if `--null` or `--evdi` forced a specific target on the
     /// command line — takes priority over rig-config. `None` means "resolve
     /// later": rig-config's `[display] backend`, then DISPLAY-env
@@ -611,6 +706,7 @@ fn parse_args() -> Args {
     let mut storage_dir: Option<std::path::PathBuf> = None;
     let mut overlay_scale: Option<f32> = None;
     let mut preferred_clock_source: Option<Option<ClockSource>> = None;
+    let mut input_overrides: Vec<(String, InputOverride)> = Vec::new();
 
     let mut args = std::env::args().skip(1).peekable();
     while let Some(arg) = args.next() {
@@ -687,6 +783,19 @@ fn parse_args() -> Args {
                     std::process::exit(1);
                 }));
             }
+            "--input-override" => {
+                let spec = args.next().unwrap_or_else(|| {
+                    eprintln!("vstimd: --input-override requires NAME=BACKEND (e.g. treadmill=keyboard:30)");
+                    std::process::exit(1);
+                });
+                match InputOverride::parse(&spec) {
+                    Ok(o) => input_overrides.push(o),
+                    Err(e) => {
+                        eprintln!("vstimd: --input-override: {e}");
+                        std::process::exit(1);
+                    }
+                }
+            }
             "--no-web" => web_enabled = Some(false),
             "--web-port" => {
                 let p = args.next().and_then(|s| s.parse::<u16>().ok()).unwrap_or_else(|| {
@@ -728,6 +837,7 @@ fn parse_args() -> Args {
     };
 
     Args {
+        input_overrides,
         render_target,
         window_mode,
         explicit_windowed,
@@ -853,6 +963,11 @@ fn print_usage() {
     eprintln!("      --event-port <N>      ZMQ PUB event stream port (default: 5556)");
     eprintln!("      --no-events           Do not publish the event stream at all");
     eprintln!("      --no-web              Disable the embedded web control surface");
+    eprintln!("      --input-override <NAME=keyboard[:SPEED] | NAME=gamepad[:PAD[:SPEED]]>");
+    eprintln!("                            Drive the rig-config input device NAME from the arrow");
+    eprintln!("                            keys or a gamepad's sticks instead of its hardware");
+    eprintln!("                            (SPEED units/s, default 1; gamepad needs the `gamepad`");
+    eprintln!("                            build feature); repeatable");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
     eprintln!("      --overlay-scale <N>   Scale factor for the egui overlay UI (default: 1.0)");
     eprintln!("      --preferred-clock-source <S>");

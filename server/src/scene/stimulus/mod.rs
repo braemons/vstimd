@@ -17,7 +17,7 @@ pub use dots::{
     Reinsertion, SignalRule,
 };
 pub use grating::{Grating, GratingMask, GratingParams, Waveform};
-pub use mesh3d::{Mesh3d, Mesh3dGeometry, MeshKey};
+pub use mesh3d::{CorridorParams, Mesh3d, Mesh3dGeometry, MeshKey, Repeat3D};
 pub use shape::{Shape, ShapeGeometry};
 pub use shape_appearance::{DrawMode, ShapeAppearance};
 pub use stimulus::{Stimulus, StimulusBody};

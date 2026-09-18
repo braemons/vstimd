@@ -113,12 +113,14 @@ nav:
       - Saving & loading: concepts/saving-loading.md
       - The event stream: concepts/event-stream.md
       - Integrating recording systems: concepts/recording-integration.md
+      - Input devices: concepts/input-devices.md
   - Stimuli:
       - Overview: stimuli/index.md
       - Shapes: stimuli/shapes.md
       - Gratings: stimuli/gratings.md
       - Text: stimuli/text.md
       - Random dot kinematograms: stimuli/random-dots.md
+      - 3-D shapes: stimuli/3d.md
   - Tutorials:
       - Overview: tutorials/index.md
       - First light: tutorials/first-light.md

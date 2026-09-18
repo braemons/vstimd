@@ -192,6 +192,19 @@ impl InputState {
             let pressed = kb.key_state() == input::event::keyboard::KeyState::Pressed;
             let code = kb.key();
 
+            // Arrow keys feed a keyboard-overridden input device, and also
+            // reach egui below as navigation.
+            {
+                use crate::input::keyboard_axes::{Arrow, set_arrow};
+                match code {
+                    103 => set_arrow(Arrow::Up, pressed),    // KEY_UP
+                    108 => set_arrow(Arrow::Down, pressed),  // KEY_DOWN
+                    105 => set_arrow(Arrow::Left, pressed),  // KEY_LEFT
+                    106 => set_arrow(Arrow::Right, pressed), // KEY_RIGHT
+                    _ => {}
+                }
+            }
+
             // Modifier tracking (press + release) — no separate egui event;
             // modifier state is embedded in subsequent key events.
             match code {

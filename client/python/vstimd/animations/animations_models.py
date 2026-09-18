@@ -101,3 +101,13 @@ class AnimationDetails:
     condition_action: "ConditionAction" = ConditionAction.RESET
     #: False while the active condition excludes it.
     condition_enabled: bool = True
+    #: True when the animation drives the 3-D camera; ``stimuli`` is then empty.
+    camera: bool = False
+    #: ``create_linear_nav_3d``: net distance moved since it last started, cm.
+    #: Never wrapped. Zero for every other kind.
+    distance_travelled_cm: float = 0.0
+    #: For animations reading an input device: the device's backend ("shm …" or
+    #: "keyboard …"), and whether it is stale — its producer silent, so the
+    #: target is holding still. Empty / False otherwise.
+    device_backend: str = ""
+    device_stale: bool = False

@@ -113,3 +113,27 @@
 # [scheduling]
 # render_cpu_core = 3
 # render_rt_prio  = 55
+
+# ── Input devices ────────────────────────────────────────────────────────────
+# Wheels, treadmills and eye trackers that animations read every frame, through
+# a shared-memory segment their producer process writes (the `vinput` crate).
+# An animation names the device; the hardware behind the name is set here.
+#
+# [[input.device]]
+# name           = "treadmill"
+# shm            = "/vstimd_wheel"
+# # A producer silent for longer than this is treated as gone: rate axes read
+# # zero and cumulative axes stop, so a crashed reader stops the stimulus.
+# stale_after_ms = 100
+#
+#   [[input.device.axis]]
+#   name     = "distance"
+#   semantic = "cumulative"    # absolute | cumulative | rate
+#   scale    = 1.0             # the producer publishes cm already
+#
+# scale is a unit trim for a producer that cannot be changed -- a vendor eye
+# tracker writing raw ADC units -- and NOT where a rig's calibration lives.
+# Counts-per-cm belongs with the encoder, in the daemon that reads it: it needs
+# centimetres for its own API and records, and nothing else on the rig can read
+# this file.  A value other than 1.0 says "this producer publishes something
+# other than this axis' unit", and nothing more.

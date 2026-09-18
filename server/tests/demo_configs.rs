@@ -144,7 +144,7 @@ fn gratings_demo_flashes_two_orientations_on_two_input_triggers() {
     assert_eq!(gratings.len(), 2);
     for g in &gratings {
         assert!(!g.stimulus.flags().enabled, "grating starts visible");
-        assert_eq!(g.stimulus.transform2d().expect("2-D stimulus").live.pos_px, [0.0, 0.0], "grating is off-centre");
+        assert_eq!(g.stimulus.transform2d().expect("2-D stimulus").live.pos_px, vstimd::scene::Pos2Px::ORIGIN, "grating is off-centre");
     }
     let mut angles: Vec<f32> = gratings.iter().map(|g| g.stimulus.transform2d().expect("2-D stimulus").live.angle_deg).collect();
     angles.sort_by(f32::total_cmp);

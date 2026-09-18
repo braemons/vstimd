@@ -18,4 +18,9 @@ enum StimulusType {
   // CStimulusPart point cloud, which is a different thing that happens to be
   // made of dots.
   STIMULUS_TYPE_DOTS        = 13;
+  // 20–29: 3-D types, placed in world space by Transform3D.
+  STIMULUS_TYPE_CUBE_3D     = 20;
+  STIMULUS_TYPE_SPHERE_3D   = 21;
+  STIMULUS_TYPE_PLANE_3D    = 22;
+  STIMULUS_TYPE_CORRIDOR_3D = 23;
 }

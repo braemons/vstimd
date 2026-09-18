@@ -118,6 +118,7 @@ HANDLE  ENABLED  NAME       ID
 | `enable-all` / `disable-all` | toggle every unprotected stimulus |
 | `wait-frames [N]` | block until N more frames are rendered |
 | `wait-ready` | block until the server answers and has drawn a frame |
+| `capture PATH` | save the next presented frame as a PNG, overlay included |
 | `shutdown` | ask the server to exit cleanly (prompts unless `-y`) |
 | `scene-config list` | list the scene-configs on the server (`-p PROJECT` scopes it) |
 | `scene-config save NAME` | save the current scene (`-f` overwrites) |

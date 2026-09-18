@@ -5,6 +5,7 @@ import "vstimd/v1/stimuli/circle.proto";
 import "vstimd/v1/stimuli/dots.proto";
 import "vstimd/v1/stimuli/ellipse.proto";
 import "vstimd/v1/stimuli/grating.proto";
+import "vstimd/v1/stimuli/shapes3d.proto";
 import "vstimd/v1/stimuli/polygon.proto";
 import "vstimd/v1/stimuli/rect.proto";
 import "vstimd/v1/stimuli/stimulus_type.proto";
@@ -25,6 +26,10 @@ message StimulusParams {
     TextParams text = 5;
     PolygonParams polygon = 6;
     DotsParams dots = 7;
+    Cube3DParams cube_3d = 8;
+    Sphere3DParams sphere_3d = 9;
+    Plane3DParams plane_3d = 10;
+    Corridor3DParams corridor_3d = 11;
   }
 }
 
@@ -55,10 +60,10 @@ message QueryStimulusResponse {
                           // 3-D stimuli are ordered by the depth buffer instead.
   uint32 handle = 15; // server handle (map key). Set in snapshots; addresses mutations like SetPosition.
 
-  // Where the stimulus sits. One arm per dimension — `transform_3d` joins it
-  // with the 3-D stimulus types (dev/3D_ROADMAP.md §B.2).
+  // Where the stimulus sits. One arm per dimension.
   oneof placement {
     Transform2D transform_2d = 16;
+    Transform3D transform_3d = 19;
   }
 
   // Conditions this stimulus is active in; empty = every condition.

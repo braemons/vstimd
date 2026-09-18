@@ -40,6 +40,10 @@ impl SceneState {
                 server_time_ns: (c.elapsed_ms * 1_000_000.0) as u64,
             })
             .collect();
+        let input_devices = match self.cmd_list_input_devices().body {
+            Some(proto::response::Body::InputDeviceList(d)) => Some(d),
+            _ => None,
+        };
         proto::SceneSnapshot {
             server_info,
             stimuli,
@@ -47,6 +51,7 @@ impl SceneState {
             vtl_lines,
             vtl_state: None,
             command_log,
+            input_devices,
             frame_count: self.runtime.frame_count,
             server_time_ns: self.runtime.server_start.elapsed().as_nanos() as u64,
         }

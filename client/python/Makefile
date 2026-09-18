@@ -27,18 +27,25 @@ test: proto
 	uv run --group dev pytest tests/unit/
 
 # The suite that renders for real, start to finish, no interaction.
+#
+# --no-check-frame-stats because a desktop is not a rig: a compositor drops
+# frames vstimd never would, and 43 of these tests failed on one for that reason
+# alone. On a rig, drop the flag (or pass --check-frame-stats after it) — that
+# is where a dropped frame means something. PYTEST_ARGS comes last, so it wins.
 test-e2e-visible: proto
-	uv run --group dev pytest $(E2E_SUITES) -v $(PYTEST_ARGS)
+	uv run --group dev pytest $(E2E_SUITES) -v --no-check-frame-stats $(PYTEST_ARGS)
 
 # The same suite, reviewed by eye: a terminal UI (vstimd.tui widgets) listing
 # every test with what it should put on screen. Pick one, run it, watch the
 # display, flag it with a note if it looks wrong — the notes land in
 # e2e-review.md. Runs its own windowed server so this terminal stays visible.
+# --no-check-frame-stats for the same reason as test-e2e-visible: this one runs
+# on a desktop by definition. Pass --check-frame-stats to turn it back on.
 test-e2e-interactive: proto
-	uv run --group dev python tests/e2e/review.py $(PYTEST_ARGS)
+	uv run --group dev python tests/e2e/review.py --no-check-frame-stats $(PYTEST_ARGS)
 
 test-e2e-null: proto
-	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py -v $(PYTEST_ARGS)
+	uv run --group dev pytest tests/e2e/test_e2e_null.py tests/e2e/test_psychopy_visual_null.py tests/input_devices -v $(PYTEST_ARGS)
 
 # The event stream against a real server with a real frame clock. Separate from
 # test-e2e-null because it needs an event port of its own, and because it is the

@@ -78,6 +78,30 @@ pub struct SceneRuntimeState {
     /// started an event stream, and disabled is not a degraded mode — it is what
     /// every test and `--no-events` uses, with the same code path.
     pub events: crate::ipc::EventPublisher,
+    /// Where the ZMQ thread sends `CaptureFrame` requests. Capacity one: the ZMQ
+    /// thread serves one request at a time and waits for each capture.
+    /// The rig's input devices, sampled once per frame before animations run.
+    /// Never serialized: a scene-config names devices, the rig provides them.
+    pub input: crate::input::InputRegistry,
+    /// Vblanks between the last two presented frames: 1, or more after a drop.
+    /// Device-driven motion integrates over this many frame periods, so a
+    /// stuttering display does not shorten a corridor. Set by the render loop;
+    /// always 1 on the null renderer.
+    pub vblanks_elapsed: u32,
+    /// The frame-statistics window clients query and reset over the wire. The
+    /// render loop holds a clone and records into it lock-free.
+    pub frame_stats: std::sync::Arc<crate::timing::FrameStatsWindow>,
+    /// Set by the render thread when it could not set up 3-D (no depth format).
+    /// The 3-D create commands then answer `NOT_SUPPORTED` rather than accepting
+    /// a stimulus that will never be drawn.
+    pub render_3d_unavailable: bool,
+    pub capture_requests: std::sync::mpsc::SyncSender<crate::render::screenshot::CaptureRequest>,
+    /// The other end, until a render loop that can capture claims it with
+    /// [`Self::take_capture_receiver`]. A backend that cannot capture (null,
+    /// evdi) has it dropped at startup, so `CaptureFrame` sees a disconnected
+    /// channel and answers `NOT_SUPPORTED`.
+    capture_receiver:
+        std::sync::Mutex<Option<std::sync::mpsc::Receiver<crate::render::screenshot::CaptureRequest>>>,
     /// Reusable buffer for the per-frame animation-handle snapshot in
     /// [`SceneState::advance_animations`]. Kept here so its allocation is reused
     /// across frames instead of being reallocated each tick.
@@ -87,6 +111,7 @@ pub struct SceneRuntimeState {
 impl SceneRuntimeState {
     pub fn new_with_storage_dir(storage_dir: std::path::PathBuf) -> Self {
         let (tx, _rx) = tokio::sync::watch::channel(0u64);
+        let (capture_tx, capture_rx) = std::sync::mpsc::sync_channel(1);
         Self {
             storage_dir,
             deferred_mode: false,
@@ -105,9 +130,24 @@ impl SceneRuntimeState {
             frame_notifier: std::sync::Arc::new(tx),
             next_render_frame: 0,
             events: crate::ipc::EventPublisher::disabled(),
+            input: Default::default(),
+            vblanks_elapsed: 1,
+            frame_stats: Default::default(),
+            render_3d_unavailable: false,
+            capture_requests: capture_tx,
+            capture_receiver: std::sync::Mutex::new(Some(capture_rx)),
             anim_scratch: Vec::new(),
         }
     }
+
+    /// Hand the `CaptureFrame` receiver to the render loop that will serve it.
+    /// `Some` exactly once.
+    pub fn take_capture_receiver(
+        &self,
+    ) -> Option<std::sync::mpsc::Receiver<crate::render::screenshot::CaptureRequest>> {
+        self.capture_receiver.lock().ok()?.take()
+    }
+
 
     fn new() -> Self {
         Self::new_with_storage_dir(std::path::PathBuf::from("."))
@@ -291,6 +331,10 @@ impl SceneState {
         // Snapshot the handles into a reused buffer: `advance_one` borrows the
         // whole `SceneState` mutably, so we can't iterate `self.animations`
         // directly. Taking the scratch Vec out lets us hand `self` to the callee.
+        // Input first, so every animation this frame sees the same sample.
+        let dt_s = self.frame_dt_s();
+        self.runtime.input.sample_all(dt_s);
+
         let mut handles = std::mem::take(&mut self.runtime.anim_scratch);
         handles.clear();
         // Animations outside the active condition do not advance: they observe
@@ -456,6 +500,34 @@ impl SceneState {
         }
     }
 
+    /// Merge this frame's camera-zone transitions into `input_edges`, before the
+    /// edges are published and animations run. A no-op without zones.
+    pub fn evaluate_camera_zones(&mut self, input_edges: &mut crate::vtl_state::VtlEdges) {
+        if self.config.camera_zones.is_empty() {
+            return;
+        }
+        let camera = self.config.camera.live.position_cm.0;
+        super::zones::evaluate(&mut self.config.camera_zones, camera, input_edges);
+    }
+
+    /// Real time this frame stands for, s: the nominal frame period times the
+    /// vblanks since the last frame. Device-driven motion integrates over it.
+    /// Scripted motion uses the nominal period alone, so a config replays
+    /// identically (#120).
+    pub fn frame_dt_s(&self) -> f64 {
+        f64::from(self.runtime.vblanks_elapsed.max(1))
+            / f64::from(self.runtime.nominal_frame_rate_hz.max(1.0))
+    }
+
+    /// Whether any visible stimulus needs the 3-D pass. False for every scene
+    /// that can be built today; the render thread skips the 3-D pass entirely
+    /// when it is.
+    pub fn has_3d(&self) -> bool {
+        self.stimuli.values().any(|e| {
+            e.stimulus.is_visible() && matches!(e.stimulus.body, crate::scene::StimulusBody::Mesh3d(_))
+        })
+    }
+
     // ── Deferred mode ─────────────────────────────────────────────────────────
 
     /// Start deferred mode: snapshot all live state into copy fields.
@@ -465,6 +537,8 @@ impl SceneState {
         }
         self.background.make_copy();
         self.photodiode.make_copy();
+        self.camera.make_copy();
+        self.lighting.make_copy();
         self.runtime.deferred_mode = true;
     }
 
@@ -492,6 +566,8 @@ impl SceneState {
         }
         self.background.flip();
         self.photodiode.flip();
+        self.camera.flip();
+        self.lighting.flip();
         self.runtime.pending_flip = false;
     }
 
@@ -614,6 +690,8 @@ impl SceneState {
         }
         self.config.background.make_copy();
         self.config.photodiode.make_copy();
+        self.config.camera.make_copy();
+        self.config.lighting.make_copy();
         // `cond_enabled` is derived, never saved: a load restores the
         // memberships and the active index, and the gates follow from them.
         self.apply_conditions();

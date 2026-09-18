@@ -114,6 +114,56 @@ server and the client move together, and nothing has shipped yet.
   `box_width`/`box_height` arguments), and its `color` → `text_color` (matching
   what a query already called it). `TextParams.size` → `TextParams.box_size_px`.
 
+### Added
+
+- **A producer that is slower than the display now says so.**
+  `InputDeviceInfo.starved_frames` (from `conn.system.list_input_devices()`)
+  counts frames that found no new sample from the device's producer. Staleness
+  only catches a producer that *stopped*; one merely publishing at or below the
+  display rate leaves some frames with nothing new and the next with two
+  samples' worth of movement, which is visible stutter in whatever the device
+  drives and shows up nowhere else. A handful means nothing — the two clocks are
+  unrelated — but a count climbing with the frame counter means raise the
+  producer's rate above the display's.
+- **Frame statistics.** `conn.system.query_frame_stats()` reports presented and
+  dropped frames and frame-interval mean/std/min/max since the last
+  `conn.system.reset_frame_stats()`, which opens a new window and returns the one
+  it closed — so "what did this trial cost" is one round trip.
+- `EventSubscriber.unsubscribe(topic)` drops one of the topics a subscriber was
+  created with.
+
+- **Camera zones.** `conn.system.set_camera_zones([CameraZone(...)])` turns a
+  region of the 3-D world into a trigger-line input: HIGH while the camera is
+  inside, edges on entry and exit, so any trigger-reacting animation — including
+  one that pulses a DAQ output — responds to where the animal is in a corridor.
+  `list_camera_zones()` reports which zones the camera is in.
+- **Input devices.** `vstimd.shm.InputDevice` publishes a wheel, treadmill or eye
+  tracker for the server to read every frame (the Rust `vinput` layout, seqlock
+  and heartbeat included). Rig-config devices then drive animations:
+  `create_device_driven_transform` maps axes onto transform channels of stimuli
+  or the camera, `create_linear_nav_3d(source=AxisRef(...))` walks the camera
+  from a device, and `create_external_position_2d` now works (it was refused)
+  against a named device. `conn.system.list_input_devices()` and
+  `AnimationDetails.device_stale` report when a producer has stopped.
+  See `examples/wheel_reader.py`.
+- **3-D stimuli.** `conn.stimuli.shapes3d` creates cubes, spheres and planes
+  (`create_cube` / `create_sphere` / `create_plane`) placed by a `Transform3D` in
+  centimetres, with a `Material3D` that is either `Shading.UNLIT` — exactly the
+  albedo, matching a 2-D shape of the same colour — or `Shading.PHONG`.
+  `conn.system.set_camera` / `query_camera` and `set_lighting` / `query_lighting`
+  control the scene they are seen through; `create_corridor` builds an endless
+  corridor and `Repeat3D` repeats an object along it; and
+  `conn.animations.create_linear_nav_3d` moves the camera every frame (optionally
+  wrapping for an endless corridor; `set_nav_speed`, and `AnimationDetails` gains
+  `camera` and `distance_travelled_cm`). `StimulusInfo` gains `transform_3d`,
+  and `StimulusType` gains `CUBE_3D`, `SPHERE_3D` and `PLANE_3D`. See
+  `examples/scene_3d.py`.
+- **`conn.system.capture_frame()`** returns the next presented frame as a PNG
+  (`CapturedFrame`, with `.save(path)`), read back from the server's own
+  swapchain — overlay included, every acknowledged command applied. The CLI
+  equivalent is `vstimd-client capture PATH`. Raises `NotSupportedError` on the
+  null renderer and evdi.
+
 ## [0.1.0rc3] — 2026-08-13
 
 ### Added

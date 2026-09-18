@@ -119,7 +119,7 @@ pub(crate) fn overlay_raw_input(
 /// animations mark now — that one-frame life is what keeps an event mark an
 /// edge rather than a line that latches HIGH on the first trial.
 pub fn advance_frame(vtl: Option<&Arc<Mutex<VtlState>>>, scene: &Arc<RwLock<SceneState>>) {
-    let (input_edges, output_edges, mut levels, mut pulses) = vtl
+    let (mut input_edges, output_edges, mut levels, mut pulses) = vtl
         .map(|v| {
             let mut g = v.lock().expect("vtl lock poisoned");
             g.commit_staged();
@@ -130,6 +130,7 @@ pub fn advance_frame(vtl: Option<&Arc<Mutex<VtlState>>>, scene: &Arc<RwLock<Scen
         .unwrap_or_default();
 
     let mut sc = scene.write().expect("scene lock poisoned");
+    sc.evaluate_camera_zones(&mut input_edges);
 
     // Stated before anything reacts to them, and from here rather than from the
     // VTL block above because the frame index lives on the scene — under the

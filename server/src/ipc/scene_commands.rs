@@ -2,9 +2,9 @@
 //! info, and the stimulus query/list payloads.
 
 use super::convert::{
-    dots_params_to_proto,
-    grating_params_to_proto, nonempty, parse_version, shape_appearance_to_proto,
-    stimulus_type_to_proto, text_params_to_proto,
+    dots_params_to_proto, frame_stats_to_proto,
+    grating_params_to_proto, mesh3d_params_to_proto, nonempty, parse_version, shape_appearance_to_proto,
+    stimulus_type_to_proto, text_params_to_proto, transform3d_to_proto,
 };
 use super::response::{err, err_not_found, ok_ack, ok_body};
 use crate::proto;
@@ -116,6 +116,21 @@ impl SceneState {
         ))
     }
 
+    // ── Frame statistics ──────────────────────────────────────────────────────
+
+    pub(super) fn cmd_query_frame_stats(&self) -> proto::Response {
+        let stats = self.runtime.frame_stats.snapshot();
+        let nominal_hz = self.runtime.nominal_frame_rate_hz;
+        ok_body(proto::response::Body::FrameStats(frame_stats_to_proto(stats, nominal_hz)))
+    }
+
+    /// Answers with the window it closes — see `ResetFrameStatsRequest`.
+    pub(super) fn cmd_reset_frame_stats(&mut self) -> proto::Response {
+        let closed = self.runtime.frame_stats.reset(self.runtime.frame_count);
+        let nominal_hz = self.runtime.nominal_frame_rate_hz;
+        ok_body(proto::response::Body::FrameStats(frame_stats_to_proto(closed, nominal_hz)))
+    }
+
     // ── SetName ───────────────────────────────────────────────────────────────
 
     pub(super) fn cmd_set_name(&mut self, handle: u32, cmd: proto::SetNameRequest) -> proto::Response {
@@ -194,24 +209,20 @@ impl SceneState {
             StimulusBody::Dots(d) => dots_params_to_proto(d)
                 .shape
                 .expect("dots_params_to_proto always sets a shape"),
-            // Unreachable: no command constructs a `Mesh3d` yet. Phase B owes the
-            // `Sphere3DParams`/`Cube3DParams` oneof arms and a `transform_3d` arm on
-            // the `placement` oneof — neither exists in the proto today, so there is
-            // nothing honest to report here. `stimulus_type_to_proto` refuses the
-            // matching wire value for the same reason.
-            StimulusBody::Mesh3d(_) => {
-                unimplemented!("Phase B: 3-D query params — see dev/3D_ROADMAP.md §10.2")
-            }
+            StimulusBody::Mesh3d(m) => mesh3d_params_to_proto(m),
         };
 
         let draw_order = self.config.stimuli.get_index_of(&handle).unwrap_or(0) as u32;
-        // `placement` is a oneof with a single `transform_2d` arm, so a 3-D
-        // stimulus has nothing to put in it until §10.2's `transform_3d` lands.
+        let placement_3d = stim.mesh3d().map(|m| {
+            proto::query_stimulus_response::Placement::Transform3d(transform3d_to_proto(
+                &m.transform.live,
+            ))
+        });
         let placement = stim.transform2d().map(|t| {
             proto::query_stimulus_response::Placement::Transform2d(proto::Transform2D {
                 pos_px: Some(proto::Vec2 {
-                    x: t.live.pos_px[0],
-                    y: t.live.pos_px[1],
+                    x: t.live.pos_px.x(),
+                    y: t.live.pos_px.y(),
                 }),
                 rotation_deg: t.live.angle_deg,
             })
@@ -226,7 +237,7 @@ impl SceneState {
             name: entry.name().to_string(),
             draw_order,
             handle,
-            placement,
+            placement: placement.or(placement_3d),
             condition_indices: entry.conditions.clone(),
             condition_enabled: stim.flags().cond_enabled,
         }

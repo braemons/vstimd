@@ -60,8 +60,15 @@ React UI  ──uses──▶  client library (public API)  ──wraps──▶
      DEFERRED — do this right before the Config UI panel (step 2) so the panel is
      schema-driven. See "Known issues" for the related server gaps.
 2. **UI panels** to match the egui overlay: VTL, Animations, System
-   (background/photodiode/deferred), Config (save/load), Log
-   (snapshot.commandLog + server log). Creation dialogs for all stimulus types.
+   (background/photodiode/deferred), Input (the rig's devices, live and as a
+   trace), Config (save/load), Log (snapshot.commandLog + server log). Creation
+   dialogs for all stimulus types.
+   - **Input** goes one step past the overlay's readout, deliberately: a wheel's
+     three failure modes — a dead reader, a wrong calibration, a producer slower
+     than the display — all look like a plausible number and only show up over
+     time, so the panel plots position and speed rather than printing them.
+     Charting maths lives in `src/app/inputTrace.ts`, apart from the view and
+     unit-tested.
    - Modal `Dialog` shell (`src/app/Dialog.tsx`) with a grating creation dialog
      (`GratingDialog.tsx`) and a couple-visibility animation dialog
      (`CoupleVisibilityDialog.tsx`). These are hand-written for now; all three

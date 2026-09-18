@@ -1,3 +1,6 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
 const FRAME_HISTORY_SIZE: usize = 120;
 
 /// Per-render-loop timing bookkeeping: aggregated frame statistics, last
@@ -5,28 +8,166 @@ const FRAME_HISTORY_SIZE: usize = 120;
 pub struct FrameTiming {
     pub stats: FrameStats,
     pub last_phases: FramePhases,
+    /// Vblanks missed before the last presented frame (0 while warming up).
+    /// Feeds `SceneRuntimeState::vblanks_elapsed`.
+    pub last_dropped_frames: u32,
     /// Swapchain slot index (cycles 0..swapchain_len); distinct from the global
     /// frame counter inside `FrameStats`.
     pub frame_index: usize,
+    /// The client-resettable window, shared with `SceneRuntimeState::frame_stats`.
+    pub window: Arc<FrameStatsWindow>,
 }
 
 impl FrameTiming {
-    pub fn new(refresh_hz: f64) -> Self {
+    pub fn new(refresh_hz: f64, window: Arc<FrameStatsWindow>) -> Self {
         Self {
             stats: FrameStats::new(refresh_hz),
             last_phases: FramePhases::default(),
+            last_dropped_frames: 0,
             frame_index: 0,
+            window,
         }
     }
 
     /// For a backend paced by a downstream consumer that holds the target
     /// rate on average but delivers irregularly. See [`Pacing::AveragedRate`].
-    pub fn new_rate_averaged(refresh_hz: f64) -> Self {
+    pub fn new_rate_averaged(refresh_hz: f64, window: Arc<FrameStatsWindow>) -> Self {
         Self {
             stats: FrameStats::new_rate_averaged(refresh_hz),
             last_phases: FramePhases::default(),
+            last_dropped_frames: 0,
             frame_index: 0,
+            window,
         }
+    }
+}
+
+/// Frame statistics over a window a client opens and closes over the wire
+/// (`QueryFrameStats` / `ResetFrameStats`), independent of the rolling
+/// [`FrameStats`] history the overlay shows.
+///
+/// Lock-free: the render thread records each present with a few atomic
+/// updates, so a client reading or resetting it can never cost a frame, and a
+/// query sees the frame presented just before it rather than one frame late.
+/// The fields are not updated as one unit, so a reset that lands mid-update can
+/// split that one frame across two windows. Nothing a client asks of it needs
+/// better than that.
+#[derive(Debug)]
+pub struct FrameStatsWindow {
+    presented_frames: AtomicU64,
+    dropped_frames: AtomicU64,
+    intervals: AtomicU64,
+    interval_sum_ns: AtomicU64,
+    /// Squares in µs², not ns²: ns² overflows `u64` within minutes at 60 Hz.
+    interval_sq_sum_us2: AtomicU64,
+    interval_min_ns: AtomicU64,
+    interval_max_ns: AtomicU64,
+    window_start_frame: AtomicU64,
+}
+
+/// One read of a [`FrameStatsWindow`].
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct FrameStatsSnapshot {
+    pub presented_frames: u64,
+    pub dropped_frames: u64,
+    pub mean_frame_interval_ms: f64,
+    pub std_frame_interval_ms: f64,
+    pub min_frame_interval_ms: f64,
+    pub max_frame_interval_ms: f64,
+    pub window_start_frame: u64,
+}
+
+impl Default for FrameStatsWindow {
+    fn default() -> Self {
+        Self {
+            presented_frames: AtomicU64::new(0),
+            dropped_frames: AtomicU64::new(0),
+            intervals: AtomicU64::new(0),
+            interval_sum_ns: AtomicU64::new(0),
+            interval_sq_sum_us2: AtomicU64::new(0),
+            interval_min_ns: AtomicU64::new(u64::MAX),
+            interval_max_ns: AtomicU64::new(0),
+            window_start_frame: AtomicU64::new(0),
+        }
+    }
+}
+
+impl FrameStatsWindow {
+    /// Record one presented frame. `interval_ns` is the time since the previous
+    /// present, `None` when there is none worth counting (the first frame, or
+    /// swapchain start-up). Render thread only; never blocks or allocates.
+    pub fn record(&self, interval_ns: Option<u64>, dropped: u32) {
+        self.presented_frames.fetch_add(1, Ordering::Relaxed);
+        self.dropped_frames.fetch_add(u64::from(dropped), Ordering::Relaxed);
+        if let Some(ns) = interval_ns {
+            let us = ns / 1_000;
+            self.intervals.fetch_add(1, Ordering::Relaxed);
+            self.interval_sum_ns.fetch_add(ns, Ordering::Relaxed);
+            self.interval_sq_sum_us2.fetch_add(us.saturating_mul(us), Ordering::Relaxed);
+            self.interval_min_ns.fetch_min(ns, Ordering::Relaxed);
+            self.interval_max_ns.fetch_max(ns, Ordering::Relaxed);
+        }
+    }
+
+    pub fn snapshot(&self) -> FrameStatsSnapshot {
+        let load = |a: &AtomicU64| a.load(Ordering::Relaxed);
+        Self::summarize(
+            load(&self.presented_frames),
+            load(&self.dropped_frames),
+            load(&self.intervals),
+            load(&self.interval_sum_ns),
+            load(&self.interval_sq_sum_us2),
+            load(&self.interval_min_ns),
+            load(&self.interval_max_ns),
+            load(&self.window_start_frame),
+        )
+    }
+
+    /// Close the current window and open a new one starting at `start_frame`,
+    /// returning the statistics of the window just closed.
+    pub fn reset(&self, start_frame: u64) -> FrameStatsSnapshot {
+        let swap = |a: &AtomicU64, v| a.swap(v, Ordering::Relaxed);
+        Self::summarize(
+            swap(&self.presented_frames, 0),
+            swap(&self.dropped_frames, 0),
+            swap(&self.intervals, 0),
+            swap(&self.interval_sum_ns, 0),
+            swap(&self.interval_sq_sum_us2, 0),
+            swap(&self.interval_min_ns, u64::MAX),
+            swap(&self.interval_max_ns, 0),
+            swap(&self.window_start_frame, start_frame),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn summarize(
+        presented_frames: u64,
+        dropped_frames: u64,
+        intervals: u64,
+        sum_ns: u64,
+        sq_sum_us2: u64,
+        min_ns: u64,
+        max_ns: u64,
+        window_start_frame: u64,
+    ) -> FrameStatsSnapshot {
+        let mut s = FrameStatsSnapshot {
+            presented_frames,
+            dropped_frames,
+            window_start_frame,
+            ..Default::default()
+        };
+        if intervals > 0 {
+            let n = intervals as f64;
+            let mean_ms = sum_ns as f64 / n / 1e6;
+            let mean_us = mean_ms * 1e3;
+            let var_us2 = (sq_sum_us2 as f64 / n - mean_us * mean_us).max(0.0);
+            s.mean_frame_interval_ms = mean_ms;
+            s.std_frame_interval_ms = var_us2.sqrt() / 1e3;
+            // A reset racing a record can leave min at its sentinel.
+            s.min_frame_interval_ms = if min_ns == u64::MAX { 0.0 } else { min_ns as f64 / 1e6 };
+            s.max_frame_interval_ms = max_ns as f64 / 1e6;
+        }
+        s
     }
 }
 
@@ -113,6 +254,8 @@ pub struct FrameStats {
     ring_head: usize,
     valid_count: usize,
     drop_count: u64,
+    /// Interval ending at the most recent present; `None` before the second.
+    last_interval_ns: Option<u64>,
     expected_frame_ns: u64,
     pacing: Pacing,
     /// `AveragedRate` only: when the first frame was presented, and the
@@ -158,6 +301,7 @@ impl FrameStats {
             ring_head: 0,
             valid_count: 0,
             drop_count: 0,
+            last_interval_ns: None,
             expected_frame_ns,
             pacing,
             first_present: None,
@@ -188,6 +332,7 @@ impl FrameStats {
                 Pacing::AveragedRate => self.count_rate_deficit(vblank_time),
             };
             self.drop_count += d as u64;
+            self.last_interval_ns = Some(dur_ns);
             self.durations_ns[self.ring_head] = dur_ns;
             self.ring_head = (self.ring_head + 1) % FRAME_HISTORY_SIZE;
             if self.valid_count < FRAME_HISTORY_SIZE {
@@ -240,6 +385,11 @@ impl FrameStats {
         let n = self.valid_count.min(FRAME_HISTORY_SIZE);
         let start = (self.ring_head + FRAME_HISTORY_SIZE - n) % FRAME_HISTORY_SIZE;
         (0..n).map(move |i| self.durations_ns[(start + i) % FRAME_HISTORY_SIZE])
+    }
+
+    /// The interval ending at the most recent present, `None` before the second.
+    pub fn last_interval_ns(&self) -> Option<u64> {
+        self.last_interval_ns
     }
 
     pub fn expected_ns(&self) -> u64 {
@@ -308,6 +458,23 @@ mod tests {
             total += stats.on_present(t);
         }
         total
+    }
+
+    #[test]
+    fn stats_window_accumulates_and_reset_closes_it() {
+        let w = FrameStatsWindow::default();
+        w.record(None, 0);
+        w.record(Some(16_000_000), 0);
+        w.record(Some(20_000_000), 1);
+        let s = w.snapshot();
+        assert_eq!((s.presented_frames, s.dropped_frames), (3, 1));
+        assert!((s.mean_frame_interval_ms - 18.0).abs() < 1e-9);
+        assert!((s.std_frame_interval_ms - 2.0).abs() < 1e-6);
+        assert_eq!((s.min_frame_interval_ms, s.max_frame_interval_ms), (16.0, 20.0));
+
+        assert_eq!(w.reset(42), s);
+        let fresh = w.snapshot();
+        assert_eq!(fresh, FrameStatsSnapshot { window_start_frame: 42, ..Default::default() });
     }
 
     #[test]

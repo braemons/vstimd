@@ -157,6 +157,8 @@ pub fn render_frame(
 
     // ── 4. Tessellate scene into GPU buffers ──────────────────────────────────
     let t_tess_start = std::time::Instant::now();
+    let mut wants_3d = false;
+    let vblanks_elapsed = 1 + rs.timing.last_dropped_frames;
     {
         let fps = rs.timing.stats.summary().fps as f32;
         // Nominal, not measured — everything whose result has to be the same on
@@ -186,6 +188,8 @@ pub fn render_frame(
         sc.runtime.screen_size = Some(screen_size);
         sc.runtime.frame_rate_hz = fps;
         sc.runtime.nominal_frame_rate_hz = nominal_fps;
+        wants_3d |= sc.has_3d();
+        sc.runtime.vblanks_elapsed = vblanks_elapsed;
         if sc.runtime.last_uploaded_size != screen_size {
             sc.runtime.last_uploaded_size = screen_size;
             for entry in sc.stimuli.values_mut() {
@@ -324,16 +328,26 @@ pub fn render_frame(
                     clear_dirty = true;
                 }
 
-                // Phase B: tessellate into the geometry-keyed `Mesh3dCache` and
-                // upload to device-local memory via a staging buffer. Nothing
-                // constructs a `Mesh3d` yet, so this is unreachable.
-                StimulusBody::Mesh3d(_) => {
-                    unimplemented!("Phase B: 3-D mesh upload — see dev/3D_ROADMAP.md §A.5, §B.6")
-                }
+                // Nothing per stimulus: the mesh is shared by geometry and synced
+                // below, and size, placement and colour are per-draw constants.
+                StimulusBody::Mesh3d(_) => clear_dirty = true,
             }
             if clear_dirty {
                 entry.stimulus.flags_mut().dirty = false;
             }
+        }
+
+        // The shared 3-D meshes follow the geometries the scene references. A
+        // pure 2-D scene has none cached and none wanted, and skips this.
+        if wants_3d || !cache.mesh3d.is_empty() {
+            cache.mesh3d.sync(
+                &ctx.device,
+                ctx.command_pool,
+                ctx.graphics_queue,
+                sc.stimuli
+                    .values()
+                    .filter_map(|e| e.stimulus.mesh3d().map(|m| m.geometry.live.mesh_key())),
+            );
         }
 
         sc.photodiode.advance();
@@ -367,6 +381,13 @@ pub fn render_frame(
         .glyph_atlas
         .flush(&ctx.device, ctx.graphics_queue, ctx.command_pool);
     let tessellate_us = t_tess_start.elapsed().as_micros() as u32;
+
+    // ── 4b. 3-D setup, on the first frame that needs it ──────────────────────
+    // Never entered by a pure 2-D scene. Re-borrows `ctx`/`frame` afterwards,
+    // since creating the 3-D pass mutates the context.
+    let drew_3d = wants_3d && rs.scene_renderer.ensure_3d(&mut rs.ctx);
+    let ctx = &rs.ctx;
+    let frame = &ctx.frames[frame_slot];
 
     // ── 5. Select pipeline pair (after tessellation to avoid borrow conflict) ──
     // `pipe` and `grate` borrow from `scene_renderer.{pipeline,grating_pipeline}`,
@@ -436,11 +457,37 @@ pub fn render_frame(
             extent: ctx.extent,
         };
         let clear_value = vk::ClearValue { color: bg };
-        let rp_info = vk::RenderPassBeginInfo::default()
-            .render_pass(ctx.render_pass)
-            .framebuffer(ctx.framebuffers[image_index as usize])
-            .render_area(render_area)
-            .clear_values(std::slice::from_ref(&clear_value));
+
+        // The 3-D pass, if any, clears and draws first; the 2-D pass then
+        // `LOAD`s over it instead of clearing. With no 3-D this is exactly the
+        // 2-D pass that ran before 3-D existed. See `vk_pass3d`.
+        let pass_3d = ctx.pass_3d.as_ref().filter(|_| drew_3d);
+        if let (Some(pass), Some(mesh3d)) = (pass_3d, rs.scene_renderer.mesh3d.as_ref()) {
+            let sc = rs.scene_renderer.scene.read().expect("scene lock poisoned");
+            crate::render::render_3d::record_3d_pass(
+                ctx,
+                cb,
+                pass,
+                mesh3d,
+                image_index,
+                frame_slot,
+                bg,
+                rs.scene_renderer.wireframe,
+                &sc,
+                &rs.scene_renderer.scene_cache.mesh3d,
+            );
+        }
+        let rp_info = match pass_3d {
+            None => vk::RenderPassBeginInfo::default()
+                .render_pass(ctx.render_pass)
+                .framebuffer(ctx.framebuffers[image_index as usize])
+                .render_area(render_area)
+                .clear_values(std::slice::from_ref(&clear_value)),
+            Some(pass) => vk::RenderPassBeginInfo::default()
+                .render_pass(pass.load_2d_pass)
+                .framebuffer(ctx.framebuffers[image_index as usize])
+                .render_area(render_area),
+        };
 
         ctx.device
             .cmd_begin_render_pass(cb, &rp_info, vk::SubpassContents::INLINE);
@@ -726,11 +773,10 @@ pub fn render_frame(
             ctx.device.cmd_end_render_pass(cb);
         }
 
-        // ── Optional CPU readback (evdi only — readback is only ever Some for
-        //    a self_presented context; see VkContext::self_presented) ─────────
-        // Recorded here, while the image is still ours (both of evdi's render
-        // passes' `finalLayout` leaves it in `GENERAL`, not `PRESENT_SRC_KHR` —
-        // see evdi_init.rs's create_render_pass_no_wsi doc comment for why).
+        // ── Optional CPU readback (evdi's output path, and F12 screenshots) ───
+        // Recorded here, while the image is still ours. It starts and must end
+        // in `ctx.present_layout`: `PRESENT_SRC_KHR` for a real swapchain,
+        // `GENERAL` for evdi (see evdi_init.rs's create_render_pass_no_wsi).
         if let Some(rb) = readback {
             let image = ctx.swapchain_images[image_index as usize];
             let subresource_range = vk::ImageSubresourceRange {
@@ -741,7 +787,7 @@ pub fn render_frame(
                 layer_count: 1,
             };
             let to_transfer_src = vk::ImageMemoryBarrier::default()
-                .old_layout(vk::ImageLayout::GENERAL)
+                .old_layout(ctx.present_layout)
                 .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
                 .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
@@ -783,10 +829,10 @@ pub fn render_frame(
                 &[region],
             );
 
-            // The render pass expects the image back in `GENERAL`.
+            // Back to where the passes left it, ready for present.
             let back_to_present = vk::ImageMemoryBarrier::default()
                 .old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
-                .new_layout(vk::ImageLayout::GENERAL)
+                .new_layout(ctx.present_layout)
                 .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .image(image)
@@ -898,6 +944,16 @@ pub fn render_frame(
     // ── 10. Stats + return ────────────────────────────────────────────────────
     let warming_up = rs.timing.stats.is_warming_up();
     let dropped_frames = rs.timing.stats.on_present(vblank_time);
+    // What input integration needs next frame: how long this one really took.
+    // Warm-up gaps are swapchain start-up, not time an animal was running.
+    rs.timing.last_dropped_frames = if warming_up { 0 } else { dropped_frames as u32 };
+    // Warm-up is swapchain start-up: its frames count as presented, but neither
+    // its gaps nor its "drops" say anything about the display.
+    if warming_up {
+        rs.timing.window.record(None, 0);
+    } else {
+        rs.timing.window.record(rs.timing.stats.last_interval_ns(), dropped_frames);
+    }
     if dropped_frames > 0 && !warming_up {
         // Stated, not judged: whether a trial that lost a frame is still a
         // trial is the decision authority's call, and this server has no idea

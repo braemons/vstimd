@@ -1,6 +1,7 @@
 use indexmap::IndexMap;
 
 use super::animation::AnimationEntry;
+use super::camera3d::{Camera3D, Lighting3D};
 use super::conditions::Conditions;
 use super::deferred::Deferred;
 use super::photodiode::PhotoDiodeState;
@@ -28,6 +29,25 @@ pub struct SceneConfig {
     /// written exactly as it always was.
     #[serde(default, skip_serializing_if = "Conditions::is_default")]
     pub conditions: Conditions,
+    /// The 3-D camera. Defaulted and omitted on save like `conditions`, so a
+    /// pure 2-D scene-config is written exactly as it was before 3-D existed.
+    #[serde(default, skip_serializing_if = "camera_is_default")]
+    pub camera: Deferred<Camera3D>,
+    /// Lighting for `Phong` 3-D surfaces. Omitted on save when default, like the
+    /// camera.
+    #[serde(default, skip_serializing_if = "lighting_is_default")]
+    pub lighting: Deferred<Lighting3D>,
+    /// Camera zones — see [`super::zones`]. Omitted on save when empty.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub camera_zones: Vec<super::zones::CameraZone>,
+}
+
+fn lighting_is_default(lighting: &Deferred<Lighting3D>) -> bool {
+    lighting.live == Lighting3D::default()
+}
+
+fn camera_is_default(camera: &Deferred<Camera3D>) -> bool {
+    camera.live == Camera3D::default()
 }
 
 impl Default for SceneConfig {
@@ -42,6 +62,9 @@ impl Default for SceneConfig {
             animations: IndexMap::new(),
             next_anim_handle: 1,
             conditions: Conditions::default(),
+            camera: Deferred::new(Camera3D::default()),
+            lighting: Deferred::new(Lighting3D::default()),
+            camera_zones: Vec::new(),
         }
     }
 }

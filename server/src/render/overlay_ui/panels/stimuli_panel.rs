@@ -125,7 +125,7 @@ pub(in crate::render::overlay_ui) fn stimuli_panel(
                         )).on_hover_text(&uuid_str);
                         ui.label(
                             egui::RichText::new(match pos_px {
-                                Some(p) => format!("{:>6.0},{:>6.0}", p[0], p[1]),
+                                Some(p) => format!("{:>6.0},{:>6.0}", p.x(), p.y()),
                                 None => "     —,     —".to_string(),
                             })
                             .monospace(),

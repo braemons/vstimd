@@ -90,6 +90,7 @@ impl WinitRenderLoopData {
 
         // Build sub-renderers before ctx moves into RenderState.
         let storage_dir = scene.read().unwrap().runtime.storage_dir.clone();
+        let capture_rx = scene.read().unwrap().runtime.take_capture_receiver();
         let scene_renderer = SceneRenderer::new(&ctx, scene);
         let text = TextRenderer::new(&ctx);
 
@@ -149,11 +150,12 @@ impl WinitRenderLoopData {
         }
 
         let size = window.inner_size();
+        let frame_stats_window = scene_renderer.frame_stats_window();
         let rs = RenderState {
             scene_renderer,
             text,
             ui: Some(ui),
-            timing: FrameTiming::new(hz),
+            timing: FrameTiming::new(hz, frame_stats_window),
             events,
             system_info,
             display_info: StimulusDisplayInfo {
@@ -166,7 +168,7 @@ impl WinitRenderLoopData {
         };
 
         Self {
-            shot: crate::render::Screenshotter::new(),
+            shot: crate::render::Screenshotter::new(capture_rx),
             rs,
             vtl,
             egui_winit,
@@ -199,18 +201,21 @@ impl WinitRenderLoopData {
         // render_frame(), so this poll fires at the top of the render loop rather
         // than at the true vblank boundary.  DRM mode gets exact vblank alignment.
         if let Some(vtl) = &self.vtl {
-            let (input_edges, output_edges, mut levels, mut pulses) = {
+            let (mut input_edges, output_edges, mut levels, mut pulses) = {
                 let mut v = vtl.lock().unwrap();
                 v.commit_staged();
                 let input_edges = v.poll();
                 let output_edges = v.output_edges();
                 (input_edges, output_edges, v.staged, v.pulses)
             };
-            self.rs.scene_renderer.scene.write().unwrap().advance_animations(
+            let mut sc = self.rs.scene_renderer.scene.write().unwrap();
+            sc.evaluate_camera_zones(&mut input_edges);
+            sc.advance_animations(
                 &input_edges,
                 &output_edges,
                 &mut VtlOutputs { levels: &mut levels, pulses: &mut pulses },
             );
+            drop(sc);
             vtl.lock().unwrap().store_frame_outputs(levels, pulses);
         }
 
@@ -223,7 +228,7 @@ impl WinitRenderLoopData {
         let readback = shot.begin(&rs.ctx);
         let (tick, platform_output) =
             render_frame(rs, None, egui_raw_input, vtl.as_deref(), readback);
-        shot.finish(&rs.ctx);
+        shot.finish(&rs.ctx, tick.as_ref().map(|t| t.frame));
 
 
         // 3. Forward egui platform output (cursor changes, clipboard, etc.).
@@ -342,6 +347,25 @@ impl ApplicationHandler for WinitEventHandler {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        // Arrow keys feed a keyboard-overridden input device (press and release).
+        if let WindowEvent::KeyboardInput {
+            event: winit::event::KeyEvent { physical_key: PhysicalKey::Code(key), state, .. },
+            ..
+        } = &event
+        {
+            use crate::input::keyboard_axes::{Arrow, set_arrow};
+            let arrow = match key {
+                KeyCode::ArrowUp => Some(Arrow::Up),
+                KeyCode::ArrowDown => Some(Arrow::Down),
+                KeyCode::ArrowLeft => Some(Arrow::Left),
+                KeyCode::ArrowRight => Some(Arrow::Right),
+                _ => None,
+            };
+            if let Some(a) = arrow {
+                set_arrow(a, *state == ElementState::Pressed);
+            }
+        }
+
         // ── Global hotkeys — handled BEFORE egui so a focused widget cannot
         //   swallow them. F1–F7 and backtick must always reach the app.
         //   Plain Fn: show + focus that panel.

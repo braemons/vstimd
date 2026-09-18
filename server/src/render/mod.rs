@@ -16,6 +16,7 @@ pub use render_target::{RenderTarget, RenderTargetPref, WindowMode};
 pub(crate) mod overlay_ui;
 pub use overlay_ui::UiRenderer;
 pub mod tess;
+pub mod tess3d;
 pub(crate) mod vk;
 
 pub(crate) mod scene_renderer;
@@ -27,6 +28,7 @@ pub use text_renderer::TextRenderer;
 pub mod render_state;
 pub use render_state::RenderState;
 
+mod render_3d;
 pub mod render_frame;
 pub use render_frame::{ReadbackTarget, render_frame};
 
