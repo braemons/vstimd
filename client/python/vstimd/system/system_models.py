@@ -250,6 +250,11 @@ class InputDeviceInfo:
     #: The producer is missing or silent: the targets it drives hold still.
     stale: bool
     torn_reads: int
+    #: Frames that found no new sample. A few mean nothing — the producer's clock
+    #: and the display's are unrelated — but a count climbing with the frame
+    #: counter means the producer samples at or below the display rate, and a
+    #: stimulus it drives moves in uneven steps. Raise the producer's rate.
+    starved_frames: int
     axes: tuple[InputAxisInfo, ...]
 
     @classmethod
@@ -265,6 +270,7 @@ class InputDeviceInfo:
             connected=d.connected,
             stale=d.stale,
             torn_reads=d.torn_reads,
+            starved_frames=d.starved_frames,
             axes=tuple(
                 InputAxisInfo(a.name, semantics.get(a.semantic, "unknown"), a.scale, a.value, a.delta)
                 for a in d.axes

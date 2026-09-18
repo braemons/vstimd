@@ -21,6 +21,22 @@
 //! disabled and no frame fails: the experiment runs on with the stimulus still,
 //! which is the safe way to fail.
 //!
+//! ## Sampling slower than the display
+//!
+//! Staleness catches a producer that stopped. It does not catch one that is
+//! merely **slow**, and for a device that drives motion that is its own defect:
+//! a wheel published at 200 Hz against a 240 Hz display leaves some frames with
+//! no new sample and gives the next one two samples' worth of movement. The
+//! camera then advances in uneven steps — at exactly the speeds a running
+//! animal produces, and with nothing in the logs to say why.
+//!
+//! vstimd cannot fix it (the fix is the producer's sample rate) but it is the
+//! only process placed to *see* it: it knows both rates, once per frame, for
+//! free. So [`InputDevice::starved_frames`] counts frames whose read found the
+//! producer's write count unchanged. A handful is nothing — the two clocks are
+//! unrelated. A count climbing with the frame counter means the producer is at
+//! or below the display rate and should be raised above it.
+//!
 //! ## Threads
 //!
 //! [`InputRegistry::sample_all`] runs on the render thread, under the scene
@@ -96,6 +112,11 @@ pub struct InputDevice {
     pub frame: [AxisFrame; MAX_AXES],
     /// Reads abandoned because the producer was mid-write.
     pub torn_reads: u64,
+    /// Frames whose read found the same write count as the frame before — the
+    /// producer published nothing in a whole frame. See *Sampling slower than
+    /// the display* in the module docs: a rate of these is a misconfigured
+    /// producer, visible nowhere else.
+    pub starved_frames: u64,
     raw: [f64; MAX_AXES],
     /// The previous raw reading of each cumulative axis, and whether it is a
     /// valid baseline to difference against.
@@ -140,6 +161,7 @@ impl InputDevice {
             stale,
             frame: [AxisFrame::default(); MAX_AXES],
             torn_reads: 0,
+            starved_frames: 0,
             raw: [0.0; MAX_AXES],
             baseline: [0.0; MAX_AXES],
             has_baseline: false,
@@ -177,6 +199,10 @@ impl InputDevice {
                     let count = c.write_count();
                     if count < self.last_write_count {
                         self.has_baseline = false;
+                    } else if count == self.last_write_count && self.has_baseline {
+                        // The producer wrote nothing between two frames. One is
+                        // nothing; a rate is the finding — see `starved_frames`.
+                        self.starved_frames += 1;
                     }
                     self.last_write_count = count;
                     match c.read_into(&mut self.raw[..n]) {

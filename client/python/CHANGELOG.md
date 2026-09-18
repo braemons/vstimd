@@ -116,6 +116,15 @@ server and the client move together, and nothing has shipped yet.
 
 ### Added
 
+- **A producer that is slower than the display now says so.**
+  `InputDeviceInfo.starved_frames` (from `conn.system.list_input_devices()`)
+  counts frames that found no new sample from the device's producer. Staleness
+  only catches a producer that *stopped*; one merely publishing at or below the
+  display rate leaves some frames with nothing new and the next with two
+  samples' worth of movement, which is visible stutter in whatever the device
+  drives and shows up nowhere else. A handful means nothing — the two clocks are
+  unrelated — but a count climbing with the frame counter means raise the
+  producer's rate above the display's.
 - **Frame statistics.** `conn.system.query_frame_stats()` reports presented and
   dropped frames and frame-interval mean/std/min/max since the last
   `conn.system.reset_frame_stats()`, which opens a new window and returns the one

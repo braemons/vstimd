@@ -34,6 +34,11 @@ message InputDeviceInfo {
   bool stale = 4;
   uint64 torn_reads = 5; // reads abandoned because the producer was mid-write
   repeated InputAxisInfo axes = 6;
+  // Frames that found no new sample: the producer published nothing between two
+  // reads. A few are meaningless (the clocks are unrelated); a count that climbs
+  // with the frame counter means the producer samples at or below the display
+  // rate, which makes a device-driven stimulus move in uneven steps.
+  uint64 starved_frames = 7;
 }
 
 // System command. Returns ListInputDevicesResponse in Response.body.
