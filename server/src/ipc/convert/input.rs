@@ -18,6 +18,7 @@ pub(crate) fn input_device_to_proto(d: &InputDevice) -> proto::InputDeviceInfo {
         connected: d.is_connected(),
         stale: d.stale,
         torn_reads: d.torn_reads,
+        starved_frames: d.starved_frames,
         axes: d
             .axes
             .iter()

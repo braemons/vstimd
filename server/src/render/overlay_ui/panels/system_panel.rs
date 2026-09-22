@@ -117,6 +117,9 @@ fn input_devices(ui: &mut egui::Ui, scene: &Arc<RwLock<SceneState>>) {
             if d.torn_reads > 0 {
                 ui.label(format!("torn {}", d.torn_reads));
             }
+            if d.starved_frames > 0 {
+                ui.label(format!("no-sample frames {}", d.starved_frames));
+            }
         });
         for (i, axis) in d.axes.iter().enumerate() {
             let f = d.frame[i];

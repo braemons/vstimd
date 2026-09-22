@@ -25,6 +25,7 @@ import { StimulusMap } from "../app/StimulusMap.js";
 import { VtlPanel } from "../app/VtlPanel.js";
 import { AnimationsPanel } from "../app/AnimationsPanel.js";
 import { SystemPanel } from "../app/SystemPanel.js";
+import { InputPanel } from "../app/InputPanel.js";
 
 /** What every panel here is a function of. */
 interface PanelProps {
@@ -182,6 +183,7 @@ definePanel("vstimd-stimuli", StimuliPanel, "what is on the screen, and what eac
 definePanel("vstimd-lines", VtlPanel, "the virtual trigger lines, as the server sees them now");
 definePanel("vstimd-animations", AnimationsPanel, "what is armed, and what it is waiting for");
 definePanel("vstimd-system", SystemPanel, "background, photodiode, and the whole-scene switches");
+definePanel("vstimd-input", InputPanel, "the rig's wheels and trackers — where each axis is, and how fast");
 
 /** So a console can iterate the panels rather than hard-code a list that goes stale. */
 export const VSTIMD_ELEMENT_NAMES = [
@@ -190,4 +192,5 @@ export const VSTIMD_ELEMENT_NAMES = [
   "vstimd-lines",
   "vstimd-animations",
   "vstimd-system",
+  "vstimd-input",
 ];

@@ -301,3 +301,32 @@ fn list_input_devices_and_query_report_staleness() {
     advance(&mut scene, 1);
     assert!(query(&mut scene).device_stale);
 }
+
+/// A producer slower than the display is not stale — it is publishing, just not
+/// often enough — and nothing else would show it. `starved_frames` counts the
+/// frames that found no new sample; a rate of them says raise the producer.
+#[test]
+fn a_producer_slower_than_the_display_shows_up_as_starved_frames() {
+    let mut scene = scene_60hz();
+    let mut owner = attach(&mut scene, "slow", &[("distance", Semantic::Cumulative)], 1.0);
+
+    // One write per frame: nothing starved, whatever the totals do.
+    for i in 1..=5 {
+        owner.write(&[f64::from(i)]);
+        advance(&mut scene, 1);
+    }
+    let starved = |scene: &SceneState| scene.runtime.input.get("slow").unwrap().starved_frames;
+    assert_eq!(starved(&scene), 0);
+
+    // One write per three frames: the two frames between them find nothing new.
+    for i in 6..=10 {
+        owner.write(&[f64::from(i)]);
+        advance(&mut scene, 3);
+    }
+    assert_eq!(starved(&scene), 10);
+
+    // Still live, still moving: this is a quality signal, not a failure.
+    let d = scene.runtime.input.get("slow").unwrap();
+    assert!(!d.stale);
+    assert_eq!(d.frame[0].value, 10.0);
+}
