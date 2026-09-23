@@ -8,6 +8,7 @@ Usage
 
     uv run examples/demos/gaussian_splat_room.py ~/.cache/vstimd-samples/room-7k.splat
     uv run examples/demos/gaussian_splat_room.py scene.ply --scale 100 --speed 40
+    uv run examples/demos/gaussian_splat_room.py room-7k.splat --wheel wheel:wheel
 
 Unlike the other scripts here this one builds **no shipped config**: Gaussian
 splatting is a prototype (dev/design/GAUSSIAN_SPLAT_PLAN.md), and the sample
@@ -21,6 +22,10 @@ through the scene camera, driven by the same `LinearNav3D` animation a geometric
 corridor uses, and captioned by an ordinary 2-D text box drawn over the top.
 Only `conn.stimuli.gaussian_splat.create(path)` is splat-specific.
 
+With ``--wheel DEVICE:AXIS`` the camera follows a cumulative axis of a
+rig-config input device instead of ``--speed`` — e.g. mousewheeld publishing to
+``/vstimd_wheel`` — so the scene is walked by turning the wheel.
+
 Placement is the one thing a trained scene needs and a primitive does not. A
 scene has no units and, straight out of COLMAP, is upside down in vstimd's Y-up
 world — hence `--scale` (centimetres per scene unit) and the 180° pitch.
@@ -31,6 +36,7 @@ import sys
 from _common import add_explanation, clean_slate, demo_parser
 
 from vstimd import Connection
+from vstimd.animations import AxisRef
 from vstimd.stimuli import Transform3D, Vec3
 from vstimd.system import Camera3D
 
@@ -62,7 +68,18 @@ def main() -> None:
         "--track-cm", type=float, default=400.0,
         help="track length in cm before the view fades and restarts (default: 400)",
     )
+    parser.add_argument(
+        "--camera-height-cm", type=float, default=5.0,
+        help="the camera's height in the placed scene (default: 5, about a person's eye "
+        "height in room-7k; its floor is at -142, so -139 is a mouse's)",
+    )
+    parser.add_argument(
+        "--wheel",
+        metavar="DEVICE:AXIS",
+        help="follow this rig-config input axis instead of --speed",
+    )
     args = parser.parse_args()
+    source = AxisRef(*args.wheel.split(":", 1)) if args.wheel else None
 
     print(f"Connecting to {args.address} …")
     with Connection(args.address) as conn:
@@ -89,7 +106,7 @@ def main() -> None:
 
         # ── The camera ────────────────────────────────────────────────────────
         # Eye height above the scene origin, looking down -Z like the default.
-        conn.system.set_camera(Camera3D(position_cm=Vec3(0, 5, 20)))
+        conn.system.set_camera(Camera3D(position_cm=Vec3(0, args.camera_height_cm, 20)))
 
         # ── The walk ──────────────────────────────────────────────────────────
         # A finite track, not a wrap: a captured room does not repeat, so at the
@@ -99,14 +116,16 @@ def main() -> None:
             args.speed,
             track_length_cm=args.track_cm,
             fade_frames=30,
+            source=source,
             name="walk",
         )
 
         add_explanation(conn, EXPLANATION)
 
         conn.animations.arm(walk)
+        pace = f"following {args.wheel}" if source else f"{args.speed:g} cm/s"
         print(
-            f"Walking: handle={scene}, {args.speed:g} cm/s over {args.track_cm:g} cm.\n"
+            f"Walking: handle={scene}, {pace} over {args.track_cm:g} cm.\n"
             "Ctrl-C to stop."
         )
         try:
