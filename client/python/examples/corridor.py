@@ -7,17 +7,23 @@ Usage
 
     uv run examples/corridor.py                      # default tcp://localhost:5555
     uv run examples/corridor.py --speed 60 --seconds 20
+    uv run examples/corridor.py --wheel wheel:wheel   # a rig-config input device
 
 A corridor repeats every period, and the camera animation wraps its position
 into one period, so the walk never runs out of corridor. Every sphere recurs
 once per period too. The script prints the true distance walked, which is the
 number to record in an experiment — the camera position itself wraps.
+
+With ``--wheel DEVICE:AXIS`` the camera follows a cumulative axis of a
+rig-config input device instead of a set speed — e.g. mousewheeld publishing
+to ``/vstimd_wheel`` — and the walk lasts until Ctrl-C.
 """
 
 import argparse
 import time
 
 from vstimd import Connection
+from vstimd.animations import AxisRef
 from vstimd.stimuli import (
     Color,
     Corridor3DParams,
@@ -38,7 +44,13 @@ def main() -> None:
     parser.add_argument("address", nargs="?", default="tcp://localhost:5555")
     parser.add_argument("--speed", type=float, default=40.0, help="cm/s (default: 40)")
     parser.add_argument("--seconds", type=float, default=10.0)
+    parser.add_argument(
+        "--wheel",
+        metavar="DEVICE:AXIS",
+        help="follow this rig-config input axis instead of --speed, until Ctrl-C",
+    )
     args = parser.parse_args()
+    source = AxisRef(*args.wheel.split(":", 1)) if args.wheel else None
 
     print(f"Connecting to {args.address} …")
     with Connection(args.address) as conn:
@@ -59,14 +71,18 @@ def main() -> None:
             ),
         )
         conn.system.set_camera(Camera3D(position_cm=Vec3(0.0, 20.0, 0.0)))
-        walk = conn.animations.create_linear_nav_3d(args.speed, wrap_period_cm=PERIOD_CM)
+        walk = conn.animations.create_linear_nav_3d(
+            0.0 if source else args.speed, wrap_period_cm=PERIOD_CM, source=source
+        )
         conn.animations.arm(walk)
         try:
-            end = time.monotonic() + args.seconds
+            end = float("inf") if source else time.monotonic() + args.seconds
             while time.monotonic() < end:
                 time.sleep(1.0)
                 d = conn.animations.query(walk).distance_travelled_cm
                 print(f"walked {d:7.1f} cm")
+        except KeyboardInterrupt:
+            pass
         finally:
             conn.animations.delete(walk)
             conn.stimuli.delete(spheres)
