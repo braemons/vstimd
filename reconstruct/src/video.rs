@@ -158,9 +158,25 @@ pub fn pick_sharpest(scores: &[f64], oversample: u32) -> Vec<usize> {
 ///
 /// Commas inside `select` are escaped because ffmpeg's own filter parser, not a
 /// shell, splits on them: the argument is passed to the process directly.
+///
+/// The terms are summed as a balanced tree, not a flat `a+b+c+…` chain. ffmpeg
+/// refuses a flat chain somewhere past a hundred terms ("Cannot allocate
+/// memory" from the filter graph) — a 54 s walk kept 162 frames and failed —
+/// while the same terms nested pairwise go only log₂ deep.
 pub fn select_filter(fps: f32, keep: &[usize]) -> String {
     let terms: Vec<String> = keep.iter().map(|i| format!(r"eq(n\,{i})")).collect();
-    format!("fps={fps},select='{}'", terms.join("+"))
+    format!("fps={fps},select='{}'", balanced_sum(&terms))
+}
+
+fn balanced_sum(terms: &[String]) -> String {
+    match terms {
+        [] => "0".to_string(),
+        [one] => one.clone(),
+        _ => {
+            let (left, right) = terms.split_at(terms.len() / 2);
+            format!("({}+{})", balanced_sum(left), balanced_sum(right))
+        }
+    }
 }
 
 /// The `-vf` argument for the scoring pass: the same frames, grayscale and small.
@@ -241,6 +257,26 @@ mod tests {
 
     #[test]
     fn the_select_filter_escapes_commas_for_ffmpegs_parser() {
-        assert_eq!(select_filter(3.0, &[0, 4]), r"fps=3,select='eq(n\,0)+eq(n\,4)'");
+        assert_eq!(select_filter(3.0, &[0, 4]), r"fps=3,select='(eq(n\,0)+eq(n\,4))'");
+        assert_eq!(select_filter(3.0, &[7]), r"fps=3,select='eq(n\,7)'");
+    }
+
+    #[test]
+    fn a_long_walks_select_nests_log_deep_rather_than_chaining() {
+        let keep: Vec<usize> = (0..162).map(|i| i * 3).collect();
+        let filter = select_filter(3.0, &keep);
+        let mut depth = 0i32;
+        let mut deepest = 0;
+        for c in filter.chars() {
+            match c {
+                '(' => depth += 1,
+                ')' => depth -= 1,
+                _ => {}
+            }
+            deepest = deepest.max(depth);
+        }
+        // eq(…) adds one level; the sum of 162 terms adds ⌈log₂ 162⌉ = 8.
+        assert!(deepest <= 9, "nested {deepest} deep");
+        assert_eq!(filter.matches("eq(n").count(), 162);
     }
 }
