@@ -104,6 +104,11 @@ cargo build --release -p vstimd-scene-from-capture
 [Brush releases](https://github.com/ArthurBrussee/brush/releases) (tested with
 0.3.0) and unpack it. It trains on the GPU through Vulkan; no CUDA needed.
 
+```bash
+mkdir -p ~/brush && tar -xf brush-app-x86_64-unknown-linux-gnu.tar.xz -C ~/brush
+# → ~/brush/brush-app-x86_64-unknown-linux-gnu/brush_app
+```
+
 **COLMAP**, either installed (`apt install colmap`, or a build with CUDA), or
 from Docker with the wrapper script in this repository:
 
@@ -120,18 +125,27 @@ a minute for 120 photos.
 Check that everything is found:
 
 ```bash
-vstimd-scene-from-capture check --colmap reconstruct/scripts/colmap-docker --brush ~/brush/brush_app
+vstimd-scene-from-capture check --colmap reconstruct/scripts/colmap-docker \
+    --brush ~/brush/brush-app-x86_64-unknown-linux-gnu/brush_app
 ```
 
-Instead of the flags, you can set `VSTIMD_COLMAP` and `VSTIMD_BRUSH`, or put
-`colmap` and `brush_app` on `PATH`.
+Instead of the flags, you can set `VSTIMD_COLMAP`, `VSTIMD_BRUSH` and
+`VSTIMD_FFMPEG`, or put `colmap`, `brush_app` and `ffmpeg` on `PATH`. Set once,
+they shorten every command below:
+
+```bash
+export VSTIMD_COLMAP=$PWD/reconstruct/scripts/colmap-docker
+export VSTIMD_FFMPEG=$PWD/reconstruct/scripts/ffmpeg-docker
+export VSTIMD_BRUSH=~/brush/brush-app-x86_64-unknown-linux-gnu/brush_app
+```
 
 ## 3. Run
 
 ```bash
 vstimd-scene-from-capture run photos/ --out corridor.ply \
     --capture-path-length-cm 500 --capture-height-cm 8 \
-    --colmap reconstruct/scripts/colmap-docker --brush ~/brush/brush_app
+    --colmap reconstruct/scripts/colmap-docker \
+    --brush ~/brush/brush-app-x86_64-unknown-linux-gnu/brush_app
 ```
 
 It works through six stages and prints progress:
@@ -148,6 +162,12 @@ It works through six stages and prints progress:
 On the development desktop (GTX 1650, COLMAP on the CPU), 118 photos at
 7 000 training steps took under four minutes. The default of 30 000 steps
 takes proportionally longer and gives a sharper scene.
+
+**Plan for an hour with a real video.** A 54 s 1080p walk (162 frames kept)
+took 3½ minutes in COLMAP (Docker) and **65 minutes** to train at the default 30 000
+steps, on the GTX 1650 desktop; an 8.7 s clip at 7 000 steps took under three
+minutes in all. Run `--train-steps 7000` first: it answers whether the capture
+works at all — every image registered, the height right — before the long run.
 
 Useful options (`vstimd-scene-from-capture run --help` lists all):
 
@@ -210,7 +230,7 @@ from vstimd.stimuli import Vec3
 from vstimd.system import Camera3D
 
 with Connection() as conn:
-    conn.stimuli.shapes3d.create_gaussian_splat("/data/scenes/corridor.ply", name="corridor")
+    conn.stimuli.gaussian_splat.create("/data/scenes/corridor.ply", name="corridor")
     # Put the camera where the photos were taken from: capture_height_cm in the report.
     conn.system.set_camera(Camera3D(position_cm=Vec3(0, 8, 0)))
     walk = conn.animations.create_linear_nav_3d(
@@ -223,3 +243,15 @@ with Connection() as conn:
 
 Keep the virtual camera close to the capture height and heading. Views far from
 where the photos were taken fall apart into large blurry splats.
+
+To walk it with a running wheel instead of a set speed, pass
+`source=AxisRef("wheel", "wheel")` (from `vstimd.animations`) to
+`create_linear_nav_3d`: an axis of a rig-config input device, such as
+mousewheeld publishing to `/vstimd_wheel`. The demo does all of this in one
+command:
+
+```bash
+cd client/python
+uv run examples/demos/gaussian_splat_room.py /data/scenes/corridor.ply --placed \
+    --camera-height-cm 8 --track-cm 500 --wheel wheel:wheel
+```

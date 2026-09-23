@@ -9,6 +9,8 @@ Usage
     uv run examples/demos/gaussian_splat_room.py ~/.cache/vstimd-samples/room-7k.splat
     uv run examples/demos/gaussian_splat_room.py scene.ply --scale 100 --speed 40
     uv run examples/demos/gaussian_splat_room.py room-7k.splat --wheel wheel:wheel
+    uv run examples/demos/gaussian_splat_room.py office.ply --placed \
+        --camera-height-cm 16 --track-cm 300 --wheel wheel:wheel
 
 Unlike the other scripts here this one builds **no shipped config**: Gaussian
 splatting is a prototype (dev/design/GAUSSIAN_SPLAT_PLAN.md), and the sample
@@ -29,6 +31,11 @@ rig-config input device instead of ``--speed`` — e.g. mousewheeld publishing t
 Placement is the one thing a trained scene needs and a primitive does not. A
 scene has no units and, straight out of COLMAP, is upside down in vstimd's Y-up
 world — hence `--scale` (centimetres per scene unit) and the 180° pitch.
+
+A scene from ``vstimd-scene-from-capture`` is already placed — centimetres,
+floor at y = 0, the walk starting at the origin and running down −Z — so
+``--placed`` loads it as it is and starts the camera at the origin. Give it the
+camera height and walked path that the tool's report prints.
 """
 
 import sys
@@ -74,6 +81,10 @@ def main() -> None:
         "height in room-7k; its floor is at -142, so -139 is a mouse's)",
     )
     parser.add_argument(
+        "--placed", action="store_true",
+        help="a vstimd-scene-from-capture scene: no transform, camera starting at the origin",
+    )
+    parser.add_argument(
         "--wheel",
         metavar="DEVICE:AXIS",
         help="follow this rig-config input axis instead of --speed",
@@ -94,19 +105,19 @@ def main() -> None:
         # rotation_deg=(0, 180, 0) is the COLMAP fix — a Y-down training frame
         # turned upright. scale is centimetres per scene unit.
         print(f"Loading {args.path} …")
-        scene = conn.stimuli.gaussian_splat.create(
-            args.path,
-            name="splat_scene",
-            transform=Transform3D(
-                position_cm=Vec3(0, 0, 0),
-                rotation_deg=Vec3(0, 180, 0),
-                scale=Vec3(args.scale, args.scale, args.scale),
-            ),
+        placement = Transform3D() if args.placed else Transform3D(
+            position_cm=Vec3(0, 0, 0),
+            rotation_deg=Vec3(0, 180, 0),
+            scale=Vec3(args.scale, args.scale, args.scale),
         )
+        scene = conn.stimuli.gaussian_splat.create(args.path, name="splat_scene", transform=placement)
 
         # ── The camera ────────────────────────────────────────────────────────
         # Eye height above the scene origin, looking down -Z like the default.
-        conn.system.set_camera(Camera3D(position_cm=Vec3(0, args.camera_height_cm, 20)))
+        # A placed scene's walk starts at the origin; the sample rooms are
+        # entered from a little behind theirs.
+        start_z = 0 if args.placed else 20
+        conn.system.set_camera(Camera3D(position_cm=Vec3(0, args.camera_height_cm, start_z)))
 
         # ── The walk ──────────────────────────────────────────────────────────
         # A finite track, not a wrap: a captured room does not repeat, so at the
