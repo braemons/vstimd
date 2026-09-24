@@ -8,4 +8,4 @@ The client version is independent of the server's: the server's comes from the
 git tag at compile time, and the two are released on their own cadences.
 """
 
-__version__ = "0.2.0a1"
+__version__ = "0.3.0a1"
