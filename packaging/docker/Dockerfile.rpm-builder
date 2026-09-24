@@ -72,9 +72,12 @@ COPY Cargo.toml Cargo.lock ./
 COPY Makefile ./
 COPY server/ server/
 COPY vtl/ vtl/
-# A workspace member: cargo refuses to load the workspace without it, even
+# Workspace members: cargo refuses to load the workspace without them, even
 # though this image only packages vstimd itself.
 COPY gpiochip-daqd/ gpiochip-daqd/
+COPY vinput/ vinput/
+COPY vsplat/ vsplat/
+COPY reconstruct/ reconstruct/
 COPY proto/ proto/
 COPY client/web/ client/web/
 

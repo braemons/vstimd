@@ -96,6 +96,9 @@ COPY Makefile        ./
 COPY server/         server/
 COPY vtl/            vtl/
 COPY gpiochip-daqd/  gpiochip-daqd/
+COPY vinput/         vinput/
+COPY vsplat/         vsplat/
+COPY reconstruct/    reconstruct/
 COPY proto/      proto/
 COPY packaging/  packaging/
 COPY client/web/ client/web/
