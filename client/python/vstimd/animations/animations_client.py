@@ -556,6 +556,8 @@ class AnimationClient:
         speed_cm_per_s: float,
         *,
         wrap_period_cm: float | None = None,
+        track_length_cm: float | None = None,
+        fade_frames: int = 0,
         source: AxisRef | None = None,
         name: str = "",
         start_action_mask: StartAction = StartAction(0),
@@ -579,6 +581,14 @@ class AnimationClient:
         ``distance_travelled_cm``, which never wraps — log that, not the camera
         position.
 
+        With ``track_length_cm`` instead, the track is finite, for content that
+        does not repeat (a scanned corridor): once the camera is that far ahead of
+        where it started, measured along its starting heading, the 3-D view fades
+        to the background colour over ``fade_frames``, the camera jumps back to
+        its start position and heading, and the view fades in again over
+        ``fade_frames``. The camera holds still while fading out. 2-D stimuli are
+        not faded. ``distance_travelled_cm`` counts real movement, never the jump.
+
         Change the speed with :meth:`set_nav_speed`. It is meant for scripted
         changes, not for streaming a treadmill's speed every frame — for that,
         give a ``source``: an axis of a rig-config input device. A rate axis is
@@ -588,13 +598,16 @@ class AnimationClient:
 
         Raises:
             InvalidArgumentError: a stimulus-only action bit (``ENABLE``,
-                ``DISABLE``, ``RESTORE_VISIBILITY``) was given.
+                ``DISABLE``, ``RESTORE_VISIBILITY``) was given, or both
+                ``wrap_period_cm`` and ``track_length_cm``.
         """
         req = self._make_req(
             None, {
                 "linear_nav_3d": animations_pb2.LinearNav3D(
                     speed_cm_per_s=speed_cm_per_s,
                     wrap_period_cm=wrap_period_cm or 0.0,
+                    track_length_cm=track_length_cm or 0.0,
+                    fade_frames=fade_frames,
                     source=source.to_proto() if source else None,
                 ),
             },

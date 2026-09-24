@@ -75,6 +75,7 @@ fn a_stimulus_is_visible_while_the_camera_is_in_its_zone_every_lap() {
             speed_cm_per_s: 60.0,
             wrap_period_cm: 100.0,
             source: None,
+            ..Default::default()
         })),
         ..Default::default()
     }));

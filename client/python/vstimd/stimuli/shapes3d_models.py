@@ -1,4 +1,4 @@
-"""3-D stimuli: cube, sphere and plane.
+"""3-D stimuli: cube, sphere, plane and corridor.
 
 World space is right-handed and Y-up, in centimetres. The default camera sits at
 the origin looking down −Z, so an object at ``Vec3(0, 0, -60)`` is 60 cm straight

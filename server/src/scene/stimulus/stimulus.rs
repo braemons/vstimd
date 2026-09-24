@@ -1,4 +1,5 @@
 use super::dots::Dots;
+use super::gaussian_splat::GaussianSplat;
 use super::grating::Grating;
 use super::mesh3d::Mesh3d;
 use super::shape::Shape;
@@ -10,6 +11,7 @@ use crate::scene::deferred::Deferred;
 use crate::scene::units::Pos2Px;
 pub use crate::scene::stimulus::shape_appearance::ShapeAppearance;
 use crate::scene::stimulus::transform2d::Transform2D;
+use crate::scene::stimulus::transform3d::Transform3D;
 
 // ── Stimulus ──────────────────────────────────────────────────────────────────
 
@@ -72,6 +74,10 @@ pub enum StimulusBody {
     /// Cube / sphere / plane → `mesh3d_pipeline`. Placeholder; see
     /// [`mesh3d`](super::mesh3d).
     Mesh3d(Mesh3d),
+    /// A trained Gaussian splat scene → `splat_pipeline`. One instanced draw
+    /// per stimulus over a sorted index buffer; see
+    /// [`gaussian_splat`](super::gaussian_splat).
+    GaussianSplat(GaussianSplat),
 }
 
 impl StimulusBody {
@@ -144,7 +150,7 @@ impl Stimulus {
             StimulusBody::Grating(g) => Some(&g.transform),
             StimulusBody::Text(t) => Some(&t.transform),
             StimulusBody::Dots(d) => Some(&d.transform),
-            StimulusBody::Mesh3d(_) => None,
+            StimulusBody::Mesh3d(_) | StimulusBody::GaussianSplat(_) => None,
         }
     }
 
@@ -154,7 +160,30 @@ impl Stimulus {
             StimulusBody::Grating(g) => Some(&mut g.config.transform),
             StimulusBody::Text(t) => Some(&mut t.config.transform),
             StimulusBody::Dots(d) => Some(&mut d.config.transform),
-            StimulusBody::Mesh3d(_) => None,
+            StimulusBody::Mesh3d(_) | StimulusBody::GaussianSplat(_) => None,
+        }
+    }
+
+    /// The 3-D transform, or `None` for a 2-D stimulus.
+    pub fn transform3d(&self) -> Option<&Deferred<Transform3D>> {
+        match &self.body {
+            StimulusBody::Mesh3d(m) => Some(&m.transform),
+            StimulusBody::GaussianSplat(g) => Some(&g.transform),
+            StimulusBody::Shape(_)
+            | StimulusBody::Grating(_)
+            | StimulusBody::Text(_)
+            | StimulusBody::Dots(_) => None,
+        }
+    }
+
+    pub fn transform3d_mut(&mut self) -> Option<&mut Deferred<Transform3D>> {
+        match &mut self.body {
+            StimulusBody::Mesh3d(m) => Some(&mut m.transform),
+            StimulusBody::GaussianSplat(g) => Some(&mut g.transform),
+            StimulusBody::Shape(_)
+            | StimulusBody::Grating(_)
+            | StimulusBody::Text(_)
+            | StimulusBody::Dots(_) => None,
         }
     }
 
@@ -193,6 +222,13 @@ impl Stimulus {
     pub fn mesh3d(&self) -> Option<&Mesh3d> {
         match &self.body {
             StimulusBody::Mesh3d(m) => Some(m),
+            _ => None,
+        }
+    }
+
+    pub fn gaussian_splat(&self) -> Option<&GaussianSplat> {
+        match &self.body {
+            StimulusBody::GaussianSplat(g) => Some(g),
             _ => None,
         }
     }
@@ -237,6 +273,8 @@ impl Stimulus {
             StimulusBody::Dots(d) => d.reseed(),
             // No dynamic state yet — Phase B meshes are static placeholders.
             StimulusBody::Mesh3d(_) => {}
+            // The sort order is render-thread state, rebuilt from the camera.
+            StimulusBody::GaussianSplat(_) => {}
         }
     }
 
@@ -251,6 +289,7 @@ impl Stimulus {
             StimulusBody::Text(t) => t.make_copy(),
             StimulusBody::Dots(d) => d.make_copy(),
             StimulusBody::Mesh3d(m) => m.make_copy(),
+            StimulusBody::GaussianSplat(g) => g.make_copy(),
         }
     }
 
@@ -263,6 +302,7 @@ impl Stimulus {
             StimulusBody::Text(t) => t.flip(),
             StimulusBody::Dots(d) => d.flip(),
             StimulusBody::Mesh3d(m) => m.flip(),
+            StimulusBody::GaussianSplat(g) => g.flip(),
         }
     }
 
@@ -324,6 +364,7 @@ impl Stimulus {
             StimulusBody::Text(_) => StimulusType::Text,
             StimulusBody::Dots(_) => StimulusType::Dots,
             StimulusBody::Mesh3d(m) => m.geometry.live.stimulus_type(),
+            StimulusBody::GaussianSplat(_) => StimulusType::GaussianSplat3D,
         }
     }
 
@@ -377,6 +418,12 @@ impl From<Text> for Stimulus {
 impl From<Mesh3d> for Stimulus {
     fn from(m: Mesh3d) -> Self {
         Self::new(StimulusBody::Mesh3d(m))
+    }
+}
+
+impl From<GaussianSplat> for Stimulus {
+    fn from(g: GaussianSplat) -> Self {
+        Self::new(StimulusBody::GaussianSplat(g))
     }
 }
 

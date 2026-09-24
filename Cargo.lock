@@ -518,6 +518,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ddb117e43bbf7dacf0a4190fef4d345b9bad68dfc649cb349e7d17d28428e51"
 dependencies = [
  "clap_builder",
+ "clap_derive",
 ]
 
 [[package]]
@@ -526,8 +527,22 @@ version = "4.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "714a53001bf66416adb0e2ef5ac857140e7dc3a0c48fb28b2f10762fc4b5069f"
 dependencies = [
+ "anstream",
  "anstyle",
  "clap_lex",
+ "strsim",
+]
+
+[[package]]
+name = "clap_derive"
+version = "4.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f2ce8604710f6733aa641a2b3731eaa1e8b3d9973d5e3565da11800813f997a9"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -4216,6 +4231,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "vsplat"
+version = "0.0.0"
+dependencies = [
+ "bytemuck",
+ "glam",
+ "log",
+]
+
+[[package]]
 name = "vstimd"
 version = "0.0.0"
 dependencies = [
@@ -4256,12 +4280,26 @@ dependencies = [
  "tower-http",
  "uuid",
  "vinput",
+ "vsplat",
  "vtl",
  "wayland-backend",
  "wayland-client",
  "wayland-sys",
  "winit",
  "zeromq",
+]
+
+[[package]]
+name = "vstimd-scene-from-capture"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "glam",
+ "serde",
+ "serde_json",
+ "toml",
+ "vsplat",
 ]
 
 [[package]]

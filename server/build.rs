@@ -39,6 +39,7 @@ fn main() {
         "../proto/vstimd/v1/input.proto",
         "../proto/vstimd/v1/scene3d.proto",
         "../proto/vstimd/v1/stimuli/shapes3d.proto",
+        "../proto/vstimd/v1/stimuli/gaussian_splat.proto",
         "../proto/vstimd/v1/transform.proto",
         "../proto/vstimd/v1/color.proto",
         "../proto/vstimd/v1/stimuli/stimulus_type.proto",
@@ -72,6 +73,7 @@ fn main() {
                 "../proto/vstimd/v1/input.proto",
                 "../proto/vstimd/v1/scene3d.proto",
                 "../proto/vstimd/v1/stimuli/shapes3d.proto",
+                "../proto/vstimd/v1/stimuli/gaussian_splat.proto",
                 "../proto/vstimd/v1/transform.proto",
                 "../proto/vstimd/v1/color.proto",
                 "../proto/vstimd/v1/stimuli/stimulus_type.proto",
@@ -103,6 +105,10 @@ fn main() {
     compile_shader("shaders/text.wgsl", "text.spv");
     compile_shader("shaders/egui.wgsl", "egui.spv");
     compile_shader("shaders/mesh3d.wgsl", "mesh3d.spv");
+    compile_shader("shaders/splat.wgsl", "splat.spv");
+    compile_shader("shaders/veil.wgsl", "veil.spv");
+    compile_shader("shaders/splat_tile_preprocess.wgsl", "splat_tile_preprocess.spv");
+    compile_shader("shaders/radix_sort.wgsl", "radix_sort.spv");
 }
 
 /// The version reported by `vstimd --version` and over the wire, resolved at

@@ -1,7 +1,7 @@
 use std::sync::{Arc, RwLock};
 
 use crate::render::vk::{
-    Mesh3dRenderer, Pass3d, SceneCache, VkContext, VkDotsPipeline, VkGratingPipeline, VkPipeline,
+    Mesh3dRenderer, Pass3d, SceneCache, SplatRenderer, VkContext, VkDotsPipeline, VkGratingPipeline, VkPipeline,
 };
 use crate::scene::SceneState;
 
@@ -17,6 +17,8 @@ pub struct SceneRenderer {
     /// Pipelines and the scene uniform for the 3-D pass. `None` until the first
     /// 3-D frame, like `VkContext::pass_3d` — see [`Self::ensure_3d`].
     pub mesh3d: Option<Mesh3dRenderer>,
+    /// The splat and veil pipelines, created with `mesh3d`.
+    pub splat: Option<SplatRenderer>,
     /// Set once 3-D setup has failed (no depth format), so it is not retried —
     /// and logged — every frame. 2-D keeps rendering.
     pub mesh3d_unavailable: bool,
@@ -76,6 +78,7 @@ impl SceneRenderer {
             scene_cache,
             scene,
             mesh3d: None,
+            splat: None,
             mesh3d_unavailable: false,
         }
     }
@@ -124,6 +127,10 @@ impl SceneRenderer {
         ctx.set_debug_name(pass.load_2d_pass, "render_pass_2d_load");
         ctx.set_debug_name(mesh3d.pipeline.pipeline, "mesh3d_pipeline");
         ctx.set_debug_name(mesh3d.wireframe_pipeline.pipeline, "mesh3d_wireframe_pipeline");
+        let splat = SplatRenderer::new(&ctx.device, pass.render_pass);
+        ctx.set_debug_name(splat.pipeline, "splat_pipeline");
+        ctx.set_debug_name(splat.veil_pipeline, "veil_pipeline");
+        self.splat = Some(splat);
         ctx.pass_3d = Some(pass);
         self.mesh3d = Some(mesh3d);
         true
@@ -132,6 +139,9 @@ impl SceneRenderer {
     pub(super) fn destroy(&mut self, device: &ash::Device) {
         if let Some(mesh3d) = &self.mesh3d {
             mesh3d.destroy(device);
+        }
+        if let Some(splat) = &self.splat {
+            splat.destroy(device);
         }
         self.scene_cache.destroy_all(device);
         self.wireframe_grating.destroy(device);

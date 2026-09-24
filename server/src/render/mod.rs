@@ -18,6 +18,11 @@ pub use overlay_ui::UiRenderer;
 pub mod tess;
 pub mod tess3d;
 pub(crate) mod vk;
+/// The GPU radix sort, re-exported so `server/tests/radix_sort.rs` can check it
+/// against a CPU reference without a window or a rig. The rest of `vk` stays
+/// crate-private: this is the one piece whose correctness is worth asserting
+/// from outside, because a stable sort is what keeps a splat frame reproducible.
+pub use vk::vk_radix_sort;
 
 pub(crate) mod scene_renderer;
 pub use scene_renderer::SceneRenderer;

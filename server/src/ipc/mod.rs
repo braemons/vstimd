@@ -12,6 +12,7 @@ mod scene_config_commands;
 mod convert;
 mod dispatch;
 mod dots_commands;
+mod gaussian_splat_commands;
 mod grating_commands;
 mod input_commands;
 mod mesh3d_commands;

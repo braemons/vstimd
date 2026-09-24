@@ -47,6 +47,9 @@ pub struct SceneRuntimeState {
     /// Screen size at which meshes were last tessellated. When this changes all
     /// stimuli are re-uploaded (NDC coordinates depend on screen dimensions).
     pub last_uploaded_size: (u32, u32),
+    /// Graphics-debugging knobs from the overlay's FX panel. Render tuning
+    /// only — never serialized, and never something a result depends on.
+    pub fx: crate::scene::FxSettings,
     pub error_mask: u16,
     pub error_code: i16,
     /// Command ring buffer — written by ZMQ thread, read by overlay.
@@ -120,6 +123,7 @@ impl SceneRuntimeState {
             nominal_frame_rate_hz: 60.0,
             screen_size: None,
             last_uploaded_size: (0, 0),
+            fx: crate::scene::FxSettings::default(),
             error_mask: 0,
             error_code: 0,
             command_log: std::collections::VecDeque::new(),
@@ -524,8 +528,30 @@ impl SceneState {
     /// when it is.
     pub fn has_3d(&self) -> bool {
         self.stimuli.values().any(|e| {
-            e.stimulus.is_visible() && matches!(e.stimulus.body, crate::scene::StimulusBody::Mesh3d(_))
+            e.stimulus.is_visible()
+                && matches!(
+                    e.stimulus.body,
+                    crate::scene::StimulusBody::Mesh3d(_)
+                        | crate::scene::StimulusBody::GaussianSplat(_)
+                )
         })
+    }
+
+    /// How far the 3-D view is faded to the background colour this frame, `[0, 1]`:
+    /// the strongest fade of any running finite-track navigation. 2-D stimuli are
+    /// never faded.
+    pub fn view_fade_3d(&self) -> f32 {
+        use crate::scene::animation::{AnimState, Animation};
+        self.animations
+            .values()
+            .filter(|e| matches!(e.state, AnimState::Running { .. }))
+            .filter_map(|e| match &e.animation {
+                Animation::LinearNav3D { track: Some(t), .. } => {
+                    Some(e.track_progress.fade(t.fade_frames))
+                }
+                _ => None,
+            })
+            .fold(0.0, f32::max)
     }
 
     // ── Deferred mode ─────────────────────────────────────────────────────────

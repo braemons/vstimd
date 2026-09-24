@@ -331,6 +331,9 @@ pub fn render_frame(
                 // Nothing per stimulus: the mesh is shared by geometry and synced
                 // below, and size, placement and colour are per-draw constants.
                 StimulusBody::Mesh3d(_) => clear_dirty = true,
+                // Loaded, uploaded and sorted by `SplatCache::sync`, after the
+                // 3-D pipelines exist (step 4b).
+                StimulusBody::GaussianSplat(_) => clear_dirty = true,
             }
             if clear_dirty {
                 entry.stimulus.flags_mut().dirty = false;
@@ -387,6 +390,31 @@ pub fn render_frame(
     // since creating the 3-D pass mutates the context.
     let drew_3d = wants_3d && rs.scene_renderer.ensure_3d(&mut rs.ctx);
     let ctx = &rs.ctx;
+
+    // ── 4c. Gaussian splats: load, upload, and pick up the latest sort ───────
+    // After 4b because a cloud's descriptor sets need the splat pipeline's
+    // layout. A scene that never had a splat has nothing cached and skips this.
+    if let Some(splat) = rs.scene_renderer.splat.as_ref()
+        && (drew_3d || !rs.scene_renderer.scene_cache.splats.is_empty())
+    {
+        let sc = rs.scene_renderer.scene.read().expect("scene lock poisoned");
+        let view = sc.camera.live.view_matrix();
+        let cache = &mut rs.scene_renderer.scene_cache;
+        cache.splats.sync(
+            &ctx.device,
+            ctx.command_pool,
+            ctx.graphics_queue,
+            splat.set_layout,
+            frame_slot,
+            sc.stimuli.iter().filter_map(|(&handle, e)| {
+                e.stimulus.gaussian_splat().map(|g| {
+                    let model = g.transform.live.model_matrix(glam::Vec3::ONE);
+                    (handle, g.path.as_str(), view * model)
+                })
+            }),
+            &mut cache.splat_handles,
+        );
+    }
     let frame = &ctx.frames[frame_slot];
 
     // ── 5. Select pipeline pair (after tessellation to avoid borrow conflict) ──
@@ -475,6 +503,8 @@ pub fn render_frame(
                 rs.scene_renderer.wireframe,
                 &sc,
                 &rs.scene_renderer.scene_cache.mesh3d,
+                rs.scene_renderer.splat.as_ref(),
+                &rs.scene_renderer.scene_cache.splats,
             );
         }
         let rp_info = match pass_3d {

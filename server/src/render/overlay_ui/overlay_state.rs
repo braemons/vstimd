@@ -13,7 +13,7 @@ use super::animation_dialog::AnimationDialog;
 use super::file_browser::FileBrowser;
 use super::stimulus_dialog::StimulusDialog;
 
-/// A focusable overlay window. Order matches the F1..F7 key assignment.
+/// A focusable overlay window. Order matches the F1..F8 key assignment.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum OverlayGroup {
     Stimuli,
@@ -23,10 +23,11 @@ pub enum OverlayGroup {
     System,
     SceneConfig,
     Benchmarks,
+    Fx,
 }
 
 impl OverlayGroup {
-    pub const ALL: [OverlayGroup; 7] = [
+    pub const ALL: [OverlayGroup; 8] = [
         OverlayGroup::Stimuli,
         OverlayGroup::Log,
         OverlayGroup::Vtl,
@@ -34,6 +35,7 @@ impl OverlayGroup {
         OverlayGroup::System,
         OverlayGroup::SceneConfig,
         OverlayGroup::Benchmarks,
+        OverlayGroup::Fx,
     ];
 
     pub fn index(self) -> usize {
@@ -49,15 +51,16 @@ impl OverlayGroup {
             OverlayGroup::System => "System",
             OverlayGroup::SceneConfig => "Scene-config",
             OverlayGroup::Benchmarks => "Benchmarks",
+            OverlayGroup::Fx => "FX",
         }
     }
 
     /// Label of the function key that toggles this group (1-based).
     pub fn fkey_label(self) -> &'static str {
-        ["F1", "F2", "F3", "F4", "F5", "F6", "F7"][self.index()]
+        ["F1", "F2", "F3", "F4", "F5", "F6", "F7", "F8"][self.index()]
     }
 
-    /// Map a function-key number (1..=7) to a group.
+    /// Map a function-key number (1..=8) to a group.
     pub fn from_fkey(n: u8) -> Option<Self> {
         Self::ALL.get((n as usize).checked_sub(1)?).copied()
     }
@@ -68,13 +71,13 @@ pub struct OverlayState {
     /// is not built at all and no keyboard input is routed to egui.
     pub master_visible: bool,
     /// Per-group visibility, indexed by `OverlayGroup::index`.
-    pub visible: [bool; 7],
+    pub visible: [bool; 8],
     /// The group that owns keyboard focus.
     pub focused: OverlayGroup,
     /// Set when focus moves to a group so its first widget grabs keyboard focus
     /// on the next frame; consumed by the overlay builder.
     pub pending_focus: bool,
-    /// Set by the System group's wireframe toggle; applied (and cleared) by the
+    /// Set by the FX group's wireframe toggle; applied (and cleared) by the
     /// render loop, which owns the scene-renderer pipeline state.
     pub wireframe_toggle_requested: bool,
 
@@ -88,7 +91,7 @@ impl OverlayState {
     pub fn new(storage_dir: PathBuf) -> Self {
         Self {
             master_visible: false,
-            visible: [false; 7],
+            visible: [false; 8],
             focused: OverlayGroup::Stimuli,
             pending_focus: false,
             wireframe_toggle_requested: false,
