@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-import vstimd.psychopy.visual as visual
-from vstimd.stimuli import CircleParams, StimulusType
-from ..cases._helpers import Stage
+import vstimd_client.psychopy.visual as visual
+from vstimd_client.stimuli import CircleParams, StimulusType
+from ..cases._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -13,6 +13,7 @@ from ..cases._helpers import Stage
     "a blue disc of radius 50 px (100 px across) in the centre, built "
     "through visual.Circle",
 )
+@check_frame_stats
 def test_create_circle(win: visual.Window, stage: Stage) -> None:
     circle = visual.Circle(win, radius=50, fillColor="blue", autoDraw=True)
 
@@ -35,6 +36,7 @@ def test_create_circle(win: visual.Window, stage: Stage) -> None:
     "a large red disc in the centre, then a small green one top-left, then "
     "a yellow one bottom-right, and finally a red/green/blue trio in a row",
 )
+@check_frame_stats
 def test_circle_sizes(win: visual.Window, stage: Stage) -> None:
     circle = visual.Circle(win, radius=150, fillColor="red", pos=(0, 0), autoDraw=True)
     win.flip()

@@ -1,7 +1,7 @@
 # Window
 
 ```{eval-rst}
-.. autoclass:: vstimd.psychopy.visual.Window
+.. autoclass:: vstimd_client.psychopy.visual.Window
    :members:
    :undoc-members:
 ```

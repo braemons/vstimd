@@ -1,32 +1,32 @@
 # Animations
 
 ```{eval-rst}
-.. data:: vstimd.AnimationHandle
+.. data:: vstimd_client.AnimationHandle
 
    Opaque integer handle returned by every ``conn.animations.create_*`` call.
-   Pass it to :meth:`~vstimd.AnimationClient.arm`,
-   :meth:`~vstimd.AnimationClient.disarm`, and
-   :meth:`~vstimd.AnimationClient.delete`.
+   Pass it to :meth:`~vstimd_client.AnimationClient.arm`,
+   :meth:`~vstimd_client.AnimationClient.disarm`, and
+   :meth:`~vstimd_client.AnimationClient.delete`.
 
-.. autoclass:: vstimd.AnimationClient
+.. autoclass:: vstimd_client.AnimationClient
    :members:
    :undoc-members:
 
-.. autoclass:: vstimd.AnimationDetails
+.. autoclass:: vstimd_client.AnimationDetails
    :members:
 
-.. autoclass:: vstimd.AnimationInfo
+.. autoclass:: vstimd_client.AnimationInfo
    :members:
 
-.. autoclass:: vstimd.AnimationState
+.. autoclass:: vstimd_client.AnimationState
    :members:
 
-.. autoclass:: vstimd.FinalAction
+.. autoclass:: vstimd_client.FinalAction
    :members:
 
-.. autoclass:: vstimd.StartAction
+.. autoclass:: vstimd_client.StartAction
    :members:
 
-.. autoclass:: vstimd.VtlEdge
+.. autoclass:: vstimd_client.VtlEdge
    :members:
 ```

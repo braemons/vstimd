@@ -1,0 +1,32 @@
+pub mod dots;
+mod gaussian_splat;
+pub mod grating;
+mod mesh3d;
+mod shape;
+mod shape_appearance;
+mod stimulus;
+mod stimulus_common;
+mod stimulus_flags;
+mod stimulus_scene_entry;
+mod stimulus_type;
+pub mod text;
+mod transform2d;
+mod transform3d;
+
+pub use dots::{
+    Aperture, ApertureClip, ApertureShape, DotShape, Dots, DotsConfig, DotsParams, NoiseRule,
+    Reinsertion, SignalRule,
+};
+pub use gaussian_splat::GaussianSplat;
+pub use grating::{Grating, GratingMask, GratingParams, Waveform};
+pub use mesh3d::{CorridorParams, Mesh3d, Mesh3dGeometry, MeshKey, Repeat3D};
+pub use shape::{Shape, ShapeGeometry};
+pub use shape_appearance::{DrawMode, ShapeAppearance};
+pub use stimulus::{Stimulus, StimulusBody};
+pub use stimulus_common::StimulusCommon;
+pub use stimulus_flags::{StimulusFlags, StimulusFlagsConfig};
+pub use stimulus_scene_entry::{StimulusIdentity, StimulusSceneEntry};
+pub use stimulus_type::StimulusType;
+pub use text::{Anchor, LanguageStyle, Text, TextRenderParams};
+pub use transform2d::Transform2D;
+pub use transform3d::{Material3D, Shading3D, Transform3D};

@@ -611,7 +611,7 @@ pub struct MessengerConfig {
 ## 9. ZeroMQ Event Publication
 
 > **Shipped in 0.2, and narrower than this section describes.** A PUB socket
-> exists now — `server/src/ipc/event_publisher.rs`,
+> exists now — `daemon/src/ipc/event_publisher.rs`,
 > `proto/vstimd/v1/events.proto`, `--event-port` / `--no-events` — carrying what
 > the renderer *saw*: frame drops, presented frames, VTL edges, animation state.
 > It is not the logging-and-replay system below, and it deliberately does not
@@ -801,7 +801,7 @@ FlatBuffer record, and inserts rows. No network or render dependency.
 > ### What is missing, exactly
 >
 > Three things were missing. **Two are now done** — `command.applied` and
-> `vtl.edge`, both in events.proto with tests in `server/tests/events.rs`. The
+> `vtl.edge`, both in events.proto with tests in `daemon/tests/events.rs`. The
 > descriptions are kept below because they are why each has the shape it has.
 > **One remains, and it is the smallest: the scene-config anchor (3).**
 >

@@ -1,7 +1,7 @@
 """API surface tests for TextBox2 — no server or PsychoPy required."""
 import inspect
 import pytest
-from vstimd.psychopy.visual.text import TextBox2
+from vstimd_client.psychopy.visual.text import TextBox2
 
 
 def _params(cls: type) -> set[str]:
@@ -54,6 +54,6 @@ def test_methods():
 
 
 def test_exported_from_visual():
-    import vstimd.psychopy.visual as visual
+    import vstimd_client.psychopy.visual as visual
     assert hasattr(visual, "TextBox2")
     assert visual.TextBox2 is TextBox2

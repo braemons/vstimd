@@ -1,7 +1,7 @@
 # Types
 
 ```{eval-rst}
-.. data:: vstimd.psychopy.visual.PsychoPyColor
+.. data:: vstimd_client.psychopy.visual.PsychoPyColor
 
    Any color value accepted by the PsychoPy-compatible layer.
 
@@ -15,7 +15,7 @@
    * Scalar greyscale: ``0.5`` (float) or ``128`` (int)
    * ``None`` — transparent / no fill
 
-.. data:: vstimd.psychopy.visual.PsychoPyVec2
+.. data:: vstimd_client.psychopy.visual.PsychoPyVec2
 
    A 2-D position or size value accepted by the PsychoPy-compatible layer.
 

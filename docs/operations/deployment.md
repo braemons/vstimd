@@ -72,17 +72,17 @@ to control it — no client install needed.
 
 ### Network discovery
 
-Packages install `vstimd-hostname.service`, which names the rig `vstimd-XXXXXX`
-after its MAC address at boot and renders the Avahi service file that advertises
-`_vstimd._tcp` on port 5555. Both Samba and Avahi inherit that name. The policy,
-the mDNS TXT record clients should match on, and how to opt out are documented in
-**[Discovery & hostnames](discovery.md)**.
-
-From source (`make install`), enable the unit alongside `vstimd`:
+vstimd advertises `_vstimd._tcp` over mDNS from inside the server while it
+runs (`--no-mdns` turns that off). The rig's name, `braemons-XXXXXX` after its
+MAC address, comes from the `braemons-rig` package, because every braemons
+daemon on the box shares it:
 
 ```bash
-sudo systemctl enable --now vstimd-hostname
+sudo apt install braemons-rig
 ```
+
+The policy, the TXT records clients should match on, and how to name a rig by
+hand are documented in **[Discovery & hostnames](discovery.md)**.
 
 ### Logs
 

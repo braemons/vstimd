@@ -14,7 +14,7 @@ against pin 36, and the gap between them is what your rig actually costs you.
 ## 1. The output line
 
 ```python
-from vstimd import Connection, FinalAction, VtlHandle, VtlKind
+from vstimd_client import VstimdClient, FinalAction, VtlHandle, VtlKind
 
 conn.vtl.set_line_name(0, 36, VtlKind.OUTPUT, name="out_pin36")
 sweep_done = VtlHandle.output(0, 36)

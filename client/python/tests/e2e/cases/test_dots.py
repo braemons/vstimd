@@ -13,8 +13,8 @@ from dataclasses import replace
 
 import pytest
 
-from vstimd import Connection
-from vstimd.stimuli import (
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import (
     Aperture,
     ApertureClip,
     ApertureShape,
@@ -25,9 +25,9 @@ from vstimd.stimuli import (
     diameter_from_radius,
     direction_from_ptb_rad,
 )
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -35,7 +35,8 @@ from ._helpers import Stage
     "a field of white dots in a 400 px circle in the centre, all drifting "
     "rightward together",
 )
-def test_create_dots(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_create_dots(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
             field_width_px=400,
@@ -72,7 +73,8 @@ def test_create_dots(conn: Connection, stage: Stage) -> None:
     "the right has no net direction at all. Then each is stepped down live — the "
     "motion must actually change, not just the reported value",
 )
-def test_dots_coherence(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_dots_coherence(conn: VstimdClient, stage: Stage) -> None:
     info = conn.system.query_server_info()
     third = info.width_px / 3.0
 
@@ -108,7 +110,8 @@ def test_dots_coherence(conn: Connection, stage: Stage) -> None:
     "a dot field whose direction steps right → up → left → down. The dots turn "
     "where they are; nothing jumps back to the middle at a turn",
 )
-def test_dots_direction_changes_are_continuous(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_dots_direction_changes_are_continuous(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
             field_width_px=600, field_height_px=600, dot_count=200, dot_size_px=8,
@@ -129,7 +132,8 @@ def test_dots_direction_changes_are_continuous(conn: Connection, stage: Stage) -
     "black and white dots together on the grey background, half of each, each "
     "dot keeping its own polarity as it moves",
 )
-def test_dots_two_colors(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_dots_two_colors(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
             field_width_px=500, field_height_px=500, dot_count=250, dot_size_px=10,
@@ -154,7 +158,8 @@ def test_dots_two_colors(conn: Connection, stage: Stage) -> None:
     "DOTS-05",
     "square dots, then round ones — the same field, redrawn",
 )
-def test_dots_shape(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_dots_shape(conn: VstimdClient, stage: Stage) -> None:
     for shape in (DotShape.SQUARE, DotShape.ROUND):
         handle = conn.stimuli.dots.create_dots(
             params=DotsParams(
@@ -175,7 +180,8 @@ def test_dots_shape(conn: Connection, stage: Stage) -> None:
     "frame. Nothing blinks all at once — if the whole field flashes in step, "
     "birth staggering is broken",
 )
-def test_dots_lifetime_does_not_flicker_in_lockstep(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_dots_lifetime_does_not_flicker_in_lockstep(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
             field_width_px=500, field_height_px=500, dot_count=200, dot_size_px=8,
@@ -200,7 +206,8 @@ def test_dots_lifetime_does_not_flicker_in_lockstep(conn: Connection, stage: Sta
     "the same seed twice: the two fields are pixel-identical at rest. If the "
     "second differs from the first, a saved config no longer replays",
 )
-def test_dots_seed_reproduces(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_dots_seed_reproduces(conn: VstimdClient, stage: Stage) -> None:
     params = DotsParams(
         field_width_px=400, field_height_px=400, dot_count=100, dot_size_px=10,
         speed_px_per_s=0.0, seed=7,
@@ -220,7 +227,8 @@ def test_dots_seed_reproduces(conn: Connection, stage: Stage) -> None:
     "freeze-frame and obvious in motion — no edge, no density step, no dots cut "
     "in half at the boundary",
 )
-def test_figure_ground(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_figure_ground(conn: VstimdClient, stage: Stage) -> None:
     """The reproduction target — see ``dev/design/RDK_PLAN.md``.
 
     The MATLAB's radii are doubled here and its angles mirrored, which is the whole

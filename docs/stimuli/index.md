@@ -12,6 +12,7 @@ together in runnable scenes.
 | [Gratings](gratings.md) | `Grating` — a masked, drifting sinusoidal (or square, saw, triangle) carrier |
 | [Text](text.md) | `Text` — laid-out glyphs, with an optional box and border |
 | [Random dot kinematograms](random-dots.md) | `Dots` — moving dot fields, coherence, and motion-defined figures |
+| [3-D shapes](3d.md) | `Cube3D`, `Sphere3D`, `Plane3D` — objects in a lit 3-D world seen through a camera, drawn under the 2-D stimuli |
 
 ## What every stimulus has
 
@@ -43,7 +44,7 @@ stimuli in that order, or delete and recreate the one that has to move.
     scene, the config JSON, both clients and the overlay, so a config that says
     `45` means the same 45 wherever it is read. Porting from a package that
     specifies radii — Psychtoolbox, and most of the RDK literature — means
-    doubling at the boundary; `vstimd.stimuli.diameter_from_radius` is there to
+    doubling at the boundary; `vstimd_client.stimuli.diameter_from_radius` is there to
     make that visible rather than silent.
 
 !!! note "0 means *default*, not zero"

@@ -22,9 +22,9 @@ import sys
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection, StartAction
-from vstimd.stimuli.stimuli_models import Color, Vec2
-from vstimd.stimuli import RectParams, ShapeAppearance
+from vstimd_client import VstimdClient, StartAction
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
+from vstimd_client.stimuli import RectParams, ShapeAppearance
 
 EXPLANATION = (
     "demos/photodiode_flicker — frame timing\n"
@@ -40,7 +40,7 @@ def main() -> None:
     args = demo_parser(__doc__.splitlines()[0], "my_photodiode_flicker").parse_args()
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         clean_slate(conn)
         conn.system.set_background(0.05, 0.05, 0.05)
 

@@ -8,12 +8,12 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection
-from vstimd.exceptions import NotSupportedError
-from vstimd.stimuli import PolygonParams, ShapeAppearance, StimulusType
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.exceptions import NotSupportedError
+from vstimd_client.stimuli import PolygonParams, ShapeAppearance, StimulusType
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -22,7 +22,8 @@ from ._helpers import Stage
     "an orange filled triangle in the centre once implemented",
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
-def test_create_polygon(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_create_polygon(conn: VstimdClient, stage: Stage) -> None:
     vertices_px = [Vec2(-50, -50), Vec2(50, -50), Vec2(0, 50)]
     handle = conn.stimuli.shapes.create_polygon(
         params=PolygonParams(
@@ -52,7 +53,8 @@ def test_create_polygon(conn: Connection, stage: Stage) -> None:
     "an open three-point chevron, ∧-shaped and unclosed",
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
-def test_create_polygon_open(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_create_polygon_open(conn: VstimdClient, stage: Stage) -> None:
     vertices_px = [Vec2(-100, 0), Vec2(0, 80), Vec2(100, 0)]
     handle = conn.stimuli.shapes.create_polygon(
         params=PolygonParams(vertices_px=vertices_px, close_shape=False),
@@ -71,7 +73,8 @@ def test_create_polygon_open(conn: Connection, stage: Stage) -> None:
     "triangle turning into a four-point shape when its vertices are replaced",
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
-def test_set_polygon_vertices(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_polygon_vertices(conn: VstimdClient, stage: Stage) -> None:
     vertices_px = [Vec2(-50, -50), Vec2(50, -50), Vec2(0, 50)]
     handle = conn.stimuli.shapes.create_polygon(params=PolygonParams(vertices_px=vertices_px))
 

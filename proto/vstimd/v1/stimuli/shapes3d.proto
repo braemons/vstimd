@@ -1,0 +1,159 @@
+syntax = "proto3";
+package vstimd.v1;
+
+import "vstimd/v1/color.proto";
+import "vstimd/v1/stimuli/identity.proto";
+import "vstimd/v1/transform.proto";
+import "vstimd/v1/vec2.proto";
+import "vstimd/v1/vec3.proto";
+
+// ── 3-D stimuli: cube, sphere, plane ──────────────────────────────────────────
+//
+// Drawn in a 3-D pass underneath every 2-D stimulus, with depth testing, seen
+// through the scene camera (scene3d.proto). Sizes are full extents in
+// centimetres, like every size on this wire; Transform3D.scale multiplies them.
+//
+// Alpha below 1 blends, but 3-D surfaces are not sorted back to front, so
+// overlapping translucent surfaces can look wrong. Opaque is the supported case.
+
+// How a 3-D surface is lit.
+enum Shading {
+  SHADING_UNSPECIFIED = 0;  // → UNLIT
+  // The albedo, exactly: no lighting, no ambient term. An unlit surface writes
+  // the same pixel values as a 2-D shape of the same colour, which is what most
+  // psychophysics stimuli want.
+  SHADING_UNLIT       = 1;
+  // Lambert diffuse and Blinn-Phong specular from the scene's one directional
+  // light, plus its ambient term. Not physically based.
+  SHADING_PHONG       = 2;
+}
+
+message Material3D {
+  Color albedo = 1;       // (absent → opaque white)
+  Vec3 emissive = 2;      // linear RGB added after shading; (absent → none)
+  Shading shading = 3;
+}
+
+// Copies of a stimulus every period_cm along world -Z: copy k sits at
+// position + k·period_cm·(-Z) for k in -behind..=ahead, and copy 0 is the
+// stimulus itself. For objects that must recur in every period of a corridor.
+// Absent, or ahead = behind = 0 → no copies. Fixed at creation.
+message Repeat3D {
+  float period_cm = 1;
+  uint32 ahead = 2;
+  uint32 behind = 3;
+}
+
+message Cube3DParams {
+  Vec3 size_cm = 1;       // full extents along x, y, z (a zero component → 10)
+  Material3D material = 2;
+  // Server-side image path. Not supported yet: non-empty → NOT_SUPPORTED.
+  string texture_path = 3;
+  Repeat3D repeat = 4;
+}
+
+message Sphere3DParams {
+  float diameter_cm = 1;  // (0 → 10)
+  // Tessellation: latitude bands and longitude slices. More is smoother and
+  // costs vertices; spheres sharing both numbers share one GPU mesh, whatever
+  // their size. (0 → 16 rings, 32 sectors; at most 256 each)
+  uint32 rings = 2;
+  uint32 sectors = 3;
+  Material3D material = 4;
+  string texture_path = 5;  // see Cube3DParams.texture_path
+  Repeat3D repeat = 6;
+}
+
+// A flat rectangle in the object's XZ plane, facing +Y — a floor as placed.
+// Visible from its front (+Y) side only.
+message Plane3DParams {
+  Vec2 size_cm = 1;       // x: extent along X, y: extent along Z (a zero component → 100)
+  Material3D material = 2;
+  string texture_path = 3;  // see Cube3DParams.texture_path
+  Repeat3D repeat = 4;
+}
+
+// An endless corridor: a floor, two walls and an optional ceiling, tiled.
+//
+// In the stimulus' own frame (placement) the corridor starts at the origin and
+// runs along -Z, floor at y = 0, centred on x = 0. Each period holds one floor
+// tile and, per wall, two panels of alternating colour — the motion cue, since
+// plain walls give none. The appearance repeats exactly every period_cm, so a
+// camera animation (LinearNav3D) with wrap_period_cm = period_cm circulates
+// through it with no seam. Place the corridor so its origin is at z = 0, or the
+// wrap and the tiling will not line up.
+//
+// Because it repeats, every landmark repeats: a track with unique landmarks
+// along its whole length is a long scene, not a corridor. Objects meant to recur
+// in every period take a Repeat3D with the same period.
+message Corridor3DParams {
+  float width_cm = 1;          // (0 → 60)
+  float height_cm = 2;         // (0 → 40)
+  float period_cm = 3;         // (0 → 100)
+  // Periods drawn towards -Z from the origin, and behind it. Enough ahead to
+  // reach the camera's far plane you care about. (0 → 10 ahead, 0 behind; at most 1000)
+  uint32 periods_ahead = 4;
+  uint32 periods_behind = 5;
+  Color floor_color = 6;       // (absent → grey 0.3)
+  Color wall_color = 7;        // (absent → grey 0.6)
+  Color stripe_color = 8;      // (absent → grey 0.2)
+  bool ceiling = 9;            // a ceiling in floor_color
+  // Multiplies the colours above; shading and emissive apply to every face.
+  Material3D material = 10;
+}
+
+// System commands. NOT_SUPPORTED when the display has no usable depth format.
+message CreateCube3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  Cube3DParams params = 3;
+}
+
+message CreateSphere3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  Sphere3DParams params = 3;
+}
+
+message CreatePlane3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  Plane3DParams params = 3;
+}
+
+message CreateCorridor3DRequest {
+  StimulusIdentity identity = 1;
+  Transform3D placement = 2;
+  Corridor3DParams params = 3;
+}
+
+// ── 3-D stimulus mutations (stimulus target) ──────────────────────────────────
+//
+// SetPosition and SetRotation are 2-D commands and refuse a 3-D stimulus; its
+// placement is replaced whole by SetTransform3D. SetAlpha, SetEnabled and
+// Delete work on every stimulus.
+
+// Any 3-D type. Same defaults as Transform3D.
+message SetTransform3DRequest {
+  Transform3D transform = 1;
+}
+
+// Any 3-D type with a material (WRONG_STIMULUS_TYPE otherwise). Same defaults as Material3D.
+message SetMaterial3DRequest {
+  Material3D material = 1;
+}
+
+// WRONG_STIMULUS_TYPE unless a Cube3D.
+message SetCube3DSizeRequest {
+  Vec3 size_cm = 1;
+}
+
+// WRONG_STIMULUS_TYPE unless a Sphere3D. Tessellation is fixed at creation.
+message SetSphere3DDiameterRequest {
+  float diameter_cm = 1;
+}
+
+// WRONG_STIMULUS_TYPE unless a Plane3D.
+message SetPlane3DSizeRequest {
+  Vec2 size_cm = 1;
+}

@@ -18,10 +18,10 @@ This page builds it from an empty scene.
 ## 1. Clear the scene and set the background
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
-with Connection("tcp://localhost:5555") as conn:
+with VstimdClient("tcp://localhost:5555") as conn:
     clean_slate(conn)                          # see the overview page
     conn.system.set_background(0.05, 0.05, 0.05)
 ```

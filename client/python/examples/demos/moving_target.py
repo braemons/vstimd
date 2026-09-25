@@ -22,9 +22,9 @@ import sys
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection, FinalAction, VtlHandle, VtlKind
-from vstimd.stimuli.stimuli_models import Color, Vec2
-from vstimd.stimuli import CircleParams, ShapeAppearance
+from vstimd_client import VstimdClient, FinalAction, VtlHandle, VtlKind
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
+from vstimd_client.stimuli import CircleParams, ShapeAppearance
 
 EXPLANATION = (
     "demos/moving_target — motion plus an output pulse\n"
@@ -40,7 +40,7 @@ def main() -> None:
     args = demo_parser(__doc__.splitlines()[0], "my_moving_target").parse_args()
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         clean_slate(conn)
         conn.system.set_background(0.05, 0.05, 0.05)
 

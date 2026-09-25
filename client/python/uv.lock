@@ -930,7 +930,7 @@ requires-dist = [
     { name = "textual", marker = "extra == 'tui'", specifier = ">=0.80" },
     { name = "zeroconf", specifier = ">=0.132" },
 ]
-provides-extras = ["discover", "tui"]
+provides-extras = ["tui"]
 
 [package.metadata.requires-dev]
 dev = [

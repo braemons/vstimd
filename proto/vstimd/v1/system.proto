@@ -87,6 +87,68 @@ message WaitUntilRequest {
   uint64 server_time_ns = 1;
 }
 
+// ── Frame statistics ──────────────────────────────────────────────────────────
+
+// Report the frame-timing statistics accumulated since the last
+// ResetFrameStatsRequest (or since server start). Returns FrameStats.
+message QueryFrameStatsRequest {}
+
+// Start a new accumulation window. Returns the FrameStats of the window it
+// closes, so "what happened during this trial" is one round trip and no frame
+// can fall between a query and a reset.
+message ResetFrameStatsRequest {}
+
+// Frame timing over one accumulation window.
+//
+// A dropped frame is a vblank the display refreshed without a new frame from
+// the server: the previous frame stayed on screen one refresh longer. The
+// first few frames after the swapchain comes up are start-up rather than
+// drops, and are not counted.
+//
+// The null renderer has no display to miss, so it counts presented frames and
+// their intervals but never reports a drop.
+message FrameStats {
+  // Frames presented in the window.
+  uint64 presented_frames = 1;
+  // Refreshes missed in the window (see above).
+  uint64 dropped_frames = 2;
+  // Intervals between consecutive presented frames in the window, in ms. All
+  // zero until two frames have been presented.
+  double mean_frame_interval_ms = 3;
+  double std_frame_interval_ms = 4;
+  double min_frame_interval_ms = 5;
+  double max_frame_interval_ms = 6;
+  // Nominal refresh period of the display mode, in ms, for comparison.
+  double nominal_frame_interval_ms = 7;
+  // Frame index (Response.frame_count numbering) at which the window began.
+  uint64 window_start_frame = 8;
+}
+
+// ── Frame capture ─────────────────────────────────────────────────────────────
+
+// Capture the next presented frame, exactly as it goes to the display — the
+// swapchain image read back after rendering, overlay included — and return it
+// as a PNG in CaptureFrameResponse.
+//
+// The captured frame includes every command acknowledged before this request
+// was sent. The reply comes once that frame is rendered, so the request takes
+// about one frame plus the readback.
+//
+// NOT_SUPPORTED on a server with nothing to capture (the null renderer, evdi).
+// NOT_READY if the render loop does not produce a frame within a few seconds
+// (the window is minimised, say); retrying is safe.
+message CaptureFrameRequest {}
+
+message CaptureFrameResponse {
+  // PNG, 8-bit RGB. Alpha is dropped: the frame is already composited.
+  bytes png = 1;
+  uint32 width_px = 2;
+  uint32 height_px = 3;
+  // Index of the captured frame, in the numbering the event stream and
+  // Response.frame_count use.
+  uint64 frame = 4;
+}
+
 // ── System queries ────────────────────────────────────────────────────────────
 
 // System command: query server/display properties.

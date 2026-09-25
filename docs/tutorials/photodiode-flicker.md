@@ -30,7 +30,7 @@ room, and a photometer wants a lot of it.
 ## 2. Flicker, counted in frames
 
 ```python
-from vstimd import StartAction
+from vstimd_client import StartAction
 
 flicker = conn.animations.create_flicker(
     patch,

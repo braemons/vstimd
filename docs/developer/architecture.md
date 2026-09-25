@@ -111,7 +111,7 @@ commit a batch on the frame it completes.
       trait objects or inheritance.
     - **2-D and 3-D coexist** in one frame: 3-D is rendered first, 2-D overlaid.
     - **`lib.rs`** exposes all modules as a library crate so integration tests in
-      `server/tests/` can call `SceneState::handle_request` directly, without a GPU
+      `daemon/tests/` can call `SceneState::handle_request` directly, without a GPU
       or ZMQ.
 
 ## Where to go next

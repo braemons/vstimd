@@ -27,9 +27,9 @@ from dataclasses import replace
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection
-from vstimd.stimuli import Aperture, ApertureClip, ApertureShape, Color, DotsParams
-from vstimd.stimuli.stimuli_models import Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Aperture, ApertureClip, ApertureShape, Color, DotsParams
+from vstimd_client.stimuli.stimuli_models import Vec2
 
 EXPLANATION = (
     "demos/figure_ground_rdk — a figure defined by motion alone\n"
@@ -53,7 +53,7 @@ def main() -> None:
     args = demo_parser(__doc__.splitlines()[0], "my_figure_ground_rdk").parse_args()
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         clean_slate(conn)
 
         # Mid grey, as the original's backgroundCol = 128 on a 0-255 scale.

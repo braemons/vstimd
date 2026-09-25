@@ -3,7 +3,7 @@
 Python client for the `vstimd` visual stimulus server. Talks to the server
 over ZMQ using protobuf encoding.
 
-The distribution is `vstimd-client`; the import package is `vstimd`.
+The distribution is `vstimd-client`; the import package is `vstimd_client`.
 
 ## Install
 
@@ -31,10 +31,10 @@ proto` (every other `make` target does it for you) before working from source.
 ## Quick start
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
-with Connection() as conn:
+with VstimdClient() as conn:
     h = conn.stimuli.shapes.create_rect(
         position_px=Vec2(-200, 0),
         params=RectParams(width_px=300, height_px=200,
@@ -46,9 +46,9 @@ with Connection() as conn:
     print(info.version)
 ```
 
-`Connection(address="tcp://localhost:5555")` — default address shown.
+`VstimdClient(address="tcp://localhost:5555")` — default address shown.
 
-## `vstimd.psychopy` — PsychoPy-compatible layer
+## `vstimd_client.psychopy` — PsychoPy-compatible layer
 
 Drop-in replacement for `psychopy.visual`:
 
@@ -57,7 +57,7 @@ Drop-in replacement for `psychopy.visual`:
 from psychopy import visual
 
 # After
-from vstimd.psychopy import visual
+from vstimd_client.psychopy import visual
 ```
 
 The only required addition is `address=` on `Window`:
@@ -75,7 +75,7 @@ win.flip()
 
 | Class | Notes |
 |---|---|
-| `Window` | Owns the `Connection`; `flip()` flushes the command queue |
+| `Window` | Owns the `VstimdClient`; `flip()` flushes the command queue |
 | `Rect` | `create_rect`, position, size, fill color, rotation_deg, alpha |
 | `Circle` | `create_circle`, position, radius, fill color, rotation_deg, alpha |
 | `GratingStim` | `create_grating`, all grating parameters; `mask` accepts `'circle'`, `'gauss'`, `'raisedCos'` |
@@ -96,37 +96,33 @@ immediately as it arrives.
 Named strings (`'red'`), hex strings (`'#ff0000'`), PsychoPy `rgb` tuples
 `(-1..1)`, plain `0..1` tuples, `rgb255` tuples, and scalar greyscale values.
 
-## `vstimd-client` — command-line tool
+## `vstimctl` — command-line tool
 
-Installing the package also installs a `vstimd-client` executable for the
-system-level commands, plus mDNS discovery of servers on the local network:
-
-```bash
-pip install vstimd-client
-```
+Installing the package also installs `vstimctl`, for the system-level commands
+and mDNS discovery of servers on the local network. It follows the same rules
+as every braemons command (`statemachinectl`, `mousewheelctl`, `trialctl`):
+`--rig`, else `$BRAEMONS_RIG`, else localhost; JSON on stdout; a failure as
+JSON on stderr with a shared exit status.
 
 ```console
-$ vstimd-client discover
-ID             HOSTNAME             ADDRESSES   ADDRESS
-vstimd-a1b2c3  vstimd-a1b2c3.local  10.0.1.42   tcp://vstimd-a1b2c3.local:5555
+$ vstimctl discover | jq -r '.[].address'
+tcp://braemons-a1b2c3d4e5f6.local:5555
 
-$ vstimd-client --host vstimd-a1b2c3 info
-version     0.4.1
-resolution  1920x1080
-frame rate  60.00 Hz
-background  0.000 0.000 0.000 1.000
+$ vstimctl --rig braemons-a1b2c3d4e5f6.local state | jq '{version, frame_rate_hz}'
+{
+  "version": "0.3.0",
+  "frame_rate_hz": 60.0
+}
 ```
 
 Discovery browses for `_vstimd._tcp` using the
 [zeroconf](https://pypi.org/project/zeroconf/) package, which is installed
 alongside the client, and falls back to `avahi-browse` if it is somehow
-missing. The `ID` column is the server's
-`id=` TXT record — the reliable identity, unlike the display name which Avahi
-may suffix with `#2` on collision.
+missing.
 
-Other commands: `ls`, `background`, `delete-all`, `enable-all`/`disable-all`,
-`wait-frames`, `wait-ready`, `shutdown`, and `config list|save|load|get|upload`.
-Run `vstimd-client` with no arguments for the grouped list.
+Other commands: `watch`, `background`, `clear-all`, `enable-all`/`disable-all`,
+`wait-frames`, `wait-ready`, `capture`, `shutdown`, and
+`scene-configs list|get|put|load|save`. `vstimctl --help` lists them all.
 
 The target server comes from `--address`, `--host`, `$VSTIMD_ADDRESS`, or — if
 none of those is given — from mDNS: the single rig on the network is used, and
@@ -230,11 +226,11 @@ which a plain pytest run cannot do. The app also starts its own **windowed**
 server (1280×720; `--fullscreen` for the real thing) so this terminal stays
 visible, and reuses a server that is already running.
 
-The scene and trigger panels are `vstimd.tui` widgets, packaged for reuse:
+The scene and trigger panels are `vstimd_client.tui` widgets, packaged for reuse:
 
 ```python
-from vstimd import Connection
-from vstimd.tui import ServerStatus, StimulusList, TriggerLines
+from vstimd_client import VstimdClient
+from vstimd_client.tui import ServerStatus, StimulusList, TriggerLines
 ```
 
 They need the `tui` extra (`pip install "vstimd-client[tui]"`).

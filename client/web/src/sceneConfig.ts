@@ -1,4 +1,4 @@
-// Named scene-config persistence. Mirrors vstimd.scene_config (Python).
+// Named scene-config persistence. Mirrors vstimd_client.scene_config (Python).
 //
 // A scene-config is one experiment: stimuli, animations, background, photodiode
 // and the named VTL trigger lines. The server stores each one in a *project* —

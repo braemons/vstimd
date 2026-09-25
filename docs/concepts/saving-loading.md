@@ -47,14 +47,14 @@ take, so use whichever is in front of you.
 |---|---|---|
 | **The on-device overlay** | The **Scene-config** panel (++f6++) lists the scene-configs on the device, grouped by project; load, save, and overwrite from there | a rig with a keyboard and no client attached |
 | **The web control UI** | The scene-config section of the browser UI served by the device — [Web control UI](../client/web.md) | setting a rig up from a laptop or a phone on the same network, with no software installed |
-| **The command-line client** | `vstimd-client scene-config list` / `save NAME` / `load NAME` / `get` / `upload NAME FILE` — [Command-line client](../client/cli.md) | scripts, deployment, CI, and anything you want in a shell history |
+| **The command-line client** | `vstimctl scene-configs list` / `save NAME` / `load NAME` / `get` / `put FILE` — [Command-line client](../client/cli.md) | scripts, deployment, CI, and anything you want in a shell history |
 | **The Python client** | `conn.scene_config.*` — see below | building a scene programmatically and persisting it in the same script |
 
 ```console
-$ vstimd-client scene-config list
-$ vstimd-client scene-config save center_target -f
-$ vstimd-client scene-config load center_target
-$ vstimd-client scene-config load demos/drifting_grating
+$ vstimctl scene-configs list
+$ vstimctl scene-configs save center_target -f
+$ vstimctl scene-configs load center_target
+$ vstimctl scene-configs load demos/drifting_grating
 ```
 
 All four write the same `.config.json` files into the same projects, so a scene
@@ -69,7 +69,7 @@ Windows or macOS machine like any other files.
 ## From a client (`scene_config` namespace)
 
 ```python
-with Connection("tcp://stimulus-pc:5555") as conn:
+with VstimdClient("tcp://stimulus-pc:5555") as conn:
     # Build a scene however you like…
     conn.stimuli.shapes.create_rect(
         position_px=Vec2(0, 0),
@@ -139,11 +139,11 @@ save_on_quit = false
 
 That section lives in the rig config, `/etc/braemons/vstimd-rig-config.toml`
 (the shipped template with every key documented is
-`server/config/default-rig-config.toml`). On a rig with the
+`daemon/config/default-rig-config.toml`). On a rig with the
 [Samba shares](../operations/appliance-setup.md#6-admin-access-ssh-optional-samba)
 installed, `/etc/braemons` is a network share, so pointing a rig at a different
 startup scene is a file edit from your own machine — no SSH session and no
-`vstimd-client` needed. Restart `vstimd.service` for it to take effect.
+`vstimctl` needed. Restart `vstimd.service` for it to take effect.
 
 The `--scene-config <name>` and `--scene-config-file <path>` CLI flags override
 `[startup] load_config`. A missing

@@ -19,9 +19,9 @@ import socket as socketlib
 import pytest
 import zmq
 
-from vstimd._proto import service_pb2
-from vstimd._proto.vstimd.v1 import events_pb2
-from vstimd.events import EventSubscriber, Topic, decode_command
+from vstimd_client._proto import service_pb2
+from vstimd_client._proto.vstimd.v1 import events_pb2
+from vstimd_client.events import EventSubscriber, Topic, decode_command
 
 
 def free_port() -> int:

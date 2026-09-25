@@ -30,9 +30,9 @@ independent signals that share the same index space). Give them names so the res
 of your code — and your DAQ bridge — reads clearly.
 
 ```python
-from vstimd import Connection, VtlKind
+from vstimd_client import VstimdClient, VtlKind
 
-with Connection("tcp://stimulus-pc:5555") as conn:
+with VstimdClient("tcp://stimulus-pc:5555") as conn:
     # Input line the DAQ will pulse when a trial starts:
     conn.vtl.set_line_name(bank=0, bit=0, kind=VtlKind.INPUT,  name="trial_start")
     # Output line vstimd pulses when the stimulus appears:
@@ -45,7 +45,7 @@ with Connection("tcp://stimulus-pc:5555") as conn:
 Build a handle from either coordinates or a registered name:
 
 ```python
-from vstimd import VtlHandle, VtlKind
+from vstimd_client import VtlHandle, VtlKind
 
 trial_start = VtlHandle.named("trial_start", VtlKind.INPUT)
 stim_onset  = VtlHandle.named("stim_onset",  VtlKind.OUTPUT)
@@ -60,7 +60,7 @@ The simplest animation. Create a stimulus (disabled), then a `flash` animation o
 it, arm it, and it runs immediately for the given duration:
 
 ```python
-from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
+from vstimd_client.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
 target = conn.stimuli.shapes.create_rect(
     position_px=Vec2(0, 0),
@@ -128,7 +128,7 @@ output line** on the frame it starts. Use the start-action mask plus the output
 handle:
 
 ```python
-from vstimd import StartAction
+from vstimd_client import StartAction
 
 flash = conn.animations.create_flash(
     target,
@@ -156,7 +156,7 @@ The action masks let you attach behaviour to each phase of the animation:
 Masks are `IntFlag`s, so combine them with `|`:
 
 ```python
-from vstimd import FinalAction
+from vstimd_client import FinalAction
 final = FinalAction.DISABLE | FinalAction.FINAL_ACTION_TRIGGER_LINE
 ```
 

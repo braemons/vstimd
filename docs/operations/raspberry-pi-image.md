@@ -107,14 +107,13 @@ user prompt is disabled in the image precisely so a raw-flashed card
 
 ### Find it on the network
 
-The rig names itself `vstimd-XXXXXX` from its MAC address and advertises
-`_vstimd._tcp` over mDNS — see [Discovery & hostnames](discovery.md) for the
-full policy.
+The rig names itself `braemons-XXXXXX` from its MAC address (the image installs
+`braemons-rig` for that), and vstimd advertises `_vstimd._tcp` over mDNS. See
+[Discovery & hostnames](discovery.md) for the full policy.
 
 ```console
-$ vstimd-client discover
-ID             HOSTNAME             ADDRESSES   ADDRESS
-vstimd-a1b2c3  vstimd-a1b2c3.local  10.0.1.42   tcp://vstimd-a1b2c3.local:5555
+$ vstimctl discover | jq -r '.[].address'
+tcp://braemons-a1b2c3.local:5555
 ```
 
 Without the Python client installed, `avahi-browse -r _vstimd._tcp` (Linux),
@@ -123,12 +122,12 @@ Without the Python client installed, `avahi-browse -r _vstimd._tcp` (Linux),
 your router's DHCP lease table will do.
 
 Quickest confirmation that it is alive: browse to
-**`http://vstimd-XXXXXX.local:8080`** — the [web control UI](../client/web.md)
+**`http://braemons-XXXXXX.local:8080`** — the [web control UI](../client/web.md)
 is served from the rig itself and needs nothing installed locally.
 
 ### Put something on the display
 
-`vstimd-client scene-config load demos/first_light` shows a self-explaining scene; the
+`vstimctl scene-configs load demos/first_light` shows a self-explaining scene; the
 other [demo scenes](../getting-started/demos.md) cover a drifting grating,
 trigger-driven flashes and a photodiode flicker. The trigger demos use the
 header pins this image's `gpiochip-daqd` config already wires up, so they drive
@@ -139,7 +138,7 @@ real pins with nothing further to configure.
 ### SSH
 
 ```bash
-ssh vstimd-admin@vstimd-a1b2c3.local
+ssh vstimd-admin@braemons-a1b2c3.local
 ```
 
 | | |
@@ -159,7 +158,7 @@ never drift apart.
     internet.
 
 Windows has a built-in `ssh` client in PowerShell; PuTTY works too (host
-`vstimd-a1b2c3.local`, port 22).
+`braemons-a1b2c3.local`, port 22).
 
 ### Files over SMB/CIFS
 
@@ -179,7 +178,7 @@ writing requires the `vstimd-admin` login.
     In Explorer's address bar:
 
     ```
-    \\vstimd-a1b2c3\vstimd-config
+    \\braemons-a1b2c3\vstimd-config
     ```
 
     Read-only browsing needs no credentials. To write, map it as a drive with
@@ -190,7 +189,7 @@ writing requires the `vstimd-admin` login.
     Finder → **Go → Connect to Server** (++cmd+k++):
 
     ```
-    smb://vstimd-a1b2c3.local/vstimd-data
+    smb://braemons-a1b2c3.local/vstimd-data
     ```
 
     Choose *Guest* to read, or *Registered User* → `vstimd-admin` to write.
@@ -199,20 +198,20 @@ writing requires the `vstimd-admin` login.
 
     ```bash
     # Read-only, no credentials:
-    sudo mount -t cifs //vstimd-a1b2c3.local/vstimd-data /mnt -o guest,vers=3.0
+    sudo mount -t cifs //braemons-a1b2c3.local/vstimd-data /mnt -o guest,vers=3.0
 
     # Read-write:
-    sudo mount -t cifs //vstimd-a1b2c3.local/vstimd-config /mnt \
+    sudo mount -t cifs //braemons-a1b2c3.local/vstimd-config /mnt \
         -o username=vstimd-admin,vers=3.0
     ```
 
     Requires `cifs-utils`. A desktop file manager can also open
-    `smb://vstimd-a1b2c3.local/` directly via gvfs.
+    `smb://braemons-a1b2c3.local/` directly via gvfs.
 
 !!! info "The rig shows up in Explorer's Network list"
     Samba announces itself over NetBIOS, but modern Windows builds that list
     from WS-Discovery instead — so the image also ships `wsdd2`, enabled by
-    default, to cover that. On a hand-built rig without it, `\\vstimd-a1b2c3`
+    default, to cover that. On a hand-built rig without it, `\\braemons-a1b2c3`
     still connects fine typed directly; only the icon is missing.
 
 After editing the rig config, restart the service so it takes effect:
@@ -224,13 +223,13 @@ sudo systemctl restart vstimd
 ### Drive it from an experiment script
 
 ```python
-from vstimd import Connection
+from vstimd_client import VstimdClient
 
-with Connection("tcp://vstimd-a1b2c3.local:5555") as conn:
+with VstimdClient("tcp://braemons-a1b2c3.local:5555") as conn:
     print(conn.system.query_server_info())
 ```
 
-or from a shell: `vstimd-client --host vstimd-a1b2c3 info`.
+or from a shell: `vstimctl --rig braemons-a1b2c3.local state`.
 
 ## 5. Updating — never re-flash
 
@@ -253,8 +252,8 @@ re-flashing for a new rig or a failed card.
 | | |
 |---|---|
 | Base | Raspberry Pi OS Lite (arm64), rootfs grown by 4 GB for the DKMS builds |
-| Packages | `braemons-vstimd` + `braemons-gpiochip-daqd` from the release's own `.deb`s |
-| Boot | Default target set to `vstimd.target`; `vstimd`, `vstimd-hostname`, and `gpiochip-daqd` enabled |
+| Packages | `braemons-vstimd` + `braemons-gpiochip-daqd` from the release's own `.deb`s, and `braemons-rig` from the archive |
+| Boot | Default target set to `vstimd.target`; `vstimd`, `braemons-hostname`, and `gpiochip-daqd` enabled |
 | Rig config | `/usr/share/braemons/vstimd/raspberry-pi-5.toml` installed as `/etc/braemons/vstimd-rig-config.toml` (not the generic all-commented-out default) |
 | GPIO config | `raspberry-pi-5_in16_out4.toml` installed as `/etc/braemons/gpiochip-daqd-config.toml` |
 | Services | `sshd`, `smbd`/`nmbd` with both shares, `avahi-daemon`, `wsdd2` |

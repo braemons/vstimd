@@ -1,7 +1,7 @@
 # GratingStim
 
 ```{eval-rst}
-.. autoclass:: vstimd.psychopy.visual.GratingStim
+.. autoclass:: vstimd_client.psychopy.visual.GratingStim
    :members:
    :undoc-members:
 ```

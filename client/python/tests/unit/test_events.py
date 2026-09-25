@@ -10,8 +10,8 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd._proto.vstimd.v1 import events_pb2
-from vstimd.events import EventSubscriber, ServerRestarted, Topic
+from vstimd_client._proto.vstimd.v1 import events_pb2
+from vstimd_client.events import EventSubscriber, ServerRestarted, Topic
 
 
 def an_event(sequence: int, *, frame: int = 1, count: int = 1) -> events_pb2.Event:

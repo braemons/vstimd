@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-import vstimd.psychopy.visual as visual
-from vstimd.stimuli import RectParams, StimulusType
-from ..cases._helpers import Stage
+import vstimd_client.psychopy.visual as visual
+from vstimd_client.stimuli import RectParams, StimulusType
+from ..cases._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -13,6 +13,7 @@ from ..cases._helpers import Stage
     "a red 200×100 px rectangle in the centre, built through the "
     "PsychoPy-style visual.Rect API with autoDraw on",
 )
+@check_frame_stats
 def test_create_rect(win: visual.Window, stage: Stage) -> None:
     rect = visual.Rect(win, width_px=200, height_px=100, fillColor="red", autoDraw=True)
 
@@ -36,6 +37,7 @@ def test_create_rect(win: visual.Window, stage: Stage) -> None:
     "100×100 px square at the top right, then a yellow one at the bottom "
     "left",
 )
+@check_frame_stats
 def test_rect_position_size(win: visual.Window, stage: Stage) -> None:
     rect = visual.Rect(win, width_px=400, height_px=300, fillColor="blue", pos=(0, 0), autoDraw=True)
     win.flip()
@@ -63,6 +65,7 @@ def test_rect_position_size(win: visual.Window, stage: Stage) -> None:
     "white and orange — the last one set as an rgb1 tuple rather than a "
     "name",
 )
+@check_frame_stats
 def test_rect_colors(win: visual.Window, stage: Stage) -> None:
     rect = visual.Rect(win, width_px=200, height_px=200, fillColor="red", autoDraw=True)
     win.flip()
@@ -84,6 +87,7 @@ def test_rect_colors(win: visual.Window, stage: Stage) -> None:
     "right; the blue fades to 0.5 and then the red to 0.7, showing the "
     "overlap through",
 )
+@check_frame_stats
 def test_rect_opacity(win: visual.Window, stage: Stage) -> None:
     rect1 = visual.Rect(win, width_px=300, height_px=300, fillColor="red", pos=(-100, 0), autoDraw=True)
     rect2 = visual.Rect(win, width_px=300, height_px=300, fillColor="blue", pos=(100, 0), autoDraw=True)

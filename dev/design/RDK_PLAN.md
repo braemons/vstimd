@@ -371,16 +371,16 @@ Family A has landed. What exists:
 
 - `proto/vstimd/v1/stimuli/dots.proto`, `STIMULUS_TYPE_DOTS = 13`, the `DotsParams`
   query arm, and ten `Set*` mutations on the service oneof (140–149).
-- `server/src/scene/stimulus/dots/` — `dots_params.rs`, `dots_stimulus.rs`,
+- `daemon/src/scene/stimulus/dots/` — `dots_params.rs`, `dots_stimulus.rs`,
   `dots_pipeline.rs`, `dots_rng.rs`, and `dots_tess.rs` recording that there is
   nothing to tessellate.
 - `ipc/convert/dots.rs`, `ipc/dots_commands.rs`, the `dispatch.rs` arms.
 - `shaders/dots.wgsl` plus `DotsInstanceCache` — one persistently mapped instance
   buffer per field **per frame-in-flight slot**, since the renderer waits only on
   the fence of the slot it reuses.
-- Python: `vstimd.stimuli.dots_client` / `dots_models`, the unit helpers, and
+- Python: `vstimd_client.stimuli.dots_client` / `dots_models`, the unit helpers, and
   `examples/figure_ground_rdk.py`.
-- Tests: 34 unit, 8 integration (`server/tests/dots.rs`, including `figure_ground`),
+- Tests: 34 unit, 8 integration (`daemon/tests/dots.rs`, including `figure_ground`),
   13 Python unit, 8 e2e cases (`DOTS-01`…`DOTS-08`).
 - Docs: `docs/concepts/random-dots.md`.
 
@@ -419,7 +419,7 @@ Not done, and deliberately:
   day the mechanism exists.
 - **No web client support.** `client/web` does not know the type.
 - **No saved scene-config for the reproduction.** `figure_ground` in
-  `server/tests/dots.rs` and `examples/figure_ground_rdk.py` build it in code;
+  `daemon/tests/dots.rs` and `examples/figure_ground_rdk.py` build it in code;
   neither has been round-tripped through a `.config.json` on a rig.
 
 One thing that could not be verified in this environment: **the rendered output was

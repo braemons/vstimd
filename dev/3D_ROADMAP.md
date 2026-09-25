@@ -34,7 +34,7 @@
 > and those issues disagree, the issues win — they were written against the current code.
 >
 > **This document was originally drafted against `wgpu`.** The renderer is hand-written Vulkan
-> via `ash`, with WGSL compiled to SPIR-V at build time by `naga` (`server/build.rs`). The text
+> via `ash`, with WGSL compiled to SPIR-V at build time by `naga` (`daemon/build.rs`). The text
 > below has been corrected, but treat any remaining `wgpu::` type name as a bug in this file.
 
 ---
@@ -115,7 +115,7 @@ Phase C avoid a scene graph entirely (§6).
 Two conventions were settled for 2-D and bind the 3-D variants as well.
 
 **`StimulusCommon` is the state every stimulus has**, flattened into each variant's struct and
-its config JSON (`server/src/scene/stimulus/stimulus_common.rs`). Today it is
+its config JSON (`daemon/src/scene/stimulus/stimulus_common.rs`). Today it is
 `{ flags, transform: Deferred<Transform2D>, opacity }` — every stimulus is 2-D, so all three
 genuinely are common. A 3-D variant gets `flags` and `opacity` for free and must not redeclare
 either.
@@ -500,7 +500,7 @@ message QueryCameraRequest {}
 
 There is no `SystemCmd` message. Add these to the single `oneof body` in `service.proto`, with a
 `SystemTarget` target: `set_camera = 77`, `query_camera = 85`. See §10.2 for the full field-number
-allocation, and register every new `.proto` in **both** lists in `server/build.rs` (the
+allocation, and register every new `.proto` in **both** lists in `daemon/build.rs` (the
 `rerun-if-changed` block *and* the `compile_protos` call — forgetting the second is a silent
 no-op).
 
@@ -571,7 +571,7 @@ Neither carries visibility or opacity: those come from the shared `StimulusCommo
 
 Two deliberate choices:
 
-- **`albedo: Color`, not `[f32; 4]`.** `crate::Color` (`server/src/color.rs`) is the established
+- **`albedo: Color`, not `[f32; 4]`.** `crate::Color` (`daemon/src/color.rs`) is the established
   colour type across the codebase and is already `Pod`. It keeps 3-D stimuli consistent with the
   gamma work in [#55](https://github.com/braemons/vstimd/issues/55).
 - **No `roughness` field.** An earlier draft of this document carried one, annotated "unused in
@@ -625,7 +625,7 @@ it is the one place a user could be surprised.
 
 ### B.4 Vertex format for 3-D
 
-**No new vertex type is needed.** `server/src/geom.rs::Vertex` already is:
+**No new vertex type is needed.** `daemon/src/geom.rs::Vertex` already is:
 
 ```rust
 #[repr(C)]
@@ -683,7 +683,7 @@ interpolated normal in the fragment shader — a scaled normal matrix does not p
 
 All 3-D primitives are tessellated on the CPU into **unit** geometry (§1.6), lazily on first
 reference to a `MeshKey`, and refcounted. No library is needed. New module
-`server/src/render/tess3d.rs`, sibling of `tess.rs` — but emitting **object-space** positions,
+`daemon/src/render/tess3d.rs`, sibling of `tess.rs` — but emitting **object-space** positions,
 where `tess.rs` bakes NDC on the CPU.
 
 - **Cube**: 6 faces × 2 triangles × **24 vertices** (4 per face — not 8; each face needs its own
@@ -1423,7 +1423,7 @@ pub enum AnimationTarget {
 
 No magic numbers, survives a config round-trip, representable in proto as a `oneof`, and
 `advance_one` gets one `match` instead of a handle comparison buried in a loop. Old configs with a
-bare `stimuli: [1, 2]` array must still load — cover it in `server/tests/config_compat.rs`.
+bare `stimuli: [1, 2]` array must still load — cover it in `daemon/tests/config_compat.rs`.
 
 Mapping a 2-D animation onto the camera: `(x, y)` writes `position.xz`, holding `position.y` — the
 same rule §9.3 applies to `move_to` on a 3-D stimulus.

@@ -6,10 +6,10 @@ in every shipped demo — for a caption that makes a display self-describing wit
 no client attached.
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import Color, TextParams, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Color, TextParams, Vec2
 
-with Connection() as conn:
+with VstimdClient() as conn:
     conn.stimuli.text.create_text(
         position_px=Vec2(0, -340),
         name="explanation",

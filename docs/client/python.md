@@ -33,18 +33,18 @@ See [Installation](../getting-started/installation.md) for other options.
 
 ## Connect
 
-A `Connection` opens a ZMQ REQ socket and exposes the command namespaces. Use it as a
+A `VstimdClient` opens a ZMQ REQ socket and exposes the command namespaces. Use it as a
 context manager so the socket is always closed:
 
 ```python
-from vstimd import Connection
+from vstimd_client import VstimdClient
 
-with Connection() as conn:                 # default: tcp://localhost:5555
+with VstimdClient() as conn:                 # default: tcp://localhost:5555
     info = conn.system.query_server_info()
     print(info.width_px, info.height_px, info.frame_rate_hz)
 ```
 
-Pass an address for a remote device: `Connection("tcp://stimulus-pc:5555")`.
+Pass an address for a remote device: `VstimdClient("tcp://stimulus-pc:5555")`.
 
 Every call is a **synchronous round-trip**: the client blocks until the server
 acknowledges, and a server error is raised as a typed exception (see
@@ -59,7 +59,8 @@ acknowledges, and a server error is raised as a typed exception (see
 | `conn.stimuli.grating` | Create/mutate gratings | `create_grating`, `set_phase`, `set_sf`, `set_contrast`, `set_waveform`, `set_mask`, `set_drift_speed`, `set_drift_angle`, `set_fore_color`, … (opacity: use `conn.stimuli.set_alpha`) |
 | `conn.stimuli.text` | Create/mutate text | `create_text`, `set_text`, `set_text_color` |
 | `conn.stimuli.dots` | Create/mutate [dot fields](../stimuli/random-dots.md) | `create_dots`, `set_direction`, `set_speed`, `set_coherence`, `set_dot_count`, `set_dot_size`, `set_dot_color`, `set_aperture`, `set_field_size`, `set_dot_lifetime`, `set_seed` |
-| `conn.system` | Scene-wide + queries | `set_background`, `set_all_enabled`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_deferred_mode`, `list_stimuli`, `query_server_info`, `wait_for_frames`, `wait_for_frame`, `wait_until`, `shutdown` |
+| `conn.stimuli.shapes3d` | Create/mutate [3-D shapes](../stimuli/3d.md) | `create_cube`, `create_sphere`, `create_plane`, `set_transform`, `set_material`, `set_cube_size`, `set_sphere_diameter`, `set_plane_size` |
+| `conn.system` | Scene-wide + queries | `set_camera`, `query_camera`, `set_lighting`, `query_lighting`, `set_background`, `set_all_enabled`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_deferred_mode`, `list_stimuli`, `query_server_info`, `wait_for_frames`, `wait_for_frame`, `wait_until`, `capture_frame`, `shutdown` |
 | `conn.animations` | On-device animations | `create_flash`, `create_flicker`, `create_move_along_path_2d`, `create_couple_visibility_to_trigger_line`, `arm`, `disarm`, `cancel`, `query`, … |
 | `conn.vtl` | Virtual Trigger Lines | `set_line_name`, `set_line`, `toggle_line`, `set_bank`, `clear_latches`, `list_lines` |
 | `conn.scene_config` | Save/load scenes | `save`, `load`, `list_scene_configs`, `retrieve`, `upload` |
@@ -67,7 +68,7 @@ acknowledges, and a server error is raised as a typed exception (see
 
 The method list above is a map, not an exhaustive signature reference — the
 authoritative signatures and docstrings live in the source under
-[`client/python/vstimd/`](https://github.com/braemons/vstimd/tree/main/client/python/vstimd).
+[`client/python/vstimd_client/`](https://github.com/braemons/vstimd/tree/0.3/client/python/vstimd_client).
 
 ### Draw order
 
@@ -98,12 +99,13 @@ Creating a stimulus returns a **handle** you pass to later commands. Positions a
 | Grating | `conn.stimuli.grating.create_grating(...)` | [Gratings](../stimuli/gratings.md) |
 | Text | `conn.stimuli.text.create_text(...)` | [Text](../stimuli/text.md) |
 | Random dots | `conn.stimuli.dots.create_dots(...)` | [Random dot kinematograms](../stimuli/random-dots.md) |
+| Cube, sphere, plane (3-D) | `conn.stimuli.shapes3d.create_cube(...)` etc. — placed in centimetres, not pixels | [3-D shapes](../stimuli/3d.md) |
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
-with Connection() as conn:
+with VstimdClient() as conn:
     rect = conn.stimuli.shapes.create_rect(
         position_px=Vec2(0, 0),
         params=RectParams(
@@ -141,7 +143,7 @@ Three of these group under `StimulusError` (`HandleNotFoundError`,
 under `ConfigError`, so you can catch a family rather than listing members:
 
 ```python
-from vstimd.exceptions import ConfigError, ConfigNotFoundError
+from vstimd_client.exceptions import ConfigError, ConfigNotFoundError
 
 try:
     conn.scene_config.load("gratings")
@@ -169,12 +171,12 @@ which of twenty mutations it came from.
 
 ## PsychoPy compatibility
 
-The `vstimd.psychopy` layer mirrors `psychopy.visual` on top of the command API —
+The `vstimd_client.psychopy` layer mirrors `psychopy.visual` on top of the command API —
 often a one-line import swap:
 
 ```python
 # from psychopy import visual
-from vstimd.psychopy import visual
+from vstimd_client.psychopy import visual
 
 win  = visual.Window(address="tcp://stimulus-pc:5555")
 rect = visual.Rect(win, size=(300, 150), pos=(0, 0), fillColor="red")

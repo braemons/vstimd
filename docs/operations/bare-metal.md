@@ -186,6 +186,13 @@ A rig on bare-metal DRM has no compositor and nothing else on the box to ask for
 a screenshot with, so this reads it out of vstimd's own Vulkan swapchain rather
 than depending on one existing.
 
+The same capture is available remotely, which is what you want on a rig with no
+keyboard attached: `conn.system.capture_frame().save("frame.png")` from Python, or
+`vstimctl capture frame.png`. The PNG comes back over the connection rather
+than landing on the rig's disk, and shows every command acknowledged before the
+request. The null renderer and evdi have no frames to read back and answer
+`NotSupportedError`.
+
 ---
 
 ## Running

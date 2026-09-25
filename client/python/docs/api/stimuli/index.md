@@ -7,12 +7,13 @@
 shapes
 grating
 text
+shapes3d
 ```
 
 ## StimuliClient
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.StimuliClient
+.. autoclass:: vstimd_client.stimuli.StimuliClient
    :members:
    :undoc-members:
 ```
@@ -20,21 +21,21 @@ text
 ## Shared types
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.Color
+.. autoclass:: vstimd_client.stimuli.Color
    :members:
 
-.. autoclass:: vstimd.stimuli.Vec2
+.. autoclass:: vstimd_client.stimuli.Vec2
    :members:
 
-.. data:: vstimd.StimulusHandle
+.. data:: vstimd_client.StimulusHandle
 
    Opaque integer handle returned by every ``create_*`` stimulus call.
    Pass it to ``conn.stimuli`` methods to mutate or delete the stimulus, or to
    animation ``create_*`` methods to attach an animation to it.
 
-.. autoclass:: vstimd.stimuli.StimulusType
+.. autoclass:: vstimd_client.stimuli.StimulusType
    :members:
 
-.. autoclass:: vstimd.stimuli.StimulusInfo
+.. autoclass:: vstimd_client.stimuli.StimulusInfo
    :members:
 ```

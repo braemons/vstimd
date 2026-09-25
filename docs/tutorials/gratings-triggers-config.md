@@ -26,7 +26,7 @@ part that matters here — they are **saved with the config**, so the I/O map
 travels with the scene.
 
 ```python
-from vstimd import Connection, VtlHandle, VtlKind
+from vstimd_client import VstimdClient, VtlHandle, VtlKind
 
 LINES = [
     ("in_pin11",  0, 11, VtlKind.INPUT),
@@ -60,7 +60,7 @@ output are different lines. That is why `VtlHandle.input` and
 ## 2. Two gratings, hidden
 
 ```python
-from vstimd.stimuli.grating_models import GratingMask, GratingTexture
+from vstimd_client.stimuli.grating_models import GratingMask, GratingTexture
 
 gratings = {}
 for label, angle in (("45deg", 45.0), ("135deg", 135.0)):
@@ -100,7 +100,7 @@ orientation-carrying border of its own.
 ## 3. A fixation dot that never moves
 
 ```python
-from vstimd.stimuli.shapes_models import ShapeDrawMode
+from vstimd_client.stimuli.shapes_models import ShapeDrawMode
 
 dot = conn.stimuli.shapes.create_circle(
     position_px=Vec2(0, 0),
@@ -122,7 +122,7 @@ Black core, white ring: it has to stay visible against the grey background
 This is the step the whole tutorial is for.
 
 ```python
-from vstimd import FinalAction, StartAction, VtlEdge
+from vstimd_client import FinalAction, StartAction, VtlEdge
 
 for label, anim_name, trigger, onset, end, done in (
     ("45deg",  "flash_45deg_on_pin11",  in_45,  on_45,  end_45,  done_45),
@@ -200,7 +200,7 @@ background, and the eight VTL names from step 1. Loading it into a fresh session
 gives you back a rig that is armed and ready:
 
 ```python
-with Connection("tcp://vstimd-ab12.local:5555") as conn:
+with VstimdClient("tcp://vstimd-ab12.local:5555") as conn:
     print(conn.scene_config.list_scene_configs())
     # ['demos/first_light', …, 'my_gratings_triggered']
 
@@ -268,7 +268,7 @@ connect to change parameters between blocks, or not connect at all.
 
 Notes on that file:
 
-- The template lives at `server/config/default-rig-config.toml`, which
+- The template lives at `daemon/config/default-rig-config.toml`, which
   documents every key with the defaults commented out.
 - On a rig with the [Samba shares](../operations/appliance-setup.md#6-admin-access-ssh-optional-samba)
   installed, `/etc/braemons` is a network share, so this is a file you can edit

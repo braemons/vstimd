@@ -3,7 +3,7 @@ import os
 
 sys.path.insert(0, os.path.abspath(".."))
 
-from vstimd._version import __version__  # noqa: E402  (needs the sys.path entry above)
+from vstimd_client._version import __version__  # noqa: E402  (needs the sys.path entry above)
 
 project = "vstimd-client"
 author = "Joscha Schmiedt"
@@ -28,8 +28,8 @@ autodoc_default_options = {
 autodoc_typehints = "description"
 autodoc_member_order = "bysource"
 autodoc_type_aliases = {
-    "StimulusHandle": "vstimd.StimulusHandle",
-    "AnimationHandle": "vstimd.AnimationHandle",
+    "StimulusHandle": "vstimd_client.StimulusHandle",
+    "AnimationHandle": "vstimd_client.AnimationHandle",
 }
 
 myst_enable_extensions = ["colon_fence"]

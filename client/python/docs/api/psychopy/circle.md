@@ -1,7 +1,7 @@
 # Circle
 
 ```{eval-rst}
-.. autoclass:: vstimd.psychopy.visual.Circle
+.. autoclass:: vstimd_client.psychopy.visual.Circle
    :members:
    :undoc-members:
 ```

@@ -1,0 +1,99 @@
+from vstimd_client._handles import StimulusHandle
+
+from .dots_client import DotsClient
+from .dots_models import (
+    Aperture,
+    ApertureClip,
+    ApertureShape,
+    DotShape,
+    DotsParams,
+    NoiseRule,
+    Reinsertion,
+    SignalRule,
+    diameter_from_radius,
+    direction_from_ptb_rad,
+    dots_for_density,
+    lifetime_from_psychopy,
+    px_per_deg,
+)
+# Gaussian splatting (prototype): its own client and models, removable together.
+from .gaussian_splat_client import GaussianSplatClient
+from .gaussian_splat_models import GaussianSplat3DParams
+from .grating_client import GratingClient
+from .grating_models import GratingMask, GratingParams, GratingTexture
+from .shapes_client import ShapesClient
+from .shapes3d_client import Shapes3DClient
+from .shapes3d_models import (
+    Corridor3DParams,
+    Cube3DParams,
+    Material3D,
+    Plane3DParams,
+    Repeat3D,
+    Shading,
+    Sphere3DParams,
+    Transform3D,
+)
+from .shapes_models import (
+    CircleParams,
+    EllipseParams,
+    PolygonParams,
+    RectParams,
+    ShapeAppearance,
+    ShapeDrawMode,
+)
+from .stimuli_client import StimuliClient
+from .stimuli_models import StimulusInfo, StimulusParams, StimulusType
+from .text_client import TextClient
+from .text_models import LanguageStyle, TextParams
+from .color import Color
+from .vec import Vec2, Vec3
+
+__all__ = [
+    "StimuliClient",
+    "ShapesClient",
+    "GratingClient",
+    "DotsClient",
+    "TextClient",
+    "Color",
+    "Vec2",
+    "Vec3",
+    "Shapes3DClient",
+    "GaussianSplatClient",
+    "GaussianSplat3DParams",
+    "Corridor3DParams",
+    "Cube3DParams",
+    "Repeat3D",
+    "Material3D",
+    "Plane3DParams",
+    "Shading",
+    "Sphere3DParams",
+    "Transform3D",
+    "CircleParams",
+    "EllipseParams",
+    "GratingMask",
+    "GratingParams",
+    "GratingTexture",
+    "Aperture",
+    "ApertureClip",
+    "ApertureShape",
+    "DotShape",
+    "DotsParams",
+    "NoiseRule",
+    "Reinsertion",
+    "SignalRule",
+    "diameter_from_radius",
+    "direction_from_ptb_rad",
+    "dots_for_density",
+    "lifetime_from_psychopy",
+    "px_per_deg",
+    "LanguageStyle",
+    "PolygonParams",
+    "RectParams",
+    "ShapeAppearance",
+    "ShapeDrawMode",
+    "TextParams",
+    "StimulusHandle",
+    "StimulusInfo",
+    "StimulusParams",
+    "StimulusType",
+]

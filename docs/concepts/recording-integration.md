@@ -60,10 +60,10 @@ Have the animation that shows a stimulus pulse an **output line** on its onset
 frame. Wire that output pin into a spare digital input on your acquisition system.
 
 ```python
-from vstimd import Connection, VtlHandle, VtlKind, VtlEdge, StartAction, FinalAction
-from vstimd.stimuli import CircleParams, Vec2
+from vstimd_client import VstimdClient, VtlHandle, VtlKind, VtlEdge, StartAction, FinalAction
+from vstimd_client.stimuli import CircleParams, Vec2
 
-with Connection("tcp://stimulus-pc:5555") as conn:
+with VstimdClient("tcp://stimulus-pc:5555") as conn:
     conn.vtl.set_line_name(bank=0, bit=0, kind=VtlKind.OUTPUT, name="stim_onset")
     stim_onset = VtlHandle.named("stim_onset", VtlKind.OUTPUT)
 

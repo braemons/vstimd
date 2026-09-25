@@ -5,12 +5,39 @@ All notable changes to `vstimd-client` are documented here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html). The client is
 versioned independently of the vstimd server.
 
-## [Unreleased]
+## [0.3.0a2] — 2026-09-25
 
 ### Changed — breaking
 
 The API-consistency pass before the first release. No aliases are kept: the
 server and the client move together, and nothing has shipped yet.
+
+- **The import package is `vstimd_client`**, not `vstimd`: `from vstimd_client
+  import VstimdClient`. Every braemons client imports as `<daemon>_client`
+  (`contracts/DAEMON_LAYOUT.md`). The generated stubs now live at
+  `vstimd_client._proto.vstimd.v1`, and the `__path__` trick that made
+  `vstimd.v1` importable is gone.
+
+- **`Connection` is `VstimdClient`**, and `vstimd.connection` is
+  `vstimd_client.vstimd_client`. Every daemon's Python client is `<Daemon>Client`
+  — `MousewheeldClient`, `StatemachinedClient`, `TrialdClient` — so a script
+  that talks to two daemons can say which is which.
+
+- **The command is `vstimctl`**, not `vstimd-client`, and it follows the rules
+  every braemons `<name>ctl` shares:
+  - `--rig HOST[:PORT]`, else `$BRAEMONS_RIG`, else localhost. This replaces
+    `-a/--address`, `-H/--host`, `-p/--port` and `$VSTIMD_ADDRESS`. It never
+    browses mDNS to guess a rig any more; `discover` lists them.
+  - JSON on stdout always; `--json` and the tables are gone.
+  - A failure is one JSON object on stderr. The exit statuses are the family's:
+    no reply is 3, a refusal is 5, and 7 is gone.
+  - `state` replaces `info` and `ls`, and the new `watch` follows the event
+    stream.
+  - `scene-config` is `scene-configs`, and `upload NAME FILE` is
+    `put FILE [--name NAME]` (`--apply-now` is `--load`). `get` prints to
+    stdout, so `-o` is gone.
+  - The module is `vstimd_client.command_line_interface`, and
+    `VSTIMD_TRACEBACK` is `VSTIMCTL_TRACEBACK`.
 
 - **Projects, and one word for a scene-config.** The server now stores each
   experiment in a **project** — one directory holding everything a study needs —
@@ -114,6 +141,63 @@ server and the client move together, and nothing has shipped yet.
   `box_width`/`box_height` arguments), and its `color` → `text_color` (matching
   what a query already called it). `TextParams.size` → `TextParams.box_size_px`.
 
+### Added
+
+- **A producer that is slower than the display now says so.**
+  `InputDeviceInfo.starved_frames` (from `conn.system.list_input_devices()`)
+  counts frames that found no new sample from the device's producer. Staleness
+  only catches a producer that *stopped*; one merely publishing at or below the
+  display rate leaves some frames with nothing new and the next with two
+  samples' worth of movement, which is visible stutter in whatever the device
+  drives and shows up nowhere else. A handful means nothing — the two clocks are
+  unrelated — but a count climbing with the frame counter means raise the
+  producer's rate above the display's.
+- **Frame statistics.** `conn.system.query_frame_stats()` reports presented and
+  dropped frames and frame-interval mean/std/min/max since the last
+  `conn.system.reset_frame_stats()`, which opens a new window and returns the one
+  it closed — so "what did this trial cost" is one round trip.
+- `EventSubscriber.unsubscribe(topic)` drops one of the topics a subscriber was
+  created with.
+- **Gaussian splat scenes.** `conn.stimuli.gaussian_splat.create(path)`
+  draws a trained 3-D Gaussian splat scene (a 3DGS `.ply`, or a `.splat`) from a
+  file on the server, placed by a `Transform3D` whose `scale` sets centimetres
+  per scene unit. `StimulusType` gains `GAUSSIAN_SPLAT_3D` and the query params
+  `GaussianSplat3DParams`. For content that does not repeat, such as a scanned
+  corridor, `create_linear_nav_3d(track_length_cm=..., fade_frames=...)` walks a
+  finite track: at its end the 3-D view fades out, the camera jumps back to its
+  start, and the view fades in.
+- **Camera zones.** `conn.system.set_camera_zones([CameraZone(...)])` turns a
+  region of the 3-D world into a trigger-line input: HIGH while the camera is
+  inside, edges on entry and exit, so any trigger-reacting animation — including
+  one that pulses a DAQ output — responds to where the animal is in a corridor.
+  `list_camera_zones()` reports which zones the camera is in.
+- **Input devices.** `vstimd.shm.InputDevice` publishes a wheel, treadmill or eye
+  tracker for the server to read every frame (the Rust `vinput` layout, seqlock
+  and heartbeat included). Rig-config devices then drive animations:
+  `create_device_driven_transform` maps axes onto transform channels of stimuli
+  or the camera, `create_linear_nav_3d(source=AxisRef(...))` walks the camera
+  from a device, and `create_external_position_2d` now works (it was refused)
+  against a named device. `conn.system.list_input_devices()` and
+  `AnimationDetails.device_stale` report when a producer has stopped.
+  See `examples/wheel_reader.py`.
+- **3-D stimuli.** `conn.stimuli.shapes3d` creates cubes, spheres and planes
+  (`create_cube` / `create_sphere` / `create_plane`) placed by a `Transform3D` in
+  centimetres, with a `Material3D` that is either `Shading.UNLIT` — exactly the
+  albedo, matching a 2-D shape of the same colour — or `Shading.PHONG`.
+  `conn.system.set_camera` / `query_camera` and `set_lighting` / `query_lighting`
+  control the scene they are seen through; `create_corridor` builds an endless
+  corridor and `Repeat3D` repeats an object along it; and
+  `conn.animations.create_linear_nav_3d` moves the camera every frame (optionally
+  wrapping for an endless corridor; `set_nav_speed`, and `AnimationDetails` gains
+  `camera` and `distance_travelled_cm`). `StimulusInfo` gains `transform_3d`,
+  and `StimulusType` gains `CUBE_3D`, `SPHERE_3D` and `PLANE_3D`. See
+  `examples/scene_3d.py`.
+- **`conn.system.capture_frame()`** returns the next presented frame as a PNG
+  (`CapturedFrame`, with `.save(path)`), read back from the server's own
+  swapchain — overlay included, every acknowledged command applied. The CLI
+  equivalent is `vstimd-client capture PATH`. Raises `NotSupportedError` on the
+  null renderer and evdi.
+
 ## [0.1.0rc3] — 2026-08-13
 
 ### Added
@@ -195,7 +279,7 @@ First release candidate; the first version published to PyPI.
 
 ### Added
 
-- `Connection` — ZMQ/protobuf client covering stimuli (rect, circle, ellipse,
+- `VstimdClient` — ZMQ/protobuf client covering stimuli (rect, circle, ellipse,
   grating, text, polygon), animations, VTL lines, server config, and system
   queries.
 - `vstimd.psychopy` — drop-in replacement for `psychopy.visual` providing

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd.vtl import VtlKind, VtlHandle
+from vstimd_client.vtl import VtlKind, VtlHandle
 
 
 def test_input_output_constructors() -> None:

@@ -9,13 +9,13 @@ import time
 
 import pytest
 
-from vstimd import Connection, NotSupportedError
-from vstimd.animations import AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
-from vstimd.stimuli import GratingParams, RectParams, ShapeAppearance
-from vstimd.stimuli.stimuli_models import Color, Vec2
-from vstimd.vtl import VtlKind, VtlHandle
+from vstimd_client import VstimdClient, InvalidArgumentError
+from vstimd_client.animations import AnimationState, CancelAction, FinalAction, StartAction, VtlEdge, VtlPolarity
+from vstimd_client.stimuli import GratingParams, RectParams, ShapeAppearance
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
+from vstimd_client.vtl import VtlKind, VtlHandle
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 from ._helpers import make_rect as _make_rect
 from ._helpers import wait_for_anim_run_start as _wait_for_run_start
 from ._helpers import wait_for_anim_state as _wait_for_state
@@ -26,7 +26,8 @@ from ._helpers import wait_for_anim_state as _wait_for_state
     "a dark red 80×80 px square in the centre that switches on by itself "
     "for 60 frames (one second) and then goes off and stays off",
 )
-def test_anim_flash_state_transitions(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flash_state_transitions(conn: VstimdClient, stage: Stage) -> None:
     """Flash runs for N frames and ends in DONE state."""
     s = _make_rect(conn, x=0, y=0, enabled=False)
 
@@ -65,7 +66,8 @@ def test_anim_flash_state_transitions(conn: Connection, stage: Stage) -> None:
     "a red square left of centre, on for the 60 frames the flash runs and "
     "off for good once it ends",
 )
-def test_anim_flash_stimulus_visible_during_run(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flash_stimulus_visible_during_run(conn: VstimdClient, stage: Stage) -> None:
     """Stimulus is enabled while flash is running and disabled after DISABLE final action."""
     s = _make_rect(conn, x=-150, y=0, enabled=False)
 
@@ -98,7 +100,8 @@ def test_anim_flash_stimulus_visible_during_run(conn: Connection, stage: Stage) 
     "a red square right of centre that stays hidden until a rising edge "
     "arrives on input line (0,10), then flashes for a second",
 )
-def test_anim_flash_start_trigger(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flash_start_trigger(conn: VstimdClient, stage: Stage) -> None:
     """Flash with start_trigger stays ARMED until a rising edge fires it."""
     s = _make_rect(conn, x=150, y=0, enabled=False)
 
@@ -136,7 +139,8 @@ def test_anim_flash_start_trigger(conn: Connection, stage: Stage) -> None:
     "nothing visible below centre: the flash there is armed waiting on a "
     "trigger that never comes, then disarmed — its square never appears",
 )
-def test_anim_flash_disarm_resets_state(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flash_disarm_resets_state(conn: VstimdClient, stage: Stage) -> None:
     """Disarming a flash while ARMED returns it to IDLE."""
     s = _make_rect(conn, x=0, y=-100, enabled=False)
 
@@ -164,7 +168,8 @@ def test_anim_flash_disarm_resets_state(conn: Connection, stage: Stage) -> None:
     "a red square in the centre, visible while its long flash runs, that "
     "disappears the moment the animation is cancelled from the client",
 )
-def test_anim_cancel_command_running(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_cancel_command_running(conn: VstimdClient, stage: Stage) -> None:
     """Cancelling a RUNNING animation via the software command is a clean teardown → DONE.
 
     Distinct from disarm (which returns to IDLE): cancel runs the final action
@@ -202,7 +207,8 @@ def test_anim_cancel_command_running(conn: Connection, stage: Stage) -> None:
     "disappears when a rising edge on input line (0,50) cancels the "
     "animation",
 )
-def test_anim_cancel_trigger_running(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_cancel_trigger_running(conn: VstimdClient, stage: Stage) -> None:
     """A cancel_trigger VTL edge aborts a RUNNING animation with clean teardown → DONE."""
     s = _make_rect(conn, x=0, y=0, enabled=False)
 
@@ -241,7 +247,8 @@ def test_anim_cancel_trigger_running(conn: Connection, stage: Stage) -> None:
     "cancelled by an edge on (0,52) before its trigger ever comes, so its "
     "square stays off",
 )
-def test_anim_cancel_trigger_while_armed(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_cancel_trigger_while_armed(conn: VstimdClient, stage: Stage) -> None:
     """A cancel_trigger edge stops an ARMED animation before it ever starts → DONE."""
     s = _make_rect(conn, x=0, y=0, enabled=False)
 
@@ -283,7 +290,8 @@ def test_anim_cancel_trigger_while_armed(conn: Connection, stage: Stage) -> None
     "a red square up and left of centre flickering 6 frames on, 6 frames "
     "off (about 5 Hz) for two seconds, then off",
 )
-def test_anim_flicker_cycles(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flicker_cycles(conn: VstimdClient, stage: Stage) -> None:
     """Flicker toggles a stimulus on and off at the specified cadence."""
     s = _make_rect(conn, x=-200, y=100)
 
@@ -305,7 +313,8 @@ def test_anim_flicker_cycles(conn: Connection, stage: Stage) -> None:
     "a red square up and right of centre flickering 8 on / 8 off with no "
     "end time, until it is disarmed and stays on",
 )
-def test_anim_flicker_indefinite_then_disarm(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flicker_indefinite_then_disarm(conn: VstimdClient, stage: Stage) -> None:
     """Indefinite flicker stays RUNNING until explicitly disarmed."""
     s = _make_rect(conn, x=200, y=100)
 
@@ -340,7 +349,8 @@ def test_anim_flicker_indefinite_then_disarm(conn: Connection, stage: Stage) -> 
     "a red square above centre that stays hidden for the first two seconds "
     "(the flicker starts in its off phase) and only then appears",
 )
-def test_anim_flicker_off_phase_start(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flicker_off_phase_start(conn: VstimdClient, stage: Stage) -> None:
     """Flicker with start_on_phase=False begins in the off-phase_cycles (stimulus hidden first)."""
     s = _make_rect(conn, x=0, y=100)
 
@@ -379,7 +389,8 @@ def test_anim_flicker_off_phase_start(conn: Connection, stage: Stage) -> None:
     "a red square down and left of centre, hidden until a rising edge on "
     "input line (0,20) switches it on for good",
 )
-def test_anim_enable_on_trigger_edge_rising(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_enable_on_trigger_edge_rising(conn: VstimdClient, stage: Stage) -> None:
     """EnableOnTriggerEdge enables a disabled stimulus on a rising edge, then DONE."""
     s = _make_rect(conn, x=-100, y=-100, enabled=False)
 
@@ -424,7 +435,8 @@ def test_anim_enable_on_trigger_edge_rising(conn: Connection, stage: Stage) -> N
     "a red square down and right of centre, visible until a falling edge on "
     "input line (0,21) switches it off",
 )
-def test_anim_enable_on_trigger_edge_falling(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_enable_on_trigger_edge_falling(conn: VstimdClient, stage: Stage) -> None:
     """EnableOnTriggerEdge with FALLING edge fires on the high→low transition."""
     s = _make_rect(conn, x=100, y=-100, enabled=True)
 
@@ -463,7 +475,8 @@ def test_anim_enable_on_trigger_edge_falling(conn: Connection, stage: Stage) -> 
     "directly: off while the line is low, on while it is high, off again "
     "when it drops",
 )
-def test_anim_couple_visibility_to_vtl_line(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_couple_visibility_to_vtl_line(conn: VstimdClient, stage: Stage) -> None:
     """CoupleVisibility mirrors anim_enabled to the level of a VTL input line."""
     s = _make_rect(conn, x=0, y=-200, enabled=False)
 
@@ -513,7 +526,8 @@ def test_anim_couple_visibility_to_vtl_line(conn: Connection, stage: Stage) -> N
     "a red square at the bottom left doing the opposite of ANIM-13: on "
     "while input line (0,31) is low, off while it is high",
 )
-def test_anim_couple_visibility_inverted_polarity(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_couple_visibility_inverted_polarity(conn: VstimdClient, stage: Stage) -> None:
     """CoupleVisibility with ACTIVE_LOW: HIGH → anim_enabled=False, LOW → anim_enabled=True."""
     s = _make_rect(conn, x=-250, y=-200, enabled=False)
 
@@ -550,7 +564,8 @@ def test_anim_couple_visibility_inverted_polarity(conn: Connection, stage: Stage
     "a green 60×60 px square sweeping from the left edge to the right edge "
     "through 41 waypoints, then disappearing where it stops",
 )
-def test_anim_move_along_path_2d(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_move_along_path_2d(conn: VstimdClient, stage: Stage) -> None:
     """MoveAlongPath2D moves a stimulus through a sequence of positions."""
     s = conn.stimuli.shapes.create_rect(
         position_px=Vec2(-200, 0),
@@ -599,7 +614,8 @@ def test_anim_move_along_path_2d(conn: Connection, stage: Stage) -> None:
     "a blue 50×50 px square tracing a triangle at a steady 400 px/s and "
     "disappearing when it gets back to the corner it started from",
 )
-def test_anim_move_along_segments_2d(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_move_along_segments_2d(conn: VstimdClient, stage: Stage) -> None:
     """MoveAlongSegments2D moves at constant pixel-per-second speed along waypoints."""
     s = conn.stimuli.shapes.create_rect(
         position_px=Vec2(-200, -100),
@@ -655,7 +671,8 @@ def test_anim_move_along_segments_2d(conn: Connection, stage: Stage) -> None:
     "again afterwards — RESTORE_VISIBILITY puts back the state it had "
     "before",
 )
-def test_anim_final_action_restore_visibility(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_final_action_restore_visibility(conn: VstimdClient, stage: Stage) -> None:
     """RESTORE_VISIBILITY final action returns stimulus to its pre-animation enabled state."""
     s = _make_rect(conn, x=0, y=150, enabled=False)
 
@@ -691,7 +708,8 @@ def test_anim_final_action_restore_visibility(conn: Connection, stage: Stage) ->
     "pulses the named output line 'anim_done_out', which is checked over "
     "the wire",
 )
-def test_anim_final_action_trigger_line(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_final_action_trigger_line(conn: VstimdClient, stage: Stage) -> None:
     """FINAL_ACTION_TRIGGER_LINE fires an output bit on a named VTL line when the animation completes."""
 
     conn.vtl.set_line_name(
@@ -729,7 +747,8 @@ def test_anim_final_action_trigger_line(conn: Connection, stage: Stage) -> None:
     "nothing visible: two disabled squares above centre carry a flash and a "
     "flicker, and the server lists both with their names and IDLE state",
 )
-def test_anim_list_and_query(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_list_and_query(conn: VstimdClient, stage: Stage) -> None:
     """list() and query() return accurate metadata for all active animations."""
     s1 = _make_rect(conn, x=-100, y=200, enabled=False)
     s2 = _make_rect(conn, x=100, y=200, enabled=False)
@@ -768,7 +787,8 @@ def test_anim_list_and_query(conn: Connection, stage: Stage) -> None:
     "a 200×200 px grating in the centre switched on by a flash for 40 "
     "frames and off again — animations drive gratings, not just rects",
 )
-def test_anim_flash_with_grating(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flash_with_grating(conn: VstimdClient, stage: Stage) -> None:
     """Flash works with grating stimuli (not just rects)."""
     g = conn.stimuli.grating.create_grating(
         position_px=Vec2(0, 0),
@@ -800,7 +820,8 @@ def test_anim_flash_with_grating(conn: Connection, stage: Stage) -> None:
     "three red squares in a row below centre, switched on and off together "
     "by one flash animation driving all three",
 )
-def test_anim_multiple_stimuli(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_multiple_stimuli(conn: VstimdClient, stage: Stage) -> None:
     """Flash can control multiple stimuli at once."""
     stimuli = [_make_rect(conn, x=x, y=-50, enabled=False) for x in (-200, 0, 200)]
 
@@ -833,7 +854,8 @@ def test_anim_multiple_stimuli(conn: Connection, stage: Stage) -> None:
     "a red square above centre switched on by the animation's start action "
     "and switched off again by its final action",
 )
-def test_anim_start_action_enable(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_start_action_enable(conn: VstimdClient, stage: Stage) -> None:
     """StartAction.ENABLE enables stimuli when animation starts; FinalAction.DISABLE disables on completion."""
     s = _make_rect(conn, x=0, y=150, enabled=False)
 
@@ -872,7 +894,8 @@ def test_anim_start_action_enable(conn: Connection, stage: Stage) -> None:
     "the left edge, crosses the screen at 400 px/s and vanishes on the "
     "right",
 )
-def test_anim_moving_bar_rf_mapping(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_moving_bar_rf_mapping(conn: VstimdClient, stage: Stage) -> None:
     """RF-mapping pattern: a bar sweeps across the screen, enabled at start and disabled at end.
 
     This is the canonical receptive field mapping stimulus: a narrow vertical bar
@@ -936,18 +959,16 @@ def test_anim_moving_bar_rf_mapping(conn: Connection, stage: Stage) -> None:
 
 @pytest.mark.onscreen(
     "ANIM-24",
-    "a plain white rect and nothing else: driving a stimulus from shared "
-    "memory is refused by the server rather than silently doing nothing",
+    "a plain white rect and nothing else: driving a stimulus from an input "
+    "device the rig does not declare is refused, naming the device",
 )
-def test_anim_external_position_2d_is_refused(conn: Connection, stage: Stage) -> None:
-    """Unimplemented, and refused rather than silently doing nothing (#84).
-
-    The server never opens the shared-memory segment, so accepting this would arm
-    an animation that reports success and leaves the stimulus where it was for the
-    whole session. Tighten this to the behavioural test when #84 lands.
-    """
+@check_frame_stats
+def test_anim_external_position_2d_needs_a_rig_device(conn: VstimdClient, stage: Stage) -> None:
+    """ExternalPosition2D reads a rig-config input device. One the rig does not
+    declare is refused at create time rather than arming an animation that would
+    never move the stimulus."""
     s = conn.stimuli.shapes.create_rect()
-    with pytest.raises(NotSupportedError):
+    with pytest.raises(InvalidArgumentError, match="no input device"):
         conn.animations.create_external_position_2d(s, shm_name="/vstimd_test_ext_pos")
     stage.hold(0.5)
     conn.stimuli.delete(s)
@@ -958,7 +979,8 @@ def test_anim_external_position_2d_is_refused(conn: Connection, stage: Stage) ->
     "two red squares either side of centre: the left one flashes briefly, "
     "and its completion pulse on output (0,20) sets the right one flashing",
 )
-def test_anim_output_edge_chaining(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_output_edge_chaining(conn: VstimdClient, stage: Stage) -> None:
     """Animation A pulses an output line on completion; animation B starts off
     that OUTPUT edge — chaining entirely inside the server, no input loopback."""
     sa = _make_rect(conn, x=-150, y=0, enabled=False)
@@ -1010,7 +1032,8 @@ def test_anim_output_edge_chaining(conn: Connection, stage: Stage) -> None:
     "indefinitely until the left one finishes and its output pulse (0,21) "
     "cancels it",
 )
-def test_anim_output_edge_cancel_chaining(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_output_edge_cancel_chaining(conn: VstimdClient, stage: Stage) -> None:
     """Animation A pulses an output line on completion; a long-running animation
     B is cancelled off that OUTPUT edge — interlock entirely inside the server."""
     sa = _make_rect(conn, x=-150, y=0, enabled=False)
@@ -1063,7 +1086,8 @@ def test_anim_output_edge_cancel_chaining(conn: Connection, stage: Stage) -> Non
     "three red squares in a row: the left one flashes, and its single "
     "output pulse (0,22) starts the middle and right ones together",
 )
-def test_anim_output_edge_fan_out(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_output_edge_fan_out(conn: VstimdClient, stage: Stage) -> None:
     """One output edge starts several animations at once (fan-out)."""
     sa = _make_rect(conn, x=-200, y=0, enabled=False)
     sb = _make_rect(conn, x=0, y=0, enabled=False)
@@ -1111,7 +1135,7 @@ def test_anim_output_edge_fan_out(conn: Connection, stage: Stage) -> None:
     conn.stimuli.delete(sc)
 
 
-def _line_high(conn: Connection, name: str) -> bool:
+def _line_high(conn: VstimdClient, name: str) -> bool:
     """Current level of a named VTL line, read back from the server."""
     for line in conn.vtl.list_lines():
         if line.name == name:
@@ -1119,7 +1143,7 @@ def _line_high(conn: Connection, name: str) -> bool:
     raise AssertionError(f"no VTL line named {name!r}")
 
 
-def _wait_line(conn: Connection, name: str, want: bool, timeout: float = 4.0) -> bool:
+def _wait_line(conn: VstimdClient, name: str, want: bool, timeout: float = 4.0) -> bool:
     """Poll a named VTL line until it reads ``want``, or the timeout passes.
 
     A line moves on a server frame, not on the command that triggers it, so a
@@ -1140,7 +1164,8 @@ def _wait_line(conn: Connection, name: str, want: bool, timeout: float = 4.0) ->
     "trials in a row — REARM puts the animation back on watch after each "
     "run",
 )
-def test_anim_flash_rearm_fires_on_every_trigger_edge(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_flash_rearm_fires_on_every_trigger_edge(conn: VstimdClient, stage: Stage) -> None:
     """REARM returns a triggered flash to ARMED, so each edge fires it again.
 
     Without REARM the animation lands in DONE after the first edge and ignores
@@ -1188,7 +1213,8 @@ def test_anim_flash_rearm_fires_on_every_trigger_edge(conn: Connection, stage: S
     "checking is on output line 'e2e_done_level', which stays high between "
     "runs",
 )
-def test_anim_done_level_holds_until_next_start(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_anim_done_level_holds_until_next_start(conn: VstimdClient, stage: Stage) -> None:
     """DONE_LEVEL is the sticky counterpart to the one-frame completion pulse.
 
     It answers "has this run finished?" at any time, and clears when the

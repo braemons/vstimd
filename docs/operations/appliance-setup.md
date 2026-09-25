@@ -128,15 +128,14 @@ the shipped examples.
 
 ## 5. Network identity
 
-Enable the hostname service so the rig gets a stable, collision-free name
-derived from its MAC address, and both Avahi and Samba pick it up
-automatically — see [Discovery & hostnames](discovery.md) for the policy, the
-mDNS advertisement, and how to opt out:
+Install `braemons-rig` so the rig gets a stable, collision-resistant name
+derived from its MAC address, which Avahi and Samba both pick up. vstimd
+advertises itself over mDNS on its own. See [Discovery & hostnames](discovery.md)
+for the policy, the advertisement, and how to name a rig by hand:
 
 ```bash
-sudo apt install -y avahi-daemon        # for the mDNS advertisement
-sudo systemctl enable --now vstimd-hostname
-hostname                                # → vstimd-XXXXXX
+sudo apt install -y braemons-rig        # also recommends avahi-daemon, for .local
+hostname                                # → braemons-XXXXXX, after the next boot
 ```
 
 ## 6. Admin access (SSH + optional Samba)
@@ -239,7 +238,7 @@ Only put Samba on a network you trust — the read-only guest share means
 anyone who can reach the box on the LAN can browse rig-config and saved
 scene-configs with no credentials at all.
 
-From Windows, reach the shares by typing `\\vstimd-XXXXXX\vstimd-config` into
+From Windows, reach the shares by typing `\\braemons-XXXXXX\vstimd-config` into
 Explorer. The rig will not appear on its own in Explorer's *Network* list:
 Samba announces over NetBIOS, and modern Windows builds that list from
 WS-Discovery. `sudo apt install wsdd2 && sudo systemctl enable --now wsdd2` on
@@ -263,7 +262,7 @@ the manual fallback.
 ## 8. Verify
 
 ```bash
-systemctl status vstimd gpiochip-daqd vstimd-hostname
+systemctl status vstimd gpiochip-daqd braemons-hostname
 ```
 
 Browse to `http://<device-ip>:8080` from another machine on the network — you

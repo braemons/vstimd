@@ -1,0 +1,352 @@
+//! Animation commands. The proto <-> Animation mapping they read and write lives
+//! in `convert::animation`, with every other conversion.
+
+use super::convert::{
+    animation_body_to_proto, animation_from_proto, animation_target_from_proto,
+    animation_target_to_proto, condition_action_to_proto,
+    output_vtl_bit_from_proto, vtl_bit_from_proto,
+    vtl_bit_to_proto, vtl_edge_from_proto, vtl_edge_to_proto,
+};
+use super::response::{err, ok_ack, ok_body, ok_handle};
+use crate::proto;
+use crate::scene::animation::{
+    AnimState, Animation, AnimationEntry, AnimationTarget, CancelAction, FinalAction, StartAction,
+};
+use crate::scene::SceneState;
+use crate::vtl_state::{VtlNameEntry, VtlState};
+
+impl SceneState {
+    // ── Animation commands ────────────────────────────────────────────────────
+
+    pub(super) fn cmd_create_animation(
+        &mut self,
+        cmd: proto::CreateAnimationRequest,
+        vtl: Option<&VtlState>,
+    ) -> proto::Response {
+        let vtl_names: &[VtlNameEntry] = vtl.map_or(&[], |v| v.names.as_slice());
+        let start_action = StartAction::from_bits_truncate(cmd.start_action_mask as u8);
+
+        let start_action_trigger_line =
+            if start_action.contains(StartAction::START_ACTION_TRIGGER_LINE) {
+                match output_vtl_bit_from_proto(cmd.start_action_trigger_line.as_ref(), vtl_names) {
+                    Ok(bit) => Some(bit),
+                    Err(e) => return *e,
+                }
+            } else {
+                None
+            };
+
+        let final_action = FinalAction::from_bits_truncate(cmd.final_action_mask as u16);
+
+        let final_action_trigger_line =
+            if final_action.contains(FinalAction::FINAL_ACTION_TRIGGER_LINE) {
+                match output_vtl_bit_from_proto(cmd.final_action_trigger_line.as_ref(), vtl_names) {
+                    Ok(bit) => Some(bit),
+                    Err(e) => return *e,
+                }
+            } else {
+                None
+            };
+
+        let final_action_level_line = if final_action.contains(FinalAction::DONE_LEVEL) {
+            match output_vtl_bit_from_proto(cmd.final_action_level_line.as_ref(), vtl_names) {
+                Ok(bit) => Some(bit),
+                Err(e) => return *e,
+            }
+        } else {
+            None
+        };
+
+        let start_trigger = if cmd.start_trigger.is_some() {
+            match vtl_bit_from_proto(cmd.start_trigger.as_ref(), vtl_names) {
+                Ok(bit) => Some((bit, vtl_edge_from_proto(cmd.start_edge))),
+                Err(e) => return *e,
+            }
+        } else {
+            None
+        };
+
+        let cancel_trigger = if cmd.cancel_trigger.is_some() {
+            match vtl_bit_from_proto(cmd.cancel_trigger.as_ref(), vtl_names) {
+                Ok(bit) => Some((bit, vtl_edge_from_proto(cmd.cancel_edge))),
+                Err(e) => return *e,
+            }
+        } else {
+            None
+        };
+
+        let cancel_action = CancelAction::from_bits_truncate(cmd.cancel_action_mask as u8);
+
+        let cancel_action_trigger_line =
+            if cancel_action.contains(CancelAction::CANCEL_ACTION_TRIGGER_LINE) {
+                match output_vtl_bit_from_proto(cmd.cancel_action_trigger_line.as_ref(), vtl_names) {
+                    Ok(bit) => Some(bit),
+                    Err(e) => return *e,
+                }
+            } else {
+                None
+            };
+
+        let animation = match animation_from_proto(&cmd, vtl_names) {
+            Ok(a) => a,
+            Err(e) => return *e,
+        };
+
+        let target = animation_target_from_proto(cmd.target);
+        if let Err(msg) = check_camera_pairing(&target, start_action, final_action, cancel_action)
+            .and_then(|()| {
+                crate::scene::animation::animation_input::check_animation(
+                    &target,
+                    &animation,
+                    &self.runtime.input,
+                )
+            })
+        {
+            return err(proto::ErrorCode::InvalidArgument, msg);
+        }
+
+        let handle = self.alloc_anim_handle();
+        self.config.animations.insert(
+            handle,
+            AnimationEntry {
+                config: crate::scene::animation::AnimationConfig {
+                    name: cmd.name,
+                    state: AnimState::Idle,
+                    target,
+                    conditions: Vec::new(),
+                    condition_action: crate::scene::ConditionAction::default(),
+                    start_action,
+                    start_action_trigger_line,
+                    final_action,
+                    final_action_trigger_line,
+                    final_action_level_line,
+                    start_trigger,
+                    cancel_trigger,
+                    cancel_action,
+                    cancel_action_trigger_line,
+                    animation,
+                },
+                captured_user_enabled: None,
+                cond_enabled: true,
+                distance_travelled_cm: 0.0,
+                nav_position_cm: None,
+                track_progress: Default::default(),
+            },
+        );
+        ok_handle(handle)
+    }
+
+    pub(super) fn cmd_arm_animation(&mut self, cmd: proto::ArmAnimationRequest) -> proto::Response {
+        if self.arm_animation(cmd.handle) {
+            ok_ack()
+        } else {
+            err(
+                proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle),
+            )
+        }
+    }
+
+    pub(super) fn cmd_disarm_animation(&mut self, cmd: proto::DisarmAnimationRequest) -> proto::Response {
+        if self.disarm_animation(cmd.handle) {
+            ok_ack()
+        } else {
+            err(
+                proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle),
+            )
+        }
+    }
+
+    pub(super) fn cmd_cancel_animation(
+        &mut self,
+        cmd: proto::CancelAnimationRequest,
+        vtl: Option<&mut VtlState>,
+    ) -> proto::Response {
+        // Seed a scratch level buffer from the current staged outputs so any
+        // cancel_action level change from the teardown is applied, and commit
+        // changed banks straight through to shm — outside the render loop there
+        // is no per-frame commit. A pulse goes into `VtlState::pulses`, which
+        // the next commit publishes for its one frame.
+        let mut levels = vtl.as_ref().map_or([0u64; vtl::MAX_BANKS], |v| v.staged);
+        let mut pulses = [0u64; vtl::MAX_BANKS];
+        let found = self.cancel_animation(
+            cmd.handle,
+            &mut crate::vtl_state::VtlOutputs { levels: &mut levels, pulses: &mut pulses },
+        );
+        if let Some(v) = vtl {
+            for (bank, &p) in pulses.iter().enumerate() {
+                v.pulses[bank] |= p;
+            }
+            for (bank, &val) in levels.iter().enumerate() {
+                if v.staged[bank] != val {
+                    v.set_staged_bank(bank, val);
+                }
+            }
+        }
+        if found {
+            ok_ack()
+        } else {
+            err(
+                proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle),
+            )
+        }
+    }
+
+    pub(super) fn cmd_delete_animation(&mut self, cmd: proto::DeleteAnimationRequest) -> proto::Response {
+        if self.delete_animation(cmd.handle) {
+            ok_ack()
+        } else {
+            err(
+                proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle),
+            )
+        }
+    }
+
+    pub(super) fn cmd_list_animations(&self) -> proto::Response {
+        let animations: Vec<proto::AnimationInfo> = self
+            .config
+            .animations
+            .iter()
+            .map(|(&handle, entry)| {
+                let state = match entry.state {
+                    AnimState::Idle => proto::AnimationState::Idle as i32,
+                    AnimState::Armed => proto::AnimationState::Armed as i32,
+                    AnimState::Running { .. } => proto::AnimationState::Running as i32,
+                    AnimState::Done => proto::AnimationState::Done as i32,
+                };
+                proto::AnimationInfo {
+                    handle,
+                    name: entry.name.clone(),
+                    state,
+                    type_name: entry.animation.type_name().to_string(),
+                    condition_indices: entry.conditions.clone(),
+                    condition_enabled: entry.cond_enabled,
+                }
+            })
+            .collect();
+        ok_body(proto::response::Body::AnimationList(
+            proto::ListAnimationsResponse { animations },
+        ))
+    }
+
+    pub(super) fn cmd_query_animation(&self, cmd: proto::QueryAnimationRequest) -> proto::Response {
+        let entry = match self.config.animations.get(&cmd.handle) {
+            Some(e) => e,
+            None => {
+                return err(
+                    proto::ErrorCode::HandleNotFound,
+                    format!("animation handle {} not found", cmd.handle),
+                );
+            }
+        };
+
+        let state = match entry.state {
+            AnimState::Idle => proto::AnimationState::Idle as i32,
+            AnimState::Armed => proto::AnimationState::Armed as i32,
+            AnimState::Running { .. } => proto::AnimationState::Running as i32,
+            AnimState::Done => proto::AnimationState::Done as i32,
+        };
+
+        let (start_trigger, start_edge) = match entry.start_trigger {
+            Some((bit, edge)) => (Some(vtl_bit_to_proto(bit)), vtl_edge_to_proto(edge)),
+            None => (None, 0),
+        };
+
+        let (cancel_trigger, cancel_edge) = match entry.cancel_trigger {
+            Some((bit, edge)) => (Some(vtl_bit_to_proto(bit)), vtl_edge_to_proto(edge)),
+            None => (None, 0),
+        };
+
+        // The input device the animation reads, if it reads one.
+        let device_name = match &entry.animation {
+            Animation::DeviceDrivenTransform { device, .. } => Some(device.as_str()),
+            Animation::LinearNav3D { source: Some(s), .. } => Some(s.device.as_str()),
+            Animation::ExternalPosition2D { shm_name, .. } => Some(shm_name.as_str()),
+            _ => None,
+        };
+        let device = device_name.and_then(|n| {
+            crate::scene::animation::animation_input::find_device_opt(&self.runtime.input, n)
+        });
+
+        let params = proto::CreateAnimationRequest {
+            name: entry.name.clone(),
+            start_action_mask: entry.start_action.bits() as u32,
+            start_action_trigger_line: entry.start_action_trigger_line.map(vtl_bit_to_proto),
+            final_action_mask: entry.final_action.bits() as u32,
+            final_action_trigger_line: entry.final_action_trigger_line.map(vtl_bit_to_proto),
+            final_action_level_line: entry.final_action_level_line.map(vtl_bit_to_proto),
+            start_trigger,
+            start_edge,
+            cancel_trigger,
+            cancel_edge,
+            cancel_action_mask: entry.cancel_action.bits() as u32,
+            cancel_action_trigger_line: entry.cancel_action_trigger_line.map(vtl_bit_to_proto),
+            target: Some(animation_target_to_proto(&entry.target)),
+            body: Some(animation_body_to_proto(&entry.animation)),
+        };
+
+        ok_body(proto::response::Body::QueryAnimationResponse(
+            proto::QueryAnimationResponse {
+                handle: cmd.handle,
+                state,
+                params: Some(params),
+                type_name: entry.animation.type_name().to_string(),
+                condition_indices: entry.conditions.clone(),
+                condition_action: condition_action_to_proto(entry.condition_action) as i32,
+                condition_enabled: entry.cond_enabled,
+                distance_travelled_cm: entry.distance_travelled_cm,
+                device_backend: device.map(|d| d.backend.label()).unwrap_or_default(),
+                device_stale: device.is_some_and(|d| d.stale),
+            },
+        ))
+    }
+
+    pub(super) fn cmd_set_nav_speed(&mut self, cmd: proto::SetNavSpeedRequest) -> proto::Response {
+        let Some(entry) = self.config.animations.get_mut(&cmd.handle) else {
+            return err(
+                proto::ErrorCode::HandleNotFound,
+                format!("animation handle {} not found", cmd.handle),
+            );
+        };
+        if !cmd.speed_cm_per_s.is_finite() {
+            return err(proto::ErrorCode::InvalidArgument, "speed_cm_per_s must be finite");
+        }
+        match &mut entry.config.animation {
+            Animation::LinearNav3D { speed_cm_per_s, .. } => {
+                *speed_cm_per_s = cmd.speed_cm_per_s;
+                ok_ack()
+            }
+            other => err(
+                proto::ErrorCode::InvalidArgument,
+                format!("SetNavSpeed requires a LinearNav3D animation, got {}", other.type_name()),
+            ),
+        }
+    }
+}
+
+/// Action bits that act on stimuli have nothing to act on for a camera, so they
+/// are refused rather than silently ignored. Which kinds take the camera at all
+/// is `animation_input::check_animation`'s business.
+fn check_camera_pairing(
+    target: &AnimationTarget,
+    start_action: StartAction,
+    final_action: FinalAction,
+    cancel_action: CancelAction,
+) -> Result<(), String> {
+    let is_camera = matches!(target, AnimationTarget::Camera);
+    if is_camera {
+        let stimulus_bits = start_action.contains(StartAction::ENABLE)
+            || final_action.intersects(FinalAction::DISABLE | FinalAction::RESTORE_VISIBILITY)
+            || cancel_action.intersects(CancelAction::DISABLE | CancelAction::RESTORE_VISIBILITY);
+        if stimulus_bits {
+            return Err(
+                "ENABLE / DISABLE / RESTORE_VISIBILITY act on stimuli and cannot be used with a camera animation"
+                    .into(),
+            );
+        }
+    }
+    Ok(())
+}

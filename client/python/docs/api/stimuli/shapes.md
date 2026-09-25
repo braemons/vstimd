@@ -5,7 +5,7 @@
 Accessed as ``conn.stimuli.shapes``.
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.ShapesClient
+.. autoclass:: vstimd_client.stimuli.ShapesClient
    :members:
    :undoc-members:
 ```
@@ -13,18 +13,18 @@ Accessed as ``conn.stimuli.shapes``.
 ## Models
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.RectParams
+.. autoclass:: vstimd_client.stimuli.RectParams
    :members:
 
-.. autoclass:: vstimd.stimuli.CircleParams
+.. autoclass:: vstimd_client.stimuli.CircleParams
    :members:
 
-.. autoclass:: vstimd.stimuli.EllipseParams
+.. autoclass:: vstimd_client.stimuli.EllipseParams
    :members:
 
-.. autoclass:: vstimd.stimuli.PolygonParams
+.. autoclass:: vstimd_client.stimuli.PolygonParams
    :members:
 
-.. autoclass:: vstimd.stimuli.ShapeDrawMode
+.. autoclass:: vstimd_client.stimuli.ShapeDrawMode
    :members:
 ```

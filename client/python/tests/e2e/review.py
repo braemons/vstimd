@@ -31,6 +31,7 @@ import sys
 import time
 
 import pytest
+from rich.markup import escape
 from rich.text import Text
 from textual import on, work
 from textual.app import App, ComposeResult
@@ -50,16 +51,20 @@ from textual.widgets import (
 )
 from textual.widgets.tree import TreeNode
 
-from vstimd import Connection
-from vstimd.tui import ServerStatus, StimulusList, TriggerLines
+from vstimd_client import VstimdClient
+from vstimd_client.tui import ServerStatus, StimulusList, TriggerLines
 
 sys.path.insert(0, str(pathlib.Path(__file__).parents[2]))
 
-from tests.e2e.conftest import onscreen_marker, reachable  # noqa: E402
+from tests.e2e.cases._helpers import Pacing  # noqa: E402
+from tests.e2e.conftest import FRAME_STATS_PROPERTY, onscreen_marker, reachable  # noqa: E402
 
 _PYTHON_CLIENT = pathlib.Path(__file__).parents[2]
 _REPO_ROOT = _PYTHON_CLIENT.parents[1]
 _SUITES = ["tests/e2e/test_e2e.py", "tests/e2e/test_psychopy_visual.py"]
+
+#: The seconds-per-step ladder that `+` and `-` climb.
+_PACES = [0.25, 0.5, 1.0, 1.5, 2.0, 3.0, 5.0, 10.0, 20.0, 30.0, 60.0]
 
 _STATUS = {"passed": "✓", "failed": "✗", "skipped": "–", "": "", "running": "…"}
 
@@ -98,6 +103,8 @@ class Entry:
     status: str = ""
     note: str | None = None
     failure: str = ""
+    #: Frame statistics from the last run, for a ``check_frame_stats`` test.
+    frame_stats: str = ""
 
     @property
     def flagged(self) -> bool:
@@ -145,6 +152,7 @@ class Session:
             entry.status = record.get("status", "")
             entry.note = record.get("note")
             entry.failure = record.get("failure", "")
+            entry.frame_stats = record.get("frame_stats", "")
             restored += 1
         self.unmatched = saved
         return restored
@@ -158,6 +166,7 @@ class Session:
                 "status": entry.status,
                 "note": entry.note,
                 "failure": entry.failure,
+                "frame_stats": entry.frame_stats,
                 "node_id": entry.node_id,
             }
         payload = {
@@ -217,6 +226,7 @@ class ReviewApp(App[None]):
     #side { width: 2fr; }
     #detail { padding: 0 1; }
     #status { height: auto; padding: 0 1; }
+    #pace { color: $text-muted; }
     #note-box {
         padding: 1 2; width: 80%; height: auto;
         background: $surface; border: thick $accent;
@@ -235,6 +245,11 @@ class ReviewApp(App[None]):
         Binding("r", "run_current", "replay"),
         Binding("a", "run_all", "run from here"),
         Binding("s,escape", "stop", "stop"),
+        Binding("plus,equals_sign", "pace(1)", "slower", show=False),
+        Binding("minus", "pace(-1)", "faster", show=False),
+        Binding("d", "set_pace", "hold time"),
+        Binding("m", "toggle_manual", "manual"),
+        Binding("n", "next_state", "next state"),
         Binding("f", "flag", "flag"),
         Binding("u", "unflag", "unflag", show=False),
         Binding("c", "toggle_groups", "fold groups"),
@@ -257,6 +272,7 @@ class ReviewApp(App[None]):
     ) -> None:
         super().__init__()
         self.driver = driver
+        self.pacing = driver.pacing
         self.report_path = report_path
         self.entries = driver.entries
         # node_id → its leaf in the tree, and group name → its parent node, so a
@@ -271,7 +287,7 @@ class ReviewApp(App[None]):
         # session's connection, and a ZMQ socket belongs to one thread at a time.
         # With a receive timeout, because these panels poll from the UI thread —
         # a server that stops answering must not take the interface with it.
-        self.connection = Connection(server_address, recv_timeout_s=2.0)
+        self.connection = VstimdClient(server_address, recv_timeout_s=2.0)
 
     # ── layout ───────────────────────────────────────────────────────────────
 
@@ -289,6 +305,7 @@ class ReviewApp(App[None]):
         with Vertical(id="status"):
             yield ServerStatus(self.connection)
             yield ProgressBar(total=max(1, len(self.entries)), id="progress")
+            yield Static(id="pace")
             yield Static(id="status-line")
         yield Footer()
 
@@ -309,6 +326,10 @@ class ReviewApp(App[None]):
         for category in self._groups:
             self._refresh_group_label(category)
         tree.focus()
+        # The hold under way lives on the test's thread; poll it rather than
+        # have that thread reach into the UI on every dwell.
+        self._refresh_pace()
+        self.set_interval(0.2, self._refresh_pace)
         # Jump to the first unrun test only once the tree has laid out — before
         # that a node's line is unknown and the cursor would clamp to the top.
         self.call_after_refresh(self.action_resume)
@@ -394,6 +415,8 @@ class ReviewApp(App[None]):
             lines += ["", f"last run: {_STATUS.get(entry.status, '')} {entry.status}"]
         if entry.flagged:
             lines += ["", f"[b]flagged:[/b] {entry.note or '(no note)'}"]
+        if entry.frame_stats:
+            lines += ["", "[b]frames[/b]", escape(entry.frame_stats)]
         if entry.failure:
             lines += ["", "[b]failure[/b]", entry.failure[-2000:]]
         self.query_one("#detail", Static).update("\n".join(lines))
@@ -421,6 +444,79 @@ class ReviewApp(App[None]):
         self.query_one("#status-line", Static).update(
             f"{done}/{len(self.entries)} run   {flagged} flagged   {message}"
         )
+
+    def _refresh_pace(self) -> None:
+        pacing = self.pacing
+        # A Text rather than markup: the caption opens with `[GRT-04]`.
+        pace = Text()
+        if pacing.manual:
+            pace.append("manual", "bold yellow")
+            pace.append(" — each state stays up until n")
+        else:
+            pace.append(f"{pacing.step_delay:g} s", "bold")
+            pace.append(" per step  (+/- or d to change, m for manual)")
+        if self.running and pacing.holding is not None:
+            pace.append("   holding ", "cyan")
+            pace.append(pacing.holding)
+            pace.append("  — n for the next state" if pacing.manual else "  — n skips ahead")
+        self.query_one("#pace", Static).update(pace)
+
+    # ── pacing ───────────────────────────────────────────────────────────────
+
+    def action_pace(self, direction: int) -> None:
+        """Step the hold time up or down the ladder, taking effect mid-test."""
+        current = self.pacing.step_delay or 0.0
+        if direction > 0:
+            pace = next((p for p in _PACES if p > current), _PACES[-1])
+        else:
+            pace = next((p for p in reversed(_PACES) if p < current), _PACES[0])
+        self._set_pace(pace)
+
+    def action_set_pace(self) -> None:
+        self.push_screen(
+            PromptScreen(
+                "Seconds to hold each state",
+                f"now {self.pacing.step_delay:g} s — applies at once, to the test "
+                "running now as well",
+                placeholder="e.g. 5",
+            ),
+            self._pace_entered,
+        )
+
+    def _pace_entered(self, text: str | None) -> None:
+        if not text:
+            return
+        try:
+            pace = float(text)
+        except ValueError:
+            self._refresh_status(f"not a number of seconds: {text!r}")
+            return
+        if pace < 0:
+            self._refresh_status("a hold time cannot be negative")
+            return
+        self._set_pace(pace)
+
+    def _set_pace(self, pace: float) -> None:
+        self.pacing.step_delay = pace
+        self.pacing.manual = False
+        self._refresh_pace()
+        self._refresh_status(f"holding each state for {pace:g} s")
+
+    def action_toggle_manual(self) -> None:
+        """Hand-step every state, or go back to timed holds."""
+        self.pacing.manual = not self.pacing.manual
+        self._refresh_pace()
+        self._refresh_status(
+            "manual — n moves the running test on to its next state"
+            if self.pacing.manual
+            else f"timed — {self.pacing.step_delay:g} s per state"
+        )
+
+    def action_next_state(self) -> None:
+        if self.running:
+            self.pacing.advance()
+        else:
+            self._refresh_status("nothing is running — ⏎ runs the selected test")
 
     # ── running ──────────────────────────────────────────────────────────────
 
@@ -469,15 +565,18 @@ class ReviewApp(App[None]):
         self._run(self.current, advance=True)
 
     def action_stop(self) -> None:
-        if self.continuous:
+        """Stop a continuous run after this test; a second press rushes the
+        test itself through, skipping its remaining holds."""
+        if self.running and not self.continuous:
+            self.pacing.rush = True
+            self._refresh_status("finishing the running test without holds")
+        elif self.continuous:
             self.continuous = False
             self._refresh_status(
                 "stopped after this test — ⏎ to carry on one at a time"
                 if self.running
                 else "stopped — ⏎ to carry on one at a time"
             )
-        elif self.running:
-            self._refresh_status("waiting for the running test to finish or time out")
 
     def _run(self, entry: Entry, advance: bool) -> None:
         if self.running:
@@ -486,6 +585,7 @@ class ReviewApp(App[None]):
             )
             return
         self.running = True
+        self.pacing.rush = False
         entry.status = "running"
         self._update_leaf(entry)
         self._refresh_status(f"running [{entry.test_id}] — watch the display")
@@ -501,14 +601,17 @@ class ReviewApp(App[None]):
         stop silently doing nothing.
         """
         try:
-            outcome, failure = self.driver.run(entry.node_id)
+            outcome, failure, frame_stats = self.driver.run(entry.node_id)
         except BaseException as exc:  # noqa: BLE001 — the UI must survive anything
-            outcome, failure = "failed", f"the runner raised: {exc!r}"
-        self.call_from_thread(self._finished, entry, outcome, failure, advance)
+            outcome, failure, frame_stats = "failed", f"the runner raised: {exc!r}", ""
+        self.call_from_thread(self._finished, entry, outcome, failure, frame_stats, advance)
 
-    def _finished(self, entry: Entry, outcome: str, failure: str, advance: bool) -> None:
+    def _finished(
+        self, entry: Entry, outcome: str, failure: str, frame_stats: str, advance: bool
+    ) -> None:
         entry.status = outcome
         entry.failure = failure
+        entry.frame_stats = frame_stats
         self._update_leaf(entry)
         self.running = False
         self.session.save(self.entries)
@@ -601,14 +704,22 @@ class ReviewApp(App[None]):
                 "",
                 f"- should show: {entry.summary}",
                 f"- test: `{entry.node_id}`",
-                "",
             ]
+            if entry.status:
+                lines.append(f"- last run: {entry.status}")
+            if entry.frame_stats:
+                lines += ["- frames:", "", "  ```", *(f"  {line}" for line in entry.frame_stats.splitlines()), "  ```"]
+            if entry.failure:
+                lines += ["- failure:", "", "  ```", *(f"  {line}" for line in entry.failure.splitlines()), "  ```"]
+            lines.append("")
         node_ids = " ".join(f'"{e.node_id}"' for e in flagged)
         lines += ["Re-run just these:", "", "```bash", f"uv run pytest {node_ids}", "```", ""]
         self.report_path.write_text("\n".join(lines), encoding="utf-8")
         return self.report_path
 
     def on_unmount(self) -> None:
+        # A test held in manual mode would otherwise keep its thread waiting.
+        self.pacing.rush = True
         self.connection.close()
         self.session.save(self.entries)
         if self.write_report():
@@ -623,7 +734,14 @@ class PytestDriver:
         self.entries: list[Entry] = []
         self.report_path = pathlib.Path("e2e-review.md")
         self.session = Session(pathlib.Path(".e2e-review-session.json"))
-        self._outcome = ("", "")
+        self.pacing = Pacing()
+        self._outcome = ("", "", "")
+
+    def pytest_configure(self, config: pytest.Config) -> None:
+        # Where the `stage` fixture finds it — see `Pacing` for why not an import.
+        config.pluginmanager.register(self.pacing, Pacing.PLUGIN_NAME)
+        if self.pacing.step_delay is None:
+            self.pacing.step_delay = config.getoption("--step-delay")
 
     # ── hooks ────────────────────────────────────────────────────────────────
 
@@ -639,7 +757,8 @@ class PytestDriver:
         # take the first thing that is not a plain pass as the outcome.
         if report.when == "call" or (report.when == "setup" and report.outcome != "passed"):
             failure = str(report.longrepr) if report.failed else ""
-            self._outcome = (report.outcome, failure)
+            frame_stats = dict(report.user_properties).get(FRAME_STATS_PROPERTY, "")
+            self._outcome = (report.outcome, failure, str(frame_stats))
 
     def pytest_runtestloop(self, session: pytest.Session) -> bool:
         if not self.items:
@@ -650,14 +769,14 @@ class PytestDriver:
 
     # ── what the app calls ───────────────────────────────────────────────────
 
-    def run(self, node_id: str) -> tuple[str, str]:
+    def run(self, node_id: str) -> tuple[str, str, str]:
         item = next(i for i in self.items if i.nodeid == node_id)
         position = self.items.index(item)
         # A *next* item that shares the session keeps session-scoped fixtures
         # alive; with None, pytest would tear the server connection down after
         # every single test.
         nextitem = self.items[(position + 1) % len(self.items)]
-        self._outcome = ("", "")
+        self._outcome = ("", "", "")
         item.config.hook.pytest_runtest_protocol(item=item, nextitem=nextitem)
         return self._outcome
 
@@ -668,7 +787,7 @@ def _start_server(address: str, window: str | None, log: pathlib.Path):
         print(f"review: using the server already at {address}")
         return None
     binary = _REPO_ROOT / "target" / "release" / (
-        "vstimd.exe" if sys.platform == "win32" else "vstimd"
+        "vstimd_client.exe" if sys.platform == "win32" else "vstimd"
     )
     if not binary.exists():
         if subprocess.run(["cargo", "build", "--release"], cwd=_REPO_ROOT).returncode:
@@ -695,7 +814,17 @@ def main(argv: list[str] | None = None) -> int:
         help="Server window size (default: 1280x720); --fullscreen overrides it",
     )
     parser.add_argument("--fullscreen", action="store_true")
-    parser.add_argument("--step-delay", default="1.0")
+    parser.add_argument(
+        "--step-delay",
+        default="1.0",
+        help="Seconds to hold each state to start with (default: 1); change it "
+        "in the app with +/- or d",
+    )
+    parser.add_argument(
+        "--manual",
+        action="store_true",
+        help="Start with manual holds: every state stays up until n is pressed",
+    )
     parser.add_argument(
         "--recv-timeout",
         default="15.0",
@@ -718,6 +847,21 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--server-log", default="vstimd-review.log", help="Where the server's output goes"
     )
+    parser.add_argument(
+        "--check-frame-stats",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Fail a test that dropped frames while it ran (default: on). A "
+        "desktop compositor drops frames a rig would not, which is why the "
+        "make target turns this off; the frame statistics are shown either way",
+    )
+    parser.add_argument(
+        "--allow-dropped-frames",
+        type=int,
+        default=0,
+        help="Frames a test may drop before it fails (default: 0). An allowance "
+        "keeps the check on where --no-check-frame-stats would switch it off",
+    )
     parser.add_argument("suites", nargs="*", default=_SUITES)
     args = parser.parse_args(argv)
 
@@ -729,6 +873,7 @@ def main(argv: list[str] | None = None) -> int:
     driver = PytestDriver()
     driver.report_path = pathlib.Path(args.review_log)
     driver.session = Session(pathlib.Path(args.session))
+    driver.pacing.manual = args.manual
     if args.fresh:
         driver.session.path.unlink(missing_ok=True)
     try:
@@ -741,6 +886,8 @@ def main(argv: list[str] | None = None) -> int:
                 f"--server={args.server}",
                 f"--step-delay={args.step_delay}",
                 f"--recv-timeout={args.recv_timeout}",
+                "--check-frame-stats" if args.check_frame_stats else "--no-check-frame-stats",
+                f"--allow-dropped-frames={args.allow_dropped_frames}",
             ],
             plugins=[driver],
         )

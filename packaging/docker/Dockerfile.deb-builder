@@ -93,9 +93,12 @@ COPY Cargo.toml Cargo.lock ./
 # The build recipes live here (see `make deb-assemble` below) rather than being
 # restated in this Dockerfile.
 COPY Makefile        ./
-COPY server/         server/
+COPY daemon/         daemon/
 COPY vtl/            vtl/
 COPY gpiochip-daqd/  gpiochip-daqd/
+COPY vinput/         vinput/
+COPY vsplat/         vsplat/
+COPY reconstruct/    reconstruct/
 COPY proto/      proto/
 COPY packaging/  packaging/
 COPY client/web/ client/web/

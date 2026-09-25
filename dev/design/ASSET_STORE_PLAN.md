@@ -76,7 +76,7 @@ freely: no aliases, no migration shims, no deprecation window.
 `--storage-dir <path>` names the root; `projects/` is always its child, so there is
 one flag and no way to point the pieces at unrelated places. It is
 resolved by exactly the ladder `resolve_config_dir` uses today
-(`server/src/main.rs:340`): explicit flag → `/var/lib/braemons/vstimd` →
+(`daemon/src/main.rs:340`): explicit flag → `/var/lib/braemons/vstimd` →
 `~/.local/braemons/vstimd` → `.`, picking the first writable one via
 `first_writable_dir`.
 
@@ -180,7 +180,7 @@ What differs is the API, not the location:
 
 | Project | Holds | Notes |
 |---|---|---|
-| `default` | anything saved without naming a project | keeps `scene-config save test` a one-word operation, and is the active project at boot |
+| `default` | anything saved without naming a project | keeps `scene-configs save test` a one-word operation, and is the active project at boot |
 | `demos` | the shipped demo scene-configs | replaces the `demo_` name prefix (`scene_config_file.rs:DEMO_PREFIX`); a demo that ships with images later needs no special case, which the prefix scheme could never offer |
 | `_session` | the `_last_session` save-on-quit slot and the timestamped quit archives | per-rig, not per-study, so it does not belong in `default` |
 | `_scratch` | promoted inline uploads (§6) | the only project the server may garbage-collect |
@@ -229,7 +229,7 @@ calibration image.
 
 The server holds one **active project** — `SceneState.runtime.active_project`,
 default `default`. It is what a relative ref in a live command resolves against,
-where `scene-config save <name>` writes, and which `logs/` directory the event log
+where `scene-configs save <name>` writes, and which `logs/` directory the event log
 lands in.
 
 **Resolution happens once, at command-handling time.** A relative ref arriving in a
@@ -244,7 +244,7 @@ Set it four ways, all the same state:
 |---|---|
 | Boot | `vstimd --project faces2026`, or `[startup] project = "faces2026"` in the rig-config, beside the existing `load_config` |
 | Wire | `SetProjectRequest { name, create }` — a system command, `GetProject` to read back |
-| Implicitly | loading a scene-config sets the active project to the one it came from. This is the common path: `scene-config load faces2026/session1` and everything downstream is already pointed at the right place |
+| Implicitly | loading a scene-config sets the active project to the one it came from. This is the common path: `scene-configs load faces2026/session1` and everything downstream is already pointed at the right place |
 | Overlay / web | a project selector, see §9 |
 
 **It is server-global state, not per-connection** — the same as the background
@@ -261,7 +261,7 @@ overlays and secondary clients stay in sync rather than guessing.
 ## 4. Server module
 
 ```
-server/src/assets/
+daemon/src/assets/
   mod.rs        AssetStore: the public API
   asset_ref.rs  AssetRef: parse / validate / resolve / to_path — pure, no I/O
   project.rs    project names, the reserved set, enumeration
@@ -443,7 +443,7 @@ is retried on `enable` and on an explicit `assets refresh` command, so the fix
   sha256)`. Replacing an asset therefore invalidates its texture without any
   explicit invalidation call.
 - Nothing in `scene/` holds a texture handle. `Mesh3d::texture_path: Option<String>`
-  (`server/src/scene/stimulus/mesh3d.rs:44`) becomes `Option<AssetRef>` — the
+  (`daemon/src/scene/stimulus/mesh3d.rs:44`) becomes `Option<AssetRef>` — the
   same change #70 needs, which is why the two are worth designing together, as
   #108 notes.
 - Premultiplied-alpha upload, so non-1.0 opacity composites correctly (#108).
@@ -455,9 +455,9 @@ is retried on `enable` and on an explicit `assets refresh` command, so the fix
 - **Python:** `conn.assets.upload(local_path, ref=…)`, `.list(project=…, type=…)`,
   `.download(ref, local_path)`, `.delete(ref)`, `.exists(ref)`; chunking hidden.
   New `client/python/vstimd/assets/`, mirroring `config/`.
-- **CLI:** `vstimd-client asset list|push|pull|rm`, with `push -r <dir>` for a
+- **CLI:** `vstimctl asset list|push|pull|rm`, with `push -r <dir>` for a
   whole project folder — the "install my study" one-liner. Plus
-  `vstimd-client project list|show|use <name>|rm <name>`, where `use` sets the
+  `vstimctl project list|show|use <name>|rm <name>`, where `use` sets the
   active project on the server.
 - **Web:** a project picker in the header — it scopes every other panel, so the
   asset list, the scene-config list and the log list all show one study at a time —
@@ -536,7 +536,7 @@ half-consistency is what got us here:
 |---|---|
 | `ListConfigsRequest`, `LoadConfigRequest`, `UploadConfigRequest`, `RetrieveConfigRequest` | `ListSceneConfigs…`, `LoadSceneConfig…`, `UploadSceneConfig…`, `RetrieveSceneConfig…` |
 | `conn.config.*` (Python) | `conn.scene_config.*` |
-| `vstimd-client config list\|save\|load\|get\|upload` | `vstimd-client scene-config …`, with `-p/--project` (default `default`) |
+| `vstimd-client config list\|save\|load\|get\|upload` | `vstimctl scene-configs …`, with `-p/--project` (default `default`) |
 | web `src/config.ts` | `src/sceneConfig.ts` |
 
 **Layout** — scene-configs move off the root of the storage dir into their project,
@@ -561,7 +561,7 @@ it is worth naming: it is a bigger Phase 0 than a pure rename.
 Docs and packaging follow:
 `docs/concepts/saving-loading.md`, `docs/getting-started/demos.md`,
 `docs/client/*.md`, `docs/operations/{appliance-setup,raspberry-pi-image,deployment}.md`,
-the rig-config comments (`server/config/default-rig-config.toml:84`), the packaged
+the rig-config comments (`daemon/config/default-rig-config.toml:84`), the packaged
 unit (`packaging/systemd/vstimd.service:45`) and the Samba share docs.
 
 ---

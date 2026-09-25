@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection, NotSupportedError
-from vstimd.response import ErrorCode, ServerResponse
-from vstimd.stimuli import RectParams, ShapeAppearance, TextParams
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient, NotSupportedError
+from vstimd_client.response import ErrorCode, ServerResponse
+from vstimd_client.stimuli import RectParams, ShapeAppearance, TextParams
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
-from ._helpers import Stage
+from ._helpers import Stage, check_frame_stats
 
 
 @pytest.mark.onscreen(
@@ -16,7 +16,8 @@ from ._helpers import Stage
     "a default white rect in the centre that vanishes when disabled and comes "
     "straight back when enabled again",
 )
-def test_set_enabled(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_enabled(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     resp = conn.stimuli.set_enabled(handle, False)
     assert isinstance(resp, ServerResponse)
@@ -38,8 +39,9 @@ def test_set_enabled(conn: Connection, stage: Stage) -> None:
     "a default white rect that is deleted: it leaves the screen and its handle "
     "stops answering queries",
 )
-def test_delete(conn: Connection, stage: Stage) -> None:
-    from vstimd import HandleNotFoundError
+@check_frame_stats
+def test_delete(conn: VstimdClient, stage: Stage) -> None:
+    from vstimd_client import HandleNotFoundError
     handle = conn.stimuli.shapes.create_rect()
     stage.step("rect on screen, about to be deleted", hold=0.5)
 
@@ -54,7 +56,8 @@ def test_delete(conn: Connection, stage: Stage) -> None:
     "a rect being renamed 'original' → 'renamed' → nameless. Names are "
     "bookkeeping, so the rect on screen never changes",
 )
-def test_set_name(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_name(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(name="original")
     assert conn.stimuli.query(handle).name == "original"
     conn.stimuli.set_name(handle, "renamed")
@@ -71,7 +74,8 @@ def test_set_name(conn: Connection, stage: Stage) -> None:
     "a rect created with the name 'fix_cross' — an ordinary white rect on "
     "screen; the name and generated id are checked over the wire",
 )
-def test_create_with_name(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_create_with_name(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(name="fix_cross")
     info = conn.stimuli.query(handle)
     assert info.name == "fix_cross"
@@ -86,7 +90,8 @@ def test_create_with_name(conn: Connection, stage: Stage) -> None:
     "a rect that starts centred and jumps to the lower right (+200, −100 px) "
     "— one instant move, no animation",
 )
-def test_set_position(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_position(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(position_px=Vec2(0, 0))
     stage.step("rect at the centre", hold=0.5)
 
@@ -103,7 +108,8 @@ def test_set_position(conn: Connection, stage: Stage) -> None:
     "SHARED-06",
     "a default white rect tilted 30° anticlockwise from upright",
 )
-def test_set_orientation(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_orientation(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_rotation(handle, 30.0)
     assert conn.stimuli.query(handle).rotation_deg == pytest.approx(30.0, abs=0.1)
@@ -117,7 +123,8 @@ def test_set_orientation(conn: Connection, stage: Stage) -> None:
     "a white rect that turns a muted blue (0.2, 0.4, 0.8) — same size and "
     "place, colour only",
 )
-def test_set_fill_color(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_fill_color(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(
         params=RectParams(appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0))),
     )
@@ -138,7 +145,8 @@ def test_set_fill_color(conn: Connection, stage: Stage) -> None:
     "a default white rect dimmed to 60 % opacity — a mid-grey square against "
     "the black background",
 )
-def test_set_alpha(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_alpha(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_alpha(handle, 0.6)
     assert conn.stimuli.query(handle).opacity == pytest.approx(0.6, abs=0.01)
@@ -152,7 +160,8 @@ def test_set_alpha(conn: Connection, stage: Stage) -> None:
     "rect, circle, ellipse, grating and text in turn, each dimmed to 35 % "
     "opacity and then deleted — every stimulus type takes the same command",
 )
-def test_set_alpha_on_every_stimulus_type(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_alpha_on_every_stimulus_type(conn: VstimdClient, stage: Stage) -> None:
     """Opacity is shared state — set_alpha is not a shapes-only command."""
     stimuli = [
         ("rect", lambda: conn.stimuli.shapes.create_rect()),
@@ -181,7 +190,8 @@ def test_set_alpha_on_every_stimulus_type(conn: Connection, stage: Stage) -> Non
     "of it dimmed to 50 %. Draw mode is FILLED, so a dim red square is what "
     "shows; the point is that the two alphas are multiplied, not overwritten",
 )
-def test_set_alpha_leaves_fill_alpha_alone(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_alpha_leaves_fill_alpha_alone(conn: VstimdClient, stage: Stage) -> None:
     """A half-transparent fill under an opaque outline keeps that relationship:
     the shared opacity multiplies both rather than overwriting either."""
     handle = conn.stimuli.shapes.create_rect()
@@ -203,7 +213,8 @@ def test_set_alpha_leaves_fill_alpha_alone(conn: Connection, stage: Stage) -> No
     "a rect asked for opacity 5.0, which clamps to fully opaque, then for "
     "−2.0, which clamps to fully transparent — the rect disappears",
 )
-def test_set_alpha_clamps(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_set_alpha_clamps(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_alpha(handle, 5.0)
     assert conn.stimuli.query(handle).opacity == pytest.approx(1.0, abs=0.01)
@@ -222,7 +233,8 @@ def test_set_alpha_clamps(conn: Connection, stage: Stage) -> None:
     "overlapping white rects would swap which one is on top",
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
-def test_bring_to_front(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_bring_to_front(conn: VstimdClient, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_rect()
     conn.stimuli.bring_to_front(h1)
@@ -238,7 +250,8 @@ def test_bring_to_front(conn: Connection, stage: Stage) -> None:
     "of two overlapping rects would drop behind the first",
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
-def test_send_to_back(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_send_to_back(conn: VstimdClient, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_rect()
     conn.stimuli.send_to_back(h2)
@@ -254,7 +267,8 @@ def test_send_to_back(conn: Connection, stage: Stage) -> None:
     "rects would exchange their places in the draw order",
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
-def test_swap_draw_order(conn: Connection, stage: Stage) -> None:
+@check_frame_stats
+def test_swap_draw_order(conn: VstimdClient, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_rect()
     order1_before = conn.stimuli.query(h1).draw_order

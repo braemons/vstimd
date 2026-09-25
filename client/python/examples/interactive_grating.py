@@ -27,8 +27,8 @@ import sys
 import os
 from dataclasses import dataclass
 
-from vstimd.psychopy import visual
-from vstimd.stimuli import GratingMask, GratingTexture
+from vstimd_client.psychopy import visual
+from vstimd_client.stimuli import GratingMask, GratingTexture
 
 
 # ── Cross-platform raw key reader ─────────────────────────────────────────────

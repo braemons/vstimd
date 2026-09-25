@@ -2,19 +2,27 @@
 
 from __future__ import annotations
 
+import threading
 import time
 
-from vstimd import Connection, HandleNotFoundError
-from vstimd.animations import AnimationHandle, AnimationState
-from vstimd.stimuli import RectParams, ShapeAppearance, StimulusHandle, TextParams
-from vstimd.stimuli.stimuli_models import Color, Vec2
+import pytest
+
+from vstimd_client import VstimdClient, HandleNotFoundError
+from vstimd_client.animations import AnimationHandle, AnimationState
+from vstimd_client.stimuli import RectParams, ShapeAppearance, StimulusHandle, TextParams
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
+
+#: Fail the test if the server drops a frame while its body runs. See the
+#: ``check_frame_stats`` marker in ``conftest.py``; pass ``max_dropped=`` to
+#: allow some, as ``@check_frame_stats(max_dropped=2)``.
+check_frame_stats = pytest.mark.check_frame_stats
 
 #: Screen size per connection, so the caption can be placed relative to it
 #: rather than at a pixel offset that falls off a small window.
 _SCREEN: dict[int, tuple[int, int]] = {}
 
 
-def _caption_geometry(conn: Connection) -> tuple[Vec2, Vec2, float]:
+def _caption_geometry(conn: VstimdClient) -> tuple[Vec2, Vec2, float]:
     """Where the caption goes on *this* display: position, box, letter height.
 
     A fixed offset does not travel: y=420 is near the top of a 1080-line screen
@@ -34,6 +42,54 @@ def _caption_geometry(conn: Connection) -> tuple[Vec2, Vec2, float]:
     return Vec2(0.0, top), box, letter_height_px
 
 
+class Pacing:
+    """How long each dwell lasts, changeable from another thread mid-test.
+
+    The review app runs tests on a worker thread and owns one of these: it can
+    override the step delay, switch to *manual* — every dwell waits until
+    ``advance`` is called — or ``rush`` the rest of a test through with no
+    dwells at all. Dwells wake every few tens of milliseconds, so a change
+    reaches a hold that is already under way.
+
+    Registered with pytest's plugin manager as ``PLUGIN_NAME`` rather than
+    imported, because pytest and the review app import this module under two
+    different package names and would otherwise each get their own copy.
+    """
+
+    PLUGIN_NAME = "e2e-review-pacing"
+    _TICK_S = 0.05
+
+    def __init__(self, step_delay: float | None = None, manual: bool = False) -> None:
+        #: Seconds per step; None leaves it to the ``--step-delay`` option.
+        self.step_delay = step_delay
+        self.manual = manual
+        self.rush = False
+        #: The caption of the hold under way, or None when no test is dwelling.
+        self.holding: str | None = None
+        self._advance = threading.Event()
+
+    def advance(self) -> None:
+        """End the hold under way — the next state in manual mode."""
+        self._advance.set()
+
+    def dwell(self, step_delay: float, factor: float, caption: str = "") -> None:
+        self._advance.clear()
+        start = time.monotonic()
+        self.holding = caption
+        try:
+            while not self.rush:
+                if self.manual:
+                    if self._advance.wait(self._TICK_S):
+                        return
+                    continue
+                delay = self.step_delay if self.step_delay is not None else step_delay
+                remaining = delay * factor - (time.monotonic() - start)
+                if remaining <= 0 or self._advance.wait(min(remaining, self._TICK_S)):
+                    return
+        finally:
+            self.holding = None
+
+
 class Stage:
     """The on-screen caption for one e2e test, plus the dwells that make it readable.
 
@@ -49,13 +105,16 @@ class Stage:
 
     def __init__(
         self,
-        conn: Connection,
+        conn: VstimdClient,
         test_id: str,
         description: str,
         step_delay: float,
         node_id: str = "",
+        pacing: Pacing | None = None,
     ) -> None:
         self.conn = conn
+        #: Who decides how long a dwell lasts, when not the fixed step delay.
+        self.pacing = pacing
         self.test_id = test_id
         #: What the test as a whole should show — the marker's description. The
         #: caption below it changes as the test walks through its states.
@@ -122,8 +181,13 @@ class Stage:
 
     def hold(self, factor: float = 1.0) -> None:
         """Leave the current frame up for ``factor`` step delays.
+
+        Under the review app a ``Pacing`` decides instead, so the operator can
+        lengthen, shorten or hand-step the dwells while the test is running.
         """
-        if self.step_delay > 0:
+        if self.pacing is not None:
+            self.pacing.dwell(self.step_delay, factor, self._caption(self.description))
+        elif self.step_delay > 0:
             time.sleep(self.step_delay * factor)
 
     def close(self) -> None:
@@ -137,7 +201,7 @@ class Stage:
 
 
 def wait_for_anim_state(
-    conn: Connection,
+    conn: VstimdClient,
     handle: AnimationHandle,
     target: AnimationState,
     timeout: float = 3.0,
@@ -154,7 +218,7 @@ def wait_for_anim_state(
 
 
 def make_rect(
-    conn: Connection, *, x: float = 0, y: float = 0, enabled: bool = True
+    conn: VstimdClient, *, x: float = 0, y: float = 0, enabled: bool = True
 ) -> StimulusHandle:
     h = conn.stimuli.shapes.create_rect(
         position_px=Vec2(x, y),
@@ -170,7 +234,7 @@ def make_rect(
 
 
 def wait_for_anim_run_start(
-    conn: Connection,
+    conn: VstimdClient,
     handle: AnimationHandle,
     timeout: float = 4.0,
     poll_interval: float = 0.02,

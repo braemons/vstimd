@@ -1,0 +1,94 @@
+pub(crate) fn spawn_demo_stimuli(
+    scene: &std::sync::Arc<std::sync::RwLock<crate::scene::SceneState>>,
+) {
+    use crate::scene::{
+        Anchor, Grating, GratingParams, LanguageStyle, Pos2Px, Shape, ShapeAppearance, ShapeGeometry,
+        Stimulus, StimulusIdentity, StimulusSceneEntry, Text, TextRenderParams, Waveform,
+    };
+    use rand::RngExt;
+
+    let mut rng = rand::rng();
+
+    let mut sc = scene.write().expect("scene lock poisoned");
+    let h1 = sc.alloc_stim_handle();
+    sc.stimuli.insert(
+        h1,
+        StimulusSceneEntry::new(
+            StimulusIdentity::new(Some("demo_circle".into())),
+            Stimulus::from(Shape::new(
+                Pos2Px::new(
+                    rng.random_range(-500.0..500.0),
+                    rng.random_range(-500.0..500.0),
+                ),
+                0.0,
+                ShapeAppearance {
+                    fill_color: crate::Color::new(0.0, 0.8, 0.8, 1.0),
+                    ..Default::default()
+                },
+                ShapeGeometry::Circle { diameter_px: 160.0 },
+            )),
+        ),
+    );
+    let h2 = sc.alloc_stim_handle();
+    sc.stimuli.insert(
+        h2,
+        StimulusSceneEntry::new(
+            StimulusIdentity::new(Some("demo_rect".into())),
+            Stimulus::from(Shape::new(
+                Pos2Px::new(
+                    rng.random_range(-500.0..500.0),
+                    rng.random_range(-500.0..500.0),
+                ),
+                30.0,
+                ShapeAppearance {
+                    fill_color: crate::Color::new(0.8, 0.0, 0.8, 1.0),
+                    ..Default::default()
+                },
+                ShapeGeometry::Rect {
+                    size_px: [240.0, 100.0],
+                },
+            )),
+        ),
+    );
+    let h3 = sc.alloc_stim_handle();
+    sc.stimuli.insert(
+        h3,
+        StimulusSceneEntry::new(
+            StimulusIdentity::new(Some("demo_grating".into())),
+            Stimulus::from(Grating::new(
+                Pos2Px::new(100.0, -200.0),
+                0.0,
+                [100.0, 100.0],
+                GratingParams {
+                    sf_cycles_per_px: 0.05,
+                    contrast: 1.0,
+                    drift_speed_hz: 1.0,
+                    waveform: Waveform::Sin,
+                    ..Default::default()
+                },
+            )),
+        ),
+    );
+    let h4 = sc.alloc_stim_handle();
+    sc.stimuli.insert(
+        h4,
+        StimulusSceneEntry::new(
+            StimulusIdentity::new(Some("demo_text".into())),
+            Stimulus::from(Text::new(
+                Pos2Px::new(0.0, 200.0),
+                0.0,
+                [400.0, 80.0],
+                "vstimd".into(),
+                "".into(), // falls back to DEFAULT_FONT_FAMILY ("Ubuntu Light")
+                48.0,
+                Anchor::Center,
+                LanguageStyle::default(),
+                TextRenderParams {
+                    color: crate::Color::new(1.0, 1.0, 0.0, 1.0),
+                    ..Default::default()
+                },
+            )),
+        ),
+    );
+    log::info!("Demo: spawned circle #{h1}, rect #{h2}, grating #{h3}, text #{h4}");
+}

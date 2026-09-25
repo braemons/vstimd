@@ -6,10 +6,10 @@ RDK, and, because the aperture is a separate thing from the field, the
 **figure-ground** RDK in which a region is defined by its motion and by nothing else.
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import Aperture, ApertureShape, DotsParams
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Aperture, ApertureShape, DotsParams
 
-with Connection() as conn:
+with VstimdClient() as conn:
     h = conn.stimuli.dots.create_dots(params=DotsParams(
         field_width_px=400, field_height_px=400,
         aperture=Aperture(shape=ApertureShape.CIRCLE, width_px=400),
@@ -295,7 +295,7 @@ aperture outline as a static form cue. See
 
 Two conversions, both of which fail *silently* — the stimulus still renders, at half
 the intended size or mirrored about the horizontal. Do them once, at the boundary,
-with the helpers in `vstimd.stimuli`:
+with the helpers in `vstimd_client.stimuli`:
 
 **Sizes are radii there and diameters here.** Every size in vstimd is a full extent
 (see [Stimuli](index.md#two-conventions-that-hold-everywhere)). A Psychtoolbox
@@ -303,7 +303,7 @@ with the helpers in `vstimd.stimuli`:
 45° across.
 
 ```python
-from vstimd.stimuli import diameter_from_radius
+from vstimd_client.stimuli import diameter_from_radius
 dot_size_px = diameter_from_radius(1.5) * px_per_deg   # 3 deg across
 aperture_px = diameter_from_radius(45 / 2) * px_per_deg  # 45 deg across
 ```
@@ -314,7 +314,7 @@ like `rotation_deg`. `3*pi/2` — which is **upward** on a Psychtoolbox screen �
 is 90° here, not 270°:
 
 ```python
-from vstimd.stimuli import direction_from_ptb_rad
+from vstimd_client.stimuli import direction_from_ptb_rad
 direction_from_ptb_rad(3 * math.pi / 2)   # 90.0
 ```
 
@@ -329,7 +329,7 @@ where the experimenter knows their viewing distance — and the config records e
 what was shown:
 
 ```python
-from vstimd.stimuli import dots_for_density, px_per_deg
+from vstimd_client.stimuli import dots_for_density, px_per_deg
 
 ppd = px_per_deg(screen_width_px=1920, screen_width_cm=52.0, viewing_distance_cm=57.0)
 dot_count = dots_for_density(1 / 25, field_width_deg=96.0, field_height_deg=54.0)

@@ -1,0 +1,593 @@
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
+
+const FRAME_HISTORY_SIZE: usize = 120;
+
+/// Per-render-loop timing bookkeeping: aggregated frame statistics, last
+/// per-phase_cycles breakdown, and the swapchain frame index.
+pub struct FrameTiming {
+    pub stats: FrameStats,
+    pub last_phases: FramePhases,
+    /// Vblanks missed before the last presented frame (0 while warming up).
+    /// Feeds `SceneRuntimeState::vblanks_elapsed`.
+    pub last_dropped_frames: u32,
+    /// Swapchain slot index (cycles 0..swapchain_len); distinct from the global
+    /// frame counter inside `FrameStats`.
+    pub frame_index: usize,
+    /// The client-resettable window, shared with `SceneRuntimeState::frame_stats`.
+    pub window: Arc<FrameStatsWindow>,
+}
+
+impl FrameTiming {
+    pub fn new(refresh_hz: f64, window: Arc<FrameStatsWindow>) -> Self {
+        Self {
+            stats: FrameStats::new(refresh_hz),
+            last_phases: FramePhases::default(),
+            last_dropped_frames: 0,
+            frame_index: 0,
+            window,
+        }
+    }
+
+    /// For a backend paced by a downstream consumer that holds the target
+    /// rate on average but delivers irregularly. See [`Pacing::AveragedRate`].
+    pub fn new_rate_averaged(refresh_hz: f64, window: Arc<FrameStatsWindow>) -> Self {
+        Self {
+            stats: FrameStats::new_rate_averaged(refresh_hz),
+            last_phases: FramePhases::default(),
+            last_dropped_frames: 0,
+            frame_index: 0,
+            window,
+        }
+    }
+}
+
+/// Frame statistics over a window a client opens and closes over the wire
+/// (`QueryFrameStats` / `ResetFrameStats`), independent of the rolling
+/// [`FrameStats`] history the overlay shows.
+///
+/// Lock-free: the render thread records each present with a few atomic
+/// updates, so a client reading or resetting it can never cost a frame, and a
+/// query sees the frame presented just before it rather than one frame late.
+/// The fields are not updated as one unit, so a reset that lands mid-update can
+/// split that one frame across two windows. Nothing a client asks of it needs
+/// better than that.
+#[derive(Debug)]
+pub struct FrameStatsWindow {
+    presented_frames: AtomicU64,
+    dropped_frames: AtomicU64,
+    intervals: AtomicU64,
+    interval_sum_ns: AtomicU64,
+    /// Squares in µs², not ns²: ns² overflows `u64` within minutes at 60 Hz.
+    interval_sq_sum_us2: AtomicU64,
+    interval_min_ns: AtomicU64,
+    interval_max_ns: AtomicU64,
+    window_start_frame: AtomicU64,
+}
+
+/// One read of a [`FrameStatsWindow`].
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+pub struct FrameStatsSnapshot {
+    pub presented_frames: u64,
+    pub dropped_frames: u64,
+    pub mean_frame_interval_ms: f64,
+    pub std_frame_interval_ms: f64,
+    pub min_frame_interval_ms: f64,
+    pub max_frame_interval_ms: f64,
+    pub window_start_frame: u64,
+}
+
+impl Default for FrameStatsWindow {
+    fn default() -> Self {
+        Self {
+            presented_frames: AtomicU64::new(0),
+            dropped_frames: AtomicU64::new(0),
+            intervals: AtomicU64::new(0),
+            interval_sum_ns: AtomicU64::new(0),
+            interval_sq_sum_us2: AtomicU64::new(0),
+            interval_min_ns: AtomicU64::new(u64::MAX),
+            interval_max_ns: AtomicU64::new(0),
+            window_start_frame: AtomicU64::new(0),
+        }
+    }
+}
+
+impl FrameStatsWindow {
+    /// Record one presented frame. `interval_ns` is the time since the previous
+    /// present, `None` when there is none worth counting (the first frame, or
+    /// swapchain start-up). Render thread only; never blocks or allocates.
+    pub fn record(&self, interval_ns: Option<u64>, dropped: u32) {
+        self.presented_frames.fetch_add(1, Ordering::Relaxed);
+        self.dropped_frames.fetch_add(u64::from(dropped), Ordering::Relaxed);
+        if let Some(ns) = interval_ns {
+            let us = ns / 1_000;
+            self.intervals.fetch_add(1, Ordering::Relaxed);
+            self.interval_sum_ns.fetch_add(ns, Ordering::Relaxed);
+            self.interval_sq_sum_us2.fetch_add(us.saturating_mul(us), Ordering::Relaxed);
+            self.interval_min_ns.fetch_min(ns, Ordering::Relaxed);
+            self.interval_max_ns.fetch_max(ns, Ordering::Relaxed);
+        }
+    }
+
+    pub fn snapshot(&self) -> FrameStatsSnapshot {
+        let load = |a: &AtomicU64| a.load(Ordering::Relaxed);
+        Self::summarize(
+            load(&self.presented_frames),
+            load(&self.dropped_frames),
+            load(&self.intervals),
+            load(&self.interval_sum_ns),
+            load(&self.interval_sq_sum_us2),
+            load(&self.interval_min_ns),
+            load(&self.interval_max_ns),
+            load(&self.window_start_frame),
+        )
+    }
+
+    /// Close the current window and open a new one starting at `start_frame`,
+    /// returning the statistics of the window just closed.
+    pub fn reset(&self, start_frame: u64) -> FrameStatsSnapshot {
+        let swap = |a: &AtomicU64, v| a.swap(v, Ordering::Relaxed);
+        Self::summarize(
+            swap(&self.presented_frames, 0),
+            swap(&self.dropped_frames, 0),
+            swap(&self.intervals, 0),
+            swap(&self.interval_sum_ns, 0),
+            swap(&self.interval_sq_sum_us2, 0),
+            swap(&self.interval_min_ns, u64::MAX),
+            swap(&self.interval_max_ns, 0),
+            swap(&self.window_start_frame, start_frame),
+        )
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn summarize(
+        presented_frames: u64,
+        dropped_frames: u64,
+        intervals: u64,
+        sum_ns: u64,
+        sq_sum_us2: u64,
+        min_ns: u64,
+        max_ns: u64,
+        window_start_frame: u64,
+    ) -> FrameStatsSnapshot {
+        let mut s = FrameStatsSnapshot {
+            presented_frames,
+            dropped_frames,
+            window_start_frame,
+            ..Default::default()
+        };
+        if intervals > 0 {
+            let n = intervals as f64;
+            let mean_ms = sum_ns as f64 / n / 1e6;
+            let mean_us = mean_ms * 1e3;
+            let var_us2 = (sq_sum_us2 as f64 / n - mean_us * mean_us).max(0.0);
+            s.mean_frame_interval_ms = mean_ms;
+            s.std_frame_interval_ms = var_us2.sqrt() / 1e3;
+            // A reset racing a record can leave min at its sentinel.
+            s.min_frame_interval_ms = if min_ns == u64::MAX { 0.0 } else { min_ns as f64 / 1e6 };
+            s.max_frame_interval_ms = max_ns as f64 / 1e6;
+        }
+        s
+    }
+}
+
+/// Timing information for one successfully presented frame.
+///
+/// Returned from `render_frame` on every successful present.
+/// The sequence of `FrameTick` values **is** the time axis of the server:
+/// each tick maps a vblank serial number to the wall-clock time at which
+/// it fired.
+///
+/// # Scheduling
+/// - Use `frame` to express stimulus schedules in vblanks:
+///   "start at frame N, show for M frames". Integer arithmetic, exact.
+/// - Use `vblank_time` for experiment logging: record it as the stimulus
+///   onset time in your data file.
+/// - Check `dropped_frames` each tick; a non-zero value means the GPU
+///   missed a deadline and the previous stimulus was shown for an extra
+///   vblank. Flag the trial if timing precision matters.
+#[derive(Debug, Clone)]
+pub struct FrameTick {
+    /// Present-ID assigned to this frame (1-based, resets after swapchain
+    /// recreation). Monotonically increasing within a session.
+    /// Use as the frame-number axis for scheduling stimuli.
+    pub frame: u64,
+    /// `Instant` captured immediately after `vkWaitForPresentKHR` returned,
+    /// i.e. the best available proxy for the vblank that confirmed the
+    /// *previous* frame on screen. On the first frame (no prior present)
+    /// this is the time `render_frame` was entered.
+    pub vblank_time: std::time::Instant,
+    /// Extra vblanks elapsed beyond the expected one since the previous tick.
+    /// 0 = on time.  1 = one dropped frame (GPU overran its budget once).
+    pub dropped_frames: u32,
+    /// Per-phase_cycles breakdown for profiling (see `FramePhases`).
+    pub phases: FramePhases,
+}
+
+pub struct FrameSummary {
+    pub fps: f64,
+    pub mean_ms: f64,
+    pub std_ms: f64,
+    pub min_ms: f64,
+    pub max_ms: f64,
+    pub drop_count: u64,
+    pub frame_index: u64,
+}
+
+/// Wall-clock time (µs) spent in each phase of `render_frame`.
+/// Accumulated per frame and available for logging or overlay display.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FramePhases {
+    pub tessellate_us: u32, // scene write-lock: tess + GPU upload
+    pub fence_us: u32,      // wait_for_fences
+    pub acquire_us: u32,    // acquire_next_image
+    pub record_us: u32,     // command buffer record
+    pub submit_us: u32,     // queue_submit + queue_present
+}
+
+/// How a backend's frames are paced, which decides what "dropped" can even
+/// mean for it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Pacing {
+    /// Frames are locked to a hardware vblank. Every interval should be one
+    /// period, so an interval longer than that identifies a *specific*
+    /// missed vblank — the stimulus was on screen an extra refresh, which is
+    /// exactly what an experiment needs flagged.
+    Vblank,
+    /// Frames are paced by a downstream consumer that averages the target
+    /// rate but delivers in bursts (evdi: DisplayLinkManager drains frames
+    /// over USB at the mode's rate, but individual intervals measured on a
+    /// Pi 5 range 8–34 ms around a 16.6 ms mean).
+    ///
+    /// Testing each interval against the period reports a drop on every long
+    /// one even though nothing was lost, so loss is instead measured as a
+    /// cumulative deficit: frames that *should* have been presented by now
+    /// at the target rate, minus those actually presented. Jitter cancels
+    /// out; a genuine sustained shortfall accumulates and is still reported.
+    AveragedRate,
+}
+
+pub struct FrameStats {
+    frame_index: u64,
+    last_present: Option<std::time::Instant>,
+    durations_ns: [u64; FRAME_HISTORY_SIZE],
+    ring_head: usize,
+    valid_count: usize,
+    drop_count: u64,
+    /// Interval ending at the most recent present; `None` before the second.
+    last_interval_ns: Option<u64>,
+    expected_frame_ns: u64,
+    pacing: Pacing,
+    /// `AveragedRate` only: when the first frame was presented, and the
+    /// deficit already accounted for, so each shortfall is reported once.
+    first_present: Option<std::time::Instant>,
+    reported_deficit: u64,
+}
+
+impl FrameStats {
+    pub fn new(target_hz: f64) -> Self {
+        Self::with_pacing(target_hz, Pacing::Vblank)
+    }
+
+    /// The nominal refresh rate of the display mode, in Hz — what the rig is
+    /// paced to, as opposed to [`FrameSummary::fps`], which is what it measured.
+    ///
+    /// Anything whose result must be reproducible computes against this: a
+    /// measurement jitters, so a duration derived from it differs between runs
+    /// of the same config (#120).
+    pub fn nominal_hz(&self) -> f64 {
+        if self.expected_frame_ns == 0 {
+            0.0
+        } else {
+            1_000_000_000.0 / self.expected_frame_ns as f64
+        }
+    }
+
+    /// See [`Pacing::AveragedRate`].
+    pub fn new_rate_averaged(target_hz: f64) -> Self {
+        Self::with_pacing(target_hz, Pacing::AveragedRate)
+    }
+
+    fn with_pacing(target_hz: f64, pacing: Pacing) -> Self {
+        let expected_frame_ns = if target_hz.is_finite() && target_hz > 0.0 {
+            (1_000_000_000.0 / target_hz) as u64
+        } else {
+            0
+        };
+        Self {
+            frame_index: 0,
+            last_present: None,
+            durations_ns: [0; FRAME_HISTORY_SIZE],
+            ring_head: 0,
+            valid_count: 0,
+            drop_count: 0,
+            last_interval_ns: None,
+            expected_frame_ns,
+            pacing,
+            first_present: None,
+            reported_deficit: 0,
+        }
+    }
+
+    /// Record a presented frame using the vblank timestamp captured
+    /// immediately after `vkWaitForPresentKHR` returned.
+    ///
+    /// Using the actual vblank time rather than `Instant::now()` gives
+    /// accurate inter-frame intervals independent of render duration.
+    ///
+    /// Returns the number of frames dropped since the previous call
+    /// (0 = on time). The same value is included in the `FrameTick`
+    /// returned from `render_frame`.
+    /// Returns true while still in the warmup window (first few frames).
+    /// Callers should suppress drop warnings during this period.
+    pub fn is_warming_up(&self) -> bool {
+        self.frame_index < 5
+    }
+
+    pub fn on_present(&mut self, vblank_time: std::time::Instant) -> u32 {
+        let dropped = if let Some(last) = self.last_present {
+            let dur_ns = vblank_time.duration_since(last).as_nanos() as u64;
+            let d = match self.pacing {
+                // Both, because they catch different failures. Per-interval
+                // detection names a *specific* missed vblank the moment it
+                // happens, which is what the log warning needs; but it judges
+                // each interval on its own, so a sustained shortfall whose
+                // every interval sits under the 1.25x threshold — 120 fps on a
+                // 144 Hz display, say — never registers. The cumulative
+                // deficit catches exactly that. Taking the larger of the two
+                // reports each refresh that went unfilled once: the deficit
+                // baseline advances either way, so a gap already counted
+                // per-interval is not counted again later.
+                Pacing::Vblank => {
+                    let missed = self.count_missed_vblanks(dur_ns);
+                    let deficit = self.count_rate_deficit(vblank_time);
+                    missed.max(deficit)
+                }
+                Pacing::AveragedRate => self.count_rate_deficit(vblank_time),
+            };
+            self.drop_count += d as u64;
+            self.last_interval_ns = Some(dur_ns);
+            self.durations_ns[self.ring_head] = dur_ns;
+            self.ring_head = (self.ring_head + 1) % FRAME_HISTORY_SIZE;
+            if self.valid_count < FRAME_HISTORY_SIZE {
+                self.valid_count += 1;
+            }
+            d
+        } else {
+            self.first_present = Some(vblank_time);
+            0
+        };
+        self.last_present = Some(vblank_time);
+        self.frame_index += 1;
+        dropped
+    }
+
+    /// One interval against one period — see [`Pacing::Vblank`].
+    fn count_missed_vblanks(&self, dur_ns: u64) -> u32 {
+        // 5/4 threshold: trigger if the interval exceeds 1.25× the expected period.
+        // Using round-to-nearest division avoids the truncation bug where
+        // 2 × period computes as 1.999× and floors to 1 → sub(1) = 0.
+        let threshold = self.expected_frame_ns.saturating_mul(5) / 4;
+        if self.expected_frame_ns == 0 || dur_ns <= threshold {
+            return 0;
+        }
+        ((dur_ns + self.expected_frame_ns / 2) / self.expected_frame_ns).saturating_sub(1) as u32
+    }
+
+    /// Frames owed against frames delivered — see [`Pacing::AveragedRate`].
+    ///
+    /// Floor division on the elapsed time deliberately under-counts by up to
+    /// one frame, so ordinary jitter can never manufacture a drop; only a
+    /// shortfall that persists long enough to cost a whole frame is reported.
+    fn count_rate_deficit(&mut self, now: std::time::Instant) -> u32 {
+        let (Some(start), true) = (self.first_present, self.expected_frame_ns > 0) else {
+            return 0;
+        };
+        let elapsed_ns = now.duration_since(start).as_nanos() as u64;
+        let owed = elapsed_ns / self.expected_frame_ns;
+        let deficit = owed.saturating_sub(self.frame_index);
+        // Report only the growth since last time. Recovering (deficit
+        // shrinking) resets the baseline so a later shortfall is caught
+        // again, but never retroactively un-counts a reported drop.
+        let new = deficit.saturating_sub(self.reported_deficit);
+        self.reported_deficit = deficit;
+        new as u32
+    }
+
+    /// Frame durations in chronological order (oldest first).
+    pub fn durations_recent_ns(&self) -> impl Iterator<Item = u64> + '_ {
+        let n = self.valid_count.min(FRAME_HISTORY_SIZE);
+        let start = (self.ring_head + FRAME_HISTORY_SIZE - n) % FRAME_HISTORY_SIZE;
+        (0..n).map(move |i| self.durations_ns[(start + i) % FRAME_HISTORY_SIZE])
+    }
+
+    /// The interval ending at the most recent present, `None` before the second.
+    pub fn last_interval_ns(&self) -> Option<u64> {
+        self.last_interval_ns
+    }
+
+    pub fn expected_ns(&self) -> u64 {
+        self.expected_frame_ns
+    }
+
+    /// Reset the cumulative drop counter to zero (e.g. before a benchmark).
+    pub fn reset_drops(&mut self) {
+        self.drop_count = 0;
+    }
+
+    pub fn summary(&self) -> FrameSummary {
+        let durations = &self.durations_ns[..self.valid_count.min(FRAME_HISTORY_SIZE)];
+        if durations.is_empty() {
+            return FrameSummary {
+                fps: 0.0,
+                mean_ms: 0.0,
+                std_ms: 0.0,
+                min_ms: 0.0,
+                max_ms: 0.0,
+                drop_count: self.drop_count,
+                frame_index: self.frame_index,
+            };
+        }
+        let n = durations.len() as f64;
+        let mean_ns = durations.iter().sum::<u64>() as f64 / n;
+        let var_ns = durations
+            .iter()
+            .map(|&d| {
+                let x = d as f64 - mean_ns;
+                x * x
+            })
+            .sum::<f64>()
+            / n;
+        FrameSummary {
+            fps: if mean_ns > 0.0 {
+                1_000_000_000.0 / mean_ns
+            } else {
+                0.0
+            },
+            mean_ms: mean_ns / 1_000_000.0,
+            std_ms: var_ns.sqrt() / 1_000_000.0,
+            min_ms: *durations.iter().min().unwrap() as f64 / 1_000_000.0,
+            max_ms: *durations.iter().max().unwrap() as f64 / 1_000_000.0,
+            drop_count: self.drop_count,
+            frame_index: self.frame_index,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::time::{Duration, Instant};
+
+    const HZ: f64 = 60.0;
+    const PERIOD: Duration = Duration::from_nanos(16_666_666);
+
+    /// Feed `intervals` into `stats` and return the total drops reported.
+    fn replay(stats: &mut FrameStats, intervals: &[Duration]) -> u32 {
+        let mut t = Instant::now();
+        stats.on_present(t);
+        let mut total = 0;
+        for d in intervals {
+            t += *d;
+            total += stats.on_present(t);
+        }
+        total
+    }
+
+    #[test]
+    fn stats_window_accumulates_and_reset_closes_it() {
+        let w = FrameStatsWindow::default();
+        w.record(None, 0);
+        w.record(Some(16_000_000), 0);
+        w.record(Some(20_000_000), 1);
+        let s = w.snapshot();
+        assert_eq!((s.presented_frames, s.dropped_frames), (3, 1));
+        assert!((s.mean_frame_interval_ms - 18.0).abs() < 1e-9);
+        assert!((s.std_frame_interval_ms - 2.0).abs() < 1e-6);
+        assert_eq!((s.min_frame_interval_ms, s.max_frame_interval_ms), (16.0, 20.0));
+
+        assert_eq!(w.reset(42), s);
+        let fresh = w.snapshot();
+        assert_eq!(fresh, FrameStatsSnapshot { window_start_frame: 42, ..Default::default() });
+    }
+
+    #[test]
+    fn vblank_pacing_flags_a_missed_refresh() {
+        let mut s = FrameStats::new(HZ);
+        // One interval of two periods = one vblank missed.
+        let drops = replay(&mut s, &[PERIOD, PERIOD * 2, PERIOD]);
+        assert_eq!(drops, 1);
+    }
+
+    #[test]
+    fn vblank_pacing_reports_a_sustained_shortfall() {
+        // 120 fps against a 144 Hz display: 8.333 ms intervals against a
+        // 6.944 ms period. Every interval is under the 1.25x threshold, so
+        // per-interval detection sees nothing -- but a sixth of the display's
+        // refreshes showed no new frame, which is exactly what an experiment
+        // needs flagged.
+        let hz = 144.0;
+        let period_ns = 1e9 / hz;
+        let intervals = vec![Duration::from_nanos((1e9 / 120.0) as u64); 600];
+        let mut s = FrameStats::new(hz);
+        let drops = replay(&mut s, &intervals);
+        // 600 frames at 120 fps span 5 s; a 144 Hz display refreshed 720 times
+        // in that window, so 120 refreshes went unfilled.
+        let expected = 600.0 * (1e9 / 120.0) / period_ns - 600.0;
+        assert!(
+            (drops as f64) > expected * 0.9,
+            "sustained 120 fps on a 144 Hz display must report about {expected:.0} \
+             dropped frames, got {drops}"
+        );
+    }
+
+    #[test]
+    fn rate_averaged_ignores_jitter_that_keeps_up() {
+        // Alternating 8/25 ms — the shape actually measured on evdi. Mean is
+        // one period, so nothing has been lost and nothing should be reported,
+        // even though half the intervals exceed the 1.25x vblank threshold.
+        let short = Duration::from_micros(8_333);
+        let long = Duration::from_micros(25_000);
+        let intervals: Vec<Duration> = (0..600)
+            .map(|i| if i % 2 == 0 { short } else { long })
+            .collect();
+
+        let mut averaged = FrameStats::new_rate_averaged(HZ);
+        assert_eq!(
+            replay(&mut averaged, &intervals),
+            0,
+            "bursty delivery at the target rate is not frame loss"
+        );
+
+        // The same input under vblank pacing is a storm of false positives —
+        // this is the behaviour that made the evdi logs unreadable.
+        let mut vblank = FrameStats::new(HZ);
+        assert!(
+            replay(&mut vblank, &intervals) > 100,
+            "per-interval detection is what misreports bursty delivery"
+        );
+    }
+
+    #[test]
+    fn rate_averaged_still_reports_a_real_shortfall() {
+        // A sustained half-rate link: 600 intervals of 2 periods is 300
+        // frames' worth of loss over the same wall-clock.
+        let intervals = vec![PERIOD * 2; 600];
+        let mut s = FrameStats::new_rate_averaged(HZ);
+        let drops = replay(&mut s, &intervals);
+        assert!(
+            (595..=600).contains(&drops),
+            "half-rate delivery must be reported, got {drops}"
+        );
+    }
+
+    #[test]
+    fn rate_averaged_reports_a_stall_then_stops_once_recovered() {
+        let mut s = FrameStats::new_rate_averaged(HZ);
+        // Steady, then one 10-period stall, then steady again.
+        let mut intervals = vec![PERIOD; 60];
+        intervals.push(PERIOD * 10);
+        let during = replay(&mut s, &intervals);
+        assert!(during >= 8, "a real stall must be reported, got {during}");
+
+        // Continuing at the target rate reports nothing further: the deficit
+        // is already accounted for and must not be re-reported every frame.
+        let mut t = Instant::now();
+        let mut after = 0;
+        for _ in 0..120 {
+            t += PERIOD;
+            after += s.on_present(t);
+        }
+        assert_eq!(after, 0, "an already-reported deficit must not repeat");
+    }
+
+    #[test]
+    fn zero_or_invalid_refresh_never_panics() {
+        for hz in [0.0, -1.0, f64::NAN, f64::INFINITY] {
+            let mut s = FrameStats::new(hz);
+            assert_eq!(replay(&mut s, &[PERIOD, PERIOD * 4]), 0);
+            let mut s = FrameStats::new_rate_averaged(hz);
+            assert_eq!(replay(&mut s, &[PERIOD, PERIOD * 4]), 0);
+        }
+    }
+}

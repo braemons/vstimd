@@ -1,0 +1,242 @@
+//! The ZMQ REP transport: binds the socket, receives protobuf `Request`
+//! messages and hands each to the dispatcher in [`super::dispatch`].
+
+use std::sync::{Arc, Mutex, RwLock};
+
+use prost::Message;
+use zeromq::{Socket, SocketRecv, SocketSend};
+
+use crate::proto;
+use crate::scene::SceneState;
+use crate::vtl_state::VtlState;
+
+/// Default ZMQ port.
+pub const DEFAULT_ZMQ_PORT: u16 = 5555;
+
+/// Spawn the ZMQ REP server on a dedicated thread with its own tokio runtime.
+///
+/// The thread receives protobuf-encoded `Request` messages, dispatches them to
+/// [`SceneState::handle_request`] under a **write lock**, and sends back the
+/// encoded `Response`.  The write lock is held only for the duration of a
+/// single `handle_request` call; it is released before the next `recv` so the
+/// render thread is never blocked for more than one command dispatch at a time.
+///
+/// # Why a dedicated thread + its own runtime?
+///
+/// The main thread is owned by `winit`'s event loop, which does not expose an
+/// async executor.  A dedicated `std::thread` with a single-threaded
+/// `tokio::runtime` lets us use `zeromq`'s async API without interfering with
+/// the render loop.
+///
+/// # Bind address
+///
+/// Use a concrete IP, not a wildcard hostname.  The `zeromq` crate resolves
+/// the host part as a DNS name, so `tcp://*:5555` (libzmq C convention) will
+/// fail with a lookup error.  Use `tcp://0.0.0.0:5555` to bind on all
+/// interfaces, or `tcp://127.0.0.1:5555` for loopback only.
+///
+/// Returns the `JoinHandle`, a shutdown sender, and a bound receiver.
+///
+/// Drop the shutdown sender to signal the ZMQ loop to exit cleanly, then join
+/// the handle.  This ensures the thread's `Arc` references are released so that
+/// shared resources (e.g. `VtlOwner` / shm segment) are properly cleaned up.
+///
+/// The bound receiver fires once after `socket.bind()` succeeds — callers can
+/// wait on it before signalling `sd_notify(READY=1)`.
+pub fn spawn_zmq_thread(
+    scene: Arc<RwLock<SceneState>>,
+    vtl: Option<Arc<Mutex<VtlState>>>,
+    bind_addr: &str,
+) -> (std::thread::JoinHandle<()>, tokio::sync::oneshot::Sender<()>, std::sync::mpsc::Receiver<()>) {
+    let addr = bind_addr.to_owned();
+    let frame_rx = scene.read().expect("scene lock poisoned").runtime.frame_notifier.subscribe();
+    let (shutdown_tx, shutdown_rx) = tokio::sync::oneshot::channel::<()>();
+    let (bound_tx, bound_rx) = std::sync::mpsc::sync_channel::<()>(1);
+    let handle = std::thread::Builder::new()
+        .name("zmq-server".into())
+        .spawn(move || {
+            let rt = tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .expect("failed to create tokio runtime for ZMQ thread");
+            rt.block_on(zmq_loop(scene, vtl, &addr, frame_rx, shutdown_rx, bound_tx));
+        })
+        .expect("failed to spawn ZMQ server thread");
+    (handle, shutdown_tx, bound_rx)
+}
+
+async fn zmq_loop(
+    scene: Arc<RwLock<SceneState>>,
+    vtl: Option<Arc<Mutex<VtlState>>>,
+    addr: &str,
+    mut frame_rx: tokio::sync::watch::Receiver<u64>,
+    mut shutdown: tokio::sync::oneshot::Receiver<()>,
+    bound_tx: std::sync::mpsc::SyncSender<()>,
+) {
+    let mut socket = zeromq::RepSocket::new();
+    socket
+        .bind(addr)
+        .await
+        .unwrap_or_else(|e| panic!("ZMQ bind to {addr} failed: {e}"));
+    log::info!("ZMQ REP server listening on {addr}");
+    let _ = bound_tx.try_send(());
+
+    loop {
+        // Shutdown sender dropped → exit cleanly so Arc refs are released.
+        tokio::select! {
+            biased;
+            _ = &mut shutdown => {
+                log::info!("vstimd: ZMQ server shutting down");
+                return;
+            }
+            result = socket.recv() => {
+                let msg = match result {
+                    Ok(m) => m,
+                    Err(e) => {
+                        log::error!("ZMQ recv error: {e}");
+                        continue;
+                    }
+                };
+
+                // REP requests are almost always a single frame: decode straight
+                // off it and avoid copying the payload. Only multi-frame messages
+                // need to be concatenated into an owned buffer.
+                let frames = msg.into_vec();
+                let bytes: std::borrow::Cow<[u8]> = match frames.as_slice() {
+                    [frame] => std::borrow::Cow::Borrowed(frame.as_ref()),
+                    _ => std::borrow::Cow::Owned(frames.iter().flat_map(|f| f.iter().copied()).collect()),
+                };
+
+                let response = match proto::Request::decode(bytes.as_ref()) {
+                    Ok(req) => {
+                        match &req.body {
+                            Some(proto::request::Body::WaitForFrames(cmd)) => {
+                                let target = scene.read().expect("scene lock poisoned")
+                                    .runtime.frame_count.saturating_add(cmd.count as u64);
+                                let _ = frame_rx.wait_for(|&c| c >= target).await;
+                                let s = scene.read().expect("scene lock poisoned");
+                                proto::Response {
+                                    code: proto::ErrorCode::Ok as i32,
+                                    handle: -1,
+                                    frame_count: s.runtime.frame_count,
+                                    server_time_ns: s.runtime.server_start.elapsed().as_nanos() as u64,
+                                    ..Default::default()
+                                }
+                            }
+                            Some(proto::request::Body::WaitUntil(cmd)) => {
+                                let target_ns = cmd.server_time_ns;
+                                loop {
+                                    let elapsed = scene.read().expect("scene lock poisoned")
+                                        .runtime.server_start.elapsed().as_nanos() as u64;
+                                    if elapsed >= target_ns { break; }
+                                    let remaining = target_ns - elapsed;
+                                    if remaining > 500_000 {
+                                        tokio::time::sleep(
+                                            std::time::Duration::from_nanos(remaining - 500_000)
+                                        ).await;
+                                    } else {
+                                        tokio::task::yield_now().await;
+                                    }
+                                }
+                                let s = scene.read().expect("scene lock poisoned");
+                                proto::Response {
+                                    code: proto::ErrorCode::Ok as i32,
+                                    handle: -1,
+                                    frame_count: s.runtime.frame_count,
+                                    server_time_ns: s.runtime.server_start.elapsed().as_nanos() as u64,
+                                    ..Default::default()
+                                }
+                            }
+                            Some(proto::request::Body::CaptureFrame(_)) => {
+                                let mut resp = capture_frame(&scene).await;
+                                let s = scene.read().expect("scene lock poisoned");
+                                resp.frame_count = s.runtime.frame_count;
+                                resp.server_time_ns = s.runtime.server_start.elapsed().as_nanos() as u64;
+                                resp
+                            }
+                            _ => {
+                                let mut scene = scene.write().expect("scene lock poisoned");
+                                let mut vtl_guard = vtl.as_ref().and_then(|v| v.lock().ok());
+                                let vtl_ref = vtl_guard.as_deref_mut();
+                                let mut resp = scene.handle_request(req, vtl_ref);
+                                resp.frame_count = scene.runtime.frame_count;
+                                resp.server_time_ns = scene.runtime.server_start.elapsed().as_nanos() as u64;
+                                resp
+                            }
+                        }
+                    }
+                    Err(e) => proto::Response {
+                        code: proto::ErrorCode::Unknown as i32,
+                        error: format!("protobuf decode error: {e}"),
+                        ..Default::default()
+                    },
+                };
+
+                let out = response.encode_to_vec();
+                if let Err(e) = socket.send(out.into()).await {
+                    log::error!("ZMQ send error: {e}");
+                }
+            }
+        }
+    }
+}
+
+/// How long `CaptureFrame` waits for the render loop. Generous: a minimised
+/// desktop window may render only about once a second.
+const CAPTURE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+
+/// Serve `CaptureFrame`: queue a request for the render loop, wait for the
+/// pixels, encode them here rather than on the render thread.
+///
+/// Never holds the scene lock while waiting — the render thread needs it to
+/// produce the very frame being waited for.
+async fn capture_frame(scene: &RwLock<SceneState>) -> proto::Response {
+    use super::response::err;
+    use crate::render::screenshot::{CaptureRequest, encode_png};
+    use std::sync::mpsc::TrySendError;
+
+    let (reply, reply_rx) = tokio::sync::oneshot::channel();
+    {
+        let s = scene.read().expect("scene lock poisoned");
+        match s.runtime.capture_requests.try_send(CaptureRequest { reply }) {
+            Ok(()) => {}
+            Err(TrySendError::Full(_)) => {
+                return err(
+                    proto::ErrorCode::NotReady,
+                    "an earlier capture is still waiting for the render loop",
+                );
+            }
+            Err(TrySendError::Disconnected(_)) => {
+                return err(
+                    proto::ErrorCode::NotSupported,
+                    "this server has no rendered frames to capture (null renderer or evdi)",
+                );
+            }
+        }
+    }
+
+    let frame = match tokio::time::timeout(CAPTURE_TIMEOUT, reply_rx).await {
+        Ok(Ok(frame)) => frame,
+        Ok(Err(_)) => return err(proto::ErrorCode::Unknown, "the render loop dropped the capture"),
+        Err(_) => {
+            return err(
+                proto::ErrorCode::NotReady,
+                "no frame was rendered in time (is the window minimised?)",
+            );
+        }
+    };
+    match encode_png(&frame.bgra, frame.width, frame.height) {
+        Ok(png) => proto::Response {
+            code: proto::ErrorCode::Ok as i32,
+            handle: -1,
+            body: Some(proto::response::Body::CapturedFrame(proto::CaptureFrameResponse {
+                png,
+                width_px: frame.width,
+                height_px: frame.height,
+                frame: frame.frame,
+            })),
+            ..Default::default()
+        },
+        Err(e) => err(proto::ErrorCode::Unknown, format!("PNG encoding failed: {e}")),
+    }
+}

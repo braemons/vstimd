@@ -23,6 +23,7 @@ import pytest
 
 from .cases import *  # noqa: F401, F403
 from .conftest import DEFAULT_SERVER, reachable
+from .cases._helpers import check_frame_stats
 
 _REPO_ROOT = pathlib.Path(__file__).parents[4]
 
@@ -35,7 +36,7 @@ def _free_port() -> int:
 
 
 def _server_binary() -> pathlib.Path:
-    exe = "vstimd.exe" if sys.platform == "win32" else "vstimd"
+    exe = "vstimd_client.exe" if sys.platform == "win32" else "vstimd"
     binary = _REPO_ROOT / "target" / "release" / exe
     if not binary.exists():
         result = subprocess.run(["cargo", "build", "--release"], cwd=_REPO_ROOT)
@@ -55,8 +56,17 @@ def server_address(request: pytest.FixtureRequest) -> str:
     return f"tcp://localhost:{_free_port()}"
 
 
+@pytest.fixture(scope="session")
+def event_port(request: pytest.FixtureRequest) -> int:
+    """This session's event-stream port: its own server's, unless one was asked for."""
+    asked_for = request.config.getoption("--server")
+    if asked_for != DEFAULT_SERVER or os.environ.get("VSTIMD_SERVER"):
+        return request.config.getoption("--event-port")
+    return _free_port()
+
+
 @pytest.fixture(scope="session", autouse=True)
-def server_process(server_address: str):
+def server_process(server_address: str, event_port: int):
     """Build and start the server in null mode. Never skipped."""
     if reachable(server_address):
         yield  # one was asked for and is already up
@@ -66,7 +76,8 @@ def server_process(server_address: str):
     # --no-web as well: the web surface would fight another server for 8080,
     # and nothing here talks to it.
     proc = subprocess.Popen(
-        [str(_server_binary()), "--null", "--zmq-port", port, "--no-web"]
+        [str(_server_binary()), "--null", "--zmq-port", port,
+         "--event-port", str(event_port), "--no-web"]
     )
 
     for _ in range(20):
@@ -85,3 +96,12 @@ def server_process(server_address: str):
 @pytest.fixture
 def step_delay() -> float:
     return 0.0
+
+
+@check_frame_stats
+def test_capture_frame_is_not_supported_without_a_renderer(conn):
+    """The null renderer has no frames, and says so rather than hanging."""
+    from vstimd_client.exceptions import NotSupportedError
+
+    with pytest.raises(NotSupportedError):
+        conn.system.capture_frame()

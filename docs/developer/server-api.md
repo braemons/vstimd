@@ -3,7 +3,7 @@
 The server internals are documented via `cargo doc`. Generate and open them locally:
 
 ```sh
-cd server
+cd daemon
 cargo doc --no-deps --open
 ```
 
@@ -16,7 +16,7 @@ cargo doc --no-deps --open
 | `RigConfig` | `rig_config` | Device-level config loaded from `/etc/braemons/vstimd-rig-config.toml` (display mode, web server, overlay scale) |
 
 `SceneState::handle_request` is the single entry point the ZMQ thread calls for every
-command; integration tests in `server/tests/` call it directly without a GPU or ZMQ
+command; integration tests in `daemon/tests/` call it directly without a GPU or ZMQ
 (see the [`lib.rs`](architecture.md#scene-state) note).
 
 ## Build & test

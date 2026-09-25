@@ -55,7 +55,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         run: |
           tag="${GITHUB_REF#refs/tags/python-v}"
-          version=$(python3 -c 'import re, pathlib; print(re.search(r"__version__ = \"([^\"]+)\"", pathlib.Path("vstimd/_version.py").read_text()).group(1))')
+          version=$(python3 -c 'import re, pathlib; print(re.search(r"__version__ = \"([^\"]+)\"", pathlib.Path("vstimd_client/_version.py").read_text()).group(1))')
           echo "tag=$tag packaged=$version"
           [ "$tag" = "$version" ] || { echo "::error::tag $tag != version $version"; exit 1; }
 
@@ -100,20 +100,20 @@ jobs:
           wheel=$(ls dist/*.whl)
           python -m pip install "${wheel}"
           cd "$(mktemp -d)"   # anywhere but a directory holding the sources
-          python -c "import vstimd; print(vstimd.__version__); vstimd.Connection"
-          python -c "from vstimd.psychopy import visual; visual.Window"
-          python -c "from vstimd.v1 import service_pb2; print(service_pb2.DESCRIPTOR.name)"
+          python -c "import vstimd_client; print(vstimd_client.__version__); vstimd_client.VstimdClient"
+          python -c "from vstimd_client.psychopy import visual; visual.Window"
+          python -c "from vstimd_client._proto.vstimd.v1 import service_pb2; print(service_pb2.DESCRIPTOR.name)"
           # zeroconf is a dependency, not an extra, so `discover` must have a
           # backend without anything else being installed.
-          python -c "from vstimd.cli import discovery; assert 'zeroconf' in discovery.available_backends(), discovery.available_backends()"
-          vstimd-client --version
-          vstimd-client --help > /dev/null
+          python -c "from vstimd_client.command_line_interface import discovery; assert 'zeroconf' in discovery.available_backends(), discovery.available_backends()"
+          vstimctl --version
+          vstimctl --help > /dev/null
 
       # A typed package that ships no py.typed is a silent no-op for users.
       - name: Check the typing marker survived packaging
         shell: bash
         run: |
-          python -c "import pathlib, vstimd; assert (pathlib.Path(vstimd.__file__).parent / 'py.typed').is_file()"
+          python -c "import pathlib, vstimd_client; assert (pathlib.Path(vstimd_client.__file__).parent / 'py.typed').is_file()"
 
   publish:
     needs: smoke

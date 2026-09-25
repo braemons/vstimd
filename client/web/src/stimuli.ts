@@ -1,6 +1,6 @@
 // Stimulus creation and mutation client. Builds proto Requests internally and
 // returns/accepts only public domain types (types.ts). Mirrors the Python
-// client's vstimd.stimuli package.
+// client's vstimd_client.stimuli package.
 
 import { create, type MessageInitShape } from "@bufbuild/protobuf";
 import { RequestSchema } from "./_proto/vstimd/v1/service_pb.js";

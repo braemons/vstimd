@@ -8,21 +8,31 @@
 #
 # Runs a stock RPi OS image through a loop-mounted chroot rather than a
 # from-scratch build (pi-gen) — cheaper to build/iterate since it reuses the
-# .deb postinst logic (sysusers, hostname unit, avahi template) unchanged.
+# .deb postinst logic (sysusers, /etc/braemons) unchanged. The rig's hostname
+# comes from braemons-rig (braemons/rig), installed from the archive.
 # Needs root + qemu-user-static (arm64 binfmt) since the base image is
 # arm64 and this is expected to run on an amd64 CI/dev host — see
 # packaging/docker/Dockerfile.image-builder / `make image`, which provides
 # both. Not meant to be run outside that container.
 #
-# Usage: build-sd-image.sh <vstimd.deb> <gpiochip-daqd.deb>
+# Usage: build-sd-image.sh <vstimd.deb> <gpiochip-daqd.deb> [<extra.deb>...]
+#
+# Extra .debs are installed beside the two, before anything is taken from the
+# archive: a braemons-rig build that is not released yet, for instance.
 set -euo pipefail
 
 [ "$(id -u)" -eq 0 ] || { echo "error: must run as root (needs loop devices + chroot)" >&2; exit 1; }
-[ $# -eq 2 ] || { echo "usage: $0 <vstimd.deb> <gpiochip-daqd.deb>" >&2; exit 1; }
+[ $# -ge 2 ] || { echo "usage: $0 <vstimd.deb> <gpiochip-daqd.deb> [<extra.deb>...]" >&2; exit 1; }
 VSTIMD_DEB=$(readlink -f "$1")
 GPIOCHIP_DEB=$(readlink -f "$2")
 [ -f "$VSTIMD_DEB" ]   || { echo "error: $VSTIMD_DEB not found" >&2; exit 1; }
 [ -f "$GPIOCHIP_DEB" ] || { echo "error: $GPIOCHIP_DEB not found" >&2; exit 1; }
+EXTRA_DEBS=()
+for extra in "${@:3}"; do
+    extra=$(readlink -f "$extra")
+    [ -f "$extra" ] || { echo "error: $extra not found" >&2; exit 1; }
+    EXTRA_DEBS+=("$extra")
+done
 
 BASE_IMAGE_URL="${BASE_IMAGE_URL:-https://downloads.raspberrypi.com/raspios_lite_arm64_latest}"
 CACHE_DIR="${CACHE_DIR:-packaging/image/.cache}"
@@ -159,7 +169,7 @@ cp /etc/resolv.conf "$MNT/etc/resolv.conf"
 # ── 4. Install packages + configure services inside the chroot ──────────────
 
 mkdir -p "$MNT/root/debs"
-cp "$VSTIMD_DEB" "$GPIOCHIP_DEB" "$MNT/root/debs/"
+cp "$VSTIMD_DEB" "$GPIOCHIP_DEB" "${EXTRA_DEBS[@]}" "$MNT/root/debs/"
 
 # Archive signing key for in-place updates. Optional: until a key has been
 # generated (packaging/apt/README.md), the image simply ships without an update
@@ -449,9 +459,24 @@ APT_CONF
 fi
 
 # vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
-# creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
+# creates the vstimd system user, /etc/braemons, etc.).
 dpkg -i /root/debs/*.deb || true
 apt-get install -y -f
+
+# The rig's name, braemons-XXXXXX from the MAC, and the directories every
+# braemons daemon shares: braemons-rig, from the archive. It is the box's, not
+# vstimd's, which is why it is not in vstimd's package. Without the archive the
+# card keeps Raspberry Pi OS's stock hostname — it works, and it collides with
+# the next rig flashed from the same image.
+if dpkg -s braemons-rig >/dev/null 2>&1; then
+    # Given to this script as an extra .deb, and installed above.
+    systemctl enable braemons-hostname
+elif [ -f /etc/apt/sources.list.d/braemons.sources ]; then
+    apt-get install -y --no-install-recommends braemons-rig
+    systemctl enable braemons-hostname
+else
+    echo "braemons-rig: not installed (no archive configured); the rig keeps its stock hostname"
+fi
 
 # gpiochip-daqd's postinst only installs the empty default-config.toml to
 # /etc/braemons/gpiochip-daqd-config.toml (it ships board-specific configs as
@@ -465,7 +490,7 @@ install -m 0644 \
 
 # Same deal for vstimd's own rig-config: 'make install' (the .deb's postinst
 # path) only ever installs the generic, everything-commented-out
-# server/config/default-rig-config.toml to
+# daemon/config/default-rig-config.toml to
 # /etc/braemons/vstimd-rig-config.toml (see the Makefile's RIG_CONFIG/EXAMPLES
 # split) because the .deb itself is board-agnostic too. Overwrite with the
 # Pi 5 example so a freshly flashed card boots with correct VTL/GPIO settings
@@ -583,7 +608,7 @@ MOTD_EOF
 
 systemctl enable smbd nmbd avahi-daemon wsdd2
 
-systemctl enable vstimd vstimd-hostname gpiochip-daqd
+systemctl enable vstimd gpiochip-daqd
 # Appliance behaviour: boot straight into vstimd.target instead of the
 # normal multi-user console. vstimd.target still Requires=multi-user.target,
 # so networking/ssh/samba come up first — see packaging/systemd/vstimd.target.

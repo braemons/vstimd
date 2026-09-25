@@ -2,6 +2,7 @@ syntax = "proto3";
 package vstimd.v1;
 
 import "vstimd/v1/animations.proto";
+import "vstimd/v1/input.proto";
 import "vstimd/v1/stimuli/query.proto";
 import "vstimd/v1/system.proto";
 import "vstimd/v1/vtl.proto";
@@ -33,4 +34,7 @@ message SceneSnapshot {
   repeated CommandLogEntry command_log = 6;
   uint64 frame_count = 7;
   uint64 server_time_ns = 8;
+  // The rig's input devices with their live readings, so a UI sees a wheel go
+  // stale without polling for it.
+  ListInputDevicesResponse input_devices = 9;
 }
