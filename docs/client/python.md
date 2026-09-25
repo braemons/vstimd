@@ -68,7 +68,7 @@ acknowledges, and a server error is raised as a typed exception (see
 
 The method list above is a map, not an exhaustive signature reference — the
 authoritative signatures and docstrings live in the source under
-[`client/python/vstimd_client/`](https://github.com/braemons/vstimd/tree/0.3/client/python/vstimd_client).
+[`client/python/vstimd_client/`](https://github.com/braemons/vstimd/tree/main/client/python/vstimd_client).
 
 ### Draw order
 
