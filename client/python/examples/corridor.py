@@ -34,7 +34,7 @@ from vstimd_client.stimuli import (
     Transform3D,
     Vec3,
 )
-from vstimd_client.system import Camera3D
+from vstimd_client.system import Camera3D, Lighting3D
 
 PERIOD_CM = 100.0
 
@@ -70,6 +70,24 @@ def main() -> None:
                 repeat=Repeat3D(period_cm=PERIOD_CM, ahead=40, behind=1),
             ),
         )
+        # Light the corridor symmetrically. The default sun travels
+        # (-0.43, -0.86, -0.26): that sideways -X component hits one wall's
+        # inward normal head-on and the other from behind, where the diffuse
+        # term clamps to zero and leaves it on the 0.1 ambient alone — one wall
+        # black, the other lit. Dropping the X component makes the two walls
+        # equal, and the raised ambient is what they are then lit by.
+        #
+        # This is not only cosmetic: an asymmetric corridor is a left/right
+        # brightness cue an animal can navigate by, which is a confound unless
+        # the experiment intends it.
+        previous_lighting = conn.system.query_lighting()
+        conn.system.set_lighting(
+            Lighting3D(
+                ambient_color=Vec3(0.40, 0.40, 0.40),
+                sun_direction=Vec3(0.0, -1.0, -0.25),
+                sun_color=Vec3(0.9, 0.9, 0.9),
+            )
+        )
         conn.system.set_camera(Camera3D(position_cm=Vec3(0.0, 20.0, 0.0)))
         walk = conn.animations.create_linear_nav_3d(
             0.0 if source else args.speed, wrap_period_cm=PERIOD_CM, source=source
@@ -88,6 +106,7 @@ def main() -> None:
             conn.stimuli.delete(spheres)
             conn.stimuli.delete(corridor)
             conn.system.set_camera(Camera3D())
+            conn.system.set_lighting(previous_lighting)
 
 
 if __name__ == "__main__":
