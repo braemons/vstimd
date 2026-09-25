@@ -15,15 +15,24 @@
 # packaging/docker/Dockerfile.image-builder / `make image`, which provides
 # both. Not meant to be run outside that container.
 #
-# Usage: build-sd-image.sh <vstimd.deb> <gpiochip-daqd.deb>
+# Usage: build-sd-image.sh <vstimd.deb> <gpiochip-daqd.deb> [<extra.deb>...]
+#
+# Extra .debs are installed beside the two, before anything is taken from the
+# archive: a braemons-rig build that is not released yet, for instance.
 set -euo pipefail
 
 [ "$(id -u)" -eq 0 ] || { echo "error: must run as root (needs loop devices + chroot)" >&2; exit 1; }
-[ $# -eq 2 ] || { echo "usage: $0 <vstimd.deb> <gpiochip-daqd.deb>" >&2; exit 1; }
+[ $# -ge 2 ] || { echo "usage: $0 <vstimd.deb> <gpiochip-daqd.deb> [<extra.deb>...]" >&2; exit 1; }
 VSTIMD_DEB=$(readlink -f "$1")
 GPIOCHIP_DEB=$(readlink -f "$2")
 [ -f "$VSTIMD_DEB" ]   || { echo "error: $VSTIMD_DEB not found" >&2; exit 1; }
 [ -f "$GPIOCHIP_DEB" ] || { echo "error: $GPIOCHIP_DEB not found" >&2; exit 1; }
+EXTRA_DEBS=()
+for extra in "${@:3}"; do
+    extra=$(readlink -f "$extra")
+    [ -f "$extra" ] || { echo "error: $extra not found" >&2; exit 1; }
+    EXTRA_DEBS+=("$extra")
+done
 
 BASE_IMAGE_URL="${BASE_IMAGE_URL:-https://downloads.raspberrypi.com/raspios_lite_arm64_latest}"
 CACHE_DIR="${CACHE_DIR:-packaging/image/.cache}"
@@ -160,7 +169,7 @@ cp /etc/resolv.conf "$MNT/etc/resolv.conf"
 # ── 4. Install packages + configure services inside the chroot ──────────────
 
 mkdir -p "$MNT/root/debs"
-cp "$VSTIMD_DEB" "$GPIOCHIP_DEB" "$MNT/root/debs/"
+cp "$VSTIMD_DEB" "$GPIOCHIP_DEB" "${EXTRA_DEBS[@]}" "$MNT/root/debs/"
 
 # Archive signing key for in-place updates. Optional: until a key has been
 # generated (packaging/apt/README.md), the image simply ships without an update
@@ -459,7 +468,10 @@ apt-get install -y -f
 # vstimd's, which is why it is not in vstimd's package. Without the archive the
 # card keeps Raspberry Pi OS's stock hostname — it works, and it collides with
 # the next rig flashed from the same image.
-if [ -f /etc/apt/sources.list.d/braemons.sources ]; then
+if dpkg -s braemons-rig >/dev/null 2>&1; then
+    # Given to this script as an extra .deb, and installed above.
+    systemctl enable braemons-hostname
+elif [ -f /etc/apt/sources.list.d/braemons.sources ]; then
     apt-get install -y --no-install-recommends braemons-rig
     systemctl enable braemons-hostname
 else

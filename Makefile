@@ -86,6 +86,10 @@ VSTIMD_IMAGE_PASSWORD ?= vstimd
 # Version string in the SD image filename. Defaults to the same git-derived
 # version as the packages, so a downloaded .img.xz says which release it is.
 IMAGE_VERSION ?= $(VERSION)
+# More .debs for the image, installed beside vstimd's: paths under $(DIST_DIR),
+# which is what the builder container mounts. For example an unreleased
+# braemons-rig: make image IMAGE_EXTRA_DEBS=dist/braemons-rig_0.3.0~alpha1_all.deb
+IMAGE_EXTRA_DEBS ?=
 
 RUST_SRCS     := Cargo.toml Cargo.lock $(shell find daemon/src vtl/src proto -type f 2>/dev/null)
 # 2>/dev/null to match RUST_SRCS: the Makefile is now also evaluated inside the
@@ -266,4 +270,4 @@ image: deb-arm64
 	  -e VSTIMD_IMAGE_PASSWORD=$(VSTIMD_IMAGE_PASSWORD) \
 	  -e DIST_DIR=$(DIST_DIR) \
 	  -e CACHE_DIR=$(IMAGE_CACHE_DIR) \
-	  $(IMAGE_BUILDER_IMAGE) $(DEB_ARM64) $(GPIOCHIP_DEB_ARM64)
+	  $(IMAGE_BUILDER_IMAGE) $(DEB_ARM64) $(GPIOCHIP_DEB_ARM64) $(IMAGE_EXTRA_DEBS)
