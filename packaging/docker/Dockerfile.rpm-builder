@@ -124,8 +124,8 @@ RUN dnf install -y rpm-build systemd-rpm-macros \
 WORKDIR /build
 
 # The whole tree, not a hand-picked subset: %install also reaches for
-# packaging/scripts, packaging/rsyslog, packaging/logrotate and
-# packaging/samba, and a missing one only shows up as an rpmbuild failure.
+# packaging/scripts, packaging/rsyslog and packaging/logrotate, and a missing
+# one only shows up as an rpmbuild failure.
 COPY packaging/ packaging/
 COPY packaging/rpm/vstimd.spec /root/rpmbuild/SPECS/vstimd.spec
 

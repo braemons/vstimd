@@ -147,13 +147,13 @@ Both `-B` and `-L` run until ++ctrl+c++; there is no timeout flag.
 | 139, 445 | TCP | Samba — **only** on a rig where you installed it (see below) |
 
 !!! info "The packages do not install Samba"
-    Samba is a **Suggests**, so it is not pulled in: on a rig installed from a
+    No braemons package pulls in Samba: on a rig installed from a
     `.deb`/`.rpm` or from source there is no SMB server at all. Nothing appears
     in Windows Explorer and `nbtstat -A <ip>` reports *Host not found* — that is
     expected, not a discovery failure.
 
-    The share *definitions* do ship, at
-    `/usr/share/braemons/vstimd/vstimd-shares.conf`, so turning them on is
+    The share *definitions* do ship, in `braemons-rig`, at
+    `/usr/share/braemons/rig/braemons-shares.conf`, so turning them on is
     `apt install samba` plus one `include =` line — see
     [Manual appliance setup → Admin access](appliance-setup.md#6-admin-access-ssh-optional-samba).
     The [Raspberry Pi image](raspberry-pi-image.md) has it done already.

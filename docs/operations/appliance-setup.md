@@ -3,7 +3,7 @@
 A step-by-step walkthrough for turning a bare Linux install into a dedicated,
 headless vstimd rig — on any board the [supported platforms](deployment.md#supported-platforms)
 table covers, not just Raspberry Pi. This is the manual, per-device equivalent
-of what `packaging/image/build-sd-image.sh` automates for Raspberry Pi 5 SD
+of what braemons/rig's `image/build-sd-image.sh` automates for Raspberry Pi 5 SD
 images: same end state, done by hand over SSH instead of baked into a
 downloadable `.img`.
 
@@ -142,13 +142,13 @@ hostname                                # → braemons-XXXXXX, after the next bo
 
 Use a **separate login user for SSH/admin access** — not the `vstimd` system
 account the service runs as (that account has no login shell). The automated
-Pi image build calls this account `vstimd-admin`; match that or pick your own
+Pi image build calls this account `braemons-admin`; match that or pick your own
 name, just don't reuse `vstimd`.
 
 ```bash
-sudo useradd -m -s /bin/bash -G sudo vstimd-admin
-sudo passwd vstimd-admin
-sudo chage -d 0 vstimd-admin   # force a password change at first login
+sudo useradd -m -s /bin/bash -G sudo braemons-admin
+sudo passwd braemons-admin
+sudo chage -d 0 braemons-admin   # force a password change at first login
 ```
 
 **Optional — Samba shares** for editing `/etc/braemons` (rig config,
@@ -157,22 +157,23 @@ holding saved scene-configs) from a lab Windows/macOS machine without SSHing in
 each time. Both
 shares are browsable read-only to anyone on the LAN with no credentials;
 writing requires an account in `sudo` (or `wheel` on RHEL-family), which
-`vstimd-admin` is.
+`braemons-admin` is.
 
-Samba is a **Suggests** of `braemons-vstimd`, so it is not installed with the
-package — but the share definitions are, at
-`/usr/share/braemons/vstimd/vstimd-shares.conf`. You do not need to write any
+Samba is not installed with any braemons package, but the share definitions
+are, in `braemons-rig` (`sudo apt install braemons-rig`), at
+`/usr/share/braemons/rig/braemons-shares.conf`. They cover every daemon's
+configs and documents, not only vstimd's. You do not need to write any
 `smb.conf` stanzas by hand; point Samba at the shipped file instead:
 
 ```bash
-sudo apt install -y samba
+sudo apt install -y samba braemons-rig
 
 # Activate the shipped share definitions. Append at the END of the file, so
 # the include cannot land inside another share's section:
-printf '\n[global]\n   include = /usr/share/braemons/vstimd/vstimd-shares.conf\n' \
+printf '\n[global]\n   include = /usr/share/braemons/rig/braemons-shares.conf\n' \
     | sudo tee -a /etc/samba/smb.conf
 
-sudo smbpasswd -a vstimd-admin       # seed the Samba credential
+sudo smbpasswd -a braemons-admin       # seed the Samba credential
 sudo testparm -s                     # must parse cleanly
 sudo systemctl enable --now smbd nmbd
 ```
@@ -238,7 +239,7 @@ Only put Samba on a network you trust — the read-only guest share means
 anyone who can reach the box on the LAN can browse rig-config and saved
 scene-configs with no credentials at all.
 
-From Windows, reach the shares by typing `\\braemons-XXXXXX\vstimd-config` into
+From Windows, reach the shares by typing `\\braemons-XXXXXX\braemons-config` into
 Explorer. The rig will not appear on its own in Explorer's *Network* list:
 Samba announces over NetBIOS, and modern Windows builds that list from
 WS-Discovery. `sudo apt install wsdd2 && sudo systemctl enable --now wsdd2` on
@@ -309,7 +310,7 @@ just know it's a tradeoff, not a non-issue.
 
 ## <a name="jetson-note"></a>Jetson note
 
-There's no `build-sd-image.sh` equivalent for Jetson yet, because NVIDIA's
+There's no equivalent of braemons/rig's `build-sd-image.sh` for Jetson yet, because NVIDIA's
 flashing tools (SDK Manager / `l4t_initrd_flash`) are host-tethered — they
 push JetPack to a board sitting in USB recovery mode rather than writing a
 generic downloadable `.img` you can loop-mount and modify offline the way the

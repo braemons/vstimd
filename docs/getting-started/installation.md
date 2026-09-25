@@ -27,12 +27,14 @@ Pi 5 image. Tags containing a hyphen (`v0.1.0-alpha6`) are published as
 
 ### Raspberry Pi 5 SD card image
 
-The fastest path to a working rig: `vstimd-<version>-raspios-lite-arm64.img.xz`
-is Raspberry Pi OS Lite with vstimd, `gpiochip-daqd`, SSH, Samba and mDNS
-already set up, booting straight into `vstimd.target`.
+The fastest path to a working rig: `braemons-<version>-raspios-lite-arm64.img.xz`
+from [braemons/rig's releases](https://github.com/braemons/rig/releases) is
+Raspberry Pi OS Lite with vstimd, `gpiochip-daqd`, the other three braemons
+daemons, the console, SSH, Samba and mDNS already set up, booting straight into
+`vstimd.target`.
 
 Full walkthrough — flashing with balenaEtcher, first boot, SSH and SMB access:
-**[Raspberry Pi 5 appliance image](../operations/raspberry-pi-image.md)**.
+**[Raspberry Pi 5 rig image](../operations/raspberry-pi-image.md)**.
 
 ### apt archive (Debian / Ubuntu)
 

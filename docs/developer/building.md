@@ -39,7 +39,6 @@ make build-server
 | `make deb-amd64` / `deb-arm64` / `deb` | Build `.deb`s in Docker → `dist/` |
 | `make rpm-amd64` / `rpm-arm64` / `rpm` | Build `.rpm`s in Docker → `dist/` |
 | `make packages` | Everything: `deb` + `rpm` |
-| `make image` | [Raspberry Pi SD card image](#raspberry-pi-sd-image) → `dist/` |
 | `make print-version` | The version this checkout resolves to |
 | `make docs` / `docs-build` | MkDocs live preview / strict static build |
 
@@ -63,7 +62,6 @@ that is what you actually want.
 | `packaging/systemd/vstimd.service` | `/usr/lib/systemd/system/vstimd.service` |
 | `packaging/systemd/vstimd.target` | `/usr/lib/systemd/system/vstimd.target` |
 | `packaging/sysusers/vstimd.conf` | `/usr/lib/sysusers.d/vstimd.conf` |
-| `packaging/samba/vstimd-shares.conf` | `/usr/share/braemons/vstimd/vstimd-shares.conf` |
 | `daemon/config/default-rig-config.toml` | `/etc/braemons/vstimd-rig-config.toml` (never overwritten if present) |
 | `daemon/config/{jetson-orin-nano,raspberry-pi-5,raspberry-pi-4}.toml` | `/usr/share/braemons/vstimd/` |
 
@@ -148,35 +146,13 @@ rpmbuild -bb packaging/rpm/vstimd.spec \
 
 ## Raspberry Pi SD image
 
-`make image` produces the ready-to-flash Raspberry Pi OS Lite (arm64) appliance
-image that ships with every release — see
-[Raspberry Pi 5 appliance image](../operations/raspberry-pi-image.md) for what
-ends up inside it and how to flash it.
-
-```bash
-make image        # → dist/vstimd-<version>-raspios-lite-arm64.img.xz (+ .sha256)
-```
-
-It depends on `deb-arm64`, then runs `packaging/image/build-sd-image.sh` inside
-`Dockerfile.image-builder`, which loop-mounts a stock Raspberry Pi OS image and
-configures it in an arm64 chroot under `qemu-user-static`. Notes:
-
-- Needs `--privileged` (loop devices, chroot) and a host with binfmt handlers
-  registered: `docker run --rm --privileged multiarch/qemu-user-static --reset -p yes`.
-- Much slower than the package jobs — most of the time goes on DKMS-building the
-  evdi module for every kernel in the image under emulation. On a GitHub-hosted
-  runner it measures **~38 minutes** (37 and 38 min on the two `v0.1.0-alpha7`
-  builds). The job's `timeout-minutes: 300` is headroom, not an estimate.
-- Needs ~10 GB free: a ~6.5 GB working image plus the compressed output.
-- The base image is cached in `packaging/image/.cache/`; `FORCE_DOWNLOAD=1`
-  refreshes it.
-- The login is `VSTIMD_IMAGE_USER` / `VSTIMD_IMAGE_PASSWORD` (default
-  `vstimd-admin` / `vstimd`, password change forced at first login). Passing an
-  empty password generates a random one per build and writes it to
-  `dist/…-credentials.txt` — **that file must never be published**; the release
-  workflow uploads only `*.img.xz*` for exactly this reason.
-- Without `packaging/apt/braemons-archive-keyring.asc` the build still succeeds,
-  printing `apt updates: DISABLED`, and produces an image with no update source.
+The Raspberry Pi image is a whole rig rather than a vstimd artifact, so
+[braemons/rig](https://github.com/braemons/rig) builds it (`make image` there)
+and attaches it to rig's releases. It installs vstimd from the apt archive, so
+a vstimd release reaches the next image without anything here. To put an
+unreleased vstimd on an image, build `make deb-arm64` here and pass the `.deb`
+to rig's `make image IMAGE_EXTRA_DEBS=...`. See
+[Raspberry Pi 5 rig image](https://github.com/braemons/rig/blob/main/docs/raspberry-pi-image.md).
 
 ## Docker integration test
 

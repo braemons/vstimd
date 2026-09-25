@@ -1,7 +1,8 @@
 name: Release
 
-# Tag-driven release: builds the .debs, .rpms and the ready-to-flash
-# Raspberry Pi SD card image, then publishes them all on a GitHub Release.
+# Tag-driven release: builds the .debs and .rpms, then publishes them on a
+# GitHub Release. The Raspberry Pi SD image is braemons/rig's, which installs
+# these packages from the apt archive.
 #
 #   git tag v0.1.0 && git push origin v0.1.0
 #
@@ -61,75 +62,9 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-  # ── Raspberry Pi SD card image ─────────────────────────────────────────────
-  # Much slower than the package jobs: the chroot runs under qemu-user
-  # emulation and compiles the evdi kernel module with DKMS for every kernel
-  # in the image.
-  image:
-    name: sd-image
-    runs-on: ubuntu-latest
-    timeout-minutes: 300
-
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          submodules: false
-          # The version is derived from the git tag, and the default shallow
-          # fetch brings down no tags at all — `git describe` would fail.
-          fetch-depth: 0
-
-      # Fails fast and visibly when the tag situation leaves the build without
-      # a version, rather than aborting deep inside a Docker build.
-      - name: Resolve version
-        run: echo "building version $(make -s print-version)"
-
-      # A stock runner has ~14 GB free on /, and the build needs room for a
-      # ~6.5 GB uncompressed working image plus the ~1 GB compressed output.
-      - name: Free up disk space
-        run: |
-          df -h /
-          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
-                      /usr/local/share/boost "$AGENT_TOOLSDIRECTORY"
-          sudo docker image prune -af
-          df -h /
-
-      # The chroot is arm64 on an amd64 runner. --reset -p yes registers the
-      # handler with the F (fix-binary) flag, which is what makes the
-      # interpreter usable from inside the chroot's mount namespace.
-      - name: Register binfmt handlers
-        run: docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-      # The image filename carries the same git-derived version as the packages
-      # (the Makefile defaults IMAGE_VERSION to it), so a downloaded asset says
-      # which release it came from without any tag parsing here.
-      #
-      # The login password defaults to the Makefile's (`vstimd`), which is a
-      # known credential on a publicly downloadable image — the image forces a
-      # change at first login. Set a VSTIMD_IMAGE_PASSWORD repo secret to
-      # override it for published builds.
-      - name: Build SD card image
-        env:
-          IMAGE_PASSWORD_SECRET: ${{ secrets.VSTIMD_IMAGE_PASSWORD }}
-        run: |
-          if [ -n "$IMAGE_PASSWORD_SECRET" ]; then
-            export VSTIMD_IMAGE_PASSWORD="$IMAGE_PASSWORD_SECRET"
-          fi
-          make image
-
-      # Deliberately not `dist/*`: that directory also holds the generated
-      # credentials file, which must never leave the runner.
-      - uses: actions/upload-artifact@v4
-        with:
-          name: sd-image
-          path: |
-            dist/*.img.xz
-            dist/*.img.xz.sha256
-          if-no-files-found: error
-          retention-days: 7
-
   # ── Publish ───────────────────────────────────────────────────────────────
   release:
-    needs: [packages, image]
+    needs: packages
     if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
 
@@ -145,12 +80,8 @@ jobs:
       - name: Collect release assets
         run: |
           mkdir -p release
-          find artifacts -type f \( -name '*.deb' -o -name '*.rpm' \
-               -o -name '*.img.xz' -o -name '*.img.xz.sha256' \) \
+          find artifacts -type f \( -name '*.deb' -o -name '*.rpm' \) \
                -exec cp -v {} release/ \;
-          # Belt and braces: the credentials file is already excluded upstream,
-          # but never let one reach a public release asset.
-          rm -f release/*credentials*
           ls -lh release/
 
       - name: Publish release
@@ -161,16 +92,12 @@ jobs:
           NOTES=$(cat <<'EOF'
           ## Installing
 
-          **Raspberry Pi 5 (ready-to-flash image)** — write `*.img.xz` to an SD
-          card with Raspberry Pi Imager or `xz -dc … | sudo dd of=/dev/sdX bs=4M`.
-          Verify with the accompanying `.sha256`. The image boots straight into
-          `vstimd.target`, advertises itself over mDNS, and exports `/etc/braemons`
-          as a Samba share. Log in over SSH as `vstimd-admin` / `vstimd` —
-          **you are forced to change the password at first login.** The Samba
-          credential is separate and also starts out needing a change; set it
-          once over SSH with `smbpasswd`, which syncs the Unix password to
-          match. Treat these rigs as lab-network devices: the default login is
-          public, so the network is the security boundary.
+          **Raspberry Pi 5 (ready-to-flash image)** — the image is a whole rig
+          and is released from https://github.com/braemons/rig/releases. It
+          installs this release from the braemons apt archive.
+
+          **From the apt archive** — `sudo apt install braemons-vstimd`, or
+          `sudo apt install braemons` for a whole rig (see braemons/packages).
 
           **Debian / Ubuntu** — `sudo apt install ./braemons-vstimd_*_<arch>.deb`
 
