@@ -13,10 +13,6 @@ SERVICE     := packaging/systemd/vstimd.service
 TARGET_UNIT := packaging/systemd/vstimd.target
 BOOT_SCRIPT     := packaging/scripts/vstimd-boot-entry
 SYSUSERS    := packaging/sysusers/vstimd.conf
-# Samba share definitions. Installed read-only as an example: samba is only a
-# Suggests, and nothing here activates until an admin adds the `include =` line
-# to smb.conf (see the file's own header).
-SAMBA_SHARES    := packaging/samba/vstimd-shares.conf
 RIG_CONFIG  := daemon/config/default-rig-config.toml
 EXAMPLES    := daemon/config/jetson-orin-nano.toml \
                daemon/config/raspberry-pi-5.toml \
@@ -25,8 +21,6 @@ EXAMPLES    := daemon/config/jetson-orin-nano.toml \
 DIST_DIR            ?= dist
 DEB_BUILDER_IMAGE   ?= vstimd-deb-builder
 RPM_BUILDER_IMAGE   ?= vstimd-rpm-builder
-IMAGE_BUILDER_IMAGE ?= vstimd-image-builder
-IMAGE_CACHE_DIR     ?= packaging/image/.cache
 
 # The version of every artifact, from the one place it is defined: the git tag.
 # The Cargo manifests carry a 0.0.0 sentinel because Cargo cannot derive a
@@ -70,26 +64,8 @@ GPIOCHIP_DEB_NAME := braemons-gpiochip-daqd
 # until a target that actually names one of these paths runs.
 DEB_AMD64 = $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_amd64.deb
 DEB_ARM64 = $(DIST_DIR)/$(DEB_NAME)_$(VERSION)-$(REVISION)_arm64.deb
-GPIOCHIP_DEB_ARM64 = $(DIST_DIR)/$(GPIOCHIP_DEB_NAME)_$(VERSION)-$(REVISION)_arm64.deb
 RPM_AMD64 = $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).x86_64.rpm
 RPM_ARM64 = $(DIST_DIR)/$(DEB_NAME)-$(VERSION)-$(REVISION).aarch64.rpm
-
-# Login user/password baked into `make image`'s SD card image (SSH + Samba).
-# A known default, so a freshly flashed card is reachable without hunting for
-# a build log. The image still forces a password change at first login
-# (`chage -d 0`), which is what keeps it from staying valid in the field.
-# Set VSTIMD_IMAGE_PASSWORD="" to auto-generate a random one per build
-# instead — see packaging/image/build-sd-image.sh.
-VSTIMD_IMAGE_USER     ?= vstimd-admin
-VSTIMD_IMAGE_PASSWORD ?= vstimd
-
-# Version string in the SD image filename. Defaults to the same git-derived
-# version as the packages, so a downloaded .img.xz says which release it is.
-IMAGE_VERSION ?= $(VERSION)
-# More .debs for the image, installed beside vstimd's: paths under $(DIST_DIR),
-# which is what the builder container mounts. For example an unreleased
-# braemons-rig: make image IMAGE_EXTRA_DEBS=dist/braemons-rig_0.3.0~alpha1_all.deb
-IMAGE_EXTRA_DEBS ?=
 
 RUST_SRCS     := Cargo.toml Cargo.lock $(shell find daemon/src vtl/src proto -type f 2>/dev/null)
 # 2>/dev/null to match RUST_SRCS: the Makefile is now also evaluated inside the
@@ -105,7 +81,7 @@ WEB_SRCS := $(shell find $(WEB_DIR)/src -type f 2>/dev/null) \
         docs docs-build \
         deb-amd64 deb-arm64 deb \
         rpm-amd64 rpm-arm64 rpm \
-        packages image \
+        packages \
         deb-assemble print-version print-binary
 
 # Build the React bundle that gets baked into the binary (requires Node/npm).
@@ -142,7 +118,6 @@ install:
 	  install -m 0644 $(RIG_CONFIG) $(DESTDIR)$(CONFDIR)/vstimd-rig-config.toml
 	install -d -m 0755 $(DESTDIR)$(SHAREDIR)
 	for f in $(EXAMPLES); do install -m 0644 $$f $(DESTDIR)$(SHAREDIR)/; done
-	install -D -m 0644 $(SAMBA_SHARES)    $(DESTDIR)$(SHAREDIR)/vstimd-shares.conf
 
 uninstall:
 	systemctl disable --now vstimd 2>/dev/null || true
@@ -152,7 +127,6 @@ uninstall:
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.service
 	rm -f $(DESTDIR)$(UNITDIR)/vstimd.target
 	rm -f $(DESTDIR)$(SYSUSERSDIR)/vstimd.conf
-	rm -f $(DESTDIR)$(SHAREDIR)/vstimd-shares.conf
 	for f in $(EXAMPLES); do rm -f $(DESTDIR)$(SHAREDIR)/$$(basename $$f); done
 	rmdir --ignore-fail-on-non-empty $(DESTDIR)$(SHAREDIR) $(DESTDIR)$(CONFDIR) 2>/dev/null || true
 	systemctl daemon-reload 2>/dev/null || true
@@ -250,24 +224,3 @@ rpm-arm64:
 rpm: rpm-amd64 rpm-arm64
 
 packages: deb rpm
-
-# ── SD card image (Raspberry Pi) ──────────────────────────────────────────
-#
-# Ready-to-flash Raspberry Pi OS Lite (arm64) image with vstimd and
-# gpiochip-daqd preinstalled, sshd + an admin user, and a Samba share for
-# /etc/braemons. Needs --privileged (loop devices, chroot) — see
-# packaging/image/build-sd-image.sh and Dockerfile.image-builder.
-image: deb-arm64
-	DOCKER_BUILDKIT=1 docker build \
-	  -f packaging/docker/Dockerfile.image-builder \
-	  -t $(IMAGE_BUILDER_IMAGE) .
-	mkdir -p $(DIST_DIR) $(IMAGE_CACHE_DIR)
-	docker run --rm --privileged \
-	  -v $(abspath $(DIST_DIR)):/src/$(DIST_DIR) \
-	  -v $(abspath $(IMAGE_CACHE_DIR)):/src/$(IMAGE_CACHE_DIR) \
-	  -e VSTIMD_IMAGE_USER=$(VSTIMD_IMAGE_USER) \
-	  -e IMAGE_VERSION=$(IMAGE_VERSION) \
-	  -e VSTIMD_IMAGE_PASSWORD=$(VSTIMD_IMAGE_PASSWORD) \
-	  -e DIST_DIR=$(DIST_DIR) \
-	  -e CACHE_DIR=$(IMAGE_CACHE_DIR) \
-	  $(IMAGE_BUILDER_IMAGE) $(DEB_ARM64) $(GPIOCHIP_DEB_ARM64) $(IMAGE_EXTRA_DEBS)

@@ -14,3 +14,5 @@ vstimd-review.log
 vstimd/_proto/**/*_pb2.py
 vstimd/_proto/**/*_pb2.pyi
 *.config.json
+# The interactive review's progress, per machine (tests/e2e/review.py)
+.e2e-review-session.json

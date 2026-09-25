@@ -22,10 +22,6 @@ BuildRequires:  systemd-rpm-macros
 Provides:       vstimd = %{version}-%{release}
 Obsoletes:      vstimd < %{version}-%{release}
 Recommends:     avahi
-# Suggests, not Recommends: dnf installs weak dependencies by default, and a
-# Samba daemon with no vstimd shares configured (the stanzas ship as an example
-# under %{_datadir}/braemons/vstimd/) is two open ports for no functional gain.
-Suggests:       samba
 
 # The binary is pre-built; this spec does not compile from source.
 # Build with: cargo build --release [--target <triple>]
@@ -49,7 +45,6 @@ install -D -m 0644 %{_builddir}/packaging/systemd/vstimd.target          %{build
 install -D -m 0644 %{_builddir}/packaging/sysusers/vstimd.conf           %{buildroot}%{_sysusersdir}/vstimd.conf
 install -D -m 0644 %{_builddir}/packaging/rsyslog/vstimd.conf             %{buildroot}%{_sysconfdir}/rsyslog.d/10-vstimd.conf
 install -D -m 0644 %{_builddir}/packaging/logrotate/vstimd                %{buildroot}%{_sysconfdir}/logrotate.d/vstimd
-install -D -m 0644 %{_builddir}/packaging/samba/vstimd-shares.conf       %{buildroot}%{_datadir}/braemons/vstimd/vstimd-shares.conf
 # %files declares this with %dir, so it has to exist in the buildroot even
 # though rsyslog only writes to it at runtime.
 install -d -m 0755 %{buildroot}/var/log/vstimd
@@ -93,5 +88,4 @@ fi
 %{_sysusersdir}/vstimd.conf
 %config(noreplace) %{_sysconfdir}/rsyslog.d/10-vstimd.conf
 %config(noreplace) %{_sysconfdir}/logrotate.d/vstimd
-%{_datadir}/braemons/vstimd/vstimd-shares.conf
 %dir /var/log/vstimd
