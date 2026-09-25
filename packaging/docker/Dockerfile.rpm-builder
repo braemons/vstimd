@@ -70,7 +70,7 @@ COPY Cargo.toml Cargo.lock ./
 # The build recipes live here (see `make build` / `make print-version` below)
 # rather than being restated in this Dockerfile.
 COPY Makefile ./
-COPY server/ server/
+COPY daemon/ daemon/
 COPY vtl/ vtl/
 # Workspace members: cargo refuses to load the workspace without them, even
 # though this image only packages vstimd itself.
@@ -125,7 +125,7 @@ WORKDIR /build
 
 # The whole tree, not a hand-picked subset: %install also reaches for
 # packaging/scripts, packaging/rsyslog, packaging/logrotate and
-# packaging/avahi, and a missing one only shows up as an rpmbuild failure.
+# packaging/samba, and a missing one only shows up as an rpmbuild failure.
 COPY packaging/ packaging/
 COPY packaging/rpm/vstimd.spec /root/rpmbuild/SPECS/vstimd.spec
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import pytest
 
-import vstimd.psychopy.visual as visual
+import vstimd_client.psychopy.visual as visual
 from ..cases._helpers import Stage, check_frame_stats
 
 

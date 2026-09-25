@@ -31,7 +31,7 @@ be contention on the one path a frame clock cannot afford.
 ## Reading it
 
 ```python
-from vstimd.events import EventSubscriber, Topic
+from vstimd_client.events import EventSubscriber, Topic
 
 with EventSubscriber("rig.local", topic=Topic.FRAME_DROPPED) as events:
     for event in events:
@@ -155,7 +155,7 @@ silently — the one failure mode worth building a whole record to avoid.
 does not have to import the entire command surface to describe an event about
 it; and a subscriber that only counts commands, or that replays them by sending
 them back at a command socket, never has to decode one. If you do want to read
-them, `vstimd.events.decode_command` does it.
+them, `vstimd_client.events.decode_command` does it.
 
 ```python
 for event in events:

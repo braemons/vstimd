@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection
-from vstimd.stimuli import CircleParams, EllipseParams, RectParams, ShapeAppearance, ShapeDrawMode
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import CircleParams, EllipseParams, RectParams, ShapeAppearance, ShapeDrawMode
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
@@ -17,7 +17,7 @@ from ._helpers import Stage, check_frame_stats
     "background showing through the middle",
 )
 @check_frame_stats
-def test_set_draw_mode_outlined(conn: Connection, stage: Stage) -> None:
+def test_set_draw_mode_outlined(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=100))
     conn.stimuli.shapes.set_draw_mode(handle, ShapeDrawMode.OUTLINED)
     info = conn.stimuli.query(handle)
@@ -33,7 +33,7 @@ def test_set_draw_mode_outlined(conn: Connection, stage: Stage) -> None:
     "an outline ring around its rim",
 )
 @check_frame_stats
-def test_set_draw_mode_filled_and_outlined(conn: Connection, stage: Stage) -> None:
+def test_set_draw_mode_filled_and_outlined(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_circle(params=CircleParams(diameter_px=100))
     conn.stimuli.shapes.set_draw_mode(handle, ShapeDrawMode.FILLED_AND_OUTLINED)
     info = conn.stimuli.query(handle)
@@ -49,7 +49,7 @@ def test_set_draw_mode_filled_and_outlined(conn: Connection, stage: Stage) -> No
     "the draw mode stays FILLED, so the rect still looks plain white",
 )
 @check_frame_stats
-def test_set_outline_color_roundtrip(conn: Connection, stage: Stage) -> None:
+def test_set_outline_color_roundtrip(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=80))
     conn.stimuli.shapes.set_outline_color(handle, Color(1.0, 0.5, 0.0, 0.8))
     info = conn.stimuli.query(handle)
@@ -68,7 +68,7 @@ def test_set_outline_color_roundtrip(conn: Connection, stage: Stage) -> None:
     "the draw mode stays FILLED, so the outline itself is not drawn",
 )
 @check_frame_stats
-def test_set_outline_width_roundtrip(conn: Connection, stage: Stage) -> None:
+def test_set_outline_width_roundtrip(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_ellipse(params=EllipseParams(width_px=120, height_px=80))
     conn.stimuli.shapes.set_outline_width(handle, 6.0)
     info = conn.stimuli.query(handle)
@@ -84,7 +84,7 @@ def test_set_outline_width_roundtrip(conn: Connection, stage: Stage) -> None:
     "outline, because FILLED is what a shape defaults to",
 )
 @check_frame_stats
-def test_draw_mode_default_is_filled(conn: Connection, stage: Stage) -> None:
+def test_draw_mode_default_is_filled(conn: VstimdClient, stage: Stage) -> None:
     shapes = [
         ("square", lambda: conn.stimuli.shapes.create_rect(
             params=RectParams(width_px=100, height_px=100))),
@@ -109,7 +109,7 @@ def test_draw_mode_default_is_filled(conn: Connection, stage: Stage) -> None:
     "(FILLED)",
 )
 @check_frame_stats
-def test_draw_mode_cycle(conn: Connection, stage: Stage) -> None:
+def test_draw_mode_cycle(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=100))
     conn.stimuli.shapes.set_outline_color(handle, Color(1.0, 1.0, 0.0))
     conn.stimuli.shapes.set_outline_width(handle, 6.0)
@@ -132,7 +132,7 @@ def test_draw_mode_cycle(conn: Connection, stage: Stage) -> None:
     "outlines",
 )
 @check_frame_stats
-def test_outline_visual(conn: Connection, stage: Stage) -> None:
+def test_outline_visual(conn: VstimdClient, stage: Stage) -> None:
     """Display each draw mode so a human can visually verify outlines."""
     conn.system.set_background(r=0.15, g=0.15, b=0.15)
 
@@ -188,7 +188,7 @@ def test_outline_visual(conn: Connection, stage: Stage) -> None:
     "blue. Draw mode is FILLED, so only the fill change is visible",
 )
 @check_frame_stats
-def test_outline_independent_of_fill_color(conn: Connection, stage: Stage) -> None:
+def test_outline_independent_of_fill_color(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(
         params=RectParams(
             width_px=100,

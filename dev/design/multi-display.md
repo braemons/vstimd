@@ -146,7 +146,7 @@ cargo run --release -- \
 Allow stimuli to specify target display(s):
 
 ```python
-conn = vstimd_client.Connection()
+conn = vstimd_client.VstimdClient()
 rect = conn.create_rect(x=0, y=0, width=100, height=100, displays=[0, 1])  # Render to both
 conn.set_display_mask(rect, [0])  # Move to display 0 only
 ```
@@ -235,8 +235,8 @@ let plane_index = (0..plane_props.len() as u32)
 
 ## References
 
-- `server/src/render/vk/context.rs` — Current single-display `VkContext`
-- `server/src/render/drm/init.rs` — DRM display enumeration and acquisition
-- `server/src/render/winit_vk/mod.rs` — Winit window creation
+- `daemon/src/render/vk/context.rs` — Current single-display `VkContext`
+- `daemon/src/render/drm/init.rs` — DRM display enumeration and acquisition
+- `daemon/src/render/winit_vk/mod.rs` — Winit window creation
 - Vulkan spec: `VK_KHR_display` multi-display examples
 - [egui multi-viewport](https://docs.rs/egui/latest/egui/viewport/index.html) — For future multi-window UI

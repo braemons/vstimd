@@ -38,12 +38,12 @@ import time
 import pytest
 import zmq
 
-from vstimd import Connection
-from vstimd._proto import service_pb2, system_pb2
-from vstimd.events import EventSubscriber, Topic, decode_command
-from vstimd.exceptions import HandleNotFoundError
-from vstimd.stimuli import RectParams
-from vstimd.vtl import VtlHandle
+from vstimd_client import VstimdClient
+from vstimd_client._proto import service_pb2, system_pb2
+from vstimd_client.events import EventSubscriber, Topic, decode_command
+from vstimd_client.exceptions import HandleNotFoundError
+from vstimd_client.stimuli import RectParams
+from vstimd_client.vtl import VtlHandle
 
 _REPO_ROOT = pathlib.Path(__file__).parents[4]
 
@@ -87,7 +87,7 @@ def reachable(address: str, timeout_ms: int = 500) -> bool:
 
 
 def _server_binary() -> pathlib.Path:
-    exe = "vstimd.exe" if sys.platform == "win32" else "vstimd"
+    exe = "vstimd_client.exe" if sys.platform == "win32" else "vstimd"
     binary = _REPO_ROOT / "target" / "release" / exe
     if not binary.exists():
         if subprocess.run(["cargo", "build", "--release"], cwd=_REPO_ROOT).returncode:
@@ -169,7 +169,7 @@ def events(rig):
     subscriber.close()
 
 
-def rect(conn: Connection, width: float, height: float | None = None) -> int:
+def rect(conn: VstimdClient, width: float, height: float | None = None) -> int:
     """The smallest command that creates something, and returns a handle."""
     return conn.stimuli.shapes.create_rect(
         params=RectParams(width_px=width, height_px=height if height else width)
@@ -197,7 +197,7 @@ def test_the_frame_index_advances_while_the_server_renders(rig, events):
     attributes by this number.
     """
     address, _ = rig
-    with Connection(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
+    with VstimdClient(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
         rect(vstimd, 10)
         first = until(events, Topic.COMMAND_APPLIED)
         time.sleep(0.25)  # ~15 frames at 60 Hz
@@ -218,7 +218,7 @@ def test_a_command_over_the_wire_comes_back_out_as_an_event(rig, events):
     """The round trip that matters: what went in on the REP socket is what the
     PUB socket says was applied, byte for byte."""
     address, _ = rig
-    with Connection(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
+    with VstimdClient(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
         handle = rect(vstimd, 123, 45)
 
     event = until(events, Topic.COMMAND_APPLIED)
@@ -237,9 +237,9 @@ def test_a_refused_command_is_recorded_with_its_error(rig, events):
     """A refusal changed nothing — but a replay in which it *succeeds* has
     diverged, and only the record makes that visible instead of silent."""
     address, _ = rig
-    with Connection(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
+    with VstimdClient(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
         with pytest.raises(HandleNotFoundError):
-            vstimd.stimuli.delete(9999)
+            vstimd_client.stimuli.delete(9999)
 
     event = until(events, Topic.COMMAND_APPLIED)
     assert not event.payload.accepted
@@ -250,7 +250,7 @@ def test_every_command_is_recorded_and_in_the_order_it_was_applied(rig, events):
     """No sampling, no coalescing: a record with holes in it is not a record."""
     address, _ = rig
     sizes = [11, 22, 33, 44, 55]
-    with Connection(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
+    with VstimdClient(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
         for size in sizes:
             rect(vstimd, size)
 
@@ -276,8 +276,8 @@ def test_setting_a_trigger_line_publishes_the_edge_the_frame_drained(rig, events
     stimulus.
     """
     address, _ = rig
-    with Connection(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
-        vstimd.vtl.set_line(VtlHandle.input(0, 3), True)
+    with VstimdClient(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
+        vstimd_client.vtl.set_line(VtlHandle.input(0, 3), True)
 
     edge = until(events, Topic.VTL_EDGE)
     assert (edge.payload.bank, edge.payload.bit) == (0, 3)
@@ -296,8 +296,8 @@ def test_a_filtered_subscriber_gets_its_topic_and_no_others(rig):
     address, event_port = rig
     with EventSubscriber("127.0.0.1", event_port, topic=Topic.COMMAND_APPLIED) as only:
         time.sleep(0.5)
-        with Connection(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
-            vstimd.vtl.set_line(VtlHandle.input(0, 5), True)
+        with VstimdClient(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
+            vstimd_client.vtl.set_line(VtlHandle.input(0, 5), True)
             rect(vstimd, 10)
 
         for _ in range(5):
@@ -321,10 +321,10 @@ def test_filtering_does_not_look_like_loss(rig):
     address, event_port = rig
     with EventSubscriber("127.0.0.1", event_port, topic=Topic.COMMAND_APPLIED) as only:
         time.sleep(0.5)
-        with Connection(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
+        with VstimdClient(address, recv_timeout_s=RECV_TIMEOUT_SECONDS) as vstimd:
             for size in (10, 20, 30):
-                vstimd.vtl.set_line(VtlHandle.input(0, 1), True)
-                vstimd.vtl.set_line(VtlHandle.input(0, 1), False)
+                vstimd_client.vtl.set_line(VtlHandle.input(0, 1), True)
+                vstimd_client.vtl.set_line(VtlHandle.input(0, 1), False)
                 # Let a frame pass. VTL edges are drained at frame *start*,
                 # so without this the whole loop lands inside one frame window
                 # and the edges are all published after the last command --

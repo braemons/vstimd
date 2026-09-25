@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-import vstimd.psychopy.visual as visual
-from vstimd.stimuli import RectParams, StimulusType
+import vstimd_client.psychopy.visual as visual
+from vstimd_client.stimuli import RectParams, StimulusType
 from ..cases._helpers import Stage, check_frame_stats
 
 

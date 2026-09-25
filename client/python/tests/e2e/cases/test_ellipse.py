@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection
-from vstimd.stimuli import EllipseParams, ShapeAppearance, StimulusType
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import EllipseParams, ShapeAppearance, StimulusType
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
@@ -16,7 +16,7 @@ from ._helpers import Stage, check_frame_stats
     "clearly wider than it is high, axis-aligned",
 )
 @check_frame_stats
-def test_create_ellipse(conn: Connection, stage: Stage) -> None:
+def test_create_ellipse(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_ellipse(
         position_px=Vec2(0, 0),
         params=EllipseParams(
@@ -44,7 +44,7 @@ def test_create_ellipse(conn: Connection, stage: Stage) -> None:
     "from bottom-left up to top-right",
 )
 @check_frame_stats
-def test_create_ellipse_with_angle(conn: Connection, stage: Stage) -> None:
+def test_create_ellipse_with_angle(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_ellipse(
         rotation_deg=45.0,
         params=EllipseParams(width_px=150, height_px=50),
@@ -63,7 +63,7 @@ def test_create_ellipse_with_angle(conn: Connection, stage: Stage) -> None:
     "still centred and axis-aligned",
 )
 @check_frame_stats
-def test_set_ellipse_size(conn: Connection, stage: Stage) -> None:
+def test_set_ellipse_size(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_ellipse(params=EllipseParams(width_px=100, height_px=50))
     stage.step("before: a 100×50 px ellipse", hold=0.5)
 

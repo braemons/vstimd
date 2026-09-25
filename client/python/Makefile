@@ -1,5 +1,5 @@
 PROTO_SRC  := $(shell find ../../proto -name '*.proto' | sort)
-PROTO_OUT  := vstimd/_proto
+PROTO_OUT  := vstimd_client/_proto
 
 .PHONY: build publish proto test test-e2e-visible test-e2e-interactive \
         test-e2e-null test-e2e-events typecheck docs clean
@@ -14,6 +14,10 @@ proto:
 		--python_out=$(PROTO_OUT) \
 		--pyi_out=$(PROTO_OUT) \
 		$(PROTO_SRC)
+	@# protoc roots imports at the proto path (`from vstimd.v1 import ...`);
+	@# rewrite them to live inside this package, as every braemons client does.
+	find $(PROTO_OUT) -name '*.py' -o -name '*.pyi' | xargs sed -i \
+		-e 's/^from vstimd\.v1\b/from vstimd_client._proto.vstimd.v1/'
 
 build: proto
 	uv build
@@ -35,7 +39,7 @@ test: proto
 test-e2e-visible: proto
 	uv run --group dev pytest $(E2E_SUITES) -v --no-check-frame-stats $(PYTEST_ARGS)
 
-# The same suite, reviewed by eye: a terminal UI (vstimd.tui widgets) listing
+# The same suite, reviewed by eye: a terminal UI (vstimd_client.tui widgets) listing
 # every test with what it should put on screen. Pick one, run it, watch the
 # display, flag it with a note if it looks wrong — the notes land in
 # e2e-review.md. Runs its own windowed server so this terminal stays visible.

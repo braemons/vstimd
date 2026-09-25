@@ -100,8 +100,8 @@ shows the protocol end to end using the generated stubs and `pyzmq`:
 
 ```python
 import zmq
-from vstimd._proto.vstimd.v1 import service_pb2, system_pb2
-from vstimd._proto.vstimd.v1.stimuli import rect_pb2
+from vstimd_client._proto.vstimd.v1 import service_pb2, system_pb2
+from vstimd_client._proto.vstimd.v1.stimuli import rect_pb2
 
 ctx = zmq.Context()
 sock = ctx.socket(zmq.REQ)
@@ -122,7 +122,7 @@ print("new stimulus handle:", resp.handle)
 
 ## Regenerating stubs
 
-The Python stubs under `client/python/vstimd/_proto/` are generated from the
+The Python stubs under `client/python/vstimd_client/_proto/` are generated from the
 `.proto` files. Regenerate them with the client Makefile:
 
 ```sh

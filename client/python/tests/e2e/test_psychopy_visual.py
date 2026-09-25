@@ -16,7 +16,7 @@ import warnings
 
 import pytest
 
-import vstimd.psychopy.visual as visual
+import vstimd_client.psychopy.visual as visual
 
 from .psychopy_visual_cases import *  # noqa: F401, F403
 from .conftest import reachable
@@ -51,7 +51,7 @@ def server_process(server_address: str):
     if result.returncode != 0:
         pytest.skip(f"cargo build --release failed (exit {result.returncode})")
 
-    exe = "vstimd.exe" if sys.platform == "win32" else "vstimd"
+    exe = "vstimd_client.exe" if sys.platform == "win32" else "vstimd"
     server_bin = _REPO_ROOT / "target" / "release" / exe
     log_path = pathlib.Path(tempfile.gettempdir()) / "vstimd_e2e.log"
     log_file = log_path.open("w")

@@ -11,13 +11,13 @@ import json
 
 import pytest
 
-from vstimd import (
+from vstimd_client import (
     SceneConfigAlreadyExistsError,
     SceneConfigFormatError,
     SceneConfigNotFoundError,
-    Connection,
+    VstimdClient,
 )
-from vstimd.stimuli import RectParams
+from vstimd_client.stimuli import RectParams
 
 from ._helpers import Stage, check_frame_stats
 
@@ -28,7 +28,7 @@ from ._helpers import Stage, check_frame_stats
     "a version-5 envelope with scene and io sections",
 )
 @check_frame_stats
-def test_retrieve_returns_valid_json(conn: Connection, stage: Stage) -> None:
+def test_retrieve_returns_valid_json(conn: VstimdClient, stage: Stage) -> None:
     """retrieve() returns a non-empty string that parses as JSON."""
     raw = conn.scene_config.retrieve()
     assert isinstance(raw, str) and len(raw) > 0
@@ -45,7 +45,7 @@ def test_retrieve_returns_valid_json(conn: Connection, stage: Stage) -> None:
     "animations a scene is made of",
 )
 @check_frame_stats
-def test_retrieve_scene_structure(conn: Connection, stage: Stage) -> None:
+def test_retrieve_scene_structure(conn: VstimdClient, stage: Stage) -> None:
     """retrieve() JSON contains expected scene keys."""
     data = json.loads(conn.scene_config.retrieve())
     scene = data["scene"]
@@ -61,7 +61,7 @@ def test_retrieve_scene_structure(conn: Connection, stage: Stage) -> None:
     "found in the server's list of saved configs",
 )
 @check_frame_stats
-def test_upload_and_list(conn: Connection, stage: Stage) -> None:
+def test_upload_and_list(conn: VstimdClient, stage: Stage) -> None:
     """Uploaded config appears in list_configs()."""
     raw = conn.scene_config.retrieve()
     conn.scene_config.upload("e2e_test_list", raw, overwrite=True)
@@ -76,7 +76,7 @@ def test_upload_and_list(conn: Connection, stage: Stage) -> None:
     "leaves 'e2e_test_save' on the server",
 )
 @check_frame_stats
-def test_save_convenience(conn: Connection, stage: Stage) -> None:
+def test_save_convenience(conn: VstimdClient, stage: Stage) -> None:
     """save() is equivalent to retrieve() + upload()."""
     conn.scene_config.save("e2e_test_save", overwrite=True)
     assert "e2e_test_save" in conn.scene_config.list_scene_configs()
@@ -90,7 +90,7 @@ def test_save_convenience(conn: Connection, stage: Stage) -> None:
     deferred=True,
 )
 @check_frame_stats
-def test_upload_and_load_roundtrip(conn: Connection, stage: Stage) -> None:
+def test_upload_and_load_roundtrip(conn: VstimdClient, stage: Stage) -> None:
     """A config saved via upload() is restored correctly via load()."""
     # Create a rect, save config, delete everything, load back.
     h = conn.stimuli.shapes.create_rect(
@@ -118,7 +118,7 @@ def test_upload_and_load_roundtrip(conn: Connection, stage: Stage) -> None:
     deferred=True,
 )
 @check_frame_stats
-def test_load_additive(conn: Connection, stage: Stage) -> None:
+def test_load_additive(conn: VstimdClient, stage: Stage) -> None:
     """load(additive=True) appends to the existing scene without clearing it."""
     conn.system.clear_all()
     h_existing = conn.stimuli.shapes.create_rect(name="existing_stim")
@@ -145,7 +145,7 @@ def test_load_additive(conn: Connection, stage: Stage) -> None:
     "overwrite=True is refused with SceneConfigAlreadyExistsError",
 )
 @check_frame_stats
-def test_upload_overwrite_false_raises(conn: Connection, stage: Stage) -> None:
+def test_upload_overwrite_false_raises(conn: VstimdClient, stage: Stage) -> None:
     """Uploading a config that already exists without overwrite=True raises."""
     raw = conn.scene_config.retrieve()
     conn.scene_config.upload("e2e_test_no_overwrite", raw, overwrite=True)
@@ -160,7 +160,7 @@ def test_upload_overwrite_false_raises(conn: Connection, stage: Stage) -> None:
     "with SceneConfigNotFoundError",
 )
 @check_frame_stats
-def test_load_nonexistent_raises(conn: Connection, stage: Stage) -> None:
+def test_load_nonexistent_raises(conn: VstimdClient, stage: Stage) -> None:
     """Loading a config that does not exist raises SceneConfigNotFoundError."""
     with pytest.raises(SceneConfigNotFoundError):
         conn.scene_config.load("this_name_does_not_exist_xyz123")
@@ -173,7 +173,7 @@ def test_load_nonexistent_raises(conn: Connection, stage: Stage) -> None:
     "SceneConfigFormatError, and the scene is left alone",
 )
 @check_frame_stats
-def test_upload_invalid_json_raises(conn: Connection, stage: Stage) -> None:
+def test_upload_invalid_json_raises(conn: VstimdClient, stage: Stage) -> None:
     """Uploading a malformed JSON string raises SceneConfigFormatError."""
     with pytest.raises(SceneConfigFormatError):
         conn.scene_config.upload("e2e_test_bad_json", "not valid json {{{", overwrite=True)
@@ -187,7 +187,7 @@ def test_upload_invalid_json_raises(conn: Connection, stage: Stage) -> None:
     deferred=True,
 )
 @check_frame_stats
-def test_upload_apply_now(conn: Connection, stage: Stage) -> None:
+def test_upload_apply_now(conn: VstimdClient, stage: Stage) -> None:
     """upload(apply_now=True) applies the config immediately."""
     conn.system.clear_all()
     h = conn.stimuli.shapes.create_rect(name="apply_now_rect")

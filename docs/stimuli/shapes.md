@@ -6,10 +6,10 @@ fixation dots, the response targets, the photodiode patches and the frames of
 most experiments.
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import CircleParams, Color, ShapeAppearance, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import CircleParams, Color, ShapeAppearance, Vec2
 
-with Connection() as conn:
+with VstimdClient() as conn:
     fix = conn.stimuli.shapes.create_circle(
         position_px=Vec2(0, 0),
         name="fixation_dot",

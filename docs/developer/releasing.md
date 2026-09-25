@@ -24,7 +24,7 @@ choice is between a hand-edited number that silently drifts out of step with the
 tag, or manifests that admit they do not know. vstimd picks the second:
 
 - `vstimd --version` and the wire protocol report a value injected by
-  `server/build.rs` via `cargo:rustc-env` — the one place Cargo *can* compute
+  `daemon/build.rs` via `cargo:rustc-env` — the one place Cargo *can* compute
   something at build time.
 - `.deb` and `.rpm` versions are stamped by the `Makefile`
   (`--deb-version` / `--define pkg_version`).

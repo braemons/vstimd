@@ -1,4 +1,4 @@
-// Scene-wide commands and server queries. Mirrors vstimd.system.
+// Scene-wide commands and server queries. Mirrors vstimd_client.system.
 
 import { create } from "@bufbuild/protobuf";
 import { RequestSchema } from "./_proto/vstimd/v1/service_pb.js";

@@ -1,7 +1,7 @@
 """E2E tests that actually run the demo tutorial scripts.
 
 Each ``examples/demos/*.py`` script claims to rebuild one of the shipped demo
-configs in ``server/config/demos/``, and the matching tutorial page in
+configs in ``daemon/config/demos/``, and the matching tutorial page in
 ``docs/tutorials/`` walks through that script line by line. These tests run
 the scripts for real against the server and compare what lands in the scene with
 the shipped config, so a tutorial cannot quietly drift away from the demo it
@@ -23,14 +23,14 @@ import sys
 
 import pytest
 
-from vstimd import Connection
+from vstimd_client import VstimdClient
 
 from ._helpers import Stage, check_frame_stats
 
 _PYTHON_CLIENT = pathlib.Path(__file__).parents[3]
 _REPO_ROOT = _PYTHON_CLIENT.parents[1]
 _EXAMPLES = _PYTHON_CLIENT / "examples" / "demos"
-_SHIPPED = _REPO_ROOT / "server" / "config" / "demos"
+_SHIPPED = _REPO_ROOT / "daemon" / "config" / "demos"
 
 #: (test id, script stem, shipped demo name, what the demo puts on screen).
 #: One entry per tutorial page. The last field is the caption an operator sees
@@ -158,7 +158,7 @@ def _canonical(cfg: dict) -> dict:
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
-def _reset_photodiode(conn: Connection) -> None:
+def _reset_photodiode(conn: VstimdClient) -> None:
     """Turn the photodiode patch off again.
 
     It is a scene setting with no command of its own, so the only way to clear
@@ -174,7 +174,7 @@ def _reset_photodiode(conn: Connection) -> None:
 
 
 @pytest.fixture
-def scene_cleanup(conn: Connection):
+def scene_cleanup(conn: VstimdClient):
     """Leave the server as we found it — these scripts build a whole scene."""
     _reset_photodiode(conn)
     yield
@@ -232,7 +232,7 @@ def _run_demo_script(
 )
 @check_frame_stats
 def test_demo_script_rebuilds_shipped_demo(
-    conn: Connection,
+    conn: VstimdClient,
     server_address: str,
     scene_cleanup: None,
     stage: Stage,
@@ -271,7 +271,7 @@ def test_demo_script_rebuilds_shipped_demo(
 )
 @check_frame_stats
 def test_demo_script_saves_a_loadable_config(
-    conn: Connection, server_address: str, scene_cleanup: None, stage: Stage
+    conn: VstimdClient, server_address: str, scene_cleanup: None, stage: Stage
 ) -> None:
     """The config a script saves is listed, and loads back into a cleared scene.
 

@@ -6,12 +6,12 @@ set of scenes to eyeball after a deploy or a renderer change.
 
 They are **ordinary scene-configs**. Every demo is a `.config.json` file in the
 server's `demos` project, in exactly the format
-[`scene-config save`](../concepts/saving-loading.md) writes. There is no demo command
+[`scene-configs save`](../concepts/saving-loading.md) writes. There is no demo command
 and no demo code path: anything a demo does, you can do, and a demo you like is
 a starting point you can edit and re-save under your own name.
 
 ```console
-$ vstimd-client scene-config list
+$ vstimctl scene-configs list
 demos/drifting_grating
 demos/figure_ground_rdk
 demos/first_light
@@ -20,7 +20,7 @@ demos/moving_target
 demos/photodiode_flicker
 demos/trigger_gate
 
-$ vstimd-client scene-config load demos/drifting_grating
+$ vstimctl scene-configs load demos/drifting_grating
 ```
 
 The server installs the demos into its `demos` project
@@ -107,12 +107,12 @@ You do not need any wiring to see the trigger demos work: a software trigger
 sets the same VTL input bit a physical pin would.
 
 ```python
-from vstimd import Connection
-from vstimd.vtl import VtlHandle, VtlKind
+from vstimd_client import VstimdClient
+from vstimd_client.vtl import VtlHandle, VtlKind
 
 pin11 = VtlHandle.named("in_pin11", VtlKind.INPUT)
 
-with Connection() as conn:
+with VstimdClient() as conn:
     conn.scene_config.load("demos/gratings_triggered")
     conn.vtl.set_line(pin11, True)     # rising edge → 45° grating, 2 s
     conn.vtl.set_line(pin11, False)
@@ -143,9 +143,9 @@ the [web UI](../client/web.md), or a client — and save it under a name of your
 own:
 
 ```console
-$ vstimd-client scene-config load demos/gratings_triggered
+$ vstimctl scene-configs load demos/gratings_triggered
 $ # …adjust orientations, sizes, durations…
-$ vstimd-client scene-config save my_experiment
+$ vstimctl scene-configs save my_experiment
 ```
 
 Saving into the `demos` project works too, but the server re-seeds that project

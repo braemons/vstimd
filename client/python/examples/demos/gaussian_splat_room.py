@@ -42,10 +42,10 @@ import sys
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection
-from vstimd.animations import AxisRef
-from vstimd.stimuli import Transform3D, Vec3
-from vstimd.system import Camera3D
+from vstimd_client import VstimdClient
+from vstimd_client.animations import AxisRef
+from vstimd_client.stimuli import Transform3D, Vec3
+from vstimd_client.system import Camera3D
 
 EXPLANATION = (
     "Gaussian splat scene (prototype)\n"
@@ -93,7 +93,7 @@ def main() -> None:
     source = AxisRef(*args.wheel.split(":", 1)) if args.wheel else None
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         clean_slate(conn)
         conn.system.set_background(0.0, 0.0, 0.0)
 

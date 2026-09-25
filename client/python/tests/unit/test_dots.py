@@ -12,7 +12,7 @@ import math
 
 import pytest
 
-from vstimd.stimuli import (
+from vstimd_client.stimuli import (
     Aperture,
     ApertureClip,
     ApertureShape,

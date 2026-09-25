@@ -1,4 +1,4 @@
-// Frame-accurate animation client. Mirrors vstimd.animations (Python).
+// Frame-accurate animation client. Mirrors vstimd_client.animations (Python).
 //
 // Animations run once per frame in the render loop. They are created IDLE and
 // must be armed before they fire. Frame/time parameters accept either a

@@ -7,9 +7,9 @@ import struct
 
 import pytest
 
-from vstimd import Connection
-from vstimd.exceptions import InvalidArgumentError, WrongStimulusTypeError
-from vstimd.stimuli import (
+from vstimd_client import VstimdClient
+from vstimd_client.exceptions import InvalidArgumentError, WrongStimulusTypeError
+from vstimd_client.stimuli import (
     Color,
     Cube3DParams,
     Material3D,
@@ -21,7 +21,7 @@ from vstimd.stimuli import (
     Vec2,
     Vec3,
 )
-from vstimd.system import Camera3D, Lighting3D
+from vstimd_client.system import Camera3D, Lighting3D
 
 from ._helpers import Stage, check_frame_stats
 
@@ -34,7 +34,7 @@ PHONG = Material3D(shading=Shading.PHONG)
     "from the viewer; the sphere is brightest on its upper right",
 )
 @check_frame_stats
-def test_create_and_query_sphere(conn: Connection, stage: Stage) -> None:
+def test_create_and_query_sphere(conn: VstimdClient, stage: Stage) -> None:
     floor = conn.stimuli.shapes3d.create_plane(
         name="floor",
         transform=Transform3D(position_cm=Vec3(0, -12, -120)),
@@ -73,7 +73,7 @@ def test_create_and_query_sphere(conn: Connection, stage: Stage) -> None:
     "tall, then turns yellow and flat-shaded",
 )
 @check_frame_stats
-def test_mutate_cube(conn: Connection, stage: Stage) -> None:
+def test_mutate_cube(conn: VstimdClient, stage: Stage) -> None:
     cube = conn.stimuli.shapes3d.create_cube(
         transform=Transform3D(position_cm=Vec3(0, 0, -70), rotation_deg=Vec3(20, 20, 0)),
         params=Cube3DParams(size_cm=Vec3(15, 15, 15), material=Material3D(
@@ -102,7 +102,7 @@ def test_mutate_cube(conn: Connection, stage: Stage) -> None:
     "rect, a cube refuses a sphere's resize, and bad sizes are refused",
 )
 @check_frame_stats
-def test_commands_check_type_and_dimension(conn: Connection, stage: Stage) -> None:
+def test_commands_check_type_and_dimension(conn: VstimdClient, stage: Stage) -> None:
     ball = conn.stimuli.shapes3d.create_sphere(
         transform=Transform3D(position_cm=Vec3(0, 0, -5000)))
     rect = conn.stimuli.shapes.create_rect()
@@ -128,7 +128,7 @@ def test_commands_check_type_and_dimension(conn: Connection, stage: Stage) -> No
     "right edge and the scene goes dim and reddish",
 )
 @check_frame_stats
-def test_camera_and_lighting(conn: Connection, stage: Stage) -> None:
+def test_camera_and_lighting(conn: VstimdClient, stage: Stage) -> None:
     cube = conn.stimuli.shapes3d.create_cube(
         transform=Transform3D(position_cm=Vec3(0, 0, -60), rotation_deg=Vec3(25, 25, 0)),
         params=Cube3DParams(material=PHONG),
@@ -158,8 +158,8 @@ def test_camera_and_lighting(conn: Connection, stage: Stage) -> None:
     "loops every metre, with no visible jump",
 )
 @check_frame_stats
-def test_camera_navigation(conn: Connection, stage: Stage) -> None:
-    from vstimd.animations import AnimationState
+def test_camera_navigation(conn: VstimdClient, stage: Stage) -> None:
+    from vstimd_client.animations import AnimationState
 
     floor = conn.stimuli.shapes3d.create_plane(
         transform=Transform3D(position_cm=Vec3(0, -15, -200)),
@@ -203,13 +203,13 @@ def test_camera_navigation(conn: Connection, stage: Stage) -> None:
     "only while the camera passes through the zone in each period",
 )
 @check_frame_stats
-def test_camera_zone_drives_a_trigger_line(conn: Connection, stage: Stage) -> None:
+def test_camera_zone_drives_a_trigger_line(conn: VstimdClient, stage: Stage) -> None:
     import time
 
-    from vstimd.animations import VtlPolarity
-    from vstimd.stimuli import Corridor3DParams, RectParams, ShapeAppearance
-    from vstimd.system import CameraZone
-    from vstimd.vtl import VtlHandle
+    from vstimd_client.animations import VtlPolarity
+    from vstimd_client.stimuli import Corridor3DParams, RectParams, ShapeAppearance
+    from vstimd_client.system import CameraZone
+    from vstimd_client.vtl import VtlHandle
 
     line = VtlHandle.input(3, 0)
     conn.stimuli.shapes3d.create_corridor(params=Corridor3DParams(periods_ahead=20, periods_behind=1))

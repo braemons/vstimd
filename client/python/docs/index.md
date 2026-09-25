@@ -29,10 +29,10 @@ The primary interface.  Thin wrappers around the protobuf/ZMQ protocol —
 each method call maps directly to a server command.
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
-with Connection() as conn:
+with VstimdClient() as conn:
     h = conn.stimuli.shapes.create_rect(position_px=Vec2(-200, 0), params=RectParams(width_px=300, height_px=200,
                           appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0))))
     conn.stimuli.set_enabled(h, False)
@@ -56,7 +56,7 @@ drop-in replacement for `psychopy.visual` so that existing experiment scripts
 require minimal changes.
 
 ```python
-from vstimd.psychopy import visual
+from vstimd_client.psychopy import visual
 
 win = visual.Window(address='tcp://192.168.1.10:5555')
 circ = visual.Circle(win, radius=50, fillColor='red')
@@ -79,7 +79,7 @@ unit system documentation.
 ## Next steps
 
 - {doc}`psychopy_users` — migrating from `psychopy.visual`
-- {doc}`api/connection` — `Connection` and transport options
+- {doc}`api/vstimd_client` — `VstimdClient` and transport options
 - {doc}`api/stimuli/index` — stimulus clients and parameter models
 - {doc}`api/animations` — animation and VTL API
 - {doc}`api/index` — command API reference

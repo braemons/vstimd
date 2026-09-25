@@ -223,7 +223,7 @@ the experiment keeps running with the stimulus stationary, which is the safe fai
 
 **Python** (via the client shipped with this work; closes #15):
 ```python
-from vstimd.shm import InputDevice, Semantic
+from vstimd_client.shm import InputDevice, Semantic
 
 dev = InputDevice.create("/vstimd_wheel", axes=[("distance", Semantic.CUMULATIVE, 1.0)])
 total = 0.0
@@ -240,7 +240,7 @@ Reads are atomic loads against an already-mapped region: no syscall, no allocati
 never inside `advance()`, which runs on the render thread and must not block or allocate
 (`CLAUDE.md`).
 
-**As built** (`server/src/input/devices.rs`): the devices are the rig's, not an animation's, so
+**As built** (`daemon/src/input/devices.rs`): the devices are the rig's, not an animation's, so
 `SceneState.runtime.input` is an `InputRegistry` holding one `InputDevice` per `[[input.device]]`
 entry, created at startup whether or not anything names it, and `sample_all` reads every one of
 them once per frame under the write lock the render thread already takes. Two animations naming

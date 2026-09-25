@@ -1,7 +1,7 @@
 # vstimd web client — plan & status
 
 Browser control surface for vstimd. Talks to the embedded axum server
-(`server/src/web/`) over two WebSocket channels: `/ws` (Request→Response, same
+(`daemon/src/web/`) over two WebSocket channels: `/ws` (Request→Response, same
 dispatch as ZMQ) and `/events` (SceneSnapshot push).
 
 **Design rationale.** The web server runs as a thread inside the vstimd process,

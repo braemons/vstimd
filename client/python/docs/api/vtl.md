@@ -1,16 +1,16 @@
 # Virtual Trigger Lines (VTL)
 
 ```{eval-rst}
-.. autoclass:: vstimd.VtlClient
+.. autoclass:: vstimd_client.VtlClient
    :members:
    :undoc-members:
 
-.. autoclass:: vstimd.VtlHandle
+.. autoclass:: vstimd_client.VtlHandle
    :members:
 
-.. autoclass:: vstimd.VtlKind
+.. autoclass:: vstimd_client.VtlKind
    :members:
 
-.. autoclass:: vstimd.VtlLineInfo
+.. autoclass:: vstimd_client.VtlLineInfo
    :members:
 ```

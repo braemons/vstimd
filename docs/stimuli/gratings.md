@@ -7,10 +7,10 @@ motion at a fixed spatial and temporal frequency makes a dropped frame visible
 to the naked eye in a way a static scene never does.
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import GratingMask, GratingParams, GratingTexture, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import GratingMask, GratingParams, GratingTexture, Vec2
 
-with Connection() as conn:
+with VstimdClient() as conn:
     conn.stimuli.grating.create_grating(
         position_px=Vec2(0, 0),
         rotation_deg=0.0,               # vertical stripes

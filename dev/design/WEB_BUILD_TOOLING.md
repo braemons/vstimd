@@ -114,7 +114,7 @@ What vstimd owes the console, none of which is a build decision:
 
 1. **an `/elements/vstimd.js` entry point** — a second esbuild/Vite entry beside
    `main.tsx`, exporting nothing and registering the tags;
-2. **CORS on `/elements/`** — `server/src/web/mod.rs` sets no CORS headers today,
+2. **CORS on `/elements/`** — `daemon/src/web/mod.rs` sets no CORS headers today,
    and a cross-origin module script requires them. (The two WebSockets do not:
    `/ws` and `/events` already work cross-origin.)
 3. **an mDNS record a console can use** — see `braemons/console` `docs/PLAN.md`

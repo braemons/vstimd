@@ -7,10 +7,10 @@ import time
 
 import pytest
 
-from vstimd import Connection, HandleNotFoundError
-from vstimd.animations import AnimationHandle, AnimationState
-from vstimd.stimuli import RectParams, ShapeAppearance, StimulusHandle, TextParams
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient, HandleNotFoundError
+from vstimd_client.animations import AnimationHandle, AnimationState
+from vstimd_client.stimuli import RectParams, ShapeAppearance, StimulusHandle, TextParams
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 #: Fail the test if the server drops a frame while its body runs. See the
 #: ``check_frame_stats`` marker in ``conftest.py``; pass ``max_dropped=`` to
@@ -22,7 +22,7 @@ check_frame_stats = pytest.mark.check_frame_stats
 _SCREEN: dict[int, tuple[int, int]] = {}
 
 
-def _caption_geometry(conn: Connection) -> tuple[Vec2, Vec2, float]:
+def _caption_geometry(conn: VstimdClient) -> tuple[Vec2, Vec2, float]:
     """Where the caption goes on *this* display: position, box, letter height.
 
     A fixed offset does not travel: y=420 is near the top of a 1080-line screen
@@ -105,7 +105,7 @@ class Stage:
 
     def __init__(
         self,
-        conn: Connection,
+        conn: VstimdClient,
         test_id: str,
         description: str,
         step_delay: float,
@@ -201,7 +201,7 @@ class Stage:
 
 
 def wait_for_anim_state(
-    conn: Connection,
+    conn: VstimdClient,
     handle: AnimationHandle,
     target: AnimationState,
     timeout: float = 3.0,
@@ -218,7 +218,7 @@ def wait_for_anim_state(
 
 
 def make_rect(
-    conn: Connection, *, x: float = 0, y: float = 0, enabled: bool = True
+    conn: VstimdClient, *, x: float = 0, y: float = 0, enabled: bool = True
 ) -> StimulusHandle:
     h = conn.stimuli.shapes.create_rect(
         position_px=Vec2(x, y),
@@ -234,7 +234,7 @@ def make_rect(
 
 
 def wait_for_anim_run_start(
-    conn: Connection,
+    conn: VstimdClient,
     handle: AnimationHandle,
     timeout: float = 4.0,
     poll_interval: float = 0.02,

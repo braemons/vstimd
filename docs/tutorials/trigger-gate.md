@@ -15,7 +15,7 @@ lines, opposite model. There, an *edge* started a timed presentation; here, a
 ## 1. The gate line
 
 ```python
-from vstimd import Connection, VtlHandle, VtlKind
+from vstimd_client import VstimdClient, VtlHandle, VtlKind
 
 conn.vtl.set_line_name(0, 7, VtlKind.INPUT, name="in_pin7")
 gate = VtlHandle.input(0, 7)
@@ -24,7 +24,7 @@ gate = VtlHandle.input(0, 7)
 ## 2. A patch you cannot miss
 
 ```python
-from vstimd.stimuli.grating_models import GratingMask, GratingTexture
+from vstimd_client.stimuli.grating_models import GratingMask, GratingTexture
 
 patch = conn.stimuli.grating.create_grating(
     position_px=Vec2(0, 0),

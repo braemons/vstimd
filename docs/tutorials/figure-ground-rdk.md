@@ -26,7 +26,7 @@ sit on it.
 ## 2. One aperture, shared by both fields
 
 ```python
-from vstimd.stimuli import Aperture, ApertureClip, ApertureShape
+from vstimd_client.stimuli import Aperture, ApertureClip, ApertureShape
 
 figure_circle = Aperture(
     shape=ApertureShape.CIRCLE,
@@ -52,7 +52,7 @@ here.
 ```python
 from dataclasses import replace
 
-from vstimd.stimuli import Color, DotsParams
+from vstimd_client.stimuli import Color, DotsParams
 
 common = DotsParams(
     field_width_px=1920.0, field_height_px=1080.0,
@@ -70,7 +70,7 @@ what must differ.
 ## 4. The ground and the figure
 
 ```python
-from vstimd.stimuli import ApertureShape
+from vstimd_client.stimuli import ApertureShape
 
 ground = conn.stimuli.dots.create_dots(
     name="ground",

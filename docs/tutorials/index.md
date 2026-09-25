@@ -55,7 +55,7 @@ the same, which is how they are tested.
     itself they all sit inside a single connection:
 
     ```python
-    with Connection("tcp://localhost:5555") as conn:
+    with VstimdClient("tcp://localhost:5555") as conn:
         ...
     ```
 

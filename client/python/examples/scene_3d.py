@@ -18,8 +18,8 @@ import argparse
 import math
 import time
 
-from vstimd import Connection
-from vstimd.stimuli import (
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import (
     Color,
     Cube3DParams,
     Material3D,
@@ -30,7 +30,7 @@ from vstimd.stimuli import (
     Vec2,
     Vec3,
 )
-from vstimd.system import Camera3D, Lighting3D
+from vstimd_client.system import Camera3D, Lighting3D
 
 
 def lit(r: float, g: float, b: float) -> Material3D:
@@ -44,7 +44,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         shapes3d = conn.stimuli.shapes3d
         conn.system.set_lighting(Lighting3D(
             ambient_color=Vec3(0.15, 0.15, 0.2),

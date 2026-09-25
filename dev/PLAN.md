@@ -810,13 +810,13 @@ is satisfied without any special bounds.
 
 See `client/python/README.md` for the full API reference.
 
-`vstimd.Connection` exposes `conn.stimuli` (`StimuliClient`) and `conn.system` (`SystemClient`).
+`vstimd_client.VstimdClient` exposes `conn.stimuli` (`StimuliClient`) and `conn.system` (`SystemClient`).
 Protobuf stubs generated from `proto/vstimd/v1/` live in `vstimd/_proto/`.
 
 **Implemented:**
 - `StimuliClient`: `create_rect`, `create_circle`, `create_ellipse`, `create_grating`; full set of mutation commands including all grating-specific ones; `query(handle)`
 - `SystemClient`: `query_server_info`, `set_background`, `set_deferred_mode`, `clear_stimuli`, `clear_animations`, `clear_all`, `set_all_enabled`
-- `vstimd.psychopy` compat layer: `Window`, `Rect`, `Circle`, `GratingStim` — drop-in replacement for `psychopy.visual`
+- `vstimd_client.psychopy` compat layer: `Window`, `Rect`, `Circle`, `GratingStim` — drop-in replacement for `psychopy.visual`
 - E2E tests against the null renderer; unit/API-signature tests
 
 ### Phase 5 — Shared-Memory Position Reader (`src/ipc/shm_reader.rs`)
@@ -1153,7 +1153,7 @@ The structured protobuf messages are far easier to work with than the hand-packe
 - [ ] **Phase 5** — Shared-memory reader: `AnimExternalPos`
 - [x] **Phase 6** — Main + threading: `Arc<RwLock<SceneState>>` shared between render and ZMQ threads; `src/lib.rs`
 - [x] **Phase 7** *(substantially complete)* — Deferred mode: `Deferred<T>`, `make_copy`/`flip` on all stimuli + background + photodiode, `pending_flip` in render loop, wired to ZMQ dispatch. Remaining: cancel-deferred not yet validated
-- [x] **Python client** — `vstimd.Connection` with `StimuliClient` (create rect/circle/ellipse/grating, all mutations, query) and `SystemClient`; PsychoPy layer (`Window`, `Rect`, `Circle`, `GratingStim`); UUID + name support; full e2e tests against null renderer
+- [x] **Python client** — `vstimd_client.VstimdClient` with `StimuliClient` (create rect/circle/ellipse/grating, all mutations, query) and `SystemClient`; PsychoPy layer (`Window`, `Rect`, `Circle`, `GratingStim`); UUID + name support; full e2e tests against null renderer
 - [x] **Grating stimulus** — analytical fragment shader (WGSL via naga), sin/sqr/saw/tri waveforms, circle/Gauss/Hann/raised-cosine masks, drift animation, decoupled drift direction, per-grating colors/opacity
 - [x] **UUID + name support** — all stimuli have server-assigned UUIDs, optional client-supplied UUIDs, optional names; `ListStimuli` command returns `StimulusEntry` rows
 - [ ] **Phase 8** — WGSL pixel shader stimuli: runtime pipeline compilation, uniform buffer

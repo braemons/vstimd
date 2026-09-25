@@ -13,8 +13,8 @@ from dataclasses import replace
 
 import pytest
 
-from vstimd import Connection
-from vstimd.stimuli import (
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import (
     Aperture,
     ApertureClip,
     ApertureShape,
@@ -25,7 +25,7 @@ from vstimd.stimuli import (
     diameter_from_radius,
     direction_from_ptb_rad,
 )
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
@@ -36,7 +36,7 @@ from ._helpers import Stage, check_frame_stats
     "rightward together",
 )
 @check_frame_stats
-def test_create_dots(conn: Connection, stage: Stage) -> None:
+def test_create_dots(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
             field_width_px=400,
@@ -74,7 +74,7 @@ def test_create_dots(conn: Connection, stage: Stage) -> None:
     "motion must actually change, not just the reported value",
 )
 @check_frame_stats
-def test_dots_coherence(conn: Connection, stage: Stage) -> None:
+def test_dots_coherence(conn: VstimdClient, stage: Stage) -> None:
     info = conn.system.query_server_info()
     third = info.width_px / 3.0
 
@@ -111,7 +111,7 @@ def test_dots_coherence(conn: Connection, stage: Stage) -> None:
     "where they are; nothing jumps back to the middle at a turn",
 )
 @check_frame_stats
-def test_dots_direction_changes_are_continuous(conn: Connection, stage: Stage) -> None:
+def test_dots_direction_changes_are_continuous(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
             field_width_px=600, field_height_px=600, dot_count=200, dot_size_px=8,
@@ -133,7 +133,7 @@ def test_dots_direction_changes_are_continuous(conn: Connection, stage: Stage) -
     "dot keeping its own polarity as it moves",
 )
 @check_frame_stats
-def test_dots_two_colors(conn: Connection, stage: Stage) -> None:
+def test_dots_two_colors(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
             field_width_px=500, field_height_px=500, dot_count=250, dot_size_px=10,
@@ -159,7 +159,7 @@ def test_dots_two_colors(conn: Connection, stage: Stage) -> None:
     "square dots, then round ones — the same field, redrawn",
 )
 @check_frame_stats
-def test_dots_shape(conn: Connection, stage: Stage) -> None:
+def test_dots_shape(conn: VstimdClient, stage: Stage) -> None:
     for shape in (DotShape.SQUARE, DotShape.ROUND):
         handle = conn.stimuli.dots.create_dots(
             params=DotsParams(
@@ -181,7 +181,7 @@ def test_dots_shape(conn: Connection, stage: Stage) -> None:
     "birth staggering is broken",
 )
 @check_frame_stats
-def test_dots_lifetime_does_not_flicker_in_lockstep(conn: Connection, stage: Stage) -> None:
+def test_dots_lifetime_does_not_flicker_in_lockstep(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.dots.create_dots(
         params=DotsParams(
             field_width_px=500, field_height_px=500, dot_count=200, dot_size_px=8,
@@ -207,7 +207,7 @@ def test_dots_lifetime_does_not_flicker_in_lockstep(conn: Connection, stage: Sta
     "second differs from the first, a saved config no longer replays",
 )
 @check_frame_stats
-def test_dots_seed_reproduces(conn: Connection, stage: Stage) -> None:
+def test_dots_seed_reproduces(conn: VstimdClient, stage: Stage) -> None:
     params = DotsParams(
         field_width_px=400, field_height_px=400, dot_count=100, dot_size_px=10,
         speed_px_per_s=0.0, seed=7,
@@ -228,7 +228,7 @@ def test_dots_seed_reproduces(conn: Connection, stage: Stage) -> None:
     "in half at the boundary",
 )
 @check_frame_stats
-def test_figure_ground(conn: Connection, stage: Stage) -> None:
+def test_figure_ground(conn: VstimdClient, stage: Stage) -> None:
     """The reproduction target — see ``dev/design/RDK_PLAN.md``.
 
     The MATLAB's radii are doubled here and its angles mirrored, which is the whole

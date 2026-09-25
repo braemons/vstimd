@@ -1,16 +1,16 @@
 """Unit tests for the server-error → exception mapping.
 
-These need no server: they drive :meth:`Connection._send` with a fake socket
+These need no server: they drive :meth:`VstimdClient._send` with a fake socket
 that returns whatever response the test wants.
 """
 from __future__ import annotations
 
 import pytest
 
-from vstimd._proto import service_pb2
-from vstimd._proto.vstimd.v1.stimuli import shared_set_requests_pb2
-from vstimd.connection import Connection
-from vstimd.exceptions import (
+from vstimd_client._proto import service_pb2
+from vstimd_client._proto.vstimd.v1.stimuli import shared_set_requests_pb2
+from vstimd_client.vstimd_client import VstimdClient
+from vstimd_client.exceptions import (
     SceneConfigError,
     SceneConfigNotFoundError,
     HandleNotFoundError,
@@ -23,7 +23,7 @@ from vstimd.exceptions import (
     error_for_code,
     exception_type_for,
 )
-from vstimd.response import ErrorCode
+from vstimd_client.response import ErrorCode
 
 
 # ── The enum against the wire contract ────────────────────────────────────────
@@ -114,7 +114,7 @@ def test_families_can_be_caught_together():
     assert StimulusError.code is None
 
 
-# ── Connection._send ──────────────────────────────────────────────────────────
+# ── VstimdClient._send ──────────────────────────────────────────────────────────
 
 
 class _FakeSocket:
@@ -137,8 +137,8 @@ class _FakeSocket:
         pass
 
 
-def _connection_replying(reply: bytes) -> Connection:
-    conn = Connection.__new__(Connection)  # no ZMQ context, no network
+def _connection_replying(reply: bytes) -> VstimdClient:
+    conn = VstimdClient.__new__(VstimdClient)  # no ZMQ context, no network
     conn._address = "tcp://test:5555"
     conn._recv_timeout_ms = -1
     conn._sock = _FakeSocket(reply)

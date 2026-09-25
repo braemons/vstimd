@@ -6,7 +6,7 @@ nearest float32 rather than as itself.
 
 from __future__ import annotations
 
-from vstimd.stimuli import (
+from vstimd_client.stimuli import (
     Color,
     Corridor3DParams,
     Cube3DParams,
@@ -19,7 +19,7 @@ from vstimd.stimuli import (
     Vec2,
     Vec3,
 )
-from vstimd.system import Camera3D, Lighting3D
+from vstimd_client.system import Camera3D, Lighting3D
 
 
 def test_transform_round_trip() -> None:

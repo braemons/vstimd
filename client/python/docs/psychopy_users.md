@@ -4,7 +4,7 @@
 
 The native vstimd Python API is command-oriented and maps closely to the
 underlying protobuf/ZeroMQ protocol: you create stimuli, set properties, and
-send commands that are executed by the server.  The `vstimd.psychopy` layer
+send commands that are executed by the server.  The `vstimd_client.psychopy` layer
 wraps this command API in object-oriented classes that mirror the
 `psychopy.visual` interface.
 
@@ -23,7 +23,7 @@ timing matters.
 from psychopy import visual
 
 # After
-from vstimd.psychopy import visual
+from vstimd_client.psychopy import visual
 ```
 
 Most experiment code works unchanged after this substitution.
@@ -51,7 +51,7 @@ The ZMQ endpoint format is `tcp://<host>:<port>`.
 
 | psychopy | vstimd | Notes |
 |---|---|---|
-| `from psychopy import visual` | `from vstimd.psychopy import visual` | direct swap |
+| `from psychopy import visual` | `from vstimd_client.psychopy import visual` | direct swap |
 | `Window(size_px=...)` | `Window(address='tcp://host:port')` | `size` is ignored — queried from server |
 | `Circle(win, ...)` | identical | ✓ |
 | `Rect(win, ...)` | identical | ✓ |

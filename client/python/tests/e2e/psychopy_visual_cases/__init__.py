@@ -1,6 +1,6 @@
 import pytest
 
-import vstimd.psychopy.visual as visual
+import vstimd_client.psychopy.visual as visual
 
 from .test_circle import *   # noqa: F401, F403
 from .test_grating import *  # noqa: F401, F403

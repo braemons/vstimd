@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // The `/elements/` contract, for vstimd. Served at `/elements/vstimd.js` --
-// see `server/src/web/mod.rs` (CORS, and the embedded-asset route) and
+// see `daemon/src/web/mod.rs` (CORS, and the embedded-asset route) and
 // `vite.config.ts` (the second build entry that produces this bundle).
 //
 // statemachined already publishes this contract (dev/DAEMON.md §5) and names

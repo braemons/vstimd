@@ -1,25 +1,25 @@
 # System
 
 ```{eval-rst}
-.. autoclass:: vstimd.system.SystemClient
+.. autoclass:: vstimd_client.system.SystemClient
    :members:
    :undoc-members:
 
-.. autoclass:: vstimd.ServerInfo
+.. autoclass:: vstimd_client.ServerInfo
    :members:
 
-.. autoclass:: vstimd.ServerVersion
+.. autoclass:: vstimd_client.ServerVersion
    :members:
 
-.. autoclass:: vstimd.StimulusListEntry
+.. autoclass:: vstimd_client.StimulusListEntry
    :members:
 
-.. autoclass:: vstimd.system.CapturedFrame
+.. autoclass:: vstimd_client.system.CapturedFrame
    :members:
 
-.. autoclass:: vstimd.system.Camera3D
+.. autoclass:: vstimd_client.system.Camera3D
    :members:
 
-.. autoclass:: vstimd.system.Lighting3D
+.. autoclass:: vstimd_client.system.Lighting3D
    :members:
 ```

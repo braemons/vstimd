@@ -45,7 +45,7 @@ def server_process(server_address: str):
     if result.returncode != 0:
         pytest.skip(f"cargo build --release failed (exit {result.returncode})")
 
-    exe = "vstimd.exe" if sys.platform == "win32" else "vstimd"
+    exe = "vstimd_client.exe" if sys.platform == "win32" else "vstimd"
     server_bin = _REPO_ROOT / "target" / "release" / exe
     log_path = pathlib.Path(tempfile.gettempdir()) / "vstimd_e2e.log"
     log_file = log_path.open("w")
@@ -93,9 +93,9 @@ def server_process(server_address: str):
 @check_frame_stats
 def test_capture_frame_shows_what_was_drawn(conn, stage):
     """CaptureFrame returns the presented frame, commands already applied."""
-    from vstimd.stimuli.color import Color
-    from vstimd.stimuli.shapes_models import RectParams, ShapeAppearance
-    from vstimd.stimuli.stimuli_models import Vec2
+    from vstimd_client.stimuli.color import Color
+    from vstimd_client.stimuli.shapes_models import RectParams, ShapeAppearance
+    from vstimd_client.stimuli.stimuli_models import Vec2
 
     from .png_pixels import decode_rgb, pixel
 
@@ -137,11 +137,11 @@ def test_capture_frame_shows_what_was_drawn(conn, stage):
 def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn, stage):
     """An unlit sphere writes exactly the pixel values a 2-D circle of the same
     colour does; a Phong sphere lit from -X is bright on its left, dark on its right."""
-    from vstimd.stimuli import (
+    from vstimd_client.stimuli import (
         CircleParams, Color, Material3D, Shading, ShapeAppearance, Sphere3DParams,
         Transform3D, Vec2, Vec3,
     )
-    from vstimd.system import Lighting3D
+    from vstimd_client.system import Lighting3D
 
     from .png_pixels import decode_rgb, pixel
 
@@ -194,10 +194,10 @@ def test_unlit_3d_matches_2d_luminance_and_phong_lights_one_side(conn, stage):
 def test_corridor_has_no_seam_one_period_apart(conn, stage):
     """A camera one period further down the corridor sees the same frame, bit for
     bit — which is what lets LinearNav3D wrap the camera without a visible jump."""
-    from vstimd.stimuli import (
+    from vstimd_client.stimuli import (
         Corridor3DParams, Material3D, Repeat3D, Shading, Sphere3DParams, Transform3D, Vec3,
     )
-    from vstimd.system import Camera3D
+    from vstimd_client.system import Camera3D
 
     period = 100.0
     conn.stimuli.shapes3d.create_corridor(params=Corridor3DParams(

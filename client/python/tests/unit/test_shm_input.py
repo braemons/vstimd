@@ -1,4 +1,4 @@
-"""vstimd.shm.input against itself and against the Rust ``vinput`` crate.
+"""vstimd_client.shm.input against itself and against the Rust ``vinput`` crate.
 
 The cross-language tests are the ones that keep two definitions of one layout
 honest. They need the Rust ``segment_tool`` example, built on demand with cargo,
@@ -16,7 +16,7 @@ import time
 
 import pytest
 
-from vstimd.shm import AxisSpec, InputDevice, InputDeviceReader, Semantic
+from vstimd_client.shm import AxisSpec, InputDevice, InputDeviceReader, Semantic
 
 _REPO = pathlib.Path(__file__).resolve().parents[4]
 _TOOL = _REPO / "target" / "debug" / "examples" / "segment_tool"

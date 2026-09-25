@@ -5,7 +5,7 @@
 Accessed as ``conn.stimuli.grating``.
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.GratingClient
+.. autoclass:: vstimd_client.stimuli.GratingClient
    :members:
    :undoc-members:
 ```
@@ -13,12 +13,12 @@ Accessed as ``conn.stimuli.grating``.
 ## Models
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.GratingParams
+.. autoclass:: vstimd_client.stimuli.GratingParams
    :members:
 
-.. autoclass:: vstimd.stimuli.GratingTexture
+.. autoclass:: vstimd_client.stimuli.GratingTexture
    :members:
 
-.. autoclass:: vstimd.stimuli.GratingMask
+.. autoclass:: vstimd_client.stimuli.GratingMask
    :members:
 ```

@@ -1,218 +1,154 @@
-# `vstimd-client` command-line tool
+# `vstimctl` command-line tool
 
-Installing the Python client puts a `vstimd-client` executable on your `PATH`.
-It covers the system-level commands — server info, scene-wide mutations, config
-management, shutdown — plus mDNS discovery of servers on the local network.
+`vstimctl` ships with the Python client and covers the
+system-level commands from a shell: the server's state, scene-wide changes,
+the scene-config store, the event stream and shutdown. It also finds the
+servers on your network over mDNS.
 
-```bash
+It is named like the other braemons commands (`statemachinectl`,
+`mousewheelctl`, `trialctl`), and it behaves like them. The rules are in
+`contracts/DAEMON_LAYOUT.md`: the same `--rig`, JSON output, and the same exit
+statuses.
+
+## Install
+
+```sh
 pip install vstimd-client
-vstimd-client --help
 ```
 
-It can also be run as a module: `python -m vstimd.cli`.
+Or without installing anything permanently, `uvx --from vstimd-client vstimctl state`.
+On a rig, the `braemons-tools` package installs it alongside the other three.
 
-## Finding servers
+Discovery works out of the box: [zeroconf](https://pypi.org/project/zeroconf/),
+a pure-Python mDNS implementation, is a dependency of the client. If it is ever
+missing, discovery falls back to shelling out to `avahi-browse`, which needs
+`avahi-utils` and a running `avahi-daemon` (Linux only).
 
-vstimd advertises itself over mDNS/DNS-SD as `_vstimd._tcp` on port 5555, with
-an `id=<hostname>` TXT record:
+It can also be run as a module: `python -m vstimd_client.command_line_interface`.
+
+## Choosing a rig
+
+Every command except `discover` talks to one server:
+
+1. `--rig HOST`, `--rig HOST:PORT` or `--rig tcp://HOST:PORT`
+2. `$BRAEMONS_RIG`
+3. `localhost`
+
+A missing port becomes 5555, vstimd's command port. Every braemons command
+fills in its own daemon's port, so a single `BRAEMONS_RIG=rig-a.local` reaches
+all four daemons on one box. Put a host in it, never a port.
+
+```sh
+vstimctl --rig braemons-a1b2c3d4e5f6.local state
+export BRAEMONS_RIG=braemons-a1b2c3d4e5f6.local     # or set it once per shell
+```
+
+`vstimctl` never browses the network to guess a rig. A command that went to
+"whichever rig answered" is a bad surprise when the command is `shutdown`. Use
+`discover` to list the rigs, and name one.
+
+Requests time out after `--timeout` seconds (default 5), and `--timeout 0`
+blocks forever. The `wait-*` commands and `capture` always block, bounded by
+their own `--wait` deadline.
+
+## Discovering rigs
+
+Each rig advertises `_vstimd._tcp` over mDNS. The
+[discovery guide](https://vstimd.readthedocs.io/en/latest/operations/discovery/)
+says what the record carries.
 
 ```console
-$ vstimd-client discover
-ID             HOSTNAME             ADDRESSES    ADDRESS
-vstimd-a1b2c3  vstimd-a1b2c3.local  10.0.1.42    tcp://vstimd-a1b2c3.local:5555
-vstimd-ffee00  vstimd-ffee00.local  10.0.1.51    tcp://vstimd-ffee00.local:5555
+$ vstimctl discover | jq -r '.[] | "\(.id)  \(.address)"'
+3f9c0a7d1e2b4c56  tcp://braemons-a1b2c3d4e5f6.local:5555
+8e1d44b0c9a27f13  tcp://braemons-ffee00112233.local:5555
 ```
 
-Key off the `ID` column, not the advertised service name: Avahi appends `#2`,
-`#3` to the display name when two devices collide, while the TXT record stays
-the literal hostname.
-
-Two backends are supported, in this order of preference:
-
-| Backend    | Requirement                                | Platforms |
-| ---------- | ------------------------------------------ | --------- |
-| `zeroconf` | ships with `vstimd-client`                 | any       |
-| `avahi`    | `avahi-browse` + a running `avahi-daemon`  | Linux     |
-
-Force one with `--backend`, and give a slow or lossy network more time with
-`--wait`:
-
-```bash
-vstimd-client discover --backend avahi --wait 5
-```
-
-`discover` exits `6` if no servers are found, so it composes in scripts. With
-`--json` it emits the full record, TXT properties included.
-
-## Choosing a server
-
-Every other command talks to one server, selected in this order:
-
-1. `--address` — an endpoint, or the part of one you can be bothered to type
-2. `--host NAME [--port N]` — a bare name gets `.local` appended, so the `ID`
-   from `discover` works directly: `--host vstimd-a1b2c3`
-3. `$VSTIMD_ADDRESS`
-4. whatever mDNS finds (see below)
-
-### Finding the server for you
-
-Given none of the first three, the client browses for about a second and:
-
-- **one rig found** — uses it, and says so on stderr;
-- **several found** — lists them and asks which;
-- **none found** — falls back to `tcp://localhost:5555`, as before.
-
-```console
-$ vstimd-client info
-vstimd-client: using vstimd-a1b2c3 at tcp://vstimd-a1b2c3.local:5555
-version     0.4.1
-resolution  1920x1080
-...
-
-$ vstimd-client info
-vstimd-client: 2 vstimd servers found, and no address given
-  1  vstimd-a1b2c3  tcp://vstimd-a1b2c3.local:5555
-  2  vstimd-ffee00  tcp://vstimd-ffee00.local:5555
-Select a server [1-2, q to cancel]:
-```
-
-The prompt and the menu go to stderr, so `--json` output on stdout stays
-parseable however the server was chosen.
-
-Which rig ran a command is not something to be vague about, so the choice is
-never made silently: with one candidate it is announced, with several you are
-asked. `--non-interactive` refuses to ask — it lists the candidates and exits
-`2` — and so does a non-terminal stdin, which is what a cron job or a CI step
-has. Naming the server with `-a`, `-H`, or `$VSTIMD_ADDRESS` skips the browse
-entirely, which is what a script should do anyway.
-
-`--address` fills in what you leave out, so these are the same server:
-
-```bash
-vstimd-client -a 10.0.1.42 info
-vstimd-client -a 10.0.1.42:5555 info
-vstimd-client -a tcp://10.0.1.42:5555 info
-```
-
-The scheme defaults to `tcp://` and the port to `--port` (5555 unless you say
-otherwise). IPv6 literals may be written bare (`::1`) or bracketed
-(`[::1]:5555`); `ipc://` and `inproc://` endpoints are passed through as
-written.
-
-```bash
-export VSTIMD_ADDRESS=tcp://vstimd-a1b2c3.local:5555
-vstimd-client info
-```
-
-Requests give up after `--timeout` seconds (default 5) and exit `4`; pass
-`--timeout 0` to block forever. The `wait-*` commands always block, using
-their own `--wait` deadline instead.
+`--wait N` listens longer on a lossy network, and `--backend {zeroconf,avahi}`
+forces one implementation. The command exits 6 when nothing is found.
 
 ## Commands
 
-```console
-$ vstimd-client info
-version     0.4.1
-resolution  1920x1080
-frame rate  60.00 Hz
-background  0.000 0.000 0.000 1.000
-
-$ vstimd-client ls
-HANDLE  ENABLED  NAME       ID
-1       yes      fixation   0d0f2d0e-…
-2       no       target     6b1a7c44-…
-```
-
 | Command | Effect |
-| ------- | ------ |
-| `discover` | browse the network for servers (no connection needed) |
-| `info` | display properties and server version |
-| `ls` (`list`) | list the stimuli in the scene |
+|---|---|
+| `discover` | the servers on this network, as a JSON list (needs no connection) |
+| `state` | the display, the server's version, and every stimulus |
+| `watch` | the event stream, one JSON object per line (`--topic PREFIX`, repeatable; `--summary`) |
 | `background R G B [A]` | set the clear colour, components in 0–1 |
-| `delete-all` | remove every unprotected stimulus |
+| `clear-stimuli` | remove every unprotected stimulus |
+| `clear-animations` | remove every animation |
+| `clear-all` | remove every animation, then every unprotected stimulus |
 | `enable-all` / `disable-all` | toggle every unprotected stimulus |
 | `wait-frames [N]` | block until N more frames are rendered |
 | `wait-ready` | block until the server answers and has drawn a frame |
-| `shutdown` | ask the server to exit cleanly (prompts unless `-y`) |
-| `scene-config list` | list the scene-configs on the server (`-p PROJECT` scopes it) |
-| `scene-config save NAME` | save the current scene (`-f` to overwrite) |
-| `scene-config load NAME` | load and apply a scene-config (`--additive` to merge) |
-| `scene-config get` | print the current scene-config JSON (`-o FILE` to write it) |
-| `scene-config upload NAME FILE` | upload a local scene-config (`-` reads stdin) |
+| `capture PATH` | save the next presented frame as a PNG, overlay included |
+| `shutdown` | ask the server to exit cleanly (asks first unless `-y`) |
+| `scene-configs list` | the stored scene-configs (`-p PROJECT` scopes it) |
+| `scene-configs get` | the current scene, as a scene-config file |
+| `scene-configs put FILE` | store a file (`--name`, else the file's stem; `-` reads stdin and needs `--name`; `-f` overwrites; `--load` applies it) |
+| `scene-configs load NAME` | load and apply a stored scene-config (`--additive` merges) |
+| `scene-configs save NAME` | store the current scene (`-f` overwrites) |
 
-Every `NAME` is `[<project>/]<name>`; an unqualified name means the `default`
-project.
+Every `NAME` is `[<project>/]<name>`. A **project** is a directory on the device
+holding everything one study needs. An unqualified name means the `default`
+project, so the everyday case stays one word.
 
-`wait-ready` is the one to use in start-up scripts — it retries the connection
-until the server is up, so it doubles as "is this machine ready?":
+The `demos/*` entries in `scene-configs list` are the
+demo scenes the server installs on first start.
+They are ordinary scene-configs, so `scene-configs load demos/drifting_grating`
+puts one on the display, and `scene-configs list -p demos` shows only those.
 
-```bash
-vstimd-client --host vstimd-a1b2c3 wait-ready --wait 60
+`watch` reads the event port (5556, or `--event-port`). It needs no reply, so a
+rig that is switched off gives a quiet stream rather than a failure:
+
+```console
+$ vstimctl watch --topic frame.dropped --topic vtl.edge
+{"topic": "vtl.edge", "missed_before": 0, "sequence": "912", "frame": "4410", ...}
 ```
 
 ## Scripting
 
-`--json` switches every command to machine-readable output, which pairs well
-with `jq`:
+Everything prints JSON on stdout. A command prints one document, and `watch`
+prints one object per line:
 
-```bash
-# Address of the first server found
-vstimd-client --json discover | jq -r '.[0].address'
+```sh
+# Wait for a rig to come up before starting an experiment
+vstimctl wait-ready --wait 60
 
-# Back up the running scene, then restore it later
-vstimd-client scene-config get -o scene.json
-vstimd-client scene-config upload restored scene.json --overwrite --apply-now
+# How many stimuli are enabled
+vstimctl state | jq '[.stimuli[] | select(.enabled)] | length'
+
+# Back up the running scene, restore it later
+vstimctl scene-configs get > restored.json
+vstimctl scene-configs put restored.json --overwrite --load
 ```
 
-### Exit codes
+A failure is one JSON object on stderr, `{"error": …, "detail": …}`, and never
+a traceback. `error` is the short kind a script switches on. The exit status
+tells a rig that is switched off from one that refused the request. These are
+the same numbers every braemons command uses:
 
-Failures are distinguished by exit status, so a script can tell "the rig is
-off" from "the rig said no" without parsing stderr:
-
-| Code | Meaning |
-| ---- | ------- |
+| Status | Meaning |
+|---|---|
 | `0` | success |
-| `1` | a failure none of the codes below describes |
-| `2` | bad command line, or no command given |
-| `3` | the server could not be reached — bad address, nothing listening |
-| `4` | the server did not reply within `--timeout` |
-| `5` | the server replied with an error |
-| `6` | nothing found: no rigs discovered, no such config |
-| `7` | `discover` has no mDNS backend available |
+| `1` | a failure none of the statuses below describes |
+| `2` | bad command line |
+| `3` | nothing answered within `--timeout`: a rig that is off, or a wrong address |
+| `4` | the server answered, and a call did not finish in time |
+| `5` | the server answered with an error |
+| `6` | nothing found: no rigs discovered, no such scene-config |
 | `130` | interrupted with Ctrl-C |
 
-```bash
-if ! vstimd-client -H rig1 info > /dev/null; then
-    case $? in
-        3|4) echo "rig1 is not answering — is it powered on?" ;;
-        5)   echo "rig1 rejected the request" ;;
-    esac
-fi
-```
+A traceback would be a bug in the client. `VSTIMCTL_TRACEBACK=1` brings back the
+full one for a bug report.
 
-Errors are reported as a single line on stderr, never a traceback. If you do
-see one, it is a bug: set `VSTIMD_TRACEBACK=1` to get the full traceback and
-[open an issue](https://github.com/braemons/vstimd/issues).
-
-## Discovery from Python
-
-The discovery machinery is importable, so experiment scripts can find a server
-without shelling out:
+Discovery can also be imported, so an experiment script can find a rig without
+shelling out:
 
 ```python
-from vstimd import Connection
-from vstimd.cli import discover
+from vstimd_client import VstimdClient
+from vstimd_client.command_line_interface import discover
 
 servers = discover(timeout_s=2.0)
-with Connection(servers[0].address) as conn:
+with VstimdClient(servers[0].address) as conn:
     print(conn.system.query_server_info())
-```
-
-```{eval-rst}
-.. autofunction:: vstimd.cli.discover
-
-.. autoclass:: vstimd.cli.DiscoveredServer
-   :members:
-
-.. autofunction:: vstimd.cli.available_backends
 ```

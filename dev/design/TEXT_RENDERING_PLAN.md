@@ -46,14 +46,14 @@ Post-construction mutations used in the demo: `.text`, `.pos`, `.color`.
 
 `fontdue` and `ab_glyph` are eliminated by the Arabic/Farsi text requirement in the demo. `cosmic-text` bundles `fontdb` (font loading), `rustybuzz` (shaping), and `swash` (rasterization), all pure Rust, all cross-compiling to aarch64 without a C toolchain.
 
-Add to `server/Cargo.toml`:
+Add to `daemon/Cargo.toml`:
 ```toml
 cosmic-text = "0.12"
 ```
 
 ### Font loading
 
-Bundle the six TTF files used by the demo as `include_bytes!` in `server/fonts/`:
+Bundle the six TTF files used by the demo as `include_bytes!` in `daemon/fonts/`:
 - Share Tech Mono, Indie Flower, EB Garamond, Open Sans, Josefin Sans, Cairo
 
 Load them at startup via `fontdb::Database::load_font_data`. This avoids runtime network access on the Jetson. Auto-downloading Google Fonts is a v2 concern.
@@ -64,7 +64,7 @@ Load them at startup via `fontdb::Database::load_font_data`. This avoids runtime
 
 Text rendering requires one new Vulkan resource type not currently in vstimd: a **glyph texture atlas**.
 
-### Glyph Atlas (`server/src/render/vk/text_atlas.rs`)
+### Glyph Atlas (`daemon/src/render/vk/text_atlas.rs`)
 
 ```
 Format:      R8_UNORM
@@ -106,7 +106,7 @@ pub struct TextVertex {
 }
 ```
 
-### Text Shader (`server/shaders/text.wgsl`)
+### Text Shader (`daemon/shaders/text.wgsl`)
 
 ```wgsl
 struct PC { text_color: vec4<f32> }
@@ -123,7 +123,7 @@ var<push_constant> pc: PC;
 
 Compiled to SPIR-V at build time via `naga` (same as `solid.wgsl` and `grating.wgsl`).
 
-### Text Pipeline (`server/src/scene/stimulus/text/text_pipeline.rs`)
+### Text Pipeline (`daemon/src/scene/stimulus/text/text_pipeline.rs`)
 
 ```rust
 pub struct VkTextPipeline {
@@ -142,7 +142,7 @@ pub struct VkTextPipeline {
 
 ## Stimulus Data Structure
 
-**Module:** `server/src/scene/stimulus/text/` (mirrors the `grating/` layout)
+**Module:** `daemon/src/scene/stimulus/text/` (mirrors the `grating/` layout)
 
 ```rust
 pub struct TextStimulus {
@@ -304,9 +304,9 @@ cargo build && cargo test && cargo clippy
 # 2. Null-renderer smoke test (no display required)
 cargo run --release -- --null &
 cd client/python && uv run python -c "
-from vstimd import Connection
-from vstimd.psychopy import visual
-with Connection() as conn:
+from vstimd_client import VstimdClient
+from vstimd_client.psychopy import visual
+with VstimdClient() as conn:
     win = visual.Window(size=(800,800), units='height', conn=conn)
     t = visual.TextBox2(win, text='hello', letterHeight=0.05, size=(0.4,0.1))
     t.text = '60 fps'

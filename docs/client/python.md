@@ -33,18 +33,18 @@ See [Installation](../getting-started/installation.md) for other options.
 
 ## Connect
 
-A `Connection` opens a ZMQ REQ socket and exposes the command namespaces. Use it as a
+A `VstimdClient` opens a ZMQ REQ socket and exposes the command namespaces. Use it as a
 context manager so the socket is always closed:
 
 ```python
-from vstimd import Connection
+from vstimd_client import VstimdClient
 
-with Connection() as conn:                 # default: tcp://localhost:5555
+with VstimdClient() as conn:                 # default: tcp://localhost:5555
     info = conn.system.query_server_info()
     print(info.width_px, info.height_px, info.frame_rate_hz)
 ```
 
-Pass an address for a remote device: `Connection("tcp://stimulus-pc:5555")`.
+Pass an address for a remote device: `VstimdClient("tcp://stimulus-pc:5555")`.
 
 Every call is a **synchronous round-trip**: the client blocks until the server
 acknowledges, and a server error is raised as a typed exception (see
@@ -68,7 +68,7 @@ acknowledges, and a server error is raised as a typed exception (see
 
 The method list above is a map, not an exhaustive signature reference — the
 authoritative signatures and docstrings live in the source under
-[`client/python/vstimd/`](https://github.com/braemons/vstimd/tree/main/client/python/vstimd).
+[`client/python/vstimd_client/`](https://github.com/braemons/vstimd/tree/0.3/client/python/vstimd_client).
 
 ### Draw order
 
@@ -102,10 +102,10 @@ Creating a stimulus returns a **handle** you pass to later commands. Positions a
 | Cube, sphere, plane (3-D) | `conn.stimuli.shapes3d.create_cube(...)` etc. — placed in centimetres, not pixels | [3-D shapes](../stimuli/3d.md) |
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
-with Connection() as conn:
+with VstimdClient() as conn:
     rect = conn.stimuli.shapes.create_rect(
         position_px=Vec2(0, 0),
         params=RectParams(
@@ -143,7 +143,7 @@ Three of these group under `StimulusError` (`HandleNotFoundError`,
 under `ConfigError`, so you can catch a family rather than listing members:
 
 ```python
-from vstimd.exceptions import ConfigError, ConfigNotFoundError
+from vstimd_client.exceptions import ConfigError, ConfigNotFoundError
 
 try:
     conn.scene_config.load("gratings")
@@ -171,12 +171,12 @@ which of twenty mutations it came from.
 
 ## PsychoPy compatibility
 
-The `vstimd.psychopy` layer mirrors `psychopy.visual` on top of the command API —
+The `vstimd_client.psychopy` layer mirrors `psychopy.visual` on top of the command API —
 often a one-line import swap:
 
 ```python
 # from psychopy import visual
-from vstimd.psychopy import visual
+from vstimd_client.psychopy import visual
 
 win  = visual.Window(address="tcp://stimulus-pc:5555")
 rect = visual.Rect(win, size=(300, 150), pos=(0, 0), fillColor="red")

@@ -60,19 +60,16 @@ that is what you actually want.
 |---|---|
 | `target/release/vstimd` | `/usr/bin/vstimd` |
 | `packaging/scripts/vstimd-boot-entry` | `/usr/sbin/vstimd-boot-entry` |
-| `packaging/scripts/vstimd-set-hostname` | `/usr/sbin/vstimd-set-hostname` |
 | `packaging/systemd/vstimd.service` | `/usr/lib/systemd/system/vstimd.service` |
 | `packaging/systemd/vstimd.target` | `/usr/lib/systemd/system/vstimd.target` |
-| `packaging/systemd/vstimd-hostname.service` | `/usr/lib/systemd/system/vstimd-hostname.service` |
 | `packaging/sysusers/vstimd.conf` | `/usr/lib/sysusers.d/vstimd.conf` |
-| `packaging/avahi/vstimd.service.tmpl` | `/usr/share/braemons/vstimd/vstimd.service.avahi.tmpl` |
 | `packaging/samba/vstimd-shares.conf` | `/usr/share/braemons/vstimd/vstimd-shares.conf` |
-| `server/config/default-rig-config.toml` | `/etc/braemons/vstimd-rig-config.toml` (never overwritten if present) |
-| `server/config/{jetson-orin-nano,raspberry-pi-5,raspberry-pi-4}.toml` | `/usr/share/braemons/vstimd/` |
+| `daemon/config/default-rig-config.toml` | `/etc/braemons/vstimd-rig-config.toml` (never overwritten if present) |
+| `daemon/config/{jetson-orin-nano,raspberry-pi-5,raspberry-pi-4}.toml` | `/usr/share/braemons/vstimd/` |
 
 The packages install the same paths, but each declares them itself rather than
 shelling out to `make install`: the `.deb` from the `assets` list in
-`[package.metadata.deb]` (`server/Cargo.toml`), the `.rpm` from the `%install`
+`[package.metadata.deb]` (`daemon/Cargo.toml`), the `.rpm` from the `%install`
 block in `packaging/rpm/vstimd.spec`. **Adding a file means adding it in all three
 places.** Both packages additionally ship `/etc/rsyslog.d/10-vstimd.conf` and
 `/etc/logrotate.d/vstimd`, which `make install` does not; the `.rpm` currently
@@ -222,3 +219,4 @@ regressions.
 
 See [Versioning & releasing](releasing.md) for what a tag produces and how it
 reaches the apt archive.
+

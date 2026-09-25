@@ -1,11 +1,11 @@
-"""Check that vstimd.visual classes accept the same parameters, properties,
+"""Check that vstimd_client.visual classes accept the same parameters, properties,
 and methods as psychopy.visual."""
 
 import inspect
 
 import pytest
 
-import vstimd.psychopy.visual
+import vstimd_client.psychopy.visual
 
 psychopy_visual = pytest.importorskip("psychopy.visual")
 
@@ -16,11 +16,11 @@ _DEPRECATED_PARAMS: dict[str, set[str]] = {
 
 # (psychopy_class, vstimd_class, xfail_reason or None)
 CLASSES = [
-    (psychopy_visual.Rect,         vstimd.psychopy.visual.Rect,         None),
-    (psychopy_visual.Circle,       vstimd.psychopy.visual.Circle,       None),
-    (psychopy_visual.GratingStim,  vstimd.psychopy.visual.GratingStim,  None),
-    (psychopy_visual.Window,       vstimd.psychopy.visual.Window,
-     "vstimd.psychopy.visual.Window is a remote connection stub; "
+    (psychopy_visual.Rect,         vstimd_client.psychopy.visual.Rect,         None),
+    (psychopy_visual.Circle,       vstimd_client.psychopy.visual.Circle,       None),
+    (psychopy_visual.GratingStim,  vstimd_client.psychopy.visual.GratingStim,  None),
+    (psychopy_visual.Window,       vstimd_client.psychopy.visual.Window,
+     "vstimd_client.psychopy.visual.Window is a remote connection stub; "
      "rendering params not yet implemented"),
 ]
 

@@ -28,10 +28,10 @@ import time
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection, FinalAction, StartAction, VtlEdge, VtlHandle, VtlKind
-from vstimd.stimuli import CircleParams, Color, GratingMask, GratingParams, GratingTexture, ShapeAppearance, Vec2
+from vstimd_client import VstimdClient, FinalAction, StartAction, VtlEdge, VtlHandle, VtlKind
+from vstimd_client.stimuli import CircleParams, Color, GratingMask, GratingParams, GratingTexture, ShapeAppearance, Vec2
 
-from vstimd.stimuli.shapes_models import ShapeDrawMode
+from vstimd_client.stimuli.shapes_models import ShapeDrawMode
 
 EXPLANATION = (
     "demos/gratings_triggered — trigger in, trigger out\n"
@@ -72,7 +72,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         clean_slate(conn)
         conn.system.set_background(0.5, 0.5, 0.5)
 

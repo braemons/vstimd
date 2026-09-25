@@ -27,8 +27,8 @@ visual experiment.
 ## 2. The grating
 
 ```python
-from vstimd.stimuli.grating_models import GratingMask, GratingTexture
-from vstimd.stimuli.stimuli_models import Vec2
+from vstimd_client.stimuli.grating_models import GratingMask, GratingTexture
+from vstimd_client.stimuli.stimuli_models import Vec2
 
 conn.stimuli.grating.create_grating(
     position_px=Vec2(0, 0),

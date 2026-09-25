@@ -8,7 +8,8 @@
 #
 # Runs a stock RPi OS image through a loop-mounted chroot rather than a
 # from-scratch build (pi-gen) — cheaper to build/iterate since it reuses the
-# .deb postinst logic (sysusers, hostname unit, avahi template) unchanged.
+# .deb postinst logic (sysusers, /etc/braemons) unchanged. The rig's hostname
+# comes from braemons-rig (braemons/rig), installed from the archive.
 # Needs root + qemu-user-static (arm64 binfmt) since the base image is
 # arm64 and this is expected to run on an amd64 CI/dev host — see
 # packaging/docker/Dockerfile.image-builder / `make image`, which provides
@@ -449,9 +450,21 @@ APT_CONF
 fi
 
 # vstimd + gpiochip-daqd, from the locally-built .debs (postinst runs here:
-# creates the vstimd system user, /etc/braemons, the hostname unit, etc.).
+# creates the vstimd system user, /etc/braemons, etc.).
 dpkg -i /root/debs/*.deb || true
 apt-get install -y -f
+
+# The rig's name, braemons-XXXXXX from the MAC, and the directories every
+# braemons daemon shares: braemons-rig, from the archive. It is the box's, not
+# vstimd's, which is why it is not in vstimd's package. Without the archive the
+# card keeps Raspberry Pi OS's stock hostname — it works, and it collides with
+# the next rig flashed from the same image.
+if [ -f /etc/apt/sources.list.d/braemons.sources ]; then
+    apt-get install -y --no-install-recommends braemons-rig
+    systemctl enable braemons-hostname
+else
+    echo "braemons-rig: not installed (no archive configured); the rig keeps its stock hostname"
+fi
 
 # gpiochip-daqd's postinst only installs the empty default-config.toml to
 # /etc/braemons/gpiochip-daqd-config.toml (it ships board-specific configs as
@@ -465,7 +478,7 @@ install -m 0644 \
 
 # Same deal for vstimd's own rig-config: 'make install' (the .deb's postinst
 # path) only ever installs the generic, everything-commented-out
-# server/config/default-rig-config.toml to
+# daemon/config/default-rig-config.toml to
 # /etc/braemons/vstimd-rig-config.toml (see the Makefile's RIG_CONFIG/EXAMPLES
 # split) because the .deb itself is board-agnostic too. Overwrite with the
 # Pi 5 example so a freshly flashed card boots with correct VTL/GPIO settings
@@ -583,7 +596,7 @@ MOTD_EOF
 
 systemctl enable smbd nmbd avahi-daemon wsdd2
 
-systemctl enable vstimd vstimd-hostname gpiochip-daqd
+systemctl enable vstimd gpiochip-daqd
 # Appliance behaviour: boot straight into vstimd.target instead of the
 # normal multi-user console. vstimd.target still Requires=multi-user.target,
 # so networking/ssh/samba come up first — see packaging/systemd/vstimd.target.

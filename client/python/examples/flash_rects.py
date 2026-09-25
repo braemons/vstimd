@@ -17,9 +17,9 @@ import argparse
 import sys
 import time
 
-from vstimd import Connection
-from vstimd.stimuli.stimuli_models import Color, Vec2
-from vstimd.stimuli import RectParams
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
+from vstimd_client.stimuli import RectParams
 
 
 def main() -> None:
@@ -49,7 +49,7 @@ def main() -> None:
     half_period = 1.0 / (2.0 * args.hz)
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         # ── Create ────────────────────────────────────────────────────────────
         # Left rect: red, starts disabled.
         left = conn.stimuli.shapes.create_rect(

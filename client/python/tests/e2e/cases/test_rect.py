@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection
-from vstimd.stimuli import RectParams, ShapeAppearance, StimulusType
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import RectParams, ShapeAppearance, StimulusType
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
@@ -15,7 +15,7 @@ from ._helpers import Stage, check_frame_stats
     "a pure red square, 100×100 px, in the exact centre of the screen",
 )
 @check_frame_stats
-def test_create_rect(conn: Connection, stage: Stage) -> None:
+def test_create_rect(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(
         position_px=Vec2(0, 0),
         params=RectParams(
@@ -45,7 +45,7 @@ def test_create_rect(conn: Connection, stage: Stage) -> None:
     "— wider and a little taller, still centred",
 )
 @check_frame_stats
-def test_set_rect_size(conn: Connection, stage: Stage) -> None:
+def test_set_rect_size(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(params=RectParams(width_px=100, height_px=50))
     stage.step("before: a 100×50 px rect", hold=0.5)
 

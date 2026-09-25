@@ -36,8 +36,8 @@ import math
 import time
 from dataclasses import replace
 
-from vstimd import Connection
-from vstimd.stimuli import (
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import (
     Aperture,
     ApertureClip,
     ApertureShape,
@@ -119,7 +119,7 @@ def main() -> None:
     background_dir = direction_from_ptb_rad(DIR_BACKGROUND_RAD)  # 0°
     figure_dir = direction_from_ptb_rad(DIR_FIGURE_RAD)          # 90°, i.e. up
 
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         conn.system.set_background(0.5, 0.5, 0.5)  # backgroundCol = 128 on 0-255
 
         background = conn.stimuli.dots.create_dots(

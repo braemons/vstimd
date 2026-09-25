@@ -188,7 +188,7 @@ than depending on one existing.
 
 The same capture is available remotely, which is what you want on a rig with no
 keyboard attached: `conn.system.capture_frame().save("frame.png")` from Python, or
-`vstimd-client capture frame.png`. The PNG comes back over the connection rather
+`vstimctl capture frame.png`. The PNG comes back over the connection rather
 than landing on the rig's disk, and shows every command acknowledged before the
 request. The null renderer and evdi have no frames to read back and answer
 `NotSupportedError`.

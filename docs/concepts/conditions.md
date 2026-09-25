@@ -61,7 +61,7 @@ time that step comes up, while a background animation shared across steps wants 
 it is.
 
 ```python
-from vstimd.conditions import ConditionAction
+from vstimd_client.conditions import ConditionAction
 
 conn.conditions.set_animation_conditions(flash, [1])                            # RESET (default)
 conn.conditions.set_animation_conditions(drift, [], action=ConditionAction.HOLD)

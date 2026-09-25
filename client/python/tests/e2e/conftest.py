@@ -8,10 +8,10 @@ import warnings
 import pytest
 import zmq
 
-from vstimd import Connection
-from vstimd.events import DEFAULT_EVENT_PORT, EventSubscriber, Topic
-from vstimd.system import Camera3D, Lighting3D
-from vstimd._proto import service_pb2, system_pb2
+from vstimd_client import VstimdClient
+from vstimd_client.events import DEFAULT_EVENT_PORT, EventSubscriber, Topic
+from vstimd_client.system import Camera3D, Lighting3D
+from vstimd_client._proto import service_pb2, system_pb2
 
 from .cases._helpers import Pacing, Stage
 
@@ -102,7 +102,7 @@ class FrameDropWatch:
 
     @classmethod
     def connect(
-        cls, conn: Connection, host: str, port: int, timeout_s: float = 2.0
+        cls, conn: VstimdClient, host: str, port: int, timeout_s: float = 2.0
     ) -> "FrameDropWatch | None":
         """Subscribe, and wait until the subscription is actually live.
 
@@ -171,7 +171,7 @@ def event_port(request: pytest.FixtureRequest) -> int:
 
 
 @pytest.fixture(scope="session")
-def frame_drop_watch(conn: Connection, server_address: str, event_port: int):
+def frame_drop_watch(conn: VstimdClient, server_address: str, event_port: int):
     host = server_address.split("://", 1)[-1].rsplit(":", 1)[0]
     watch = FrameDropWatch.connect(conn, host, event_port)
     if watch is None:
@@ -285,8 +285,8 @@ def server_address(request: pytest.FixtureRequest) -> str:
 
 
 @pytest.fixture(scope="session")
-def conn(server_address: str, request: pytest.FixtureRequest) -> Connection:
-    c = Connection(server_address, recv_timeout_s=request.config.getoption("--recv-timeout"))
+def conn(server_address: str, request: pytest.FixtureRequest) -> VstimdClient:
+    c = VstimdClient(server_address, recv_timeout_s=request.config.getoption("--recv-timeout"))
     # Clear any VTL names left over from a previous failed run.
     for line in c.vtl.list_lines():
         c.vtl.set_line_name(bank=line.bank, bit=line.bit, kind=line.kind, name="")
@@ -301,7 +301,7 @@ def step_delay(request: pytest.FixtureRequest) -> float:
 
 @pytest.fixture(autouse=True)
 def stage(
-    request: pytest.FixtureRequest, conn: Connection, step_delay: float
+    request: pytest.FixtureRequest, conn: VstimdClient, step_delay: float
 ) -> Stage:
     """Caption every test on screen with its id and what should be visible.
 
@@ -330,7 +330,7 @@ def stage(
 
 
 @pytest.fixture(autouse=True)
-def scene_reset(conn: Connection, stage: Stage):
+def scene_reset(conn: VstimdClient, stage: Stage):
     """Hand the next test an empty scene, whatever this one left behind.
 
     Tests delete what they create, but a failed assertion skips the rest of the

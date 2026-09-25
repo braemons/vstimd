@@ -56,10 +56,10 @@ uv run examples/flash_rects.py
 ```
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
-with Connection("tcp://vstimd-a1b2c3.local:5555") as conn:
+with VstimdClient("tcp://braemons-a1b2c3d4e5f6.local:5555") as conn:
     h = conn.stimuli.shapes.create_rect(
         position_px=Vec2(0, 0),
         params=RectParams(width_px=300, height_px=200,
@@ -69,7 +69,7 @@ with Connection("tcp://vstimd-a1b2c3.local:5555") as conn:
 ```
 
 Or open `http://<rig>:8080` for the built-in web control UI, and use
-`vstimd-client discover` to find rigs on the network.
+`vstimctl discover` to find rigs on the network.
 
 ## Contributing
 

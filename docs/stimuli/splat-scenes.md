@@ -225,11 +225,11 @@ The scene loads with no transform. The path is a file on the machine vstimd runs
 on:
 
 ```python
-from vstimd import Connection
-from vstimd.stimuli import Vec3
-from vstimd.system import Camera3D
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import Vec3
+from vstimd_client.system import Camera3D
 
-with Connection() as conn:
+with VstimdClient() as conn:
     conn.stimuli.gaussian_splat.create("/data/scenes/corridor.ply", name="corridor")
     # Put the camera where the photos were taken from: capture_height_cm in the report.
     conn.system.set_camera(Camera3D(position_cm=Vec3(0, 8, 0)))
@@ -245,7 +245,7 @@ Keep the virtual camera close to the capture height and heading. Views far from
 where the photos were taken fall apart into large blurry splats.
 
 To walk it with a running wheel instead of a set speed, pass
-`source=AxisRef("wheel", "wheel")` (from `vstimd.animations`) to
+`source=AxisRef("wheel", "wheel")` (from `vstimd_client.animations`) to
 `create_linear_nav_3d`: an axis of a rig-config input device, such as
 mousewheeld publishing to `/vstimd_wheel`. The demo does all of this in one
 command:

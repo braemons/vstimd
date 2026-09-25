@@ -92,7 +92,7 @@ they look. Four options, cheapest first:
 ## 4. What vstimd would need
 
 Nothing in the renderer knows about primaries today: stimuli carry linear RGBA
-(`server/src/color.rs`), and blending happens in display space. Two additions,
+(`daemon/src/color.rs`), and blending happens in display space. Two additions,
 in order of usefulness:
 
 1. **A per-rig output transform.** A 3 × 3 matrix (plus per-channel levels)

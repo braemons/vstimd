@@ -5,7 +5,7 @@
 Accessed as ``conn.stimuli.text``.
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.TextClient
+.. autoclass:: vstimd_client.stimuli.TextClient
    :members:
    :undoc-members:
 ```
@@ -13,9 +13,9 @@ Accessed as ``conn.stimuli.text``.
 ## Models
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.TextParams
+.. autoclass:: vstimd_client.stimuli.TextParams
    :members:
 
-.. autoclass:: vstimd.stimuli.LanguageStyle
+.. autoclass:: vstimd_client.stimuli.LanguageStyle
    :members:
 ```

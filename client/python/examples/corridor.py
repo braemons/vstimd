@@ -22,9 +22,9 @@ to ``/vstimd_wheel`` — and the walk lasts until Ctrl-C.
 import argparse
 import time
 
-from vstimd import Connection
-from vstimd.animations import AxisRef
-from vstimd.stimuli import (
+from vstimd_client import VstimdClient
+from vstimd_client.animations import AxisRef
+from vstimd_client.stimuli import (
     Color,
     Corridor3DParams,
     Material3D,
@@ -34,7 +34,7 @@ from vstimd.stimuli import (
     Transform3D,
     Vec3,
 )
-from vstimd.system import Camera3D
+from vstimd_client.system import Camera3D
 
 PERIOD_CM = 100.0
 
@@ -53,7 +53,7 @@ def main() -> None:
     source = AxisRef(*args.wheel.split(":", 1)) if args.wheel else None
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         corridor = conn.stimuli.shapes3d.create_corridor(
             name="corridor",
             params=Corridor3DParams(

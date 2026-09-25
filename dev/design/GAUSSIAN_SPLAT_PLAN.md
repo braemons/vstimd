@@ -31,10 +31,10 @@ stack; see §10's last paragraph before relying on any "camera far away" probe.
   | Own file | |
   |---|---|
   | `proto/vstimd/v1/stimuli/gaussian_splat.proto` | `GaussianSplat3DParams`, `CreateGaussianSplat3DRequest` |
-  | `server/src/ipc/gaussian_splat_commands.rs` | the create command |
-  | `server/src/ipc/convert/gaussian_splat.rs` | proto <-> scene |
-  | `server/src/scene/stimulus/gaussian_splat.rs` | the stimulus |
-  | `server/src/render/vk/vk_splat_pipeline.rs`, `.../cache/splat_cache.rs`, `server/shaders/splat.wgsl` | the render path |
+  | `daemon/src/ipc/gaussian_splat_commands.rs` | the create command |
+  | `daemon/src/ipc/convert/gaussian_splat.rs` | proto <-> scene |
+  | `daemon/src/scene/stimulus/gaussian_splat.rs` | the stimulus |
+  | `daemon/src/render/vk/vk_splat_pipeline.rs`, `.../cache/splat_cache.rs`, `daemon/shaders/splat.wgsl` | the render path |
   | `client/python/vstimd/stimuli/gaussian_splat_{client,models}.py` | `conn.stimuli.gaussian_splat` |
   | `client/python/tests/e2e/cases/test_gaussian_splat.py` | its e2e case |
 
@@ -384,7 +384,7 @@ every `(digit, block)` pair gets a global slot that respects block order. The
 pass count is rounded to even so the ping-pong ends in the caller's buffers.
 
 It takes a `&ash::Device` and a command buffer and owns nothing else, so the
-renderer drives it with its own queue and `server/tests/radix_sort.rs` drives it
+renderer drives it with its own queue and `daemon/tests/radix_sort.rs` drives it
 with a headless one — no window, no rig, no display. That test asserts
 *stability*, not just sortedness: values are input positions, so the assertion
 reads as "equal keys kept their input order". It covers a block exactly, a

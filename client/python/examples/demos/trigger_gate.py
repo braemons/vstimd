@@ -23,10 +23,10 @@ import time
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection, VtlHandle, VtlKind, VtlPolarity
+from vstimd_client import VstimdClient, VtlHandle, VtlKind, VtlPolarity
 
-from vstimd.stimuli.stimuli_models import Vec2
-from vstimd.stimuli import GratingMask, GratingParams, GratingTexture
+from vstimd_client.stimuli.stimuli_models import Vec2
+from vstimd_client.stimuli import GratingMask, GratingParams, GratingTexture
 
 EXPLANATION = (
     "demos/trigger_gate — visibility follows an input level\n"
@@ -48,7 +48,7 @@ def main() -> None:
     args = parser.parse_args()
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         clean_slate(conn)
         conn.system.set_background(0.5, 0.5, 0.5)
 

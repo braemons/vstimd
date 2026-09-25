@@ -5,12 +5,39 @@ All notable changes to `vstimd-client` are documented here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html). The client is
 versioned independently of the vstimd server.
 
-## [Unreleased]
+## [0.3.0a2] — 2026-09-25
 
 ### Changed — breaking
 
 The API-consistency pass before the first release. No aliases are kept: the
 server and the client move together, and nothing has shipped yet.
+
+- **The import package is `vstimd_client`**, not `vstimd`: `from vstimd_client
+  import VstimdClient`. Every braemons client imports as `<daemon>_client`
+  (`contracts/DAEMON_LAYOUT.md`). The generated stubs now live at
+  `vstimd_client._proto.vstimd.v1`, and the `__path__` trick that made
+  `vstimd.v1` importable is gone.
+
+- **`Connection` is `VstimdClient`**, and `vstimd.connection` is
+  `vstimd_client.vstimd_client`. Every daemon's Python client is `<Daemon>Client`
+  — `MousewheeldClient`, `StatemachinedClient`, `TrialdClient` — so a script
+  that talks to two daemons can say which is which.
+
+- **The command is `vstimctl`**, not `vstimd-client`, and it follows the rules
+  every braemons `<name>ctl` shares:
+  - `--rig HOST[:PORT]`, else `$BRAEMONS_RIG`, else localhost. This replaces
+    `-a/--address`, `-H/--host`, `-p/--port` and `$VSTIMD_ADDRESS`. It never
+    browses mDNS to guess a rig any more; `discover` lists them.
+  - JSON on stdout always; `--json` and the tables are gone.
+  - A failure is one JSON object on stderr. The exit statuses are the family's:
+    no reply is 3, a refusal is 5, and 7 is gone.
+  - `state` replaces `info` and `ls`, and the new `watch` follows the event
+    stream.
+  - `scene-config` is `scene-configs`, and `upload NAME FILE` is
+    `put FILE [--name NAME]` (`--apply-now` is `--load`). `get` prints to
+    stdout, so `-o` is gone.
+  - The module is `vstimd_client.command_line_interface`, and
+    `VSTIMD_TRACEBACK` is `VSTIMCTL_TRACEBACK`.
 
 - **Projects, and one word for a scene-config.** The server now stores each
   experiment in a **project** — one directory holding everything a study needs —
@@ -252,7 +279,7 @@ First release candidate; the first version published to PyPI.
 
 ### Added
 
-- `Connection` — ZMQ/protobuf client covering stimuli (rect, circle, ellipse,
+- `VstimdClient` — ZMQ/protobuf client covering stimuli (rect, circle, ellipse,
   grating, text, polygon), animations, VTL lines, server config, and system
   queries.
 - `vstimd.psychopy` — drop-in replacement for `psychopy.visual` providing

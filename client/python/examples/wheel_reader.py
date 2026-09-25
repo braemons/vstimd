@@ -30,7 +30,7 @@ import argparse
 import time
 from collections.abc import Iterator
 
-from vstimd.shm import InputDevice, Semantic
+from vstimd_client.shm import InputDevice, Semantic
 
 
 def read_counts(port: str) -> Iterator[int]:

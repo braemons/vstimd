@@ -21,10 +21,10 @@ import sys
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection
+from vstimd_client import VstimdClient
 
-from vstimd.stimuli.stimuli_models import Vec2
-from vstimd.stimuli import GratingMask, GratingParams, GratingTexture
+from vstimd_client.stimuli.stimuli_models import Vec2
+from vstimd_client.stimuli import GratingMask, GratingParams, GratingTexture
 
 EXPLANATION = (
     "demos/drifting_grating — a moving stimulus every frame\n"
@@ -40,7 +40,7 @@ def main() -> None:
     args = demo_parser(__doc__.splitlines()[0], "my_drifting_grating").parse_args()
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         clean_slate(conn)
 
         # Mid grey: a sinusoidal grating modulates around mean luminance, so a

@@ -1,7 +1,7 @@
 """Shared scaffolding for the demo-building example scripts.
 
 Every ``examples/demos/*.py`` script builds one of the shipped demo scenes
-(``server/config/demos/*.config.json``) from an empty scene, then
+(``daemon/config/demos/*.config.json``) from an empty scene, then
 saves it under a name of your own. The three things they all need live here so
 each script stays about the demo it builds:
 
@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import argparse
 
-from vstimd import Connection, StimulusHandle
-from vstimd.stimuli.stimuli_models import Color, Vec2
-from vstimd.stimuli import TextParams
+from vstimd_client import VstimdClient, StimulusHandle
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
+from vstimd_client.stimuli import TextParams
 
 #: Where the caption box sits, and how big it is. Same in every demo.
 EXPLANATION_POS = Vec2(0, -340)
@@ -46,7 +46,7 @@ def demo_parser(description: str, default_name: str) -> argparse.ArgumentParser:
     return parser
 
 
-def clean_slate(conn: Connection) -> None:
+def clean_slate(conn: VstimdClient) -> None:
     """Empty the scene so the script builds on nothing.
 
     ``clear_all`` takes the animations and the stimuli together — an animation
@@ -61,7 +61,7 @@ def clean_slate(conn: Connection) -> None:
         conn.vtl.set_line_name(line.bank, line.bit, line.kind, name="")
 
 
-def add_explanation(conn: Connection, text: str) -> StimulusHandle:
+def add_explanation(conn: VstimdClient, text: str) -> StimulusHandle:
     """Add the on-screen caption every demo carries.
 
     A demo has to explain itself on a rig with no client attached, so each one

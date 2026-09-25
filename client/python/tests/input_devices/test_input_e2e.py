@@ -19,10 +19,10 @@ import time
 
 import pytest
 
-from vstimd import Connection, InvalidArgumentError
-from vstimd.animations import AxisMap, AxisRef, TransformChannel
-from vstimd.shm import InputDevice, Semantic
-from vstimd.stimuli import Vec2
+from vstimd_client import VstimdClient, InvalidArgumentError
+from vstimd_client.animations import AxisMap, AxisRef, TransformChannel
+from vstimd_client.shm import InputDevice, Semantic
+from vstimd_client.stimuli import Vec2
 
 _REPO = pathlib.Path(__file__).resolve().parents[4]
 SHM = f"/vstimd_e2e_input_{os.getpid()}"
@@ -36,7 +36,7 @@ def _free_port() -> int:
 
 @pytest.fixture(scope="module")
 def conn():
-    exe = _REPO / "target" / "release" / ("vstimd.exe" if sys.platform == "win32" else "vstimd")
+    exe = _REPO / "target" / "release" / ("vstimd_client.exe" if sys.platform == "win32" else "vstimd")
     if not exe.exists():
         subprocess.run(["cargo", "build", "--release"], cwd=_REPO, check=True)
     tmp = pathlib.Path(tempfile.mkdtemp(prefix="vstimd_input_e2e_"))
@@ -65,7 +65,7 @@ stale_after_ms = 150
         stdout=log, stderr=log,
     )
     try:
-        c = Connection(f"tcp://localhost:{port}")
+        c = VstimdClient(f"tcp://localhost:{port}")
         c.wait_until_ready(timeout_s=20)
         yield c
         c.close()
@@ -84,7 +84,7 @@ def _until(predicate, timeout_s: float = 3.0) -> bool:
     return False
 
 
-def test_a_python_producer_drives_a_stimulus_through_the_rig(conn: Connection) -> None:
+def test_a_python_producer_drives_a_stimulus_through_the_rig(conn: VstimdClient) -> None:
     dev = InputDevice.create(SHM, [("x", Semantic.ABSOLUTE), ("y", Semantic.ABSOLUTE), ("wheel", Semantic.CUMULATIVE)])
     try:
         dev.write([0.0, 0.0, 0.0])
@@ -114,7 +114,7 @@ def test_a_python_producer_drives_a_stimulus_through_the_rig(conn: Connection) -
         dev.close()
 
 
-def test_device_animations_are_validated_against_the_rig(conn: Connection) -> None:
+def test_device_animations_are_validated_against_the_rig(conn: VstimdClient) -> None:
     r = conn.stimuli.shapes.create_rect()
     with pytest.raises(InvalidArgumentError, match="no input device"):
         conn.animations.create_device_driven_transform(r, "nope", [AxisMap("x", TransformChannel.POS_X)])

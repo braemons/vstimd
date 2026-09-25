@@ -122,10 +122,10 @@ Every parameter of every type is documented under **[Stimuli](stimuli/index.md)*
 === "Python"
 
     ```python
-    from vstimd import Connection
-    from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
+    from vstimd_client import VstimdClient
+    from vstimd_client.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
-    with Connection("tcp://stimulus-pc:5555") as conn:
+    with VstimdClient("tcp://stimulus-pc:5555") as conn:
         h = conn.stimuli.shapes.create_rect(
             position_px=Vec2(0, 0),
             params=RectParams(
@@ -141,7 +141,7 @@ Every parameter of every type is documented under **[Stimuli](stimuli/index.md)*
 === "PsychoPy"
 
     ```python
-    from vstimd.psychopy import visual
+    from vstimd_client.psychopy import visual
 
     win = visual.Window(address="tcp://stimulus-pc:5555")
     rect = visual.Rect(win, size=(200, 100), fillColor="red")
@@ -154,7 +154,7 @@ Every parameter of every type is documented under **[Stimuli](stimuli/index.md)*
     !!! note "The MATLAB client is planned — it does not exist yet."
 
     ```matlab
-    conn = vstimd.Connection('tcp://stimulus-pc:5555');
+    conn = vstimd.VstimdClient('tcp://stimulus-pc:5555');
     h = conn.stimuli.create_rect('x', 0, 'y', 0, 'width', 200, 'height', 100, ...
                                  'r', 1.0, 'g', 0.0, 'b', 0.0);
     conn.stimuli.set_enabled(h, true);

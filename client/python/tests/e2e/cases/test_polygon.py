@@ -8,10 +8,10 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection
-from vstimd.exceptions import NotSupportedError
-from vstimd.stimuli import PolygonParams, ShapeAppearance, StimulusType
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.exceptions import NotSupportedError
+from vstimd_client.stimuli import PolygonParams, ShapeAppearance, StimulusType
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
@@ -23,7 +23,7 @@ from ._helpers import Stage, check_frame_stats
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 @check_frame_stats
-def test_create_polygon(conn: Connection, stage: Stage) -> None:
+def test_create_polygon(conn: VstimdClient, stage: Stage) -> None:
     vertices_px = [Vec2(-50, -50), Vec2(50, -50), Vec2(0, 50)]
     handle = conn.stimuli.shapes.create_polygon(
         params=PolygonParams(
@@ -54,7 +54,7 @@ def test_create_polygon(conn: Connection, stage: Stage) -> None:
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 @check_frame_stats
-def test_create_polygon_open(conn: Connection, stage: Stage) -> None:
+def test_create_polygon_open(conn: VstimdClient, stage: Stage) -> None:
     vertices_px = [Vec2(-100, 0), Vec2(0, 80), Vec2(100, 0)]
     handle = conn.stimuli.shapes.create_polygon(
         params=PolygonParams(vertices_px=vertices_px, close_shape=False),
@@ -74,7 +74,7 @@ def test_create_polygon_open(conn: Connection, stage: Stage) -> None:
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 @check_frame_stats
-def test_set_polygon_vertices(conn: Connection, stage: Stage) -> None:
+def test_set_polygon_vertices(conn: VstimdClient, stage: Stage) -> None:
     vertices_px = [Vec2(-50, -50), Vec2(50, -50), Vec2(0, 50)]
     handle = conn.stimuli.shapes.create_polygon(params=PolygonParams(vertices_px=vertices_px))
 

@@ -1,10 +1,10 @@
 """Quick visual test for the text stimulus — shows text on screen for 3 seconds."""
 import time
-from vstimd import Connection
-from vstimd.stimuli.stimuli_models import Color, Vec2
-from vstimd.stimuli import TextParams
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
+from vstimd_client.stimuli import TextParams
 
-with Connection() as conn:
+with VstimdClient() as conn:
     # White "Hello vstimd" centred on screen
     h = conn.stimuli.text.create_text(
         position_px=Vec2(0, 50),

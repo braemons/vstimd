@@ -7,7 +7,7 @@ and vstimd reads them at the start of each frame.
 
 ```mermaid
 flowchart LR
-    hw[encoder / tracker] --> reader[your reader process<br/>vstimd.shm.InputDevice]
+    hw[encoder / tracker] --> reader[your reader process<br/>vstimd_client.shm.InputDevice]
     reader -- shared memory --> vstimd[vstimd<br/>rig-config device]
     vstimd --> anim[animations<br/>stimuli · camera]
 ```
@@ -15,7 +15,7 @@ flowchart LR
 ## 1. Publish the device
 
 ```python
-from vstimd.shm import InputDevice, Semantic
+from vstimd_client.shm import InputDevice, Semantic
 
 with InputDevice.create("/vstimd_wheel", [("distance", Semantic.CUMULATIVE)]) as dev:
     total = 0
@@ -67,7 +67,7 @@ use. vstimd connects whenever the producer appears and reconnects if it restarts
 ## 3. Drive something with it
 
 ```python
-from vstimd.animations import AxisMap, AxisRef, TransformChannel
+from vstimd_client.animations import AxisMap, AxisRef, TransformChannel
 
 # Walk the 3-D camera down a corridor with the wheel
 walk = conn.animations.create_linear_nav_3d(

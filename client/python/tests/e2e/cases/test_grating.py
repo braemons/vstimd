@@ -3,9 +3,9 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection
-from vstimd.stimuli import GratingMask, GratingParams, GratingTexture, StimulusType
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import GratingMask, GratingParams, GratingTexture, StimulusType
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
@@ -16,7 +16,7 @@ from ._helpers import Stage, check_frame_stats
     "circular-masked so it reads as a disc of hard-edged stripes",
 )
 @check_frame_stats
-def test_create_grating(conn: Connection, stage: Stage) -> None:
+def test_create_grating(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(
         position_px=Vec2(0, 0),
         rotation_deg=45.0,
@@ -54,7 +54,7 @@ def test_create_grating(conn: Connection, stage: Stage) -> None:
     "phase jumps from 0 to 0.5 — light bars land where dark ones were",
 )
 @check_frame_stats
-def test_grating_mutate_phase(conn: Connection, stage: Stage) -> None:
+def test_grating_mutate_phase(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(params=GratingParams(sf_cycles_per_px=0.05))
     stage.step("phase_cycles = 0", hold=0.5)
 
@@ -73,7 +73,7 @@ def test_grating_mutate_phase(conn: Connection, stage: Stage) -> None:
     "frequency goes from 0.05 to 0.1 cycles/px — bars get half as wide",
 )
 @check_frame_stats
-def test_grating_mutate_sf(conn: Connection, stage: Stage) -> None:
+def test_grating_mutate_sf(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(params=GratingParams(sf_cycles_per_px=0.05))
     stage.step("0.05 cycles/px — wide bars", hold=0.5)
 
@@ -92,7 +92,7 @@ def test_grating_mutate_sf(conn: Connection, stage: Stage) -> None:
     "visibly greyer, neither black nor white at the extremes",
 )
 @check_frame_stats
-def test_grating_mutate_contrast(conn: Connection, stage: Stage) -> None:
+def test_grating_mutate_contrast(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(params=GratingParams(sf_cycles_per_px=0.05))
     stage.step("contrast 1.0 — full black-to-white swing", hold=0.5)
 
@@ -111,7 +111,7 @@ def test_grating_mutate_contrast(conn: Connection, stage: Stage) -> None:
     "sawtooth — soft gradients replaced by ramps with a hard edge per cycle",
 )
 @check_frame_stats
-def test_grating_mutate_waveform(conn: Connection, stage: Stage) -> None:
+def test_grating_mutate_waveform(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(
         params=GratingParams(waveform=GratingTexture.SIN),
     )
@@ -132,7 +132,7 @@ def test_grating_mutate_waveform(conn: Connection, stage: Stage) -> None:
     "when the CIRCLE mask is applied — the corners are cut away",
 )
 @check_frame_stats
-def test_grating_set_mask(conn: Connection, stage: Stage) -> None:
+def test_grating_set_mask(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(params=GratingParams(mask=GratingMask.NONE))
     info = conn.stimuli.query(handle)
     assert isinstance(info.params, GratingParams)
@@ -153,7 +153,7 @@ def test_grating_set_mask(conn: Connection, stage: Stage) -> None:
     "then freezes when the drift speed is set to 0",
 )
 @check_frame_stats
-def test_grating_drift_speed(conn: Connection, stage: Stage) -> None:
+def test_grating_drift_speed(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(
         params=GratingParams(sf_cycles_per_px=0.05, drift_speed_hz=2.0)
     )
@@ -178,7 +178,7 @@ def test_grating_drift_speed(conn: Connection, stage: Stage) -> None:
     "at 90°, then recoupled. Speed is 0 throughout, so nothing moves",
 )
 @check_frame_stats
-def test_grating_drift_decoupled(conn: Connection, stage: Stage) -> None:
+def test_grating_drift_decoupled(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(
         params=GratingParams(sf_cycles_per_px=0.05, drift_coupled=False, drift_angle_deg=90.0),
     )
@@ -204,7 +204,7 @@ def test_grating_drift_decoupled(conn: Connection, stage: Stage) -> None:
     "single large patch drifting forwards, backwards and sideways",
 )
 @check_frame_stats
-def test_grating_visual(conn: Connection, stage: Stage) -> None:
+def test_grating_visual(conn: VstimdClient, stage: Stage) -> None:
     """Display grating parameter variations sequentially, one row at a time."""
     PATCH_W, PATCH_H = 200, 150
     COL_STEP = 230
@@ -325,7 +325,7 @@ def test_grating_visual(conn: Connection, stage: Stage) -> None:
     "alternating with blue bars, no grey anywhere",
 )
 @check_frame_stats
-def test_grating_two_color_create(conn: Connection, stage: Stage) -> None:
+def test_grating_two_color_create(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(
         position_px=Vec2(0, 0),
         params=GratingParams(
@@ -359,7 +359,7 @@ def test_grating_two_color_create(conn: Connection, stage: Stage) -> None:
     "(0.5, 0.25, 0) while the background bars stay as they were",
 )
 @check_frame_stats
-def test_grating_mutate_fore_color(conn: Connection, stage: Stage) -> None:
+def test_grating_mutate_fore_color(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating()
     stage.step("default grating, before the foreground colour changes", hold=0.5)
 
@@ -381,7 +381,7 @@ def test_grating_mutate_fore_color(conn: Connection, stage: Stage) -> None:
     "blue-grey while the foreground bars are untouched",
 )
 @check_frame_stats
-def test_grating_mutate_back_color(conn: Connection, stage: Stage) -> None:
+def test_grating_mutate_back_color(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating()
     stage.step("default grating, before the background colour changes", hold=0.5)
 
@@ -403,7 +403,7 @@ def test_grating_mutate_back_color(conn: Connection, stage: Stage) -> None:
     "dims together, bars keeping their relative contrast",
 )
 @check_frame_stats
-def test_grating_mutate_opacity(conn: Connection, stage: Stage) -> None:
+def test_grating_mutate_opacity(conn: VstimdClient, stage: Stage) -> None:
     """Opacity is the shared property, set with the shared command."""
     handle = conn.stimuli.grating.create_grating()
     stage.step("fully opaque grating", hold=0.5)
@@ -421,7 +421,7 @@ def test_grating_mutate_opacity(conn: Connection, stage: Stage) -> None:
     "one bar colour never disturbs the other",
 )
 @check_frame_stats
-def test_grating_fore_back_color_independent(conn: Connection, stage: Stage) -> None:
+def test_grating_fore_back_color_independent(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(
         params=GratingParams(fore_color=Color(1.0, 0.0, 0.0), back_color=Color(0.0, 1.0, 0.0)),
     )
@@ -452,7 +452,7 @@ def test_grating_fore_back_color_independent(conn: Connection, stage: Stage) -> 
     "gaps between the red bars",
 )
 @check_frame_stats
-def test_grating_per_color_alpha(conn: Connection, stage: Stage) -> None:
+def test_grating_per_color_alpha(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(
         params=GratingParams(
             fore_color=Color(1.0, 0.0, 0.0, 0.5),
@@ -479,7 +479,7 @@ def test_grating_per_color_alpha(conn: Connection, stage: Stage) -> None:
     "bars and gaps alike, is half faded into the background",
 )
 @check_frame_stats
-def test_grating_opacity(conn: Connection, stage: Stage) -> None:
+def test_grating_opacity(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.grating.create_grating(
         position_px=Vec2(0, 0),
         params=GratingParams(width_px=200, height_px=200, fore_color=Color(1.0, 0.0, 0.0)),

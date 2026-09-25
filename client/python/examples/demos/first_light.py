@@ -20,8 +20,8 @@ import sys
 
 from _common import add_explanation, clean_slate, demo_parser
 
-from vstimd import Connection
-from vstimd.stimuli import CircleParams, Color, RectParams, ShapeAppearance, TextParams, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import CircleParams, Color, RectParams, ShapeAppearance, TextParams, Vec2
 
 EXPLANATION = (
     "demos/first_light — the display works\n"
@@ -48,7 +48,7 @@ def main() -> None:
     args = demo_parser(__doc__.splitlines()[0], "my_first_light").parse_args()
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         clean_slate(conn)
 
         # ── Background ────────────────────────────────────────────────────────

@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import pytest
 
-import vstimd.psychopy.visual as visual
-from vstimd.stimuli import GratingMask, GratingParams, GratingTexture, StimulusType
+import vstimd_client.psychopy.visual as visual
+from vstimd_client.stimuli import GratingMask, GratingParams, GratingTexture, StimulusType
 from ..cases._helpers import Stage, check_frame_stats
 
 

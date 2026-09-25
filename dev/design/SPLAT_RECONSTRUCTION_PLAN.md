@@ -192,7 +192,7 @@ job can be watched from another shell (`jq . state.json`).
   Burn version to keep in lockstep with vstimd's `ash`. Linking Brush as a library is a later
   option, not a v1 one.
 - **Shared splat code** — `align` and `finish` read and write splat files, which
-  `server/src/splat/` already does. That module moves to a small `vsplat` crate used by both
+  `daemon/src/splat/` already does. That module moves to a small `vsplat` crate used by both
   the server and the worker, in the same way `vtl` and `vinput` are shared today.
 
 ### 5.4 Protocol
@@ -332,7 +332,7 @@ therefore part of the report, and the client warns when the camera is placed mor
   returns a handle. `.status()`, `.wait(on_progress=…)`, `.cancel()`, `.report()`, and
   `conn.reconstruction.list()`. `wait` follows the event stream, falling back to polling
   `status`.
-- **CLI** — `vstimd-client reconstruct start <name> images/corridor_a --path-length 500`, plus
+- **CLI** — `vstimctl reconstruct start <name> images/corridor_a --path-length 500`, plus
   `status`, `list`, `cancel` and `rm`. Combined with `asset push -r` from the asset store, the
   end-to-end command is two lines.
 - **Web** — a Reconstructions panel inside the project view: pick an image folder, enter the
@@ -362,7 +362,7 @@ therefore part of the report, and the client warns when the camera is placed mor
 
 | # | Phase | Depends on | Useful on its own |
 |---|---|---|---|
-| 0 | Move `server/src/splat` to a `vsplat` crate; add `.ply` writing | — | — |
+| 0 | Move `daemon/src/splat` to a `vsplat` crate; add `.ply` writing | — | — |
 | 1 | **Now.** `vstimd-scene-from-capture`: every stage, job directory, resume, `check`, report, docs for the capture protocol. A CLI on a workstation or desktop rig, pointed at a folder of images | 0 | **Yes** — reconstruct a corridor by hand and load the result through #148's path field |
 | 2 | **Later, with the asset store.** Asset types `splats/` and `reconstructions/`; `GaussianSplat3D.path` → `AssetRef`; the CLI accepts a project folder | asset store 1–2 | Running the CLI against a project on the Samba share needs no further code |
 | 3 | `reconstruction.proto`, supervisor, spawning, idle policy, events, errors | 1, 2 | Desktop rigs reconstruct on request |

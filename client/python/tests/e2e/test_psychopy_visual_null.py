@@ -11,7 +11,7 @@ import time
 
 import pytest
 
-import vstimd.psychopy.visual as visual
+import vstimd_client.psychopy.visual as visual
 
 from .psychopy_visual_cases import *  # noqa: F401, F403
 from .conftest import reachable

@@ -30,8 +30,8 @@ import sys
 from dataclasses import replace
 from typing import Callable
 
-from vstimd import Connection, FinalAction, StartAction, VtlHandle, VtlKind
-from vstimd.stimuli import (
+from vstimd_client import VstimdClient, FinalAction, StartAction, VtlHandle, VtlKind
+from vstimd_client.stimuli import (
     Aperture,
     ApertureClip,
     ApertureShape,
@@ -59,7 +59,7 @@ WHITE = Color(1.0, 1.0, 1.0)
 BLACK = Color(0.0, 0.0, 0.0)
 
 
-def caption(conn: Connection, text: str) -> None:
+def caption(conn: VstimdClient, text: str) -> None:
     """A label across the bottom, so a shot is self-describing in the docs."""
     conn.stimuli.text.create_text(
         name="caption",
@@ -74,7 +74,7 @@ def caption(conn: Connection, text: str) -> None:
     )
 
 
-def label(conn: Connection, text: str, at: Vec2) -> None:
+def label(conn: VstimdClient, text: str, at: Vec2) -> None:
     """A small caption under one item in a row of variants."""
     conn.stimuli.text.create_text(
         position_px=at,
@@ -92,7 +92,7 @@ def label(conn: Connection, text: str, at: Vec2) -> None:
 # Each builder gets a clean scene and leaves it ready to photograph.
 
 
-def shapes_overview(conn: Connection) -> None:
+def shapes_overview(conn: VstimdClient) -> None:
     conn.system.set_background(*DARK)
     fill = ShapeAppearance(fill_color=Color(0.85, 0.2, 0.2))
     conn.stimuli.shapes.create_rect(
@@ -117,7 +117,7 @@ def shapes_overview(conn: Connection) -> None:
     caption(conn, "Shapes — every size is a full extent, never a half-extent")
 
 
-def shape_draw_modes(conn: Connection) -> None:
+def shape_draw_modes(conn: VstimdClient) -> None:
     conn.system.set_background(*DARK)
     modes = [
         (ShapeDrawMode.FILLED, "FILLED", -320),
@@ -141,7 +141,7 @@ def shape_draw_modes(conn: Connection) -> None:
     caption(conn, "draw_mode turns an outline on and off — not outline_width_px")
 
 
-def grating_masks(conn: Connection) -> None:
+def grating_masks(conn: VstimdClient) -> None:
     conn.system.set_background(*GREY)
     masks = [
         (GratingMask.NONE, "NONE", -480),
@@ -163,7 +163,7 @@ def grating_masks(conn: Connection) -> None:
     caption(conn, "Aperture masks — a tapered edge stops the patch being its own stimulus")
 
 
-def grating_waveforms(conn: Connection) -> None:
+def grating_waveforms(conn: VstimdClient) -> None:
     conn.system.set_background(*GREY)
     for wave, text, x in (
         (GratingTexture.SIN, "SIN", -480),
@@ -183,7 +183,7 @@ def grating_waveforms(conn: Connection) -> None:
     caption(conn, "Carrier waveforms at the same spatial frequency")
 
 
-def grating_drifting(conn: Connection) -> None:
+def grating_drifting(conn: VstimdClient) -> None:
     """The hero grating: a drifting Gabor, which is what the demo config shows."""
     conn.system.set_background(*GREY)
     conn.stimuli.grating.create_grating(
@@ -198,7 +198,7 @@ def grating_drifting(conn: Connection) -> None:
     caption(conn, "Gabor, 0.01 cyc/px, drifting 4 cyc/s — the server owns the motion")
 
 
-def text_anchors(conn: Connection) -> None:
+def text_anchors(conn: VstimdClient) -> None:
     conn.system.set_background(*DARK)
     conn.stimuli.text.create_text(
         name="anchor_center", position_px=Vec2(0, 120),
@@ -219,7 +219,7 @@ def text_anchors(conn: Connection) -> None:
     caption(conn, "Text — pos_px places the box, anchor says which of its points lands there")
 
 
-def dots_classic(conn: Connection) -> None:
+def dots_classic(conn: VstimdClient) -> None:
     """A textbook coherence RDK: aperture the size of the field, hard edge visible."""
     conn.system.set_background(*DARK)
     conn.stimuli.dots.create_dots(
@@ -238,7 +238,7 @@ def dots_classic(conn: Connection) -> None:
     caption(conn, "Classic RDK — 60% coherence, PIXEL clipping so the window edge is crisp")
 
 
-def dots_coherence(conn: Connection) -> None:
+def dots_coherence(conn: VstimdClient) -> None:
     conn.system.set_background(*DARK)
     common = DotsParams(
         field_width_px=300, field_height_px=300,
@@ -257,7 +257,7 @@ def dots_coherence(conn: Connection) -> None:
     caption(conn, "Coherence is a per-dot Bernoulli, so the signal count varies frame to frame")
 
 
-def dots_figure_ground(conn: Connection) -> None:
+def dots_figure_ground(conn: VstimdClient) -> None:
     """The whole point of separating field from aperture."""
     conn.system.set_background(*GREY)
     circle = Aperture(
@@ -281,7 +281,7 @@ def dots_figure_ground(conn: Connection) -> None:
     caption(conn, "Figure-ground RDK — freeze this frame and the circle vanishes")
 
 
-def dots_clipping(conn: Connection) -> None:
+def dots_clipping(conn: VstimdClient) -> None:
     """Side by side, the difference that decides whether a figure has an outline."""
     conn.system.set_background(*DARK)
     common = DotsParams(
@@ -300,7 +300,7 @@ def dots_clipping(conn: Connection) -> None:
     caption(conn, "DOT_CENTER lets dots overhang; PIXEL cuts them, drawing the aperture")
 
 
-def overlay_scene(conn: Connection) -> None:
+def overlay_scene(conn: VstimdClient) -> None:
     """A scene with enough in it that every overlay panel has something to show.
 
     An empty Stimuli panel or an empty Animations table makes a useless
@@ -352,7 +352,7 @@ def overlay_scene(conn: Connection) -> None:
                   " · F6 Scene-config · F7 Benchmarks")
 
 
-Shot = tuple[str, str, Callable[[Connection], None], str]
+Shot = tuple[str, str, Callable[[VstimdClient], None], str]
 
 SHOTS: list[Shot] = [
     ("shapes-overview", "shapes/shapes.md", shapes_overview,
@@ -408,7 +408,7 @@ def main() -> int:
         return 0
 
     print(f"Connecting to {args.address} …")
-    with Connection(args.address) as conn:
+    with VstimdClient(args.address) as conn:
         conn.wait_until_ready(timeout_s=15)
         info = conn.system.query_server_info()
         print(f"{info.width_px}x{info.height_px} @ {info.frame_rate_hz:.1f} Hz, "

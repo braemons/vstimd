@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection
-from vstimd.stimuli import RectParams, ShapeAppearance
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import RectParams, ShapeAppearance
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
@@ -20,7 +20,7 @@ from ._helpers import Stage, check_frame_stats
     "(+120, −80 px), whose position is then read back",
 )
 @check_frame_stats
-def test_query_pos(conn: Connection, stage: Stage) -> None:
+def test_query_pos(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(
         position_px=Vec2(120, -80),
         params=RectParams(width_px=50, height_px=50),
@@ -39,7 +39,7 @@ def test_query_pos(conn: Connection, stage: Stage) -> None:
     "query reports enabled=True, then False",
 )
 @check_frame_stats
-def test_query_enabled(conn: Connection, stage: Stage) -> None:
+def test_query_enabled(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     info = conn.stimuli.query(handle)
     assert info.enabled is True
@@ -59,7 +59,7 @@ def test_query_enabled(conn: Connection, stage: Stage) -> None:
     "query reporting opacity 0.3",
 )
 @check_frame_stats
-def test_query_opacity(conn: Connection, stage: Stage) -> None:
+def test_query_opacity(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_alpha(handle, 0.3)
     info = conn.stimuli.query(handle)
@@ -75,7 +75,7 @@ def test_query_opacity(conn: Connection, stage: Stage) -> None:
     "colour, not the one it was created with",
 )
 @check_frame_stats
-def test_query_fill_color(conn: Connection, stage: Stage) -> None:
+def test_query_fill_color(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(
         params=RectParams(appearance=ShapeAppearance(fill_color=Color(1.0, 0.0, 0.0))),
     )
@@ -97,7 +97,7 @@ def test_query_fill_color(conn: Connection, stage: Stage) -> None:
     "query reporting rotation_deg 45",
 )
 @check_frame_stats
-def test_query_orientation(conn: Connection, stage: Stage) -> None:
+def test_query_orientation(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_rotation(handle, 45.0)
     info = conn.stimuli.query(handle)
@@ -113,7 +113,7 @@ def test_query_orientation(conn: Connection, stage: Stage) -> None:
     "and query reports the higher draw order for it",
 )
 @check_frame_stats
-def test_query_draw_order(conn: Connection, stage: Stage) -> None:
+def test_query_draw_order(conn: VstimdClient, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_rect()
     info1 = conn.stimuli.query(h1)
@@ -131,7 +131,7 @@ def test_query_draw_order(conn: Connection, stage: Stage) -> None:
     "does not change between calls. Nothing moves on screen",
 )
 @check_frame_stats
-def test_query_id_stable(conn: Connection, stage: Stage) -> None:
+def test_query_id_stable(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     id1 = conn.stimuli.query(handle).id
     id2 = conn.stimuli.query(handle).id

@@ -21,7 +21,7 @@ $PROTO_SRC = @(
     "../../proto/vstimd/v1/stimuli/query.proto",
     "../../proto/vstimd/v1/service.proto"
 )
-$PROTO_OUT = "vstimd/_proto"
+$PROTO_OUT = "vstimd_client/_proto"
 
 function Invoke-Proto {
     uv run --group dev python -m grpc_tools.protoc `
@@ -29,6 +29,11 @@ function Invoke-Proto {
         "--python_out=$PROTO_OUT" `
         "--pyi_out=$PROTO_OUT" `
         @PROTO_SRC
+    # Imports rooted at the proto path (`from vstimd.v1`) move inside this package.
+    Get-ChildItem -Recurse $PROTO_OUT -Include *.py, *.pyi | ForEach-Object {
+        (Get-Content $_.FullName) -replace '^from vstimd\.v1\b', 'from vstimd_client._proto.vstimd.v1' |
+            Set-Content $_.FullName
+    }
 }
 
 switch ($Target) {

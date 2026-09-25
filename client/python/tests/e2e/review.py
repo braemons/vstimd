@@ -51,8 +51,8 @@ from textual.widgets import (
 )
 from textual.widgets.tree import TreeNode
 
-from vstimd import Connection
-from vstimd.tui import ServerStatus, StimulusList, TriggerLines
+from vstimd_client import VstimdClient
+from vstimd_client.tui import ServerStatus, StimulusList, TriggerLines
 
 sys.path.insert(0, str(pathlib.Path(__file__).parents[2]))
 
@@ -287,7 +287,7 @@ class ReviewApp(App[None]):
         # session's connection, and a ZMQ socket belongs to one thread at a time.
         # With a receive timeout, because these panels poll from the UI thread —
         # a server that stops answering must not take the interface with it.
-        self.connection = Connection(server_address, recv_timeout_s=2.0)
+        self.connection = VstimdClient(server_address, recv_timeout_s=2.0)
 
     # ── layout ───────────────────────────────────────────────────────────────
 
@@ -787,7 +787,7 @@ def _start_server(address: str, window: str | None, log: pathlib.Path):
         print(f"review: using the server already at {address}")
         return None
     binary = _REPO_ROOT / "target" / "release" / (
-        "vstimd.exe" if sys.platform == "win32" else "vstimd"
+        "vstimd_client.exe" if sys.platform == "win32" else "vstimd"
     )
     if not binary.exists():
         if subprocess.run(["cargo", "build", "--release"], cwd=_REPO_ROOT).returncode:

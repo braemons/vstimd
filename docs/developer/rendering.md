@@ -15,9 +15,9 @@ startup (see [Architecture → Rendering backends](architecture.md#rendering-bac
 - **Desktop** — `VK_KHR_surface` via `winit` + `ash-window`.
 - **Null** — no display; ZMQ server only.
 
-Shaders are written in WGSL under `server/shaders/` and compiled to SPIR-V at
+Shaders are written in WGSL under `daemon/shaders/` and compiled to SPIR-V at
 build time by [`naga`](https://github.com/gfx-rs/wgpu/tree/trunk/naga), driven
-from `server/build.rs` — so a malformed shader is a build failure, not a runtime
+from `daemon/build.rs` — so a malformed shader is a build failure, not a runtime
 one.
 
 ## Coordinate spaces
@@ -44,14 +44,14 @@ On minimal embedded systems without udev, `Libinput::new_from_path` opens
 
 | Module | Contents |
 |---|---|
-| `server/src/render/mod.rs` | Backend entry points, auto-detection, `spawn_demo_stimuli` |
-| `server/src/render/drm/` | DRM backend: display discovery, render loop, vblank, libinput keyboard |
-| `server/src/render/winit_vk/` | Desktop backend: winit event loop and render loop |
-| `server/src/render/vk/` | Shared Vulkan code (both backends) |
-| `server/src/render/vk/vk_context.rs` | `VkContext`: instance, device, queue |
-| `server/src/render/vk/egui/` | Vulkan egui renderer for the overlay UI |
-| `server/src/render/overlay_ui/` | Overlay panels (Stimuli / Log / VTL / Animations / System / Config / Benchmarks) and dialogs |
-| `server/src/render/render_frame.rs` | Per-frame render logic |
+| `daemon/src/render/mod.rs` | Backend entry points, auto-detection, `spawn_demo_stimuli` |
+| `daemon/src/render/drm/` | DRM backend: display discovery, render loop, vblank, libinput keyboard |
+| `daemon/src/render/winit_vk/` | Desktop backend: winit event loop and render loop |
+| `daemon/src/render/vk/` | Shared Vulkan code (both backends) |
+| `daemon/src/render/vk/vk_context.rs` | `VkContext`: instance, device, queue |
+| `daemon/src/render/vk/egui/` | Vulkan egui renderer for the overlay UI |
+| `daemon/src/render/overlay_ui/` | Overlay panels (Stimuli / Log / VTL / Animations / System / Config / Benchmarks) and dialogs |
+| `daemon/src/render/render_frame.rs` | Per-frame render logic |
 
 ## The vblank-source chain
 

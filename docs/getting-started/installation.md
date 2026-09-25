@@ -149,9 +149,9 @@ is `vstimd`.
 pip install vstimd-client        # or: uv add vstimd-client
 ```
 
-That also installs the [`vstimd-client` command-line tool](../client/cli.md),
+That also installs the [`vstimctl` command-line tool](../client/cli.md),
 and mDNS discovery works out of the box — `zeroconf` is a plain dependency, so
-`vstimd-client discover` finds rigs with no Avahi installed locally.
+`vstimctl discover` finds rigs with no Avahi installed locally.
 
 !!! note "Pre-releases while the project is in alpha"
     Until `0.1.0` is final the only versions on PyPI are release candidates, and

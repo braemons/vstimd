@@ -14,14 +14,14 @@ multi-stimulus updates.
 
 ## 1. Connect
 
-Every session starts with a `Connection`. It opens a ZMQ REQ socket to the server
+Every session starts with a `VstimdClient`. It opens a ZMQ REQ socket to the server
 and exposes the command namespaces (`stimuli`, `system`, `animations`, `vtl`,
 `scene_config`, `conditions`).
 
 ```python
-from vstimd import Connection
+from vstimd_client import VstimdClient
 
-with Connection() as conn:                 # default: tcp://localhost:5555
+with VstimdClient() as conn:                 # default: tcp://localhost:5555
     info = conn.system.query_server_info()
     print(info.width_px, info.height_px, info.frame_rate_hz)
 ```
@@ -29,7 +29,7 @@ with Connection() as conn:                 # default: tcp://localhost:5555
 For a remote device, pass its address:
 
 ```python
-with Connection("tcp://stimulus-pc:5555") as conn:
+with VstimdClient("tcp://stimulus-pc:5555") as conn:
     ...
 ```
 
@@ -41,9 +41,9 @@ up** (see [Coordinate system](coordinate-system.md)); colours are RGBA
 in 0–1.
 
 ```python
-from vstimd.stimuli import Color, RectParams, ShapeAppearance, Vec2
+from vstimd_client.stimuli import Color, RectParams, ShapeAppearance, Vec2
 
-with Connection() as conn:
+with VstimdClient() as conn:
     rect = conn.stimuli.shapes.create_rect(
         position_px=Vec2(0, 0),
         params=RectParams(
@@ -106,7 +106,7 @@ If you enable two stimuli with two separate commands, they may land on two
 deferred batch: the server accumulates the changes and flips them all on one frame.
 
 ```python
-with Connection() as conn:
+with VstimdClient() as conn:
     left  = conn.stimuli.shapes.create_rect(
         position_px=Vec2(-200, 0),
         params=RectParams(
@@ -165,10 +165,10 @@ conn.conditions.set("probe")                            # hard cut, next frame
 
 ```python
 import time
-from vstimd import Connection
-from vstimd.stimuli import CircleParams, Color, RectParams, ShapeAppearance, Vec2
+from vstimd_client import VstimdClient
+from vstimd_client.stimuli import CircleParams, Color, RectParams, ShapeAppearance, Vec2
 
-with Connection("tcp://stimulus-pc:5555") as conn:
+with VstimdClient("tcp://stimulus-pc:5555") as conn:
     fix = conn.stimuli.shapes.create_circle(
         position_px=Vec2(0, 0),
         params=CircleParams(diameter_px=20, appearance=ShapeAppearance(fill_color=Color(1, 1, 1))),
@@ -198,12 +198,12 @@ move that part into an [animation](vtl-and-animations.md).
 
 ## PsychoPy compatibility
 
-If you have existing PsychoPy code, the `vstimd.psychopy` layer mirrors
+If you have existing PsychoPy code, the `vstimd_client.psychopy` layer mirrors
 `psychopy.visual` on top of the command API — often a one-line import swap:
 
 ```python
 # from psychopy import visual
-from vstimd.psychopy import visual
+from vstimd_client.psychopy import visual
 
 win  = visual.Window(address="tcp://stimulus-pc:5555")
 rect = visual.Rect(win, size=(300, 150), pos=(0, 0), fillColor="red")

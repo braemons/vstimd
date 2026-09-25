@@ -36,7 +36,7 @@ def _free_port() -> int:
 
 
 def _server_binary() -> pathlib.Path:
-    exe = "vstimd.exe" if sys.platform == "win32" else "vstimd"
+    exe = "vstimd_client.exe" if sys.platform == "win32" else "vstimd"
     binary = _REPO_ROOT / "target" / "release" / exe
     if not binary.exists():
         result = subprocess.run(["cargo", "build", "--release"], cwd=_REPO_ROOT)
@@ -101,7 +101,7 @@ def step_delay() -> float:
 @check_frame_stats
 def test_capture_frame_is_not_supported_without_a_renderer(conn):
     """The null renderer has no frames, and says so rather than hanging."""
-    from vstimd.exceptions import NotSupportedError
+    from vstimd_client.exceptions import NotSupportedError
 
     with pytest.raises(NotSupportedError):
         conn.system.capture_frame()

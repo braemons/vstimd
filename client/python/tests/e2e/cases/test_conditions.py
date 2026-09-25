@@ -9,16 +9,16 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection, InvalidArgumentError
-from vstimd.animations import AnimationState
-from vstimd.conditions import ConditionAction
-from vstimd.stimuli import RectParams, ShapeAppearance
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient, InvalidArgumentError
+from vstimd_client.animations import AnimationState
+from vstimd_client.conditions import ConditionAction
+from vstimd_client.stimuli import RectParams, ShapeAppearance
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
 
-def _rect(conn: Connection, x: float, color: Color):
+def _rect(conn: VstimdClient, x: float, color: Color):
     return conn.stimuli.shapes.create_rect(
         position_px=Vec2(x, 0),
         params=RectParams(
@@ -35,7 +35,7 @@ def _rect(conn: Connection, x: float, color: Color):
     "vanishes as condition 1 becomes active, then comes back at condition 0",
 )
 @check_frame_stats
-def test_membership_gates_visibility(conn: Connection, stage: Stage) -> None:
+def test_membership_gates_visibility(conn: VstimdClient, stage: Stage) -> None:
     always = _rect(conn, -250, Color(1.0, 0.0, 0.0))
     baseline_only = _rect(conn, 250, Color(0.0, 0.4, 1.0))
     conn.conditions.set_stimulus_conditions(baseline_only, [0])
@@ -61,7 +61,7 @@ def test_membership_gates_visibility(conn: Connection, stage: Stage) -> None:
     "without ever touching the enabled flag the operator set",
 )
 @check_frame_stats
-def test_the_gate_does_not_touch_enabled(conn: Connection, stage: Stage) -> None:
+def test_the_gate_does_not_touch_enabled(conn: VstimdClient, stage: Stage) -> None:
     handle = _rect(conn, 0, Color(1.0, 1.0, 1.0))
     conn.conditions.set_stimulus_conditions(handle, [0])
     conn.stimuli.set_enabled(handle, False)
@@ -83,7 +83,7 @@ def test_the_gate_does_not_touch_enabled(conn: Connection, stage: Stage) -> None
     "name, and listed back with the active one marked",
 )
 @check_frame_stats
-def test_declare_and_switch_by_name(conn: Connection, stage: Stage) -> None:
+def test_declare_and_switch_by_name(conn: VstimdClient, stage: Stage) -> None:
     conn.conditions.declare([(0, "baseline"), (2, "probe")])
 
     conn.conditions.set("probe")
@@ -111,7 +111,7 @@ def test_declare_and_switch_by_name(conn: Connection, stage: Stage) -> None:
     "and re-armed when it comes back",
 )
 @check_frame_stats
-def test_animation_reset_on_condition_switch(conn: Connection, stage: Stage) -> None:
+def test_animation_reset_on_condition_switch(conn: VstimdClient, stage: Stage) -> None:
     handle = _rect(conn, 0, Color(1.0, 1.0, 1.0))
     anim = conn.animations.create_flash(handle, duration_ms=200)
     conn.animations.arm(anim)
@@ -138,7 +138,7 @@ def test_animation_reset_on_condition_switch(conn: Connection, stage: Stage) -> 
     "switch, where the default RESET would have idled it",
 )
 @check_frame_stats
-def test_animation_hold_across_a_switch(conn: Connection, stage: Stage) -> None:
+def test_animation_hold_across_a_switch(conn: VstimdClient, stage: Stage) -> None:
     handle = _rect(conn, 0, Color(1.0, 1.0, 1.0))
     anim = conn.animations.create_flash(handle, duration_ms=200)
     conn.animations.arm(anim)
@@ -162,7 +162,7 @@ def test_animation_hold_across_a_switch(conn: Connection, stage: Stage) -> None:
 )
 @check_frame_stats
 def test_conditions_survive_a_scene_config_round_trip(
-    conn: Connection, stage: Stage
+    conn: VstimdClient, stage: Stage
 ) -> None:
     conn.system.clear_all()
     handle = _rect(conn, 0, Color(1.0, 1.0, 1.0))

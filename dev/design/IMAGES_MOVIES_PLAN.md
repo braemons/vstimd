@@ -81,7 +81,7 @@ ERROR_CODE_ASSET_INCOMPLETE = 9;  // upload not yet finished
 ERROR_CODE_DECODE_FAILED    = 10; // image / video decode error
 ```
 
-### Server-side `AssetStore` (`server/src/assets.rs`)
+### Server-side `AssetStore` (`daemon/src/assets.rs`)
 
 ```rust
 pub struct AssetStore {
@@ -131,7 +131,7 @@ class AssetsClient:
     def list(self) -> list[AssetInfo]: ...
 ```
 
-`Connection` gains a `.assets` attribute alongside `.stimuli` and `.system`.
+`VstimdClient` gains a `.assets` attribute alongside `.stimuli` and `.system`.
 
 ---
 
@@ -359,7 +359,7 @@ both cases.
 proto/v1/
   assets.proto           ← NEW: UploadAsset, DeleteAsset, ListAssets, AssetList, AssetInfo
 
-server/src/
+daemon/src/
   assets.rs              ← NEW: AssetStore (in-memory / disk-backed)
   ipc/dispatch.rs        ← route UploadAsset / DeleteAsset / ListAssets
   ipc/bitmap_commands.rs ← NEW: cmd_create_bitmap, cmd_create_bitmap_seq, cmd_create_video
@@ -371,7 +371,7 @@ server/src/
 
 client/python/
   vstimd/
-    __init__.py          ← export AssetsClient, Connection.assets
+    __init__.py          ← export AssetsClient, VstimdClient.assets
     assets/
       __init__.py
       _client.py         ← AssetsClient (upload, upload_bytes, delete, list)

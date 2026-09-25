@@ -179,12 +179,12 @@ reused **completely as-is** — the only genuinely new Vulkan code is reading
 the rendered image back afterward.
 
 The one shared-code touch needed: `FrameTick` gained an `image_index: u32`
-field (`server/src/timing.rs`) so the evdi backend knows which swapchain
+field (`daemon/src/timing.rs`) so the evdi backend knows which swapchain
 image `render_frame()` just rendered into and left in `PRESENT_SRC_KHR`
 layout — a single additive struct field, not a behavior change for the
 existing DRM/Winit callers.
 
-Final module layout, `server/src/render/evdi/`:
+Final module layout, `daemon/src/render/evdi/`:
 
 ```
 evdi/
@@ -331,7 +331,7 @@ were polled on its own thread or via epoll rather than once per frame.
 
 ## Module layout (original plan, superseded above)
 
-New `server/src/render/evdi/` (mirrors the existing `drm/` module):
+New `daemon/src/render/evdi/` (mirrors the existing `drm/` module):
 
 ```
 evdi/

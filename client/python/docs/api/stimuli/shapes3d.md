@@ -6,7 +6,7 @@ Accessed as ``conn.stimuli.shapes3d``. The camera and lighting they are seen
 through are on ``conn.system`` — see [System](../system.md).
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.Shapes3DClient
+.. autoclass:: vstimd_client.stimuli.Shapes3DClient
    :members:
    :undoc-members:
 ```
@@ -14,24 +14,24 @@ through are on ``conn.system`` — see [System](../system.md).
 ## Models
 
 ```{eval-rst}
-.. autoclass:: vstimd.stimuli.Transform3D
+.. autoclass:: vstimd_client.stimuli.Transform3D
    :members:
 
-.. autoclass:: vstimd.stimuli.Material3D
+.. autoclass:: vstimd_client.stimuli.Material3D
    :members:
 
-.. autoclass:: vstimd.stimuli.Shading
+.. autoclass:: vstimd_client.stimuli.Shading
    :members:
 
-.. autoclass:: vstimd.stimuli.Cube3DParams
+.. autoclass:: vstimd_client.stimuli.Cube3DParams
    :members:
 
-.. autoclass:: vstimd.stimuli.Sphere3DParams
+.. autoclass:: vstimd_client.stimuli.Sphere3DParams
    :members:
 
-.. autoclass:: vstimd.stimuli.Plane3DParams
+.. autoclass:: vstimd_client.stimuli.Plane3DParams
    :members:
 
-.. autoclass:: vstimd.stimuli.Vec3
+.. autoclass:: vstimd_client.stimuli.Vec3
    :members:
 ```

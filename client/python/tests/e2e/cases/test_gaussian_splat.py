@@ -11,16 +11,16 @@ import struct
 
 import pytest
 
-from vstimd import Connection
-from vstimd.exceptions import InvalidArgumentError, WrongStimulusTypeError
-from vstimd.stimuli import (
+from vstimd_client import VstimdClient
+from vstimd_client.exceptions import InvalidArgumentError, WrongStimulusTypeError
+from vstimd_client.stimuli import (
     GaussianSplat3DParams,
     Material3D,
     Shading,
     StimulusType,
     Vec3,
 )
-from vstimd.system import Camera3D
+from vstimd_client.system import Camera3D
 
 from ._helpers import Stage
 
@@ -53,9 +53,9 @@ def _write_splat_corridor(path: pathlib.Path) -> int:
     "view fades to black, and the walk starts again from the beginning",
 )
 def test_gaussian_splat_on_a_finite_track(
-    conn: Connection, stage: Stage, tmp_path: pathlib.Path
+    conn: VstimdClient, stage: Stage, tmp_path: pathlib.Path
 ) -> None:
-    from vstimd.animations import AnimationState
+    from vstimd_client.animations import AnimationState
 
     path = tmp_path / "corridor.splat"
     _write_splat_corridor(path)

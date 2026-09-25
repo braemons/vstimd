@@ -9,9 +9,9 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection
-from vstimd.response import ErrorCode, ServerResponse
-from vstimd.vtl import VtlKind, VtlHandle
+from vstimd_client import VstimdClient
+from vstimd_client.response import ErrorCode, ServerResponse
+from vstimd_client.vtl import VtlKind, VtlHandle
 
 from ._helpers import Stage, check_frame_stats
 
@@ -22,7 +22,7 @@ from ._helpers import Stage, check_frame_stats
     "finding both back in list_lines with the right bank and kind",
 )
 @check_frame_stats
-def test_vtl_set_and_list_line_name(conn: Connection, stage: Stage) -> None:
+def test_vtl_set_and_list_line_name(conn: VstimdClient, stage: Stage) -> None:
     """Named output lines appear in list_lines with the right metadata."""
     resp = conn.vtl.set_line_name(
         bank=0, bit=0, kind=VtlKind.OUTPUT, name="stim_onset"
@@ -54,7 +54,7 @@ def test_vtl_set_and_list_line_name(conn: Connection, stage: Stage) -> None:
     "low by bank/bit, and reading the level back from list_lines",
 )
 @check_frame_stats
-def test_vtl_set_line_by_bank_bit(conn: Connection, stage: Stage) -> None:
+def test_vtl_set_line_by_bank_bit(conn: VstimdClient, stage: Stage) -> None:
     """set_line on an INPUT handle writes the input bank; list_lines reports high."""
     conn.vtl.set_line_name(bank=0, bit=2, kind=VtlKind.INPUT, name="test_in")
     try:
@@ -79,7 +79,7 @@ def test_vtl_set_line_by_bank_bit(conn: Connection, stage: Stage) -> None:
     "its name instead of its bank/bit",
 )
 @check_frame_stats
-def test_vtl_set_line_by_name(conn: Connection, stage: Stage) -> None:
+def test_vtl_set_line_by_name(conn: VstimdClient, stage: Stage) -> None:
     """set_line accepts a named INPUT handle."""
     conn.vtl.set_line_name(bank=0, bit=3, kind=VtlKind.INPUT, name="named_in")
     try:
@@ -99,7 +99,7 @@ def test_vtl_set_line_by_name(conn: Connection, stage: Stage) -> None:
     "low→high by bank/bit, high→low by name",
 )
 @check_frame_stats
-def test_vtl_toggle_line(conn: Connection, stage: Stage) -> None:
+def test_vtl_toggle_line(conn: VstimdClient, stage: Stage) -> None:
     """toggle_line flips the line and returns the new state."""
     conn.vtl.set_line_name(
         bank=0, bit=4, kind=VtlKind.INPUT, name="toggle_in"
@@ -124,7 +124,7 @@ def test_vtl_toggle_line(conn: Connection, stage: Stage) -> None:
     "and 6 go high together, then the bank is zeroed and both go low",
 )
 @check_frame_stats
-def test_vtl_set_bank(conn: Connection, stage: Stage) -> None:
+def test_vtl_set_bank(conn: VstimdClient, stage: Stage) -> None:
     """set_bank writes a full 64-bit word; INPUT-named bits within the bank reflect it."""
     conn.vtl.set_line_name(
         bank=0, bit=5, kind=VtlKind.INPUT, name="bank_bit5"
@@ -157,7 +157,7 @@ def test_vtl_set_bank(conn: Connection, stage: Stage) -> None:
     "and draining the edge latch it left behind",
 )
 @check_frame_stats
-def test_vtl_clear_input_latches(conn: Connection, stage: Stage) -> None:
+def test_vtl_clear_input_latches(conn: VstimdClient, stage: Stage) -> None:
     """clear_latches returns OK and drains accumulated input edge latches."""
     conn.vtl.set_line_name(
         bank=0, bit=7, kind=VtlKind.INPUT, name="latch_test"
@@ -181,7 +181,7 @@ def test_vtl_clear_input_latches(conn: Connection, stage: Stage) -> None:
     "low — the output side of VTL-02",
 )
 @check_frame_stats
-def test_vtl_set_output_line(conn: Connection, stage: Stage) -> None:
+def test_vtl_set_output_line(conn: VstimdClient, stage: Stage) -> None:
     conn.vtl.set_line_name(
         bank=0, bit=10, kind=VtlKind.OUTPUT, name="out_line"
     )
@@ -207,7 +207,7 @@ def test_vtl_set_output_line(conn: Connection, stage: Stage) -> None:
     "bank/bit and then by name",
 )
 @check_frame_stats
-def test_vtl_toggle_output_line(conn: Connection, stage: Stage) -> None:
+def test_vtl_toggle_output_line(conn: VstimdClient, stage: Stage) -> None:
     conn.vtl.set_line_name(
         bank=0, bit=11, kind=VtlKind.OUTPUT, name="out_toggle"
     )
@@ -231,7 +231,7 @@ def test_vtl_toggle_output_line(conn: Connection, stage: Stage) -> None:
     "together, then the bank is zeroed",
 )
 @check_frame_stats
-def test_vtl_set_output_bank(conn: Connection, stage: Stage) -> None:
+def test_vtl_set_output_bank(conn: VstimdClient, stage: Stage) -> None:
     conn.vtl.set_line_name(
         bank=0, bit=12, kind=VtlKind.OUTPUT, name="out_bank12"
     )

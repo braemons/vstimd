@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import pytest
 
-from vstimd import Connection, NotSupportedError
-from vstimd.response import ErrorCode, ServerResponse
-from vstimd.stimuli import RectParams, ShapeAppearance, TextParams
-from vstimd.stimuli.stimuli_models import Color, Vec2
+from vstimd_client import VstimdClient, NotSupportedError
+from vstimd_client.response import ErrorCode, ServerResponse
+from vstimd_client.stimuli import RectParams, ShapeAppearance, TextParams
+from vstimd_client.stimuli.stimuli_models import Color, Vec2
 
 from ._helpers import Stage, check_frame_stats
 
@@ -17,7 +17,7 @@ from ._helpers import Stage, check_frame_stats
     "straight back when enabled again",
 )
 @check_frame_stats
-def test_set_enabled(conn: Connection, stage: Stage) -> None:
+def test_set_enabled(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     resp = conn.stimuli.set_enabled(handle, False)
     assert isinstance(resp, ServerResponse)
@@ -40,8 +40,8 @@ def test_set_enabled(conn: Connection, stage: Stage) -> None:
     "stops answering queries",
 )
 @check_frame_stats
-def test_delete(conn: Connection, stage: Stage) -> None:
-    from vstimd import HandleNotFoundError
+def test_delete(conn: VstimdClient, stage: Stage) -> None:
+    from vstimd_client import HandleNotFoundError
     handle = conn.stimuli.shapes.create_rect()
     stage.step("rect on screen, about to be deleted", hold=0.5)
 
@@ -57,7 +57,7 @@ def test_delete(conn: Connection, stage: Stage) -> None:
     "bookkeeping, so the rect on screen never changes",
 )
 @check_frame_stats
-def test_set_name(conn: Connection, stage: Stage) -> None:
+def test_set_name(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(name="original")
     assert conn.stimuli.query(handle).name == "original"
     conn.stimuli.set_name(handle, "renamed")
@@ -75,7 +75,7 @@ def test_set_name(conn: Connection, stage: Stage) -> None:
     "screen; the name and generated id are checked over the wire",
 )
 @check_frame_stats
-def test_create_with_name(conn: Connection, stage: Stage) -> None:
+def test_create_with_name(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(name="fix_cross")
     info = conn.stimuli.query(handle)
     assert info.name == "fix_cross"
@@ -91,7 +91,7 @@ def test_create_with_name(conn: Connection, stage: Stage) -> None:
     "— one instant move, no animation",
 )
 @check_frame_stats
-def test_set_position(conn: Connection, stage: Stage) -> None:
+def test_set_position(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(position_px=Vec2(0, 0))
     stage.step("rect at the centre", hold=0.5)
 
@@ -109,7 +109,7 @@ def test_set_position(conn: Connection, stage: Stage) -> None:
     "a default white rect tilted 30° anticlockwise from upright",
 )
 @check_frame_stats
-def test_set_orientation(conn: Connection, stage: Stage) -> None:
+def test_set_orientation(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_rotation(handle, 30.0)
     assert conn.stimuli.query(handle).rotation_deg == pytest.approx(30.0, abs=0.1)
@@ -124,7 +124,7 @@ def test_set_orientation(conn: Connection, stage: Stage) -> None:
     "place, colour only",
 )
 @check_frame_stats
-def test_set_fill_color(conn: Connection, stage: Stage) -> None:
+def test_set_fill_color(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect(
         params=RectParams(appearance=ShapeAppearance(fill_color=Color(1.0, 1.0, 1.0))),
     )
@@ -146,7 +146,7 @@ def test_set_fill_color(conn: Connection, stage: Stage) -> None:
     "the black background",
 )
 @check_frame_stats
-def test_set_alpha(conn: Connection, stage: Stage) -> None:
+def test_set_alpha(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_alpha(handle, 0.6)
     assert conn.stimuli.query(handle).opacity == pytest.approx(0.6, abs=0.01)
@@ -161,7 +161,7 @@ def test_set_alpha(conn: Connection, stage: Stage) -> None:
     "opacity and then deleted — every stimulus type takes the same command",
 )
 @check_frame_stats
-def test_set_alpha_on_every_stimulus_type(conn: Connection, stage: Stage) -> None:
+def test_set_alpha_on_every_stimulus_type(conn: VstimdClient, stage: Stage) -> None:
     """Opacity is shared state — set_alpha is not a shapes-only command."""
     stimuli = [
         ("rect", lambda: conn.stimuli.shapes.create_rect()),
@@ -191,7 +191,7 @@ def test_set_alpha_on_every_stimulus_type(conn: Connection, stage: Stage) -> Non
     "shows; the point is that the two alphas are multiplied, not overwritten",
 )
 @check_frame_stats
-def test_set_alpha_leaves_fill_alpha_alone(conn: Connection, stage: Stage) -> None:
+def test_set_alpha_leaves_fill_alpha_alone(conn: VstimdClient, stage: Stage) -> None:
     """A half-transparent fill under an opaque outline keeps that relationship:
     the shared opacity multiplies both rather than overwriting either."""
     handle = conn.stimuli.shapes.create_rect()
@@ -214,7 +214,7 @@ def test_set_alpha_leaves_fill_alpha_alone(conn: Connection, stage: Stage) -> No
     "−2.0, which clamps to fully transparent — the rect disappears",
 )
 @check_frame_stats
-def test_set_alpha_clamps(conn: Connection, stage: Stage) -> None:
+def test_set_alpha_clamps(conn: VstimdClient, stage: Stage) -> None:
     handle = conn.stimuli.shapes.create_rect()
     conn.stimuli.set_alpha(handle, 5.0)
     assert conn.stimuli.query(handle).opacity == pytest.approx(1.0, abs=0.01)
@@ -234,7 +234,7 @@ def test_set_alpha_clamps(conn: Connection, stage: Stage) -> None:
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 @check_frame_stats
-def test_bring_to_front(conn: Connection, stage: Stage) -> None:
+def test_bring_to_front(conn: VstimdClient, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_rect()
     conn.stimuli.bring_to_front(h1)
@@ -251,7 +251,7 @@ def test_bring_to_front(conn: Connection, stage: Stage) -> None:
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 @check_frame_stats
-def test_send_to_back(conn: Connection, stage: Stage) -> None:
+def test_send_to_back(conn: VstimdClient, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_rect()
     conn.stimuli.send_to_back(h2)
@@ -268,7 +268,7 @@ def test_send_to_back(conn: Connection, stage: Stage) -> None:
 )
 @pytest.mark.xfail(raises=NotSupportedError, strict=True, reason="not yet implemented")
 @check_frame_stats
-def test_swap_draw_order(conn: Connection, stage: Stage) -> None:
+def test_swap_draw_order(conn: VstimdClient, stage: Stage) -> None:
     h1 = conn.stimuli.shapes.create_rect()
     h2 = conn.stimuli.shapes.create_rect()
     order1_before = conn.stimuli.query(h1).draw_order

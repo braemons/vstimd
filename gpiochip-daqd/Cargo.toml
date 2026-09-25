@@ -22,7 +22,7 @@ path = "src/main.rs"
 hw-tests = []
 
 [dependencies]
-# No `version` requirement: see the note in server/Cargo.toml.
+# No `version` requirement: see the note in daemon/Cargo.toml.
 vtl        = { path = "../vtl" }
 gpio-cdev  = "0.6"
 anyhow     = "1"
