@@ -7,7 +7,7 @@ use vstimd::render::{
     BackendData, DisplayModePref, NullBackend, RenderTarget, RenderTargetPref, WindowMode,
 };
 use vstimd::system_info::{
-    ClockSource, HostInfo, query_hardware_model, query_hostname, query_local_ip,
+    ClockSource, HostInfo, ScreenMirror, query_hardware_model, query_hostname, query_local_ip,
 };
 use vstimd::mdns_service_advertisement::{AdvertisedPorts, MdnsServiceAdvertisement};
 use vstimd::rig_config;
@@ -293,6 +293,13 @@ fn main() {
 
     let overlay_scale = args.overlay_scale.unwrap_or(rig.display.overlay_scale);
     log::info!("vstimd: overlay scale: {overlay_scale}");
+    let mirror = args.mirror.unwrap_or(rig.display.mirror);
+    if !mirror.is_identity() {
+        // Logged loudly because a mirrored rig that should not be, or an
+        // unmirrored one that should, looks like a stimulus bug rather than a
+        // setting — and the overlay is mirrored too, so it cannot say so.
+        log::info!("vstimd: display mirror: {} (whole frame, overlay included)", mirror.as_str());
+    }
 
     let display_pref = DisplayModePref {
         width: rig.display.width,
@@ -320,6 +327,7 @@ fn main() {
         vtl,
         host_info,
         overlay_scale,
+        mirror,
         display_pref,
         clock_pref,
         rig_config_path: args.rig_config.clone(),
@@ -509,6 +517,8 @@ struct Args {
     storage_dir: Option<std::path::PathBuf>,
     /// `Some(s)` if `--overlay-scale` was passed; otherwise `None` (use rig-config).
     overlay_scale: Option<f32>,
+    /// `Some(m)` if `--mirror` was passed; otherwise `None` (use rig-config).
+    mirror: Option<ScreenMirror>,
     /// `Some(pref)` if `--preferred-clock-source` was passed (overrides rig-config
     /// entirely, including its own `auto` vs. forced choice); otherwise `None`
     /// (use rig-config). The inner `Option<ClockSource>` is `None` for "auto".
@@ -734,6 +744,7 @@ fn parse_args() -> Args {
     let mut scene_config: Option<String> = None;
     let mut storage_dir: Option<std::path::PathBuf> = None;
     let mut overlay_scale: Option<f32> = None;
+    let mut mirror: Option<ScreenMirror> = None;
     let mut preferred_clock_source: Option<Option<ClockSource>> = None;
     let mut input_overrides: Vec<(String, InputOverride)> = Vec::new();
 
@@ -798,6 +809,21 @@ fn parse_args() -> Args {
                     std::process::exit(1);
                 }
                 overlay_scale = Some(s);
+            }
+            "--mirror" => {
+                let s = args.next().unwrap_or_else(|| {
+                    eprintln!(
+                        "vstimd: --mirror requires a value (none, horizontal, vertical, both; \
+                         backprojection is a spelling of horizontal)"
+                    );
+                    std::process::exit(1);
+                });
+                mirror = Some(
+                    ScreenMirror::parse_pref(&s).unwrap_or_else(|e| {
+                        eprintln!("vstimd: --mirror: {e}");
+                        std::process::exit(1);
+                    }),
+                );
             }
             "--preferred-clock-source" => {
                 let s = args.next().unwrap_or_else(|| {
@@ -883,6 +909,7 @@ fn parse_args() -> Args {
         scene_config,
         storage_dir,
         overlay_scale,
+        mirror,
         preferred_clock_source,
     }
 }
@@ -1002,6 +1029,11 @@ fn print_usage() {
     eprintln!("                            build feature); repeatable");
     eprintln!("      --web-port <N>        Web UI HTTP/WebSocket port (default: 8080)");
     eprintln!("      --overlay-scale <N>   Scale factor for the egui overlay UI (default: 1.0)");
+    eprintln!(
+        "      --mirror <M>          Mirror the image for a rig whose optics already do\n\
+         \x20                           (none, horizontal/backprojection, vertical, both);\n\
+         \x20                           overrides rig-config's [display] mirror"
+    );
     eprintln!("      --preferred-clock-source <S>");
     eprintln!("                            Force a DRM/console vblank clock (auto, drm_vblank,");
     eprintln!("                            vk_display_control, present_wait, gpu_completion);");

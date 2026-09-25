@@ -108,3 +108,69 @@ pub fn query_local_ip() -> String {
 pub fn query_hostname() -> String {
     std::env::var("HOSTNAME").unwrap_or_else(|_| "unknown".to_owned())
 }
+
+/// How the rendered image is mirrored on its way to the display.
+///
+/// A **back-projection** screen is viewed from the side opposite the
+/// projector, which mirrors the image left-right; `Horizontal` cancels that
+/// out so text and geometry read correctly to the animal. `Vertical` is the
+/// same for a rig that folds its light path over a mirror above the screen,
+/// and `Both` is the two together (equivalently, a 180° rotation).
+///
+/// This is a property of the optics, so it lives in the rig-config beside the
+/// display mode rather than in an experiment's scene-config.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ScreenMirror {
+    /// The image reaches the display as rendered.
+    #[default]
+    None,
+    /// Mirror left-right — the back-projection case.
+    Horizontal,
+    /// Mirror top-bottom.
+    Vertical,
+    /// Both axes at once.
+    Both,
+}
+
+impl ScreenMirror {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ScreenMirror::None => "none",
+            ScreenMirror::Horizontal => "horizontal",
+            ScreenMirror::Vertical => "vertical",
+            ScreenMirror::Both => "both",
+        }
+    }
+
+    /// Whether anything has to happen at all. `None` must stay a true no-op:
+    /// no offscreen target, no blit, and a frame path identical to the one
+    /// every rig ran before this setting existed.
+    pub fn is_identity(self) -> bool {
+        self == ScreenMirror::None
+    }
+
+    pub fn flips_x(self) -> bool {
+        matches!(self, ScreenMirror::Horizontal | ScreenMirror::Both)
+    }
+
+    pub fn flips_y(self) -> bool {
+        matches!(self, ScreenMirror::Vertical | ScreenMirror::Both)
+    }
+
+    /// Parses a mirror preference, as used in rig-config's `[display] mirror`
+    /// key and the `--mirror` CLI flag. Accepts the variant names in
+    /// snake_case; `"backprojection"` is a spelling of `Horizontal`, because
+    /// that is what a person setting one up calls it.
+    pub fn parse_pref(s: &str) -> Result<Self, String> {
+        if s.eq_ignore_ascii_case("backprojection") || s.eq_ignore_ascii_case("back-projection") {
+            return Ok(ScreenMirror::Horizontal);
+        }
+        use serde::Deserialize;
+        use serde::de::IntoDeserializer;
+        ScreenMirror::deserialize(IntoDeserializer::<serde::de::value::Error>::into_deserializer(s))
+            .map_err(|_| {
+                format!("unknown mirror {s:?} (expected none, horizontal, vertical or both)")
+            })
+    }
+}

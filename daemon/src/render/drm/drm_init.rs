@@ -9,7 +9,10 @@ use crate::render::vk::{VkContext, build_context, create_vk_instance};
 /// Enumerates connected displays, picks a mode, creates the display surface,
 /// and returns a fully-initialised `VkContext` plus the `VkDisplayKHR` handle
 /// (needed for `VK_EXT_display_control` vblank fences).
-pub fn init(display_pref: DisplayModePref) -> (VkContext, StimulusDisplayInfo, vk::DisplayKHR) {
+pub fn init(
+    display_pref: DisplayModePref,
+    mirror: crate::system_info::ScreenMirror,
+) -> (VkContext, StimulusDisplayInfo, vk::DisplayKHR) {
     // VK_EXT_display_surface_counter is an instance extension required by
     // VK_EXT_display_control (device).  Enable it when available.
     let available_inst_exts: std::collections::HashSet<String> = unsafe {
@@ -119,6 +122,7 @@ pub fn init(display_pref: DisplayModePref) -> (VkContext, StimulusDisplayInfo, v
         extent,
         debug_utils_enabled,
         use_display_surface_counter,
+        mirror,
     );
 
     let refresh_hz = chosen.parameters.refresh_rate as f64 / 1000.0;

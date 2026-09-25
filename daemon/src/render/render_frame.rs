@@ -803,10 +803,35 @@ pub fn render_frame(
             ctx.device.cmd_end_render_pass(cb);
         }
 
+        // ── Mirror the finished frame, if the rig's optics need it ───────────
+        // Every pass above rendered into an offscreen image and left it in
+        // TRANSFER_SRC_OPTIMAL; this carries it to the swapchain image
+        // reversed. Nothing is recorded here on a rig without a mirror.
+        //
+        // It sits before the readback so a screenshot shows what the display
+        // shows, and before present because the swapchain image is what is
+        // presented.
+        if let Some(target) = &ctx.mirror_target {
+            ctx.cmd_begin_label(cb, "mirror", [0.4, 0.8, 1.0, 1.0]);
+            target.cmd_blit(
+                &ctx.device,
+                cb,
+                image_index as usize,
+                ctx.swapchain_images[image_index as usize],
+                ctx.extent,
+                ctx.mirror,
+                ctx.swapchain_final_layout,
+            );
+            ctx.cmd_end_label(cb);
+        }
+
         // ── Optional CPU readback (evdi's output path, and F12 screenshots) ───
         // Recorded here, while the image is still ours. It starts and must end
-        // in `ctx.present_layout`: `PRESENT_SRC_KHR` for a real swapchain,
-        // `GENERAL` for evdi (see evdi_init.rs's create_render_pass_no_wsi).
+        // in `ctx.swapchain_final_layout`: `PRESENT_SRC_KHR` for a real
+        // swapchain, `GENERAL` for evdi (see evdi_init.rs's
+        // create_render_pass_no_wsi). That is the same as `present_layout`
+        // unless a mirror is configured, in which case the blit above is what
+        // put the swapchain image into it.
         if let Some(rb) = readback {
             let image = ctx.swapchain_images[image_index as usize];
             let subresource_range = vk::ImageSubresourceRange {
@@ -817,7 +842,7 @@ pub fn render_frame(
                 layer_count: 1,
             };
             let to_transfer_src = vk::ImageMemoryBarrier::default()
-                .old_layout(ctx.present_layout)
+                .old_layout(ctx.swapchain_final_layout)
                 .new_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
                 .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
@@ -862,7 +887,7 @@ pub fn render_frame(
             // Back to where the passes left it, ready for present.
             let back_to_present = vk::ImageMemoryBarrier::default()
                 .old_layout(vk::ImageLayout::TRANSFER_SRC_OPTIMAL)
-                .new_layout(ctx.present_layout)
+                .new_layout(ctx.swapchain_final_layout)
                 .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
                 .image(image)

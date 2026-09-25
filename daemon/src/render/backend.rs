@@ -15,6 +15,12 @@ pub struct BackendData {
     /// Preferred DRM display mode from rig-config. Ignored by the desktop,
     /// null, and evdi backends — only `DrmBackend` selects a display mode.
     pub display_pref: DisplayModePref,
+    /// How the finished frame is mirrored on its way to the display, for a rig
+    /// whose optics already mirror it — a back-projection screen above all.
+    /// From rig-config's `[display] mirror` or `--mirror`. Ignored by the evdi
+    /// and null backends, which hand pixels on rather than to optics. See
+    /// `render::vk::vk_mirror`.
+    pub mirror: crate::system_info::ScreenMirror,
     /// Forced vblank clock source (from rig-config or `--preferred-clock-source`),
     /// bypassing auto-detection. Ignored by the desktop and null backends. See
     /// `rig_config::DisplayRigConfig::clock`.

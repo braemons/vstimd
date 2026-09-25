@@ -137,6 +137,7 @@ impl DrmRenderLoopData {
             vtl,
             host_info,
             overlay_scale,
+            mirror,
             display_pref,
             clock_pref,
             rig_config_path,
@@ -161,7 +162,7 @@ impl DrmRenderLoopData {
         let vt_guard = DrmVtGuard::acquire();
 
         // Initialise Vulkan — VK_KHR_display acquires DRM master internally.
-        let (ctx, display_info, vk_display) = super::drm_init::init(display_pref);
+        let (ctx, display_info, vk_display) = super::drm_init::init(display_pref, mirror);
 
         // Build scene + text sub-renderers first (before ctx moves).
         let storage_dir = scene.read().unwrap().runtime.storage_dir.clone();

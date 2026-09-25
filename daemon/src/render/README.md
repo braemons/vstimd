@@ -9,6 +9,7 @@ All GPU and Vulkan (ash) interaction is isolated here. No other module in the co
 - **GPU buffer management** (`vk/buffers.rs`) — uploads tessellated vertex/index data to Vulkan device-local buffers, keyed by stimulus handle.
 - **Tessellation** (`tess.rs`) — converts `scene::Stimulus` objects into triangulated vertex/index arrays (CPU-side, no ash dependency itself, but tightly coupled to the vertex format).
 - **egui overlay** (`overlay.rs`, feature-gated behind `overlay`) — diagnostic frame-timing HUD rendered on top of the scene using a custom Vulkan egui renderer (`vk/egui/`).
+- **Display mirror** (`vk/vk_mirror.rs`) — for a rig whose optics already mirror the image (a back-projection screen above all): every pass renders into an offscreen colour image and one `vkCmdBlitImage` copies it across reversed. Nothing is allocated or recorded when no mirror is configured.
 - **DRM/console backend** (`drm/`) — `VK_KHR_display` surface, libinput keyboard, vblank wait with multiple fallback strategies.
 - **Desktop backend** (`winit_vk/`) — winit window, `VK_KHR_surface` via ash-window (Wayland/X11/Win32).
 

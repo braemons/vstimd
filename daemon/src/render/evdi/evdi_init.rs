@@ -175,6 +175,12 @@ pub fn init(width: u32, height: u32) -> VkContext {
         self_presented: true,
         owned_image_memory,
         present_layout: vk::ImageLayout::GENERAL,
+        // evdi hands the pixels to a virtual display rather than to optics, so
+        // there is nothing physical to cancel out. A rig that back-projects an
+        // evdi output mirrors it wherever those pixels land, not here.
+        mirror: crate::system_info::ScreenMirror::None,
+        mirror_target: None,
+        swapchain_final_layout: vk::ImageLayout::GENERAL,
         pass_3d: None,
     }
 }

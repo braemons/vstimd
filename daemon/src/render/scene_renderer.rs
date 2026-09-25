@@ -96,13 +96,16 @@ impl SceneRenderer {
         if self.mesh3d_unavailable {
             return false;
         }
+        // The same targets the 2-D pass draws into — the offscreen mirror
+        // images when mirroring, the swapchain's own otherwise.
+        let render_views = ctx.render_views().to_vec();
         let pass = match Pass3d::new(
             &ctx.instance,
             ctx.physical_device,
             &ctx.device,
             ctx.format,
             ctx.present_layout,
-            &ctx.swapchain_image_views,
+            &render_views,
             ctx.extent,
         ) {
             Ok(pass) => pass,

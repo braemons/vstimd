@@ -73,3 +73,33 @@ convention that holds across every stimulus — see
   centimetres (`position_cm`) rather than this pixel plane, and 2-D and 3-D
   coexist in one frame. No 3-D stimulus type exists yet, so every stimulus you
   can create today lives in the pixel space above.
+
+## Back-projection: mirroring the whole image
+
+A **back-projection** screen is viewed from the side opposite the projector, so
+everything on it reads backwards: text is mirrored, and a stimulus written at
+`x = -300` appears on the animal's right. This is a property of the rig's
+optics rather than of an experiment, so it is set once in the rig-config
+(`/etc/braemons/vstimd-rig-config.toml`) and no script mentions it:
+
+```toml
+[display]
+# "horizontal" — spelled "backprojection" if that is what you call it —
+# cancels out a back-projection screen. Also "vertical", "both", "none".
+mirror = "horizontal"
+```
+
+`--mirror horizontal` overrides it for one run, which is the convenient way to
+see the difference on a desk.
+
+**Everything in the frame is mirrored together** — 3-D, 2-D, text, splats and
+the diagnostic overlay alike — because that is what the screen does to all of
+it. The consequence worth knowing: the overlay reads backwards on the
+operator's own monitor and correctly through the screen. Coordinates do not
+change, and neither does anything a script writes or a recording stores: the
+mirror is applied to the finished frame on its way to the display, after every
+position in this document has already meant what it says.
+
+`mirror = "none"` is the default and a true no-op — no offscreen buffer and no
+copy — so a rig that projects from the front pays nothing for the setting
+existing.

@@ -83,6 +83,21 @@ pub struct VkContext {
     /// The 3-D pass and depth buffer. `None` until the first frame with a 3-D
     /// stimulus, and forever on a pure 2-D rig — see `vk_pass3d`.
     pub pass_3d: Option<super::Pass3d>,
+    /// How the finished frame is mirrored on its way to the display, for a rig
+    /// whose optics already mirror it. See `vk_mirror`.
+    pub mirror: crate::system_info::ScreenMirror,
+    /// The offscreen colour images every pass renders into when `mirror` is not
+    /// the identity, and `None` when it is. See `vk_mirror`.
+    pub mirror_target: Option<super::MirrorTarget>,
+    /// The layout the **swapchain** image must be left in for the frame to be
+    /// presented: `PRESENT_SRC_KHR` for a real swapchain, `GENERAL` for evdi.
+    ///
+    /// Distinct from `present_layout`, which is what the passes leave *their*
+    /// colour attachment in — the same image when not mirroring, and the
+    /// offscreen one when mirroring, where the passes end in
+    /// `TRANSFER_SRC_OPTIMAL` and the blit is what brings the swapchain image
+    /// here.
+    pub swapchain_final_layout: vk::ImageLayout,
 }
 
 impl Drop for VkContext {
@@ -116,6 +131,9 @@ impl Drop for VkContext {
             }
             for &fb in &self.framebuffers {
                 self.device.destroy_framebuffer(fb, None);
+            }
+            if let Some(target) = &mut self.mirror_target {
+                target.destroy(&self.device);
             }
             self.device.destroy_render_pass(self.render_pass, None);
             self.device.destroy_render_pass(self.egui_render_pass, None);
@@ -154,6 +172,16 @@ impl VkContext {
     /// Recreate swapchain, image views, and framebuffers for a new window size
     /// or after changing `self.present_mode`. Call after a resize event or
     /// `VK_ERROR_OUT_OF_DATE_KHR`.
+    /// The image views the passes render into: the offscreen mirror images
+    /// when mirroring, the swapchain's own otherwise. Every framebuffer is
+    /// built from these, so a pass never has to know which case it is in.
+    pub fn render_views(&self) -> &[vk::ImageView] {
+        match &self.mirror_target {
+            Some(target) => &target.views,
+            None => &self.swapchain_image_views,
+        }
+    }
+
     pub fn recreate_swapchain(&mut self, new_extent: vk::Extent2D) {
         unsafe {
             self.device.device_wait_idle().unwrap();
@@ -162,6 +190,9 @@ impl VkContext {
             }
             for &view in &self.swapchain_image_views {
                 self.device.destroy_image_view(view, None);
+            }
+            if let Some(target) = &mut self.mirror_target {
+                target.destroy(&self.device);
             }
         }
 
@@ -183,13 +214,31 @@ impl VkContext {
             self.swapchain_loader.destroy_swapchain(old_swapchain, None);
         }
 
-        self.framebuffers = create_framebuffers(&self.device, self.render_pass, &views, extent);
+        // Rebuilt at the new extent before anything is framed from it, so the
+        // passes keep rendering into the mirror images rather than reverting to
+        // the swapchain's on a resize.
+        self.mirror_target = (!self.mirror.is_identity()).then(|| {
+            super::MirrorTarget::new(
+                &self.instance,
+                self.physical_device,
+                &self.device,
+                self.format,
+                extent,
+                views.len(),
+            )
+        });
+        let render_views: Vec<vk::ImageView> = match &self.mirror_target {
+            Some(target) => target.views.clone(),
+            None => views.clone(),
+        };
+        self.framebuffers =
+            create_framebuffers(&self.device, self.render_pass, &render_views, extent);
         if let Some(pass_3d) = &mut self.pass_3d {
             pass_3d.recreate_targets(
                 &self.instance,
                 self.physical_device,
                 &self.device,
-                &views,
+                &render_views,
                 extent,
             );
         }
@@ -264,6 +313,7 @@ pub fn select_present_mode(
 /// creates the logical device, swapchain, command pool, frame sync objects,
 /// render pass, and framebuffers.  Both backends call this after they create
 /// their backend-specific surface (VK_KHR_display or VK_KHR_surface).
+#[allow(clippy::too_many_arguments)]
 pub fn build_context(
     entry: ash::Entry,
     instance: ash::Instance,
@@ -272,6 +322,7 @@ pub fn build_context(
     desired_extent: vk::Extent2D,
     debug_utils_enabled: bool,
     enable_display_control: bool,
+    mirror: crate::system_info::ScreenMirror,
 ) -> VkContext {
     // -- Physical device + queue family + timing-extension probe -------------
     let physical_devices = unsafe {
@@ -475,9 +526,38 @@ pub fn build_context(
     }
 
     // -- Render pass + framebuffers -------------------------------------------
-    let render_pass = create_render_pass(&device, format);
-    let egui_render_pass = create_egui_render_pass(&device, format);
-    let framebuffers = create_framebuffers(&device, render_pass, &swapchain_image_views, extent);
+    // With a mirror the passes end in TRANSFER_SRC_OPTIMAL on an offscreen
+    // image and the blit carries it to the swapchain; without one they end
+    // directly in the layout the presentation engine wants, exactly as before.
+    let swapchain_final_layout = vk::ImageLayout::PRESENT_SRC_KHR;
+    let present_layout = if mirror.is_identity() {
+        swapchain_final_layout
+    } else {
+        vk::ImageLayout::TRANSFER_SRC_OPTIMAL
+    };
+    let render_pass = create_render_pass(&device, format, present_layout);
+    let egui_render_pass = create_egui_render_pass(&device, format, present_layout);
+    let mirror_target = (!mirror.is_identity()).then(|| {
+        super::MirrorTarget::new(
+            &instance,
+            physical_device,
+            &device,
+            format,
+            extent,
+            swapchain_image_views.len(),
+        )
+    });
+    if !mirror.is_identity() {
+        log::info!(
+            "vstimd: mirroring the display {} — the whole frame, overlay included",
+            mirror.as_str()
+        );
+    }
+    let render_views: Vec<vk::ImageView> = match &mirror_target {
+        Some(target) => target.views.clone(),
+        None => swapchain_image_views.clone(),
+    };
+    let framebuffers = create_framebuffers(&device, render_pass, &render_views, extent);
 
     VkContext {
         frames,
@@ -509,14 +589,21 @@ pub fn build_context(
         surface_counter_enabled: use_display_control,
         self_presented: false,
         owned_image_memory: Vec::new(),
-        present_layout: vk::ImageLayout::PRESENT_SRC_KHR,
+        present_layout,
         pass_3d: None,
+        mirror,
+        mirror_target,
+        swapchain_final_layout,
     }
 }
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
-pub fn create_render_pass(device: &ash::Device, format: vk::Format) -> vk::RenderPass {
+pub fn create_render_pass(
+    device: &ash::Device,
+    format: vk::Format,
+    final_layout: vk::ImageLayout,
+) -> vk::RenderPass {
     let attachment = vk::AttachmentDescription::default()
         .format(format)
         .samples(vk::SampleCountFlags::TYPE_1)
@@ -525,7 +612,7 @@ pub fn create_render_pass(device: &ash::Device, format: vk::Format) -> vk::Rende
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
         .initial_layout(vk::ImageLayout::UNDEFINED)
-        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
+        .final_layout(final_layout);
     let color_ref =
         vk::AttachmentReference::default().layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
     let subpass = vk::SubpassDescription::default()
@@ -554,7 +641,11 @@ pub fn create_render_pass(device: &ash::Device, format: vk::Format) -> vk::Rende
 ///
 /// Its `initialLayout` is the stimulus pass's `finalLayout` (`PRESENT_SRC_KHR`):
 /// a `LOAD` pass has to declare the layout the image is actually in.
-pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::RenderPass {
+pub fn create_egui_render_pass(
+    device: &ash::Device,
+    format: vk::Format,
+    final_layout: vk::ImageLayout,
+) -> vk::RenderPass {
     let attachment = vk::AttachmentDescription::default()
         .format(format)
         .samples(vk::SampleCountFlags::TYPE_1)
@@ -562,8 +653,8 @@ pub fn create_egui_render_pass(device: &ash::Device, format: vk::Format) -> vk::
         .store_op(vk::AttachmentStoreOp::STORE)
         .stencil_load_op(vk::AttachmentLoadOp::DONT_CARE)
         .stencil_store_op(vk::AttachmentStoreOp::DONT_CARE)
-        .initial_layout(vk::ImageLayout::PRESENT_SRC_KHR)
-        .final_layout(vk::ImageLayout::PRESENT_SRC_KHR);
+        .initial_layout(final_layout)
+        .final_layout(final_layout);
     let color_ref =
         vk::AttachmentReference::default().layout(vk::ImageLayout::COLOR_ATTACHMENT_OPTIMAL);
     let subpass = vk::SubpassDescription::default()

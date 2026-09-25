@@ -77,6 +77,23 @@
 # Valid values: "auto", "drm_vblank", "vk_display_control", "present_wait",
 # "gpu_completion".
 # clock = "auto"
+#
+# Mirror the image on its way to the display, for a rig whose optics already
+# mirror it.  A BACK-PROJECTION screen is viewed from the side opposite the
+# projector, so everything on it reads backwards; "horizontal" cancels that
+# out.  "vertical" is the same for a light path folded over a mirror, and
+# "both" is the two together.
+#
+# The whole frame is mirrored — 3-D, 2-D, text and the overlay alike — because
+# that is what a screen does to all of it.  Note that this means the overlay
+# reads backwards on the operator's own monitor, and correctly through the
+# screen.
+#
+# Nothing detects this: the optics are either mirrored or they are not, so the
+# default is "none" rather than a guess, and "none" costs nothing at all (no
+# offscreen target, no copy).  Overridable with --mirror.
+# Valid values: "none", "horizontal" (or "backprojection"), "vertical", "both".
+# mirror = "none"
 
 # ── Startup scene ────────────────────────────────────────────────────────────
 # Load a scene at boot so the rig comes up in a known state with no client

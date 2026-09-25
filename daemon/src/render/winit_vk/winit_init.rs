@@ -5,7 +5,7 @@ use winit::window::Window;
 use crate::render::vk::{VkContext, build_context, create_vk_instance};
 
 /// Create a `VkContext` from a winit window using `VK_KHR_surface`.
-pub fn init(window: &Window) -> VkContext {
+pub fn init(window: &Window, mirror: crate::system_info::ScreenMirror) -> VkContext {
     let display_handle = window.display_handle().unwrap().as_raw();
     let window_handle = window.window_handle().unwrap().as_raw();
 
@@ -35,5 +35,6 @@ pub fn init(window: &Window) -> VkContext {
         extent,
         debug_utils_enabled,
         false,
+        mirror,
     )
 }

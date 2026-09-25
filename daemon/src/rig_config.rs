@@ -1,4 +1,4 @@
-use crate::system_info::ClockSource;
+use crate::system_info::{ClockSource, ScreenMirror};
 /// Machine-specific configuration loaded at startup from `rig-config.toml`.
 ///
 /// Unlike `scene-config` (scene + named VTL lines, changed per experiment),
@@ -315,6 +315,18 @@ pub struct DisplayRigConfig {
     /// DRM mode) and is rejected at startup.
     #[serde(default, deserialize_with = "deserialize_clock_pref")]
     pub clock: Option<ClockSource>,
+    /// Mirrors the finished frame before it reaches the display, for a rig
+    /// whose optics already mirror it. `"horizontal"` — spelled
+    /// `"backprojection"` if that is what you call it — cancels out a
+    /// back-projection screen, which is viewed from the side opposite the
+    /// projector. Also `"vertical"`, `"both"`, and `"none"` (the default).
+    /// Overridable with `--mirror`.
+    ///
+    /// The whole frame is mirrored, overlay included, because a screen
+    /// mirrors all of it. `"none"` is a true no-op: no offscreen target and
+    /// no blit, so a rig that does not need this pays nothing for it.
+    #[serde(default, deserialize_with = "deserialize_mirror")]
+    pub mirror: ScreenMirror,
 }
 
 /// Deserializes the `[display] clock` key: the literal string `"auto"` maps
@@ -346,6 +358,20 @@ where
     RenderTargetPref::parse_pref(&s).map_err(D::Error::custom)
 }
 
+/// Deserializes the `[display] mirror` key. Unlike the two above there is no
+/// `"auto"`: the optics are either mirrored or they are not, and nothing can
+/// detect which, so the default is the identity rather than a guess.
+fn deserialize_mirror<'de, D>(deserializer: D) -> Result<ScreenMirror, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    use serde::de::Error as _;
+    use serde::Deserialize as _;
+
+    let s = String::deserialize(deserializer)?;
+    ScreenMirror::parse_pref(&s).map_err(D::Error::custom)
+}
+
 impl DisplayRigConfig {
     fn default_overlay_scale() -> f32 {
         1.0
@@ -361,6 +387,7 @@ impl Default for DisplayRigConfig {
             refresh_hz: None,
             overlay_scale: Self::default_overlay_scale(),
             clock: None,
+            mirror: ScreenMirror::None,
         }
     }
 }

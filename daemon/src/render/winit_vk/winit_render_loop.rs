@@ -82,8 +82,8 @@ impl WinitRenderLoopData {
         window_mode: WindowMode,
         log_buffer: LogBuffer,
     ) -> Self {
-        let BackendData { scene, vtl, host_info, overlay_scale, events, .. } = data;
-        let ctx = super::winit_init::init(&window);
+        let BackendData { scene, vtl, host_info, overlay_scale, mirror, events, .. } = data;
+        let ctx = super::winit_init::init(&window, mirror);
         // FIFO is set by build_context and never changed — the swapchain is
         // the screen clock.
         log::info!("vstimd: present mode: FIFO");

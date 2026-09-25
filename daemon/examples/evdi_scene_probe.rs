@@ -64,6 +64,7 @@ fn main() {
             zmq_port: 0,
             sched: Default::default(),
         },
+        mirror: vstimd::system_info::ScreenMirror::None,
         overlay_scale: 1.0,
         display_pref: DisplayModePref::default(),
         clock_pref: None,
