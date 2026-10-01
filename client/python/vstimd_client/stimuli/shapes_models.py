@@ -58,22 +58,22 @@ class ShapeAppearance:
     draw_mode: ShapeDrawMode = ShapeDrawMode.FILLED
 
     @classmethod
-    def from_proto(cls, proto: shapes_pb2.ShapeAppearance) -> ShapeAppearance:
+    def _from_proto(cls, proto: shapes_pb2.ShapeAppearance) -> ShapeAppearance:
         return cls(
-            fill_color=Color.from_proto(proto.fill_color)
+            fill_color=Color._from_proto(proto.fill_color)
             if proto.HasField("fill_color")
             else None,
-            outline_color=Color.from_proto(proto.outline_color)
+            outline_color=Color._from_proto(proto.outline_color)
             if proto.HasField("outline_color")
             else None,
             outline_width_px=proto.outline_width_px,
             draw_mode=_PROTO_TO_DRAW_MODE.get(proto.draw_mode, ShapeDrawMode.FILLED),
         )
 
-    def to_proto(self) -> shapes_pb2.ShapeAppearance:
+    def _to_proto(self) -> shapes_pb2.ShapeAppearance:
         return shapes_pb2.ShapeAppearance(
-            fill_color=self.fill_color.to_proto() if self.fill_color else None,
-            outline_color=self.outline_color.to_proto() if self.outline_color else None,
+            fill_color=self.fill_color._to_proto() if self.fill_color else None,
+            outline_color=self.outline_color._to_proto() if self.outline_color else None,
             outline_width_px=self.outline_width_px,
             draw_mode=_SHAPE_DRAW_MODE_TO_PROTO.get(
                 self.draw_mode, shapes_pb2.SHAPE_DRAW_MODE_FILLED
@@ -84,7 +84,7 @@ class ShapeAppearance:
 def _appearance_or_default(params: object) -> ShapeAppearance:
     """`appearance` off a shape params message, defaulted when absent."""
     proto = getattr(params, "appearance", None)
-    return ShapeAppearance.from_proto(proto) if proto is not None else ShapeAppearance()
+    return ShapeAppearance._from_proto(proto) if proto is not None else ShapeAppearance()
 
 
 # ── Per-shape geometry ────────────────────────────────────────────────────────
@@ -101,11 +101,11 @@ class RectParams:
     height_px: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
-    def to_proto(self) -> rect_pb2.RectParams:
+    def _to_proto(self) -> rect_pb2.RectParams:
         return rect_pb2.RectParams(
             width_px=self.width_px,
             height_px=self.height_px,
-            appearance=self.appearance.to_proto(),
+            appearance=self.appearance._to_proto(),
         )
 
 
@@ -115,10 +115,10 @@ class CircleParams:
     diameter_px: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
-    def to_proto(self) -> circle_pb2.CircleParams:
+    def _to_proto(self) -> circle_pb2.CircleParams:
         return circle_pb2.CircleParams(
             diameter_px=self.diameter_px,
-            appearance=self.appearance.to_proto(),
+            appearance=self.appearance._to_proto(),
         )
 
 
@@ -128,11 +128,11 @@ class EllipseParams:
     height_px: float = 0.0
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
-    def to_proto(self) -> ellipse_pb2.EllipseParams:
+    def _to_proto(self) -> ellipse_pb2.EllipseParams:
         return ellipse_pb2.EllipseParams(
             width_px=self.width_px,
             height_px=self.height_px,
-            appearance=self.appearance.to_proto(),
+            appearance=self.appearance._to_proto(),
         )
 
 
@@ -142,9 +142,9 @@ class PolygonParams:
     close_shape: bool = True
     appearance: ShapeAppearance = field(default_factory=ShapeAppearance)
 
-    def to_proto(self) -> polygon_pb2.PolygonParams:
+    def _to_proto(self) -> polygon_pb2.PolygonParams:
         return polygon_pb2.PolygonParams(
-            vertices_px=[v.to_proto() for v in self.vertices_px],
+            vertices_px=[v._to_proto() for v in self.vertices_px],
             close_shape=self.close_shape,
-            appearance=self.appearance.to_proto(),
+            appearance=self.appearance._to_proto(),
         )

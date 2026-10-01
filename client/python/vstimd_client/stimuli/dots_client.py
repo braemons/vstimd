@@ -68,9 +68,9 @@ class DotsClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_dots=dots_pb2.CreateDotsRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
-                placement=Transform2D(pos_px=position_px.to_proto(), rotation_deg=0.0),
-                params=(params or DotsParams()).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
+                placement=Transform2D(pos_px=position_px._to_proto(), rotation_deg=0.0),
+                params=(params or DotsParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -126,9 +126,9 @@ class DotsClient:
         Both are set together: passing no ``color_alt`` clears it, giving a
         single-colour field.
         """
-        req = dots_pb2.SetDotsColorRequest(dot_color=color.to_proto())
+        req = dots_pb2.SetDotsColorRequest(dot_color=color._to_proto())
         if color_alt is not None:
-            req.dot_color_alt.CopyFrom(color_alt.to_proto())
+            req.dot_color_alt.CopyFrom(color_alt._to_proto())
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle, set_dots_color=req,
         )))
@@ -136,7 +136,7 @@ class DotsClient:
     def set_aperture(self, handle: StimulusHandle, aperture: Aperture) -> ServerResponse:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_dots_aperture=dots_pb2.SetDotsApertureRequest(aperture=aperture.to_proto()),
+            set_dots_aperture=dots_pb2.SetDotsApertureRequest(aperture=aperture._to_proto()),
         )))
 
     def set_field_size(

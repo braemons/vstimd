@@ -54,19 +54,19 @@ class Transform3D:
     #: Per-axis multiplier on the geometry's size. Must not be negative.
     scale: Vec3 = field(default_factory=lambda: Vec3(1.0, 1.0, 1.0))
 
-    def to_proto(self) -> transform_pb2.Transform3D:
+    def _to_proto(self) -> transform_pb2.Transform3D:
         return transform_pb2.Transform3D(
-            position_cm=self.position_cm.to_proto(),
-            rotation_deg=self.rotation_deg.to_proto(),
-            scale=self.scale.to_proto(),
+            position_cm=self.position_cm._to_proto(),
+            rotation_deg=self.rotation_deg._to_proto(),
+            scale=self.scale._to_proto(),
         )
 
     @classmethod
-    def from_proto(cls, proto: transform_pb2.Transform3D) -> Transform3D:
+    def _from_proto(cls, proto: transform_pb2.Transform3D) -> Transform3D:
         return cls(
-            position_cm=Vec3.from_proto(proto.position_cm),
-            rotation_deg=Vec3.from_proto(proto.rotation_deg),
-            scale=Vec3.from_proto(proto.scale),
+            position_cm=Vec3._from_proto(proto.position_cm),
+            rotation_deg=Vec3._from_proto(proto.rotation_deg),
+            scale=Vec3._from_proto(proto.scale),
         )
 
 
@@ -80,18 +80,18 @@ class Material3D:
     emissive: Vec3 = field(default_factory=_zero3)
     shading: Shading = Shading.UNLIT
 
-    def to_proto(self) -> shapes3d_pb2.Material3D:
+    def _to_proto(self) -> shapes3d_pb2.Material3D:
         return shapes3d_pb2.Material3D(
-            albedo=self.albedo.to_proto(),
-            emissive=self.emissive.to_proto(),
+            albedo=self.albedo._to_proto(),
+            emissive=self.emissive._to_proto(),
             shading=_SHADING_TO_PROTO[self.shading],
         )
 
     @classmethod
-    def from_proto(cls, proto: shapes3d_pb2.Material3D) -> Material3D:
+    def _from_proto(cls, proto: shapes3d_pb2.Material3D) -> Material3D:
         return cls(
-            albedo=Color.from_proto(proto.albedo),
-            emissive=Vec3.from_proto(proto.emissive),
+            albedo=Color._from_proto(proto.albedo),
+            emissive=Vec3._from_proto(proto.emissive),
             shading=_SHADING_FROM_PROTO.get(proto.shading, Shading.UNLIT),
         )
 
@@ -110,18 +110,18 @@ class Repeat3D:
     ahead: int = 0
     behind: int = 0
 
-    def to_proto(self) -> shapes3d_pb2.Repeat3D:
+    def _to_proto(self) -> shapes3d_pb2.Repeat3D:
         return shapes3d_pb2.Repeat3D(period_cm=self.period_cm, ahead=self.ahead, behind=self.behind)
 
     @classmethod
-    def from_proto(cls, proto: shapes3d_pb2.Repeat3D) -> Repeat3D:
+    def _from_proto(cls, proto: shapes3d_pb2.Repeat3D) -> Repeat3D:
         return cls(period_cm=proto.period_cm, ahead=proto.ahead, behind=proto.behind)
 
 
 def _repeat_from(
     proto_params: shapes3d_pb2.Cube3DParams | shapes3d_pb2.Sphere3DParams | shapes3d_pb2.Plane3DParams,
 ) -> Repeat3D | None:
-    return Repeat3D.from_proto(proto_params.repeat) if proto_params.HasField("repeat") else None
+    return Repeat3D._from_proto(proto_params.repeat) if proto_params.HasField("repeat") else None
 
 
 @dataclass
@@ -131,18 +131,18 @@ class Cube3DParams:
     material: Material3D = field(default_factory=Material3D)
     repeat: Repeat3D | None = None
 
-    def to_proto(self) -> shapes3d_pb2.Cube3DParams:
+    def _to_proto(self) -> shapes3d_pb2.Cube3DParams:
         return shapes3d_pb2.Cube3DParams(
-            size_cm=self.size_cm.to_proto(),
-            material=self.material.to_proto(),
-            repeat=self.repeat.to_proto() if self.repeat else None,
+            size_cm=self.size_cm._to_proto(),
+            material=self.material._to_proto(),
+            repeat=self.repeat._to_proto() if self.repeat else None,
         )
 
     @classmethod
-    def from_proto(cls, proto: shapes3d_pb2.Cube3DParams) -> Cube3DParams:
+    def _from_proto(cls, proto: shapes3d_pb2.Cube3DParams) -> Cube3DParams:
         return cls(
-            size_cm=Vec3.from_proto(proto.size_cm),
-            material=Material3D.from_proto(proto.material),
+            size_cm=Vec3._from_proto(proto.size_cm),
+            material=Material3D._from_proto(proto.material),
             repeat=_repeat_from(proto),
         )
 
@@ -158,22 +158,22 @@ class Sphere3DParams:
     material: Material3D = field(default_factory=Material3D)
     repeat: Repeat3D | None = None
 
-    def to_proto(self) -> shapes3d_pb2.Sphere3DParams:
+    def _to_proto(self) -> shapes3d_pb2.Sphere3DParams:
         return shapes3d_pb2.Sphere3DParams(
             diameter_cm=self.diameter_cm,
             rings=self.rings,
             sectors=self.sectors,
-            material=self.material.to_proto(),
-            repeat=self.repeat.to_proto() if self.repeat else None,
+            material=self.material._to_proto(),
+            repeat=self.repeat._to_proto() if self.repeat else None,
         )
 
     @classmethod
-    def from_proto(cls, proto: shapes3d_pb2.Sphere3DParams) -> Sphere3DParams:
+    def _from_proto(cls, proto: shapes3d_pb2.Sphere3DParams) -> Sphere3DParams:
         return cls(
             diameter_cm=proto.diameter_cm,
             rings=proto.rings,
             sectors=proto.sectors,
-            material=Material3D.from_proto(proto.material),
+            material=Material3D._from_proto(proto.material),
             repeat=_repeat_from(proto),
         )
 
@@ -190,18 +190,18 @@ class Plane3DParams:
     material: Material3D = field(default_factory=Material3D)
     repeat: Repeat3D | None = None
 
-    def to_proto(self) -> shapes3d_pb2.Plane3DParams:
+    def _to_proto(self) -> shapes3d_pb2.Plane3DParams:
         return shapes3d_pb2.Plane3DParams(
-            size_cm=self.size_cm.to_proto(),
-            material=self.material.to_proto(),
-            repeat=self.repeat.to_proto() if self.repeat else None,
+            size_cm=self.size_cm._to_proto(),
+            material=self.material._to_proto(),
+            repeat=self.repeat._to_proto() if self.repeat else None,
         )
 
     @classmethod
-    def from_proto(cls, proto: shapes3d_pb2.Plane3DParams) -> Plane3DParams:
+    def _from_proto(cls, proto: shapes3d_pb2.Plane3DParams) -> Plane3DParams:
         return cls(
-            size_cm=Vec2.from_proto(proto.size_cm),
-            material=Material3D.from_proto(proto.material),
+            size_cm=Vec2._from_proto(proto.size_cm),
+            material=Material3D._from_proto(proto.material),
             repeat=_repeat_from(proto),
         )
 
@@ -236,31 +236,31 @@ class Corridor3DParams:
     #: Tints the colours above; its shading applies to every face.
     material: Material3D = field(default_factory=Material3D)
 
-    def to_proto(self) -> shapes3d_pb2.Corridor3DParams:
+    def _to_proto(self) -> shapes3d_pb2.Corridor3DParams:
         return shapes3d_pb2.Corridor3DParams(
             width_cm=self.width_cm,
             height_cm=self.height_cm,
             period_cm=self.period_cm,
             periods_ahead=self.periods_ahead,
             periods_behind=self.periods_behind,
-            floor_color=self.floor_color.to_proto(),
-            wall_color=self.wall_color.to_proto(),
-            stripe_color=self.stripe_color.to_proto(),
+            floor_color=self.floor_color._to_proto(),
+            wall_color=self.wall_color._to_proto(),
+            stripe_color=self.stripe_color._to_proto(),
             ceiling=self.ceiling,
-            material=self.material.to_proto(),
+            material=self.material._to_proto(),
         )
 
     @classmethod
-    def from_proto(cls, proto: shapes3d_pb2.Corridor3DParams) -> Corridor3DParams:
+    def _from_proto(cls, proto: shapes3d_pb2.Corridor3DParams) -> Corridor3DParams:
         return cls(
             width_cm=proto.width_cm,
             height_cm=proto.height_cm,
             period_cm=proto.period_cm,
             periods_ahead=proto.periods_ahead,
             periods_behind=proto.periods_behind,
-            floor_color=Color.from_proto(proto.floor_color),
-            wall_color=Color.from_proto(proto.wall_color),
-            stripe_color=Color.from_proto(proto.stripe_color),
+            floor_color=Color._from_proto(proto.floor_color),
+            wall_color=Color._from_proto(proto.wall_color),
+            stripe_color=Color._from_proto(proto.stripe_color),
             ceiling=proto.ceiling,
-            material=Material3D.from_proto(proto.material),
+            material=Material3D._from_proto(proto.material),
         )

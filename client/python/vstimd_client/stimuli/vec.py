@@ -10,10 +10,10 @@ class Vec2:
     y: float
 
     @classmethod
-    def from_proto(cls, proto: vec2_pb2.Vec2) -> Self:
+    def _from_proto(cls, proto: vec2_pb2.Vec2) -> Self:
         return cls(x=proto.x, y=proto.y)
 
-    def to_proto(self) -> vec2_pb2.Vec2:
+    def _to_proto(self) -> vec2_pb2.Vec2:
         return vec2_pb2.Vec2(x=self.x, y=self.y)
 
 
@@ -24,8 +24,8 @@ class Vec3:
     z: float
 
     @classmethod
-    def from_proto(cls, proto: vec3_pb2.Vec3) -> Self:
+    def _from_proto(cls, proto: vec3_pb2.Vec3) -> Self:
         return cls(x=proto.x, y=proto.y, z=proto.z)
 
-    def to_proto(self) -> vec3_pb2.Vec3:
+    def _to_proto(self) -> vec3_pb2.Vec3:
         return vec3_pb2.Vec3(x=self.x, y=self.y, z=self.z)

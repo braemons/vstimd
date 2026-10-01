@@ -54,7 +54,7 @@ class AxisRef:
     device: str
     axis: str
 
-    def to_proto(self) -> animations_pb2.AxisRef:
+    def _to_proto(self) -> animations_pb2.AxisRef:
         return animations_pb2.AxisRef(device=self.device, axis=self.axis)
 
 
@@ -79,7 +79,7 @@ class AxisMap:
     #: Wrap the channel into ``[0, wrap)`` — a corridor period.
     wrap: float | None = None
 
-    def to_proto(self) -> animations_pb2.AxisMap:
+    def _to_proto(self) -> animations_pb2.AxisMap:
         m = animations_pb2.AxisMap(
             axis=self.axis,
             channel=_CHANNEL_TO_PROTO[self.channel],
@@ -93,7 +93,7 @@ class AxisMap:
         return m
 
     @classmethod
-    def from_proto(cls, m: animations_pb2.AxisMap) -> AxisMap:
+    def _from_proto(cls, m: animations_pb2.AxisMap) -> AxisMap:
         clamp = (m.clamp_min, m.clamp_max) if m.HasField("clamp_min") and m.HasField("clamp_max") else None
         return cls(
             axis=m.axis,

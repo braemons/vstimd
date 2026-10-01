@@ -69,14 +69,14 @@ class GratingParams:
     back_color: Color = field(default_factory=lambda: Color(0.0, 0.0, 0.0, 1.0))
 
     @classmethod
-    def from_proto(cls, proto: grating_pb2.GratingParams) -> GratingParams:
+    def _from_proto(cls, proto: grating_pb2.GratingParams) -> GratingParams:
         fore = (
-            Color.from_proto(proto.fore_color)
+            Color._from_proto(proto.fore_color)
             if proto.HasField("fore_color")
             else Color(1.0, 1.0, 1.0, 1.0)
         )
         back = (
-            Color.from_proto(proto.back_color)
+            Color._from_proto(proto.back_color)
             if proto.HasField("back_color")
             else Color(0.0, 0.0, 0.0, 1.0)
         )
@@ -96,7 +96,7 @@ class GratingParams:
             back_color=back,
         )
 
-    def to_proto(self) -> grating_pb2.GratingParams:
+    def _to_proto(self) -> grating_pb2.GratingParams:
         return grating_pb2.GratingParams(
             width_px=self.width_px,
             height_px=self.height_px,
@@ -109,6 +109,6 @@ class GratingParams:
             drift_speed_hz=self.drift_speed_hz,
             drift_decoupled=not self.drift_coupled,
             drift_angle_deg=self.drift_angle_deg,
-            fore_color=self.fore_color.to_proto(),
-            back_color=self.back_color.to_proto(),
+            fore_color=self.fore_color._to_proto(),
+            back_color=self.back_color._to_proto(),
         )

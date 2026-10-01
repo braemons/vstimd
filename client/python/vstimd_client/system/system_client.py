@@ -204,7 +204,7 @@ class SystemClient:
             system=service_pb2.SystemTarget(),
             query_frame_stats=system_pb2.QueryFrameStatsRequest(),
         ))
-        return FrameStats.from_proto(resp.frame_stats)
+        return FrameStats._from_proto(resp.frame_stats)
 
     def reset_frame_stats(self) -> FrameStats:
         """Start a new frame-statistics window, returning the one it closes.
@@ -221,7 +221,7 @@ class SystemClient:
             system=service_pb2.SystemTarget(),
             reset_frame_stats=system_pb2.ResetFrameStatsRequest(),
         ))
-        return FrameStats.from_proto(resp.frame_stats)
+        return FrameStats._from_proto(resp.frame_stats)
 
     # ── Input devices ────────────────────────────────────────────────────────
 
@@ -235,7 +235,7 @@ class SystemClient:
             system=service_pb2.SystemTarget(),
             list_input_devices=input_pb2.ListInputDevicesRequest(),
         ))
-        return [InputDeviceInfo.from_proto(d) for d in resp.input_device_list.devices]
+        return [InputDeviceInfo._from_proto(d) for d in resp.input_device_list.devices]
 
     # ── 3-D scene ────────────────────────────────────────────────────────────
 
@@ -248,7 +248,7 @@ class SystemClient:
         """
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             system=service_pb2.SystemTarget(),
-            set_camera=scene3d_pb2.SetCameraRequest(camera=camera.to_proto()),
+            set_camera=scene3d_pb2.SetCameraRequest(camera=camera._to_proto()),
         )))
 
     def query_camera(self) -> Camera3D:
@@ -257,7 +257,7 @@ class SystemClient:
             system=service_pb2.SystemTarget(),
             query_camera=scene3d_pb2.QueryCameraRequest(),
         ))
-        return Camera3D.from_proto(resp.camera)
+        return Camera3D._from_proto(resp.camera)
 
     def set_camera_zones(self, zones: list[CameraZone]) -> ServerResponse:
         """Replace every camera zone; ``[]`` removes them all. See :class:`CameraZone`.
@@ -268,7 +268,7 @@ class SystemClient:
         """
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             system=service_pb2.SystemTarget(),
-            set_camera_zones=scene3d_pb2.SetCameraZonesRequest(zones=[z.to_proto() for z in zones]),
+            set_camera_zones=scene3d_pb2.SetCameraZonesRequest(zones=[z._to_proto() for z in zones]),
         )))
 
     def list_camera_zones(self) -> list[CameraZoneStatus]:
@@ -278,7 +278,7 @@ class SystemClient:
             list_camera_zones=scene3d_pb2.ListCameraZonesRequest(),
         ))
         return [
-            CameraZoneStatus(CameraZone.from_proto(z.zone), z.inside)
+            CameraZoneStatus(CameraZone._from_proto(z.zone), z.inside)
             for z in resp.camera_zone_list.zones
         ]
 
@@ -290,7 +290,7 @@ class SystemClient:
         """
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             system=service_pb2.SystemTarget(),
-            set_lighting=scene3d_pb2.SetLightingRequest(lighting=lighting.to_proto()),
+            set_lighting=scene3d_pb2.SetLightingRequest(lighting=lighting._to_proto()),
         )))
 
     def query_lighting(self) -> Lighting3D:
@@ -298,7 +298,7 @@ class SystemClient:
             system=service_pb2.SystemTarget(),
             query_lighting=scene3d_pb2.QueryLightingRequest(),
         ))
-        return Lighting3D.from_proto(resp.lighting)
+        return Lighting3D._from_proto(resp.lighting)
 
     # ── Frame capture ────────────────────────────────────────────────────────
 
