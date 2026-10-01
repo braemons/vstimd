@@ -115,7 +115,7 @@ class FrameStats:
     window_start_frame: int
 
     @classmethod
-    def from_proto(cls, msg: system_pb2.FrameStats) -> FrameStats:
+    def _from_proto(cls, msg: system_pb2.FrameStats) -> FrameStats:
         return cls(
             presented_frames=msg.presented_frames,
             dropped_frames=msg.dropped_frames,
@@ -176,9 +176,9 @@ class Camera3D:
     near_cm: float = 1.0
     far_cm: float = 50_000.0
 
-    def to_proto(self) -> scene3d_pb2.Camera3D:
+    def _to_proto(self) -> scene3d_pb2.Camera3D:
         return scene3d_pb2.Camera3D(
-            position_cm=self.position_cm.to_proto(),
+            position_cm=self.position_cm._to_proto(),
             yaw_deg=self.yaw_deg,
             pitch_deg=self.pitch_deg,
             roll_deg=self.roll_deg,
@@ -188,9 +188,9 @@ class Camera3D:
         )
 
     @classmethod
-    def from_proto(cls, proto: scene3d_pb2.Camera3D) -> Camera3D:
+    def _from_proto(cls, proto: scene3d_pb2.Camera3D) -> Camera3D:
         return cls(
-            position_cm=Vec3.from_proto(proto.position_cm),
+            position_cm=Vec3._from_proto(proto.position_cm),
             yaw_deg=proto.yaw_deg,
             pitch_deg=proto.pitch_deg,
             roll_deg=proto.roll_deg,
@@ -212,19 +212,19 @@ class Lighting3D:
     sun_direction: Vec3 = field(default_factory=lambda: Vec3(-0.5, -1.0, -0.3))
     sun_color: Vec3 = field(default_factory=lambda: Vec3(1.0, 1.0, 1.0))
 
-    def to_proto(self) -> scene3d_pb2.Lighting3D:
+    def _to_proto(self) -> scene3d_pb2.Lighting3D:
         return scene3d_pb2.Lighting3D(
-            ambient_color=self.ambient_color.to_proto(),
-            sun_direction=self.sun_direction.to_proto(),
-            sun_color=self.sun_color.to_proto(),
+            ambient_color=self.ambient_color._to_proto(),
+            sun_direction=self.sun_direction._to_proto(),
+            sun_color=self.sun_color._to_proto(),
         )
 
     @classmethod
-    def from_proto(cls, proto: scene3d_pb2.Lighting3D) -> Lighting3D:
+    def _from_proto(cls, proto: scene3d_pb2.Lighting3D) -> Lighting3D:
         return cls(
-            ambient_color=Vec3.from_proto(proto.ambient_color),
-            sun_direction=Vec3.from_proto(proto.sun_direction),
-            sun_color=Vec3.from_proto(proto.sun_color),
+            ambient_color=Vec3._from_proto(proto.ambient_color),
+            sun_direction=Vec3._from_proto(proto.sun_direction),
+            sun_color=Vec3._from_proto(proto.sun_color),
         )
 
 
@@ -258,7 +258,7 @@ class InputDeviceInfo:
     axes: tuple[InputAxisInfo, ...]
 
     @classmethod
-    def from_proto(cls, d: input_pb2.InputDeviceInfo) -> InputDeviceInfo:
+    def _from_proto(cls, d: input_pb2.InputDeviceInfo) -> InputDeviceInfo:
         semantics = {
             input_pb2.INPUT_SEMANTIC_ABSOLUTE: "absolute",
             input_pb2.INPUT_SEMANTIC_CUMULATIVE: "cumulative",

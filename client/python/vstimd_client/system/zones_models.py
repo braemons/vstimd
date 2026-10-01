@@ -31,7 +31,7 @@ class CameraZone:
     y_cm: tuple[float, float] | None = None
     z_cm: tuple[float, float] | None = None
 
-    def to_proto(self) -> scene3d_pb2.CameraZone:
+    def _to_proto(self) -> scene3d_pb2.CameraZone:
         z = scene3d_pb2.CameraZone(name=self.name, line=self.line._to_proto())
         for axis, r in (("x", self.x_cm), ("y", self.y_cm), ("z", self.z_cm)):
             if r is not None:
@@ -40,7 +40,7 @@ class CameraZone:
         return z
 
     @classmethod
-    def from_proto(cls, z: scene3d_pb2.CameraZone) -> CameraZone:
+    def _from_proto(cls, z: scene3d_pb2.CameraZone) -> CameraZone:
         def rng(axis: str) -> tuple[float, float] | None:
             lo, hi = f"{axis}_min_cm", f"{axis}_max_cm"
             if z.HasField(lo) and z.HasField(hi):  # type: ignore[arg-type]

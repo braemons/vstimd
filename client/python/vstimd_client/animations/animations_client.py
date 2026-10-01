@@ -608,7 +608,7 @@ class AnimationClient:
                     wrap_period_cm=wrap_period_cm or 0.0,
                     track_length_cm=track_length_cm or 0.0,
                     fade_frames=fade_frames,
-                    source=source.to_proto() if source else None,
+                    source=source._to_proto() if source else None,
                 ),
             },
             name=name,
@@ -659,7 +659,7 @@ class AnimationClient:
         req = self._make_req(
             stimuli, {
                 "device_driven_transform": animations_pb2.DeviceDrivenTransform(
-                    device=device, axes=[a.to_proto() for a in axes],
+                    device=device, axes=[a._to_proto() for a in axes],
                 ),
             },
             name=name,
