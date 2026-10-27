@@ -57,9 +57,9 @@ class Shapes3DClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_cube_3d=shapes3d_pb2.CreateCube3DRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
-                placement=(transform or Transform3D()).to_proto(),
-                params=(params or Cube3DParams()).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
+                placement=(transform or Transform3D())._to_proto(),
+                params=(params or Cube3DParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -74,9 +74,9 @@ class Shapes3DClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_sphere_3d=shapes3d_pb2.CreateSphere3DRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
-                placement=(transform or Transform3D()).to_proto(),
-                params=(params or Sphere3DParams()).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
+                placement=(transform or Transform3D())._to_proto(),
+                params=(params or Sphere3DParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -91,9 +91,9 @@ class Shapes3DClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_plane_3d=shapes3d_pb2.CreatePlane3DRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
-                placement=(transform or Transform3D()).to_proto(),
-                params=(params or Plane3DParams()).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
+                placement=(transform or Transform3D())._to_proto(),
+                params=(params or Plane3DParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -109,9 +109,9 @@ class Shapes3DClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_corridor_3d=shapes3d_pb2.CreateCorridor3DRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
-                placement=(transform or Transform3D()).to_proto(),
-                params=(params or Corridor3DParams()).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
+                placement=(transform or Transform3D())._to_proto(),
+                params=(params or Corridor3DParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -122,20 +122,20 @@ class Shapes3DClient:
         """Replace the placement of any 3-D stimulus."""
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_transform_3d=shapes3d_pb2.SetTransform3DRequest(transform=transform.to_proto()),
+            set_transform_3d=shapes3d_pb2.SetTransform3DRequest(transform=transform._to_proto()),
         )))
 
     def set_material(self, handle: StimulusHandle, material: Material3D) -> ServerResponse:
         """Replace the material of any 3-D stimulus."""
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_material_3d=shapes3d_pb2.SetMaterial3DRequest(material=material.to_proto()),
+            set_material_3d=shapes3d_pb2.SetMaterial3DRequest(material=material._to_proto()),
         )))
 
     def set_cube_size(self, handle: StimulusHandle, size_cm: Vec3) -> ServerResponse:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_cube_3d_size=shapes3d_pb2.SetCube3DSizeRequest(size_cm=size_cm.to_proto()),
+            set_cube_3d_size=shapes3d_pb2.SetCube3DSizeRequest(size_cm=size_cm._to_proto()),
         )))
 
     def set_sphere_diameter(self, handle: StimulusHandle, diameter_cm: float) -> ServerResponse:
@@ -150,5 +150,5 @@ class Shapes3DClient:
     def set_plane_size(self, handle: StimulusHandle, size_cm: Vec2) -> ServerResponse:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
-            set_plane_3d_size=shapes3d_pb2.SetPlane3DSizeRequest(size_cm=size_cm.to_proto()),
+            set_plane_3d_size=shapes3d_pb2.SetPlane3DSizeRequest(size_cm=size_cm._to_proto()),
         )))

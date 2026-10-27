@@ -10,9 +10,6 @@ docs/_build/
 e2e-review.md
 vstimd-review.log
 
-# Generated protobuf stubs — regenerate with: make proto
-vstimd/_proto/**/*_pb2.py
-vstimd/_proto/**/*_pb2.pyi
 *.config.json
 # The interactive review's progress, per machine (tests/e2e/review.py)
 .e2e-review-session.json

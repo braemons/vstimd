@@ -28,7 +28,7 @@ def test_transform_round_trip() -> None:
         rotation_deg=Vec3(30.0, -15.0, 5.0),
         scale=Vec3(1.0, 2.0, 0.5),
     )
-    assert Transform3D.from_proto(t.to_proto()) == t
+    assert Transform3D._from_proto(t._to_proto()) == t
 
 
 def test_default_transform_is_identity() -> None:
@@ -42,7 +42,7 @@ def test_default_transform_is_identity() -> None:
 
 def test_material_round_trip_and_default() -> None:
     m = Material3D(albedo=Color(0.25, 0.5, 0.75, 0.5), emissive=Vec3(0.125, 0, 0), shading=Shading.PHONG)
-    assert Material3D.from_proto(m.to_proto()) == m
+    assert Material3D._from_proto(m._to_proto()) == m
     assert Material3D().albedo == Color(1.0, 1.0, 1.0), "the default surface is visible"
     assert Material3D().shading == Shading.UNLIT
 
@@ -52,20 +52,20 @@ def test_params_round_trip() -> None:
     cube = Cube3DParams(size_cm=Vec3(20, 10, 5), material=m)
     sphere = Sphere3DParams(diameter_cm=7.5, rings=8, sectors=24, material=m)
     plane = Plane3DParams(size_cm=Vec2(100, 40), material=m)
-    assert Cube3DParams.from_proto(cube.to_proto()) == cube
-    assert Sphere3DParams.from_proto(sphere.to_proto()) == sphere
-    assert Plane3DParams.from_proto(plane.to_proto()) == plane
+    assert Cube3DParams._from_proto(cube._to_proto()) == cube
+    assert Sphere3DParams._from_proto(sphere._to_proto()) == sphere
+    assert Plane3DParams._from_proto(plane._to_proto()) == plane
 
 
 def test_camera_and_lighting_round_trip() -> None:
     cam = Camera3D(position_cm=Vec3(0, 10, 30), yaw_deg=-20, pitch_deg=5, fov_y_deg=90)
-    assert Camera3D.from_proto(cam.to_proto()) == cam
+    assert Camera3D._from_proto(cam._to_proto()) == cam
     light = Lighting3D(
         ambient_color=Vec3(0.125, 0.25, 0.0),
         sun_direction=Vec3(-1, 0, 0),
         sun_color=Vec3(2, 2, 2),
     )
-    assert Lighting3D.from_proto(light.to_proto()) == light
+    assert Lighting3D._from_proto(light._to_proto()) == light
 
 
 def test_corridor_and_repeat_round_trip() -> None:
@@ -74,7 +74,7 @@ def test_corridor_and_repeat_round_trip() -> None:
         floor_color=Color(0.25, 0.25, 0.25), wall_color=Color(0.75, 0.5, 0.25),
         stripe_color=Color(0.125, 0.125, 0.125), ceiling=True, material=Material3D(shading=Shading.PHONG),
     )
-    assert Corridor3DParams.from_proto(corridor.to_proto()) == corridor
+    assert Corridor3DParams._from_proto(corridor._to_proto()) == corridor
     sphere = Sphere3DParams(repeat=Repeat3D(period_cm=200, ahead=12, behind=1))
-    assert Sphere3DParams.from_proto(sphere.to_proto()) == sphere
-    assert Sphere3DParams.from_proto(Sphere3DParams().to_proto()).repeat is None
+    assert Sphere3DParams._from_proto(sphere._to_proto()) == sphere
+    assert Sphere3DParams._from_proto(Sphere3DParams()._to_proto()).repeat is None

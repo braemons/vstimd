@@ -10,8 +10,8 @@ class StimulusIdentity:
     name: str
 
     @classmethod
-    def from_proto(cls, proto: ProtoStimulusIdentity) -> 'StimulusIdentity':
+    def _from_proto(cls, proto: ProtoStimulusIdentity) -> 'StimulusIdentity':
         return cls(name=proto.name)
 
-    def to_proto(self) -> ProtoStimulusIdentity:
+    def _to_proto(self) -> ProtoStimulusIdentity:
         return ProtoStimulusIdentity(name=self.name)

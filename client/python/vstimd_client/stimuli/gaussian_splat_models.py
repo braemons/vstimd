@@ -37,11 +37,11 @@ class GaussianSplat3DParams:
 
     path: str = ""
 
-    def to_proto(self) -> gaussian_splat_pb2.GaussianSplat3DParams:
+    def _to_proto(self) -> gaussian_splat_pb2.GaussianSplat3DParams:
         return gaussian_splat_pb2.GaussianSplat3DParams(path=self.path)
 
     @classmethod
-    def from_proto(
+    def _from_proto(
         cls, proto: gaussian_splat_pb2.GaussianSplat3DParams
     ) -> GaussianSplat3DParams:
         return cls(path=proto.path)

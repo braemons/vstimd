@@ -5,6 +5,16 @@ All notable changes to `vstimd-client` are documented here. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html). The client is
 versioned independently of the vstimd server.
 
+## [Unreleased]
+
+### Changed — breaking
+
+- **`to_proto()` and `from_proto()` are private**: `_to_proto()` and
+  `_from_proto()` on every model class. Their signatures named generated
+  `*_pb2` types, and a generated type never appears in a public signature
+  (`contracts/DAEMON_LAYOUT.md` §2). Nothing outside the client called them;
+  build the dataclasses and pass them to the client's methods.
+
 ## [0.3.0a2] — 2026-09-25
 
 ### Changed — breaking

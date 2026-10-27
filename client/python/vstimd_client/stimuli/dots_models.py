@@ -135,7 +135,7 @@ class Aperture:
     clip: ApertureClip = ApertureClip.DOT_CENTER
 
     @classmethod
-    def from_proto(cls, proto: dots_pb2.Aperture) -> Aperture:
+    def _from_proto(cls, proto: dots_pb2.Aperture) -> Aperture:
         return cls(
             shape=_PROTO_TO_APERTURE_SHAPE.get(proto.shape, ApertureShape.RECT),
             width_px=proto.width_px,
@@ -145,7 +145,7 @@ class Aperture:
             clip=_PROTO_TO_APERTURE_CLIP.get(proto.clip, ApertureClip.DOT_CENTER),
         )
 
-    def to_proto(self) -> dots_pb2.Aperture:
+    def _to_proto(self) -> dots_pb2.Aperture:
         return dots_pb2.Aperture(
             shape=_APERTURE_SHAPE_TO_PROTO[self.shape],
             width_px=self.width_px,
@@ -215,10 +215,10 @@ class DotsParams:
     seed: int = 0
 
     @classmethod
-    def from_proto(cls, proto: dots_pb2.DotsParams) -> DotsParams:
-        alt = Color.from_proto(proto.dot_color_alt) if proto.HasField("dot_color_alt") else None
+    def _from_proto(cls, proto: dots_pb2.DotsParams) -> DotsParams:
+        alt = Color._from_proto(proto.dot_color_alt) if proto.HasField("dot_color_alt") else None
         color = (
-            Color.from_proto(proto.dot_color)
+            Color._from_proto(proto.dot_color)
             if proto.HasField("dot_color")
             else Color(1.0, 1.0, 1.0, 1.0)
         )
@@ -226,7 +226,7 @@ class DotsParams:
             field_width_px=proto.field_width_px,
             field_height_px=proto.field_height_px,
             dot_count=proto.dot_count,
-            aperture=Aperture.from_proto(proto.aperture),
+            aperture=Aperture._from_proto(proto.aperture),
             dot_size_px=proto.dot_size_px,
             dot_color=color,
             dot_color_alt=alt,
@@ -241,14 +241,14 @@ class DotsParams:
             seed=proto.seed,
         )
 
-    def to_proto(self) -> dots_pb2.DotsParams:
+    def _to_proto(self) -> dots_pb2.DotsParams:
         proto = dots_pb2.DotsParams(
             field_width_px=self.field_width_px,
             field_height_px=self.field_height_px,
             dot_count=self.dot_count,
-            aperture=self.aperture.to_proto(),
+            aperture=self.aperture._to_proto(),
             dot_size_px=self.dot_size_px,
-            dot_color=self.dot_color.to_proto(),
+            dot_color=self.dot_color._to_proto(),
             dot_shape=_DOT_SHAPE_TO_PROTO[self.dot_shape],
             direction_deg=self.direction_deg,
             signal_rule=_SIGNAL_RULE_TO_PROTO[self.signal_rule],
@@ -260,7 +260,7 @@ class DotsParams:
         # Set only when given: absence is what carries "use the default" for these
         # three, since zero is a value each of them can legitimately take.
         if self.dot_color_alt is not None:
-            proto.dot_color_alt.CopyFrom(self.dot_color_alt.to_proto())
+            proto.dot_color_alt.CopyFrom(self.dot_color_alt._to_proto())
         if self.speed_px_per_s is not None:
             proto.speed_px_per_s = self.speed_px_per_s
         if self.coherence is not None:

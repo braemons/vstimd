@@ -37,9 +37,9 @@ class TextClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_text=text_pb2.CreateTextRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
-                placement=Transform2D(pos_px=position_px.to_proto(), rotation_deg=rotation_deg),
-                params=(params or TextParams()).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
+                placement=Transform2D(pos_px=position_px._to_proto(), rotation_deg=rotation_deg),
+                params=(params or TextParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -54,6 +54,6 @@ class TextClient:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_text_color=text_pb2.SetTextColorRequest(
-                color=color.to_proto(),
+                color=color._to_proto(),
             ),
         )))

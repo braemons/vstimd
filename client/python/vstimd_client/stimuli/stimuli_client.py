@@ -106,7 +106,7 @@ class StimuliClient:
             service_pb2.Request(
                 stimulus=handle,
                 set_fill_color=shared_set_requests_pb2.SetFillColorRequest(
-                    color=color.to_proto(),
+                    color=color._to_proto(),
                 ),
             )
         ))
@@ -159,4 +159,4 @@ class StimuliClient:
             stimulus=handle,
             query_stimulus=query_pb2.QueryStimulusRequest(),
         )
-        return StimulusInfo.from_proto(self._send(req).stimulus_info)
+        return StimulusInfo._from_proto(self._send(req).stimulus_info)

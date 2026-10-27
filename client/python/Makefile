@@ -1,23 +1,40 @@
 PROTO_SRC  := $(shell find ../../proto -name '*.proto' | sort)
 PROTO_OUT  := vstimd_client/_proto
 
-.PHONY: build publish proto test test-e2e-visible test-e2e-interactive \
-        test-e2e-null test-e2e-events typecheck docs clean
+.PHONY: build publish proto generate-into check-proto test test-e2e-visible \
+        test-e2e-interactive test-e2e-null test-e2e-events typecheck docs clean
 
 # Extra arguments for the e2e targets, e.g. make test-e2e-visible PYTEST_ARGS="-k grating"
 PYTEST_ARGS ?=
 E2E_SUITES  := tests/e2e/test_e2e.py tests/e2e/test_psychopy_visual.py
 
 proto:
+	@$(MAKE) --no-print-directory generate-into OUT=$(PROTO_OUT)
+
+generate-into:
+	@mkdir -p $(OUT)
 	uv run --group dev python -m grpc_tools.protoc \
 		--proto_path=../../proto \
-		--python_out=$(PROTO_OUT) \
-		--pyi_out=$(PROTO_OUT) \
+		--python_out=$(OUT) \
+		--pyi_out=$(OUT) \
 		$(PROTO_SRC)
 	@# protoc roots imports at the proto path (`from vstimd.v1 import ...`);
 	@# rewrite them to live inside this package, as every braemons client does.
-	find $(PROTO_OUT) -name '*.py' -o -name '*.pyi' | xargs sed -i \
+	find $(OUT) -name '*.py' -o -name '*.pyi' | xargs sed -i \
 		-e 's/^from vstimd\.v1\b/from vstimd_client._proto.vstimd.v1/'
+
+# Against a fresh generation rather than against git: a *new* generated file is
+# untracked, and `git diff` says nothing about an untracked file. The
+# hand-written `__init__.py` files are not generated, so they are not compared.
+check-proto:
+	@rm -rf build/proto-check
+	@$(MAKE) --no-print-directory generate-into OUT=build/proto-check
+	@diff -r --exclude=__pycache__ --exclude=__init__.py build/proto-check $(PROTO_OUT) || { \
+	  echo "$(PROTO_OUT)/ is not what proto/ produces — the interface changed."; \
+	  echo "run 'make proto' and commit the result with the change that caused it."; \
+	  exit 1; \
+	}
+	@rm -rf build/proto-check
 
 build: proto
 	uv build

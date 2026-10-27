@@ -123,7 +123,7 @@ class StimulusInfo:
     transform_3d: Transform3D | None = None
 
     @classmethod
-    def from_proto(cls, proto: query_pb2.QueryStimulusResponse) -> StimulusInfo:
+    def _from_proto(cls, proto: query_pb2.QueryStimulusResponse) -> StimulusInfo:
         shape_which = (
             proto.params.WhichOneof("shape") if proto.HasField("params") else None
         )
@@ -145,11 +145,11 @@ class StimulusInfo:
                 appearance=_appearance_or_default(proto.params.ellipse),
             )
         elif shape_which == "grating":
-            params = GratingParams.from_proto(proto.params.grating)
+            params = GratingParams._from_proto(proto.params.grating)
         elif shape_which == "dots":
-            params = DotsParams.from_proto(proto.params.dots)
+            params = DotsParams._from_proto(proto.params.dots)
         elif shape_which == "text":
-            params = TextParams.from_proto(proto.params.text)
+            params = TextParams._from_proto(proto.params.text)
         elif shape_which == "polygon":
             params = PolygonParams(
                 vertices_px=[Vec2(v.x, v.y) for v in proto.params.polygon.vertices_px],
@@ -157,15 +157,15 @@ class StimulusInfo:
                 appearance=_appearance_or_default(proto.params.polygon),
             )
         elif shape_which == "cube_3d":
-            params = Cube3DParams.from_proto(proto.params.cube_3d)
+            params = Cube3DParams._from_proto(proto.params.cube_3d)
         elif shape_which == "sphere_3d":
-            params = Sphere3DParams.from_proto(proto.params.sphere_3d)
+            params = Sphere3DParams._from_proto(proto.params.sphere_3d)
         elif shape_which == "plane_3d":
-            params = Plane3DParams.from_proto(proto.params.plane_3d)
+            params = Plane3DParams._from_proto(proto.params.plane_3d)
         elif shape_which == "corridor_3d":
-            params = Corridor3DParams.from_proto(proto.params.corridor_3d)
+            params = Corridor3DParams._from_proto(proto.params.corridor_3d)
         elif shape_which == "gaussian_splat_3d":
-            params = GaussianSplat3DParams.from_proto(proto.params.gaussian_splat_3d)
+            params = GaussianSplat3DParams._from_proto(proto.params.gaussian_splat_3d)
         else:
             params = None
 
@@ -176,7 +176,7 @@ class StimulusInfo:
                 proto.stimulus_type, StimulusType.UNKNOWN
             ),
             enabled=proto.enabled,
-            pos_px=Vec2.from_proto(proto.transform_2d.pos_px) if is_2d else None,
+            pos_px=Vec2._from_proto(proto.transform_2d.pos_px) if is_2d else None,
             rotation_deg=proto.transform_2d.rotation_deg if is_2d else None,
             opacity=proto.opacity,
             params=params,
@@ -186,7 +186,7 @@ class StimulusInfo:
             draw_order=proto.draw_order,
             condition_indices=list(proto.condition_indices),
             condition_enabled=proto.condition_enabled,
-            transform_3d=Transform3D.from_proto(proto.transform_3d) if is_3d else None,
+            transform_3d=Transform3D._from_proto(proto.transform_3d) if is_3d else None,
         )
 
     # ── Shape appearance, reached through the params ──────────────────────────

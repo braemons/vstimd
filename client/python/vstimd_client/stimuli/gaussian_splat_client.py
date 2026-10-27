@@ -63,9 +63,9 @@ class GaussianSplatClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_gaussian_splat_3d=gaussian_splat_pb2.CreateGaussianSplat3DRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
-                placement=(transform or Transform3D()).to_proto(),
-                params=GaussianSplat3DParams(path=path).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
+                placement=(transform or Transform3D())._to_proto(),
+                params=GaussianSplat3DParams(path=path)._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)

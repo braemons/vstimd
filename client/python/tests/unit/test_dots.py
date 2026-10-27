@@ -109,30 +109,30 @@ def test_params_round_trip_through_proto():
         dot_lifetime_frames=12,
         seed=4242,
     )
-    assert DotsParams.from_proto(sent.to_proto()) == sent
+    assert DotsParams._from_proto(sent._to_proto()) == sent
 
 
 def test_zero_is_expressible_for_speed_and_coherence():
     """Zero is a real setting for both — a static field, and pure noise — so it
     must survive the trip rather than being read as 'unset'."""
     p = DotsParams(speed_px_per_s=0.0, coherence=0.0)
-    back = DotsParams.from_proto(p.to_proto())
+    back = DotsParams._from_proto(p._to_proto())
     assert back.speed_px_per_s == 0.0
     assert back.coherence == 0.0
 
 
 def test_unset_speed_and_coherence_stay_unset():
-    back = DotsParams.from_proto(DotsParams().to_proto())
+    back = DotsParams._from_proto(DotsParams()._to_proto())
     assert back.speed_px_per_s is None
     assert back.coherence is None
 
 
 def test_no_alt_color_by_default():
-    assert DotsParams.from_proto(DotsParams().to_proto()).dot_color_alt is None
+    assert DotsParams._from_proto(DotsParams()._to_proto()).dot_color_alt is None
     p = DotsParams(dot_color_alt=Color(0.0, 0.0, 0.0, 1.0))
-    assert DotsParams.from_proto(p.to_proto()).dot_color_alt == Color(0.0, 0.0, 0.0, 1.0)
+    assert DotsParams._from_proto(p._to_proto()).dot_color_alt == Color(0.0, 0.0, 0.0, 1.0)
 
 
 def test_inverted_aperture_round_trips():
     a = Aperture(shape=ApertureShape.CIRCLE, width_px=900.0, invert=True)
-    assert Aperture.from_proto(a.to_proto()) == a
+    assert Aperture._from_proto(a._to_proto()) == a

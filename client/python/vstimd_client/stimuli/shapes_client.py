@@ -30,7 +30,7 @@ _SendFn = Callable[[service_pb2.Request], service_pb2.Response]
 
 
 def _placement(position_px: Vec2, rotation_deg: float) -> Transform2D:
-    return Transform2D(pos_px=position_px.to_proto(), rotation_deg=rotation_deg)
+    return Transform2D(pos_px=position_px._to_proto(), rotation_deg=rotation_deg)
 
 
 class ShapesClient:
@@ -57,9 +57,9 @@ class ShapesClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_rect=rect_pb2.CreateRectRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
                 placement=_placement(position_px, rotation_deg),
-                params=(params or RectParams()).to_proto(),
+                params=(params or RectParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -75,9 +75,9 @@ class ShapesClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_circle=circle_pb2.CreateCircleRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
                 placement=_placement(position_px, rotation_deg),
-                params=(params or CircleParams()).to_proto(),
+                params=(params or CircleParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -93,9 +93,9 @@ class ShapesClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_ellipse=ellipse_pb2.CreateEllipseRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
                 placement=_placement(position_px, rotation_deg),
-                params=(params or EllipseParams()).to_proto(),
+                params=(params or EllipseParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -111,9 +111,9 @@ class ShapesClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_polygon=polygon_pb2.CreatePolygonRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
                 placement=_placement(position_px, rotation_deg),
-                params=(params or PolygonParams()).to_proto(),
+                params=(params or PolygonParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -157,7 +157,7 @@ class ShapesClient:
             service_pb2.Request(
                 stimulus=handle,
                 set_polygon_vertices=polygon_pb2.SetPolygonVerticesRequest(
-                    vertices_px=[v.to_proto() for v in vertices_px],
+                    vertices_px=[v._to_proto() for v in vertices_px],
                 ),
             )
         ))
@@ -179,7 +179,7 @@ class ShapesClient:
             service_pb2.Request(
                 stimulus=handle,
                 set_outline_color=shapes_pb2.SetOutlineColorRequest(
-                    color=color.to_proto(),
+                    color=color._to_proto(),
                 ),
             )
         ))

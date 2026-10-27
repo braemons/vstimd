@@ -59,9 +59,9 @@ class GratingClient:
         req = service_pb2.Request(
             system=service_pb2.SystemTarget(),
             create_grating=grating_pb2.CreateGratingRequest(
-                identity=StimulusIdentity(name=name).to_proto(),
-                placement=Transform2D(pos_px=position_px.to_proto(), rotation_deg=rotation_deg),
-                params=(params or GratingParams()).to_proto(),
+                identity=StimulusIdentity(name=name)._to_proto(),
+                placement=Transform2D(pos_px=position_px._to_proto(), rotation_deg=rotation_deg),
+                params=(params or GratingParams())._to_proto(),
             ),
         )
         return StimulusHandle(self._send(req).handle)
@@ -124,7 +124,7 @@ class GratingClient:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_fore_color=grating_pb2.SetGratingForeColorRequest(
-                fore_color=color.to_proto(),
+                fore_color=color._to_proto(),
             ),
         )))
 
@@ -132,7 +132,7 @@ class GratingClient:
         return ServerResponse._from_proto(self._send(service_pb2.Request(
             stimulus=handle,
             set_grating_back_color=grating_pb2.SetGratingBackColorRequest(
-                back_color=color.to_proto(),
+                back_color=color._to_proto(),
             ),
         )))
 
