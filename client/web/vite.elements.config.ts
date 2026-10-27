@@ -14,6 +14,12 @@ import react from "@vitejs/plugin-react";
 // subdirectory besides). See package.json's `build` script for the order.
 export default defineConfig({
   plugins: [react()],
+  // Library mode leaves `process.env.NODE_ENV` in the output, where an app
+  // build would have replaced it -- a library is expected to be bundled again
+  // by whoever uses it. This one is loaded as-is by a browser, which has no
+  // `process`: React's entry checks it at import, and the module throws
+  // `process is not defined` before registering a single element.
+  define: { "process.env.NODE_ENV": JSON.stringify("production") },
   build: {
     outDir: "dist/elements",
     emptyOutDir: false,
