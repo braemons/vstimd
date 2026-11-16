@@ -7,12 +7,23 @@ import react from "@vitejs/plugin-react";
 const SERVER = process.env.VSTIMD_WEB ?? "http://localhost:8080";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), {
+    name: "maze-workshop-hosted-entry",
+    transformIndexHtml: {
+      order: "pre",
+      handler(html, context) {
+        // The same editor also builds as an offline HTML; inject the API adapter
+        // only into the page served by vstimd.
+        return context.filename.endsWith("/maze-workshop/index.html")
+          ? html.replace('src="app.mjs"', 'src="../src/workshop.ts"') : html;
+      },
+    },
+  }],
   server: {
     proxy: {
       "/ws": { target: SERVER, ws: true, changeOrigin: true },
       "/events": { target: SERVER, ws: true, changeOrigin: true },
     },
   },
-  build: { outDir: "dist" },
+  build: { outDir: "dist", rollupOptions: { input: { panel: "index.html", workshop: "maze-workshop/index.html" } } },
 });

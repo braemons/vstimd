@@ -32,6 +32,8 @@ use crate::scene::SceneConfig;
 use crate::vtl_state::VtlConfig;
 
 pub const CONFIG_VERSION: u32 = 5;
+/// Movement constraints must not be silently ignored by older daemons.
+pub const MOVEMENT_CONFIG_VERSION: u32 = 6;
 
 /// Reserved scene-config name for the auto-saved last-session slot. Written on
 /// quit when `[startup] save_on_quit` is set, and loaded at boot when
@@ -181,7 +183,11 @@ struct ConfigFile {
 /// Serialize current state to pretty JSON without touching the filesystem.
 pub fn retrieve_config_json(scene: &SceneConfig, vtl: &VtlConfig) -> anyhow::Result<String> {
     let view = ConfigFileRef {
-        version: CONFIG_VERSION,
+        version: if scene.camera_movement.is_some() {
+            MOVEMENT_CONFIG_VERSION
+        } else {
+            CONFIG_VERSION
+        },
         scene,
         io: SectionsRef { vtl },
     };
@@ -206,12 +212,25 @@ pub fn parse_config_json(s: &str) -> anyhow::Result<(SceneConfig, Sections)> {
     }
     let probe: VersionProbe = serde_json::from_str(s)?;
     anyhow::ensure!(
-        probe.version == CONFIG_VERSION,
-        "Unsupported config version {} (expected {})",
+        probe.version == CONFIG_VERSION || probe.version == MOVEMENT_CONFIG_VERSION,
+        "Unsupported config version {} (expected {} or {})",
         probe.version,
-        CONFIG_VERSION
+        CONFIG_VERSION,
+        MOVEMENT_CONFIG_VERSION
     );
     let f: ConfigFile = serde_json::from_str(s)?;
+    if let Some(movement) = &f.scene.camera_movement {
+        anyhow::ensure!(
+            probe.version == MOVEMENT_CONFIG_VERSION,
+            "camera_movement requires config version 6"
+        );
+        movement.validate().map_err(anyhow::Error::msg)?;
+        for animation in f.scene.animations.values() {
+            movement
+                .check_animation(&animation.target, &animation.animation)
+                .map_err(anyhow::Error::msg)?;
+        }
+    }
     Ok((f.scene, f.io))
 }
 

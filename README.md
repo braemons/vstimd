@@ -71,6 +71,17 @@ with VstimdClient("tcp://braemons-a1b2c3d4e5f6.local:5555") as conn:
 Or open `http://<rig>:8080` for the built-in web control UI, and use
 `vstimctl discover` to find rigs on the network.
 
+**Create a maze.** In the embedded web panel, open **Maze Workshop**, or visit
+`http://<rig>:8080/maze-workshop/`. Design a maze, save the scene through the API,
+then load it on the display with replacement. Keep **Save project** for its
+editable source. See [Maze Workshop](client/web/maze-workshop/README.md) for the
+workflow, build targets and current limitations.
+
+Camera movement limits and static collision volumes can be declared in scene-config
+v6; see [the configuration contract](dev/CAMERA_MOVEMENT.md). Earlier v5 scenes
+remain supported. This feature has local simulation tests; physical rig
+validation remains pending.
+
 ## Contributing
 
 Design notes and roadmaps live in [`dev/`](dev/) — start with

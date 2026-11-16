@@ -1,0 +1,28 @@
+import { spawnSync } from 'node:child_process';
+import { readFile, writeFile } from 'node:fs/promises';
+const root = new URL('./', import.meta.url);
+const read = name => readFile(new URL(name, root), 'utf8');
+let html = await read('index.html');
+const css = await read('style.css');
+const logo = await read('assets/braemons-logo.svg');
+html = html.replace('src="assets/braemons-logo.svg"', `src="data:image/svg+xml;base64,${Buffer.from(logo).toString('base64')}"`);
+const resizer = (await read('resizer.mjs')).replaceAll('export ', '');
+const shortcuts = (await read('shortcuts.mjs')).replaceAll('export ', '');
+const returnHold = (await read('return.mjs')).replaceAll('export ', '');
+const wheel = (await read('wheel.mjs')).replaceAll('export ', '');
+const navigation = (await read('navigation.mjs')).replaceAll('export ', '');
+const surfaces = (await read('surfaces.mjs')).replaceAll('export ', '');
+const surfaceRenderer = (await read('surface-preview.mjs')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+const landmarks = (await read('landmarks.mjs')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+const collisions = (await read('collisions.mjs')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+const model = (await read('model.mjs')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+const renderer = (await read('preview.mjs')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+const measurements = (await read('measurements.mjs')).replace(/^import .*;\n/gm, '').replaceAll('export ', '');
+const app = (await read('app.mjs')).replace(/^import .*;\n/gm, '');
+html = html.replace('<link rel="stylesheet" href="style.css">', () => `<style>${css}</style>`).replace('<script type="module" src="app.mjs"></script>', () => `<script type="module">\n${resizer}\n${shortcuts}\n${returnHold}\n${wheel}\n${navigation}\n${surfaces}\n${surfaceRenderer}\n${landmarks}\n${collisions}\n${model}\n${renderer}\n${measurements}\n${app}\n</script>`);
+const bundled = html.match(/<script type="module">([\s\S]*?)<\/script>/)[1];
+const syntax = spawnSync(process.execPath, ['--check', '--input-type=module'], { input: bundled, encoding: 'utf8' });
+if (syntax.status !== 0)
+    throw new Error(syntax.stderr || 'Invalid bundled editor script.');
+await writeFile(new URL('editor.html', root), html);
+console.log('editor.html ready: open it directly, without a server or network connection.');

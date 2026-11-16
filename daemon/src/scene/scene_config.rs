@@ -40,6 +40,9 @@ pub struct SceneConfig {
     /// Camera zones — see [`super::zones`]. Omitted on save when empty.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub camera_zones: Vec<super::zones::CameraZone>,
+    /// Static camera movement limits, requiring scene-config v6.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub camera_movement: Option<super::camera_movement::CameraMovement>,
 }
 
 fn lighting_is_default(lighting: &Deferred<Lighting3D>) -> bool {
@@ -65,6 +68,7 @@ impl Default for SceneConfig {
             camera: Deferred::new(Camera3D::default()),
             lighting: Deferred::new(Lighting3D::default()),
             camera_zones: Vec::new(),
+            camera_movement: None,
         }
     }
 }

@@ -5,6 +5,7 @@ import { RequestSchema } from "./_proto/vstimd/v1/service_pb.js";
 import type { QueryServerInfoResponse } from "./_proto/vstimd/v1/system_pb.js";
 import type { Send } from "./transport.js";
 import type { Color } from "./types.js";
+import { toInputDeviceView, type InputDeviceView } from "./snapshot.js";
 
 /** Public server-info type — no proto leakage. */
 export interface ServerInfo {
@@ -39,6 +40,15 @@ export class SystemClient {
       }),
     );
     return toServerInfo(resp.body.case === "serverInfo" ? resp.body.value : undefined);
+  }
+
+  /** The live input registry, including axis units/scale and stale state. */
+  async listInputDevices(): Promise<InputDeviceView[]> {
+    const resp = await this.send(create(RequestSchema, {
+      target: { case: "system", value: {} }, body: { case: "listInputDevices", value: {} },
+    }));
+    if (resp.body.case !== "inputDeviceList") throw new Error("Missing input-device response");
+    return resp.body.value.devices.map(toInputDeviceView);
   }
 
   /** Remove every unprotected stimulus. Animations are left alone. */

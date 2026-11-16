@@ -474,11 +474,19 @@ pub fn render_frame(
             )
             .expect("begin_command_buffer");
 
-        let bg = {
+        let (bg, blackout) = {
             let sc = rs.scene_renderer.scene.read().expect("scene lock poisoned");
-            vk::ClearColorValue {
-                float32: sc.background.live.into(),
-            }
+            let blackout = sc.camera_blackout();
+            (
+                vk::ClearColorValue {
+                    float32: if blackout {
+                        [0.0, 0.0, 0.0, 1.0]
+                    } else {
+                        sc.background.live.into()
+                    },
+                },
+                blackout,
+            )
         };
         let render_area = vk::Rect2D {
             offset: vk::Offset2D::default(),
@@ -489,7 +497,7 @@ pub fn render_frame(
         // The 3-D pass, if any, clears and draws first; the 2-D pass then
         // `LOAD`s over it instead of clearing. With no 3-D this is exactly the
         // 2-D pass that ran before 3-D existed. See `vk_pass3d`.
-        let pass_3d = ctx.pass_3d.as_ref().filter(|_| drew_3d);
+        let pass_3d = ctx.pass_3d.as_ref().filter(|_| drew_3d && !blackout);
         if let (Some(pass), Some(mesh3d)) = (pass_3d, rs.scene_renderer.mesh3d.as_ref()) {
             let sc = rs.scene_renderer.scene.read().expect("scene lock poisoned");
             crate::render::render_3d::record_3d_pass(
@@ -547,6 +555,9 @@ pub fn render_frame(
 
         ctx.cmd_begin_label(cb, "stimuli", [0.3, 0.7, 1.0, 1.0]);
         for (h, entry) in &sc.stimuli {
+            if blackout {
+                break;
+            }
             let stim = &entry.stimulus;
             if !stim.is_visible() {
                 continue;
@@ -755,7 +766,7 @@ pub fn render_frame(
             .solid
             .fill_meshes
             .get(&PHOTODIODE_HANDLE)
-            .filter(|m| m.index_count > 0)
+            .filter(|m| !blackout && m.index_count > 0)
         {
             if bound != Bound::Solid {
                 ctx.device

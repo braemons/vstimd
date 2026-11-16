@@ -1,5 +1,6 @@
 pub mod animation;
 pub mod camera3d;
+pub mod camera_movement;
 pub mod conditions;
 pub mod deferred;
 pub mod fx_settings;

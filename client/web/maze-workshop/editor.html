@@ -1,0 +1,2418 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Braemons · Maze Workshop</title><style>:root{font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;color:#283b37;background:#f4f5ef;font-size:13px;--green:#315c48;--line:#dce1d7;--muted:#7a857d}*{box-sizing:border-box}body{margin:0}button,input,select{font:inherit}button{cursor:pointer;border:1px solid var(--line);background:#fffef9;color:#354b41;border-radius:7px;padding:9px 12px;transition:background .15s}button:hover{background:#e9eee2}button:disabled{opacity:.4;cursor:default}button.active{background:#e5ecdf;border-color:#a2b596;color:#315332}button.primary{background:var(--green);color:white;border-color:var(--green)}button.primary:hover{background:#234936}input,select{border:1px solid var(--line);background:#fffef9;border-radius:5px;padding:8px;color:inherit;min-width:0}input:focus,select:focus,button:focus-visible,canvas:focus-visible{outline:2px solid #8ca876;outline-offset:2px}header{height:86px;display:flex;align-items:center;padding:0 26px;border-bottom:1px solid var(--line);gap:35px;background:#fffef9}.brand{display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit;letter-spacing:2px;font-size:13px;font-weight:700}.brand small{display:block;font-size:8px;letter-spacing:1.6px;color:#7b887b;margin-top:6px}.header-actions{display:flex;gap:8px}main{display:grid;grid-template-columns:220px minmax(420px,1fr) 260px;min-height:calc(100vh - 121px)}aside{padding:25px 20px;background:#fffef9}.left{border-right:1px solid var(--line)}.right{border-left:1px solid var(--line)}.eyebrow{font-size:9px;letter-spacing:1.7px;font-weight:700;color:#8a947e}h1{font:32px/1.13 Georgia,serif;font-weight:normal;letter-spacing:-.8px;margin:18px 0 12px}h2{font-size:12px;font-weight:650;margin:25px 0 12px}.muted{color:var(--muted);font-size:11px;line-height:1.8}.tools{display:flex;flex-direction:column;gap:5px}.tools button{display:flex;align-items:center;gap:12px;text-align:left;border-color:transparent;background:transparent;padding:10px 9px}.tools button.active{background:#e9efdf;border-color:#dce5cf}.tools b{font-size:19px;font-weight:400;width:22px;color:#63835d}kbd{margin-left:auto;font-size:9px;color:#899580;border:1px solid #dbe2d4;border-radius:3px;padding:2px 4px}.full,.left select{width:100%;margin-bottom:8px}.workspace{min-width:0;display:flex;flex-direction:column;padding:0 18px 13px}.workspace-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;min-height:62px;font-size:12px}.inline{display:flex;align-items:center;gap:5px}.inline button{padding:6px 9px;font-size:11px}.inline label{font-size:10px;color:#7a857d}.inline select{padding:5px 2px}.live-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:#819a65;margin-right:8px}.pill{display:inline-block;font-size:9px;border:1px solid #dce3d4;padding:3px 6px;border-radius:4px;color:#819078;margin-left:7px}.plan-wrap{position:relative;flex:1;min-height:330px;border:1px solid var(--line);border-radius:10px;background:#f9faf4;overflow:hidden}#plan{width:100%;height:100%;position:absolute;touch-action:none}.plan-badge{position:absolute;top:15px;left:16px;pointer-events:none;font-size:9px;letter-spacing:1.4px;color:#8b967e;background:#f9faf4df;padding:5px}.plan-badge span{display:block;font-size:9px;letter-spacing:.3px;margin-top:6px}.zoom{position:absolute;bottom:15px;right:15px;display:flex;align-items:center;border:1px solid var(--line);border-radius:6px;background:#fffef9;gap:8px}.zoom button{border:0;padding:6px 10px}.zoom span{font-size:10px;min-width:35px;text-align:center}.canvas-footer{display:flex;justify-content:space-between;padding:10px 2px;color:#86907e;font-size:9px;gap:10px}.preview-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0 12px}.preview-bar .eyebrow{display:block;margin-bottom:6px}.preview-bar strong{font-size:12px;font-weight:500}#preview{width:100%;height:240px;display:block;border-radius:9px;background:#192725}.preview-footer{display:flex;align-items:center;justify-content:space-between;font-size:9px;color:#89917f;padding-top:10px;gap:10px}.preview-footer label{display:flex;align-items:center;gap:7px;white-space:nowrap}.preview-footer input{width:115px;accent-color:#6f8b5a;padding:0}.preview-footer output{width:55px}#selection-title{font:22px Georgia;margin-top:17px}.field{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:8px;font-size:10px;color:#7a857d}.field input{width:105px;padding:7px;font-size:11px}.field input[type=color]{height:30px;padding:2px}.field.name{display:block}.field.name input{display:block;width:100%;margin-top:6px}.row{display:flex;gap:6px;margin-top:13px}.row button{flex:1;padding:8px;font-size:10px}.danger{color:#9b6050}#filter{width:100%;font-size:11px}.list-heading{display:flex;justify-content:space-between;align-items:center}.list-heading h2{margin:22px 0 12px}#object-list{max-height:235px;overflow:auto;margin-top:9px}#object-list button{display:flex;align-items:center;gap:8px;width:100%;text-align:left;font-size:10px;border:0;padding:9px 6px;background:transparent;border-radius:4px}#object-list button:hover,#object-list button.active{background:#edf1e4}.swatch{height:9px;width:9px;border-radius:2px;flex-shrink:0}.item-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}footer{height:35px;padding:0 25px;display:flex;justify-content:space-between;align-items:center;font-size:9px;color:#929b87;border-top:1px solid var(--line)}#toast{position:fixed;bottom:35px;left:50%;transform:translateX(-50%);padding:12px 20px;background:#294838;color:#fffef9;border-radius:8px;box-shadow:0 5px 25px #0002;max-width:90%;display:none;z-index:5}dialog{max-width:580px;max-height:85vh;border:1px solid #cfd9c8;border-radius:12px;padding:28px;background:#fffef9;color:#354b41;font-size:13px;line-height:1.7}dialog::backdrop{background:#1a2f2788}dialog h2{font:25px Georgia;margin:0 0 20px}dialog code{font-size:10px;overflow-wrap:anywhere}dialog button{float:right}@media(min-width:1450px){main{grid-template-columns:240px minmax(420px,1fr) 285px}.workspace{padding-left:26px;padding-right:26px}#preview{height:280px}}@media(max-width:1080px){main{grid-template-columns:180px minmax(350px,1fr) 225px}aside{padding:22px 13px}header{gap:15px;padding:0 15px}.header-actions button{font-size:11px;padding:8px}h1{font-size:28px}.preview-footer{flex-wrap:wrap}}@media(max-width:800px){header{height:auto;min-height:100px;flex-wrap:wrap;padding:15px;gap:13px}.brand{flex:1}.header-actions{width:100%}main{grid-template-columns:145px minmax(250px,1fr)}.right{grid-column:1/-1;border-top:1px solid var(--line);display:block}#object-list{max-height:180px}.workspace{padding:0 10px 13px}.workspace-bar{flex-wrap:wrap;padding:10px 0}.preview-bar{flex-wrap:wrap}h1{font-size:24px}.tools button{gap:3px;padding:9px 3px;font-size:11px}kbd{display:none}.canvas-footer #coordinates{display:none}footer{height:auto;gap:10px;padding:10px;flex-wrap:wrap}.field input{width:55%}}
+
+/* Compact workshop header and official repository mark. */
+header{justify-content:space-between}.brand-logo{width:48px;height:48px;object-fit:contain}.header-actions{margin-left:auto}.tools-heading{margin-top:0}.right #selection-title{margin-top:0}
+
+#preview{touch-action:none;cursor:grab}
+
+#panels-dialog{width:390px}#panels-form .field{font-size:12px;margin:14px 0}#panels-form .field input,#panels-form .field select{width:140px}#panels-dialog button{float:none}#panels-summary{min-height:40px}
+
+#dimensions{display:inline-flex;align-items:center;gap:6px;white-space:nowrap}.switch-track{width:22px;height:12px;border-radius:8px;background:#cbd1c6;position:relative}.switch-track::after{content:"";position:absolute;width:8px;height:8px;left:2px;top:2px;border-radius:50%;background:white;transition:transform .15s}#dimensions[aria-checked=true] .switch-track{background:#537957}#dimensions[aria-checked=true] .switch-track::after{transform:translateX(10px)}#dimensions-state{font-size:9px;color:#7a857d}.workspace-bar>.inline{flex-wrap:wrap;justify-content:flex-end}
+
+#landmark-dialog{width:390px}#landmark-preview{display:block;width:100%;height:auto;border-radius:7px;margin-bottom:16px}#landmark-form .field{font-size:12px;margin:12px 0}#landmark-form .field input,#landmark-form .field select{width:155px}#landmark-form .field[hidden]{display:none}#landmark-dialog button{float:none}#landmark-form p{line-height:1.5}
+
+/* Keep the drawing viewport independent of the inspector's changing contents. */
+html{scrollbar-gutter:stable}
+aside{min-height:0;overflow-y:auto;overflow-anchor:none;scrollbar-gutter:stable}
+.workspace{min-height:0;overflow-anchor:none}
+.workspace-bar,.canvas-footer,.preview-bar,.preview-footer{flex-shrink:0}
+.canvas-footer{height:30px;min-height:30px;align-items:center;padding:5px 2px}
+#hint{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#coordinates{flex-shrink:0;white-space:nowrap}
+@media(min-width:801px){
+ main{height:calc(100dvh - 121px);min-height:640px;grid-template-rows:minmax(0,1fr)}
+ .workspace{overflow:hidden}
+ .plan-wrap{flex:1 1 0;min-height:200px}
+ #preview{height:clamp(150px,22dvh,260px);flex-shrink:0}
+}
+@media(max-width:800px){
+ main{min-height:0;grid-template-rows:minmax(680px,calc(100dvh - 180px)) 450px}
+ .workspace{overflow:hidden}
+ .plan-wrap{flex:1 1 0;min-height:200px}
+ .right{min-height:0;overflow-y:auto}
+ #preview{height:200px;flex-shrink:0}
+}
+aside{min-width:0}#selection-title{overflow-wrap:anywhere}
+
+.preview-stage{position:relative;flex-shrink:0;min-width:0}#minimap-panel{position:relative;flex:0 0 min(140px,40%);width:min(140px,40%);height:40px;border:0;border-radius:0;background:transparent;box-shadow:none;overflow:hidden}#minimap-panel[hidden]{display:none}#minimap{position:absolute;left:0;top:0;width:100%;height:100%;cursor:crosshair;touch-action:none}
+
+/* The map belongs to the controls row, outside the rendered image. */
+.preview-footer{height:44px;min-height:44px;padding-top:0;flex-wrap:nowrap;gap:10px}.preview-footer>label{flex:1;min-width:0;gap:5px}.preview-footer input{flex:1;min-width:25px;max-width:115px}.preview-footer output{width:48px;flex-shrink:0}.plan-wrap{min-height:180px}
+
+#export-dialog{width:420px}#export-form .field{font-size:12px;margin:14px 0}#export-form .field input,#export-form .field select{width:165px}#export-form .field input[type=checkbox]{width:auto;accent-color:#315c48}#export-dialog button{float:none}#wheel-export-options[hidden]{display:none}
+
+/* Compact header; the inspector overlays the canvas only while it is needed. */
+:root{--header-height:42px}
+header{height:var(--header-height);min-height:var(--header-height);padding:0 12px;gap:14px;flex-wrap:nowrap}
+.brand{gap:7px;font-size:10px;letter-spacing:1.2px;white-space:nowrap;flex:0 0 auto}
+.brand-logo{width:26px;height:26px}
+.brand small{font-size:7px;letter-spacing:1px;margin-top:2px;line-height:1.1}
+.header-actions{gap:5px;width:auto;flex-shrink:0}
+.header-actions button{font-size:11px;padding:5px 9px;border-radius:5px;min-height:28px;white-space:nowrap}
+main{position:relative;grid-template-columns:220px minmax(420px,1fr);min-height:calc(100dvh - 77px)}
+.tools-disclosure{position:relative}
+#tools-toggle,.template-control select{width:100%;height:36px;margin:0;padding:0 11px 0 34px;font-size:12px;font-weight:650;line-height:normal;text-align:left;border:1px solid var(--line);border-radius:7px;background:#fffef9;color:#354b41}
+#tools-toggle{position:relative;display:flex;align-items:center;justify-content:flex-start}
+.template-control{position:relative;margin-bottom:8px}
+.template-control select{appearance:none;-webkit-appearance:none;cursor:pointer}
+.disclosure-chevron,.template-control::before{content:"";position:absolute;left:14px;top:50%;width:7px;height:7px;border-right:1.5px solid currentColor;border-bottom:1.5px solid currentColor;transform:translateY(-65%) rotate(45deg);transform-origin:center;pointer-events:none;color:#63835d}
+#tools-toggle .disclosure-chevron{transition:transform .15s}#tools-toggle[aria-expanded=true] .disclosure-chevron{transform:translateY(-25%) rotate(225deg)}
+.tools-card{position:absolute;left:0;right:0;top:calc(100% + 7px);z-index:6;display:grid;gap:3px;padding:7px;border:1px solid var(--line);border-radius:9px;background:#fffef9;box-shadow:0 6px 18px #233b2712}
+.tools-card[hidden]{display:none}
+.tools-card button{display:flex;align-items:center;gap:10px;border-color:transparent;text-align:left;padding:8px;font-size:11px;background:transparent}
+.tools-card button span{width:20px;text-align:center;font-size:18px;color:#63835d}
+.tools-card button:hover{background:#edf1e7}.tools-card button.active{background:#e5ecdf;border-color:#b9c9af}
+.right{position:absolute;right:0;top:0;bottom:0;width:260px;max-width:85vw;z-index:3;box-shadow:-8px 0 24px #233b2714;padding-top:36px}
+.right[hidden],#object-inspector[hidden],#camera-inspector[hidden]{display:none}
+.inspector-close{position:absolute;top:7px;right:10px;padding:1px 8px;font-size:20px;border:0;background:transparent;line-height:1.1}
+#camera-inspector h2{margin-top:0}
+#shortcut-overlay{position:fixed;inset:0;z-index:20;display:grid;place-items:center;background:#152d2466;padding:20px;pointer-events:auto}
+#shortcut-overlay[hidden]{display:none}
+.shortcut-card{width:min(820px,100%);max-height:90dvh;overflow:auto;background:#fffef9;border:1px solid var(--line);border-radius:14px;box-shadow:0 15px 60px #14251d33;padding:25px 28px}
+.shortcut-card h2{margin:0 0 20px;font:24px Georgia,serif}
+.shortcut-columns{display:grid;grid-template-columns:1fr 1.2fr 1.4fr;gap:24px}
+.shortcut-card h3{font-size:11px;margin:0 0 12px;color:#6a7a6e}
+.shortcut-card dl{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px 12px;margin:0;font-size:11px}
+.shortcut-card dt{margin:0}.shortcut-card dd{margin:0;color:#315c48;font-weight:600;white-space:nowrap}
+#shortcuts-release{margin:22px 0 0;color:var(--muted);font-size:11px}
+@media(min-width:801px){main{height:calc(100dvh - 77px);min-height:640px}}
+@media(min-width:1450px){main{grid-template-columns:240px minmax(420px,1fr)}.right{width:285px}}
+@media(min-width:801px) and (max-width:1080px){main{grid-template-columns:180px minmax(350px,1fr)}.right{width:225px}}
+@media(max-width:800px){header{height:42px;min-height:42px;padding:0 10px;gap:10px}.brand{flex:0 0 auto}.header-actions{width:auto}.header-actions button{font-size:10px;padding:5px 7px}main{grid-template-columns:145px minmax(250px,1fr);grid-template-rows:minmax(680px,calc(100dvh - 77px))}.right{grid-column:auto;display:block;padding:36px 14px 20px}.right[hidden]{display:none}.shortcut-columns{grid-template-columns:1fr;gap:20px}.shortcut-card{max-width:420px;padding:20px}}
+@media(max-width:480px){.brand-logo{width:22px;height:22px}.brand small{display:none}header{padding:0 8px;gap:8px}}
+
+#control-panel{font-size:11px;color:var(--green);white-space:nowrap;text-decoration:none;padding:5px}#control-panel[hidden]{display:none}
+#rig-actions{border-top:1px solid var(--line);border-bottom:1px solid var(--line);padding:12px 0;margin:14px 0}#rig-actions[hidden]{display:none}#rig-actions h3{font-size:14px;margin:0 0 6px}#rig-actions .row{flex-wrap:wrap}#rig-actions button{min-width:100px}#rig-actions input[type=checkbox]{width:auto;accent-color:var(--green)}#rig-status{overflow-wrap:anywhere;line-height:1.5}#rig-status[data-error=true]{color:#9b493d}
+
+/* Drag the divider above the preview to trade height with the floor plan. */
+#preview-resizer{flex:0 0 12px;height:12px;display:flex;align-items:center;justify-content:center;cursor:row-resize;touch-action:none;user-select:none;border-radius:4px}
+#preview-resizer span{display:block;width:54px;height:4px;border-radius:3px;background:#b7c5b2;transition:background .15s}
+#preview-resizer:hover,#preview-resizer:focus-visible{background:#e7eddf}
+#preview-resizer:hover span,#preview-resizer:focus-visible span{background:#63835d}
+.resizing-preview,.resizing-preview *{cursor:row-resize!important;user-select:none!important}
+</style></head>
+<body>
+<header><div class="brand"><img class="brand-logo" src="data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiIHN0YW5kYWxvbmU9Im5vIj8+CjwhLS0gQ3JlYXRlZCB3aXRoIElua3NjYXBlIChodHRwOi8vd3d3Lmlua3NjYXBlLm9yZy8pIC0tPgoKPHN2ZwogICB3aWR0aD0iNTEyIgogICBoZWlnaHQ9IjUxMiIKICAgdmlld0JveD0iMCAwIDUxMiA1MTIiCiAgIHZlcnNpb249IjEuMSIKICAgaWQ9InN2ZzEiCiAgIHhtbDpzcGFjZT0icHJlc2VydmUiCiAgIGlua3NjYXBlOnZlcnNpb249IjEuNC40IChkY2FmM2U3ZDllLCAyMDI2LTA1LTA1KSIKICAgc29kaXBvZGk6ZG9jbmFtZT0iYnJhZW1vbnMtbG9nby1zbWFsbC5zdmciCiAgIGlua3NjYXBlOmV4cG9ydC1maWxlbmFtZT0iYnJhZW1vbnMtbG9nby1zbWFsbC5wbmciCiAgIGlua3NjYXBlOmV4cG9ydC14ZHBpPSI5NiIKICAgaW5rc2NhcGU6ZXhwb3J0LXlkcGk9Ijk2IgogICB4bWxuczppbmtzY2FwZT0iaHR0cDovL3d3dy5pbmtzY2FwZS5vcmcvbmFtZXNwYWNlcy9pbmtzY2FwZSIKICAgeG1sbnM6c29kaXBvZGk9Imh0dHA6Ly9zb2RpcG9kaS5zb3VyY2Vmb3JnZS5uZXQvRFREL3NvZGlwb2RpLTAuZHRkIgogICB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciCiAgIHhtbG5zOnN2Zz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciPjxzb2RpcG9kaTpuYW1lZHZpZXcKICAgICBpZD0ibmFtZWR2aWV3MSIKICAgICBwYWdlY29sb3I9IiNmZmZmZmYiCiAgICAgYm9yZGVyY29sb3I9IiMwMDAwMDAiCiAgICAgYm9yZGVyb3BhY2l0eT0iMC4yNSIKICAgICBpbmtzY2FwZTpzaG93cGFnZXNoYWRvdz0iMiIKICAgICBpbmtzY2FwZTpwYWdlb3BhY2l0eT0iMC4wIgogICAgIGlua3NjYXBlOnBhZ2VjaGVja2VyYm9hcmQ9IjAiCiAgICAgaW5rc2NhcGU6ZGVza2NvbG9yPSIjZDFkMWQxIgogICAgIGlua3NjYXBlOmRvY3VtZW50LXVuaXRzPSJweCIKICAgICBpbmtzY2FwZTp6b29tPSIwLjA3NjQ3NjYzOCIKICAgICBpbmtzY2FwZTpjeD0iLTgzMzUuODc5IgogICAgIGlua3NjYXBlOmN5PSI0NTMwLjc5NTQiCiAgICAgaW5rc2NhcGU6d2luZG93LXdpZHRoPSIyNTYwIgogICAgIGlua3NjYXBlOndpbmRvdy1oZWlnaHQ9IjEzMzciCiAgICAgaW5rc2NhcGU6d2luZG93LXg9IjAiCiAgICAgaW5rc2NhcGU6d2luZG93LXk9IjMyIgogICAgIGlua3NjYXBlOndpbmRvdy1tYXhpbWl6ZWQ9IjEiCiAgICAgaW5rc2NhcGU6Y3VycmVudC1sYXllcj0ibGF5ZXIxIiAvPjxkZWZzCiAgICAgaWQ9ImRlZnMxIiAvPjxnCiAgICAgaW5rc2NhcGU6bGFiZWw9IkxheWVyIDEiCiAgICAgaW5rc2NhcGU6Z3JvdXBtb2RlPSJsYXllciIKICAgICBpZD0ibGF5ZXIxIj48cGF0aAogICAgICAgc3R5bGU9ImZpbGw6I2FhMDAwMDtzdHJva2Utd2lkdGg6MjQuNjtzdHJva2UtZGFzaGFycmF5Om5vbmU7c3Ryb2tlOiMxZDFkMWQ7c3Ryb2tlLW9wYWNpdHk6MSIKICAgICAgIGQ9Im0gNTUuNTcyNTI3LDE3Ni41MjQ1IGMgMCwwIC0zNC4zMjQyMDgsLTYyLjkyNzcyIDQuMDg2MjE1LC0xMzkuNzQ4NTYzIDAsMCAxMS4yMTkwNDksNjYuOTMxNzkzIDYzLjUyMjYwOCwxMDIuMDczMjQzIgogICAgICAgaWQ9InBhdGgxIgogICAgICAgc29kaXBvZGk6bm9kZXR5cGVzPSJjY2MiIC8+PHBhdGgKICAgICAgIHN0eWxlPSJmaWxsOiNhYTAwMDA7c3Ryb2tlLXdpZHRoOjI0LjY7c3Ryb2tlLWRhc2hhcnJheTpub25lO3N0cm9rZTojMWQxZDFkO3N0cm9rZS1vcGFjaXR5OjEiCiAgICAgICBkPSJtIDM0Mi44ODY1NiwxMzcuMTE1NTUgYyAwLDAgNjAuODMxNSwtMjcuNjA0OTggNzAuNjM4NDIsLTk4LjcwNTEyNyAwLDAgMzguNzkwMDEsNjEuMDEyNzk1IC0yLjg4OTM5LDE0Ny42NDA1NTciCiAgICAgICBpZD0icGF0aDIiCiAgICAgICBzb2RpcG9kaTpub2RldHlwZXM9ImNjYyIgLz48cGF0aAogICAgICAgc3R5bGU9ImZpbGw6I2FhMDAwMDtzdHJva2U6IzFkMWQxZDtzdHJva2Utb3BhY2l0eToxO3N0cm9rZS13aWR0aDoxNS44OTk5OTUwNDtzdHJva2UtZGFzaGFycmF5Om5vbmUiCiAgICAgICBkPSJtIDIzOC4yOTY0NSwzODkuNTI3NDkgYyAwLDAgNjcuMDEzOTMsLTMzLjUwNjk2IDg2LjYyNzc2LC0zMS44NzI0OCAxOS42MTM4NCwxLjYzNDQ5IDY3LjAxMzkzLDQuOTAzNDYgODAuMDg5ODIsLTAuODE3MjQgMCwwIC0xNy4xNjIxLDcxLjkxNzM5IC04OC4yNjIyNSw2MC40NzU5OCAwLDAgMTQuNzEwMzgsNDkuODUxODMgNTguMDI0MjYsNDUuNzY1NjEgNDMuMzEzODgsLTQuMDg2MjEgNjcuMDEzOTMsLTQwLjg2MjE1IDY2LjE5NjY5LC00OS4wMzQ1OCBsIC0yMi4wNjU1NywtNC45MDM0NiA1NS41NzI1MywtNDYuNTgyODUgNy4zNTUxOSw3OS4yNzI1OCAtMjEuMjQ4MzIsLTE4Ljc5NjU5IGMgMCwwIC0xMy4wNzU4OSw0MC44NjIxNSAtNzYuMDAzNiw2MC40NzU5OCAtNjIuOTI3NzIsMTkuNjEzODMgLTEwNS40MjQzNiwtNTQuNzU1MjggLTEwNS40MjQzNiwtNTQuNzU1MjggMCwwIC0yOC42MDM1MSwtNDAuODYyMTYgLTQwLjg2MjE1LC0zOS4yMjc2NyB6IgogICAgICAgaWQ9InBhdGgzIiAvPjxwYXRoCiAgICAgICBzdHlsZT0iZmlsbDojYzhjYmQwO2ZpbGwtb3BhY2l0eToxO3N0cm9rZTojMWQxZDFkO3N0cm9rZS13aWR0aDozOS45O3N0cm9rZS1kYXNoYXJyYXk6bm9uZTtzdHJva2Utb3BhY2l0eToxIgogICAgICAgZD0ibSAxMjIuNTg2NDYsMzUzLjA0ODk5IGMgMCwwIC0xMDcuMDU4ODQyLC0yLjQ1MTcyIC05NS42MTc0NCwtMTAzLjc4OTg2IDExLjQ0MTQwMywtMTAxLjMzODE0IDE2Ni42NjgsLTEyOC4zMzk3MiAxNjYuNjY4LC0xMjguMzM5NzIgMCwwIDEwMy44Mzk0NSwtMjIuMDMzMDAyIDE3MC4wMzYxMywyOC42MzYwNyA2Ni4xOTY2OSw1MC42NjkwNyA3OS45NzU0Niw5OC44MDA1IDgyLjU0MTU1LDEyNS44NTU0MyAyLjUyMDA1LDI2LjU2OTQ0IC01LjMxMjA4LDQ3LjgwODcxIC0yMi40NzQxOCw2NC45NzA4MiAtMTcuMTYyMTEsMTcuMTYyMSAtNDcuNDAwMSwxNy45NzkzNCAtOTQuMzkxNTcsMTUuNTI3NjIgLTQ2Ljk5MTQ4LC0yLjQ1MTczIC0xMTIuMzcwOTIsMzguMDAxOCAtMTMxLjc4MDQ0LDQxLjQ3NTA4IC0xOC45NzMyNSwzLjM5NTIxIC01MS42OTA2MywxLjQzMDE4IC03NC45ODIwNSwtNDQuMzM1NDQgeiIKICAgICAgIGlkPSJwYXRoNCIKICAgICAgIHNvZGlwb2RpOm5vZGV0eXBlcz0iY3Njc3Nzc3NjIiAvPjx0ZXh0CiAgICAgICB4bWw6c3BhY2U9InByZXNlcnZlIgogICAgICAgc3R5bGU9ImZvbnQtc3R5bGU6bm9ybWFsO2ZvbnQtdmFyaWFudDpub3JtYWw7Zm9udC13ZWlnaHQ6bm9ybWFsO2ZvbnQtc3RyZXRjaDpub3JtYWw7Zm9udC1zaXplOjUzNS41MnB4O2ZvbnQtZmFtaWx5OkJhbmdlcnM7LWlua3NjYXBlLWZvbnQtc3BlY2lmaWNhdGlvbjpCYW5nZXJzO3dyaXRpbmctbW9kZTpsci10YjtkaXJlY3Rpb246bHRyO2ZpbGw6I2M2MjYyNjtmaWxsLW9wYWNpdHk6MTtzdHJva2U6IzFkMWQxZDtzdHJva2Utd2lkdGg6MTcuODtzdHJva2UtZGFzaGFycmF5Om5vbmU7c3Ryb2tlLW9wYWNpdHk6MSIKICAgICAgIHg9Ijk3Ljc5NzM2MyIKICAgICAgIHk9IjQ0Mi42NjA0MyIKICAgICAgIGlkPSJ0ZXh0NCIKICAgICAgIHRyYW5zZm9ybT0ic2NhbGUoMC45NzQzOTU5LDEuMDI2Mjc2OSkiPjx0c3BhbgogICAgICAgICBzb2RpcG9kaTpyb2xlPSJsaW5lIgogICAgICAgICBpZD0idHNwYW40IgogICAgICAgICB4PSI5Ny43OTczNjMiCiAgICAgICAgIHk9IjQ0Mi42NjA0MyIKICAgICAgICAgc3R5bGU9ImZpbGw6I2M2MjYyNjtmaWxsLW9wYWNpdHk6MTtzdHJva2Utd2lkdGg6MTcuODtzdHJva2U6IzFkMWQxZDtzdHJva2Utb3BhY2l0eToxO3N0cm9rZS1kYXNoYXJyYXk6bm9uZSI+QjwvdHNwYW4+PC90ZXh0PjwvZz48L3N2Zz4K" alt="Braemons logo"><span>BRAEMONS<small>MAZE WORKSHOP</small></span></div><div class="header-actions"><a id="control-panel" href="/" hidden>vstimd panel</a><button id="load" title="Open project">Open project</button><button id="save" title="Save project">Save project</button><button id="export" class="primary">Export to vstimd ↗</button></div></header>
+<main><aside class="left"><div class="tools-disclosure"><button id="tools-toggle" type="button" aria-expanded="false" aria-controls="tools-card"><span class="disclosure-chevron" aria-hidden="true"></span>Tools</button><div id="tools-card" class="tools-card" role="group" aria-label="Tools" hidden><button type="button" data-tool="select" aria-pressed="true"><span aria-hidden="true">↖</span>Select</button><button type="button" data-tool="wall" aria-pressed="false"><span aria-hidden="true">╱</span>Draw wall</button><button type="button" data-tool="floor" aria-pressed="false"><span aria-hidden="true">▱</span>Draw floor</button><button type="button" data-tool="landmark" aria-pressed="false"><span aria-hidden="true">●</span>Landmark</button><button type="button" data-tool="arch" aria-pressed="false"><span aria-hidden="true">Π</span>Arch</button><button type="button" data-tool="ruler" aria-pressed="false"><span aria-hidden="true">↔</span>Ruler</button><button type="button" data-tool="camera" aria-pressed="false"><span aria-hidden="true">◉</span>Place camera</button></div></div><h2>Templates</h2><div class="template-control"><select id="template" aria-label="Template"><option value="corridor">Corridor</option><option value="tee">T-maze</option><option value="empty">Empty canvas</option></select></div><button id="new" class="full">Create from template</button><h2>Environment</h2><label class="field">Background colour<input id="background-color" type="color" value="#111617"></label></aside>
+<section class="workspace"><div class="workspace-bar"><div><span class="live-dot"></span>Floor plan <span class="pill">cm</span></div><div class="inline"><button id="dimensions" role="switch" aria-checked="false" title="Show dimensions in cm. Select objects to measure their sizes and spacing."><span class="switch-track" aria-hidden="true"></span>Dimensions <span id="dimensions-state">Off</span></button><label>Grid <select id="grid" aria-label="Grid spacing in centimetres"><option>5</option><option selected>10</option><option>20</option><option>50</option></select></label><button id="undo" title="Undo (Ctrl/⌘ Z)" aria-label="Undo">↶</button><button id="redo" title="Redo" aria-label="Redo">↷</button><button id="fit">Fit view</button></div></div><div class="plan-wrap"><canvas id="plan" tabindex="0" aria-label="Editable maze floor plan"></canvas><div class="plan-badge">TOP VIEW <span>Forward ↑ · X →</span></div><div class="zoom"><button id="zoom-out" aria-label="Zoom out">−</button><span id="zoom-label">100%</span><button id="zoom-in" aria-label="Zoom in">+</button></div></div><div class="canvas-footer"><span id="hint">Select an object or drag it to move.</span><span id="coordinates">X 0 · Forward 0 cm</span></div><div id="preview-resizer" role="separator" aria-orientation="horizontal" aria-label="Resize 3D preview" aria-controls="preview" tabindex="0" title="Drag up or down to resize the 3D preview. Double-click to reset."><span aria-hidden="true"></span></div><div class="preview-bar"><div><strong>3D preview</strong></div><div class="inline"><button id="toggle-map" class="active" aria-pressed="true" title="Show temporary top-view navigation map">Map</button><button id="orbit" class="active">Overview</button><button id="eye">Camera view</button><button id="reset-view" aria-label="Return to start">↺ Reset</button></div></div><div class="preview-stage"><canvas id="preview" tabindex="0" aria-label="3D maze preview"></canvas></div><div class="preview-footer"><label>Forward <input id="walk" type="range" min="-100" max="800" step="1" value="0"><output id="distance">0 cm</output></label><div id="minimap-panel"><canvas id="minimap" tabindex="0" aria-label="Top view navigation map. Click a point to move the temporary preview."></canvas></div></div></section>
+<aside class="right" id="inspector" aria-label="Selection properties" hidden><button id="close-inspector" class="inspector-close" aria-label="Close properties" title="Close properties">×</button><section id="object-inspector" hidden><h2 id="selection-title">Select an object</h2><button id="distribute" class="full" title="Shift + click to select at least 3 objects. Keep the outer objects fixed and equalize the gaps." disabled>Distribute evenly</button><div id="properties"><p class="muted">Select an object in the plan or list to edit its dimensions.</p></div></section><section id="camera-inspector" hidden><h2>Initial camera</h2><div id="camera-properties"></div></section><div class="list-heading"><h2>Objects</h2><span id="count" class="pill"></span></div><input id="filter" placeholder="Find an object…" aria-label="Find objects"><div id="object-list"></div></aside></main>
+<footer><span>Designed in centimetres. Built for Braemons.</span><span>Illustrative 3D preview · verify presentation in vstimd</span></footer>
+<div id="toast" role="status" aria-live="polite"></div><input id="file" type="file" accept=".json" hidden>
+<dialog id="panels-dialog"><form id="panels-form"><h2>Add panels</h2><p>Repeat panels along the wall, following its height and rotation.</p><label class="field">Panel width · cm<input id="panel-width" type="number" min="0.1" max="10000" step="0.1" value="10" required></label><label class="field">Gap · cm<input id="panel-gap" type="number" min="0.1" max="10000" step="0.1" value="10" required></label><label class="field">Colour<input id="panel-color" type="color" value="#ed8b43"></label><label class="field">Wall face<select id="panel-sides"><option value="both">Both sides</option><option value="a">Side A</option><option value="b">Side B</option></select></label><p id="panels-summary" class="muted" aria-live="polite"></p><div class="row"><button id="cancel-panels" type="button">Cancel</button><button id="create-panels" type="submit" class="primary">Create panels</button></div></form></dialog>
+<dialog id="landmark-dialog"><form id="landmark-form"><h2>Landmark</h2><canvas id="landmark-preview" width="320" height="200" aria-label="Landmark shape and pattern preview"></canvas><label class="field">Shape<select id="landmark-shape"><option value="sphere">Circle / sphere</option><option value="cube">Cube</option><option value="diamond">Diamond</option><option value="cylinder">Cylinder</option></select></label><label class="field">Pattern<select id="landmark-pattern"><option value="solid">Solid</option><option value="diamonds">Diamonds</option><option value="spiral">Spiral</option><option value="bands">Bands</option><option value="checker">Checkerboard</option></select></label><label class="field"><span id="landmark-size-label">Diameter · cm</span><input id="landmark-size" type="number" min="0.1" max="10000" step="0.1" value="30" required></label><label class="field">Elevation above floor · cm<input id="landmark-elevation" type="number" min="-10000" max="10000" step="0.1" value="0" required></label><label id="landmark-height-row" class="field">Object height · cm<input id="landmark-height" type="number" min="0.1" max="10000" step="0.1" value="30" required></label><label id="landmark-depth-row" class="field">Depth · cm<input id="landmark-depth" type="number" min="0.1" max="10000" step="0.1" value="30" required></label><label class="field">Base colour<input id="landmark-color" type="color" value="#437aff"></label><label id="landmark-ink-row" class="field">Pattern colour<input id="landmark-ink" type="color" value="#ffffff"></label><label id="landmark-pattern-size-row" class="field">Pattern size · cm<input id="landmark-pattern-size" type="number" min="0.1" max="10000" step="0.1" value="5" required></label><label id="landmark-tilt-row" class="field">Pattern tilt · degrees<input id="landmark-tilt" type="number" min="-180" max="180" step="1" value="0" required></label><p class="muted">Smooth preview. Patterned landmarks export to vstimd as a coarse geometric approximation.</p><p id="landmark-message" class="muted" role="status"></p><div class="row"><button id="cancel-landmark" type="button">Cancel</button><button id="apply-landmark" type="submit" class="primary">Place landmark</button></div></form></dialog>
+<dialog id="export-dialog"><form id="export-form"><h2>Export to vstimd</h2><label class="field">Navigation<select id="export-mode"><option value="wheel">Wheel-driven corridor</option><option value="static">Static scene</option></select></label><div id="wheel-export-options"><p class="muted">Straight tracks only, without steering. The camera stops at walls and landmarks and cannot go behind the start.</p><label class="field">Rig device<input id="wheel-device" value="wheel" maxlength="64" required pattern="[A-Za-z0-9_.\-]+"></label><label class="field">Rig axis<input id="wheel-axis" value="wheel" maxlength="64" required pattern="[A-Za-z0-9_.\-]+"></label><label class="field">Return at track end<input id="wheel-loop" type="checkbox" checked></label><label class="field">Track length · cm<input id="wheel-length" type="number" min="0.1" max="100000" step="0.1" value="400" required></label><input id="wheel-fade" type="hidden" value="0"><p class="muted">At track end: black for 2 seconds, then return to the initial camera.</p><p class="muted">Device and axis must match the vstimd rig configuration. Confirm the suggested track length before exporting.</p></div><p class="muted">Collisions use a 1 cm camera margin. Scene format v6 requires the updated vstimd with collision support.</p><section id="rig-actions" hidden><h3>Save in vstimd</h3><p class="muted">Save the scene first, then load it on the display. Keep Save project for your editable design.</p><label class="field">Project<input id="rig-project" value="maze-workshop" maxlength="64"></label><label class="field">Scene name<input id="rig-scene" maxlength="64"></label><label class="field">Replace saved scene<input id="rig-overwrite" type="checkbox"></label><p id="rig-status" class="muted" role="status" aria-live="polite">Connecting…</p><div class="row"><button id="rig-connect" type="button">Check connection</button><button id="rig-save" type="button">Save in vstimd</button><button id="rig-load" type="button" disabled>Load on display (replace)</button></div></section><p id="export-message" class="muted" role="status"></p><div class="row"><button id="cancel-export" type="button">Cancel</button><button id="download-scene" type="submit" class="primary">Download scene</button></div></form></dialog>
+<div id="shortcut-overlay" role="dialog" aria-labelledby="shortcuts-title" aria-describedby="shortcuts-release" hidden><div class="shortcut-card"><h2 id="shortcuts-title">Keyboard shortcuts</h2><div class="shortcut-columns"><section><h3>Tools</h3><dl><dt>Select</dt><dd>V</dd><dt>Draw wall</dt><dd>W</dd><dt>Draw floor</dt><dd>F</dd><dt>Landmark</dt><dd>L</dd><dt>Arch</dt><dd>A</dd><dt>Ruler</dt><dd>R</dd><dt>Place camera</dt><dd>C</dd></dl></section><section><h3>Edit</h3><dl><dt>Undo</dt><dd>⌘ / Ctrl Z</dd><dt>Redo</dt><dd>⌘ / Ctrl Shift Z</dd><dt>Copy / Paste</dt><dd>⌘ / Ctrl C / V</dd><dt>Duplicate</dt><dd>⌘ / Ctrl D</dd><dt>Delete selection</dt><dd>Delete</dd><dt>Multiple selection</dt><dd>Shift + click</dd><dt>Clear / Cancel</dt><dd>Esc</dd></dl></section><section><h3>Navigate</h3><dl><dt>Camera forward / back</dt><dd>W / S or ↑ / ↓</dd><dt>Camera turn</dt><dd>A / D or ← / →</dd><dt>Pan floor plan</dt><dd>Ctrl + drag</dd><dt>Zoom</dt><dd>Scroll</dd><dt>Orbit overview</dt><dd>Drag</dd><dt>Ruler without snapping</dt><dd>Option / Alt</dd></dl></section></div><p id="shortcuts-release">Release ⌘ or Option to close.</p></div></div>
+<script type="module">
+// View preference only: never changes the project, camera or exported scene.
+function installPreviewResizer({ handle, preview, plan, workspace, onResize }) {
+    const storageKey = 'braemons.maze-editor.preview-height';
+    const minimum = 120;
+    let drag = null, frame = null;
+    const redraw = () => { if (frame === null)
+        frame = requestAnimationFrame(() => { frame = null; onResize(); }); };
+    const maximum = () => {
+        const style = getComputedStyle(workspace), padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+        const reserved = [...workspace.children].filter(node => node !== plan && node !== preview.parentElement).reduce((sum, node) => {
+            const css = getComputedStyle(node);
+            return sum + node.getBoundingClientRect().height + (parseFloat(css.marginTop) || 0) + (parseFloat(css.marginBottom) || 0);
+        }, 0);
+        const planMinimum = parseFloat(getComputedStyle(plan).minHeight) || 180;
+        return Math.max(minimum, Math.floor(workspace.clientHeight - padding - reserved - planMinimum));
+    };
+    const clamp = height => Math.max(minimum, Math.min(maximum(), height));
+    const describe = () => {
+        const height = Math.round(preview.getBoundingClientRect().height);
+        handle.setAttribute('aria-valuemin', String(minimum));
+        handle.setAttribute('aria-valuemax', String(maximum()));
+        handle.setAttribute('aria-valuenow', String(height));
+        handle.setAttribute('aria-valuetext', `${height} pixels high`);
+    };
+    const setHeight = height => { preview.style.height = `${clamp(height)}px`; describe(); redraw(); };
+    const save = () => { try {
+        localStorage.setItem(storageKey, String(Math.round(preview.getBoundingClientRect().height)));
+    }
+    catch { /* optional preference */ } };
+    const reset = () => { preview.style.removeProperty('height'); try {
+        localStorage.removeItem(storageKey);
+    }
+    catch { /* optional preference */ } describe(); redraw(); };
+    try {
+        const saved = Number(localStorage.getItem(storageKey));
+        if (Number.isFinite(saved) && saved > 0)
+            setHeight(saved);
+    }
+    catch { /* file-mode storage may be unavailable */ }
+    const finish = cancel => {
+        if (!drag)
+            return;
+        const previous = drag;
+        drag = null;
+        if (cancel)
+            setHeight(previous.height);
+        else
+            save();
+        document.documentElement.classList.remove('resizing-preview');
+        if (handle.hasPointerCapture(previous.pointerId))
+            handle.releasePointerCapture(previous.pointerId);
+    };
+    handle.addEventListener('pointerdown', event => {
+        if (event.button !== 0 || drag)
+            return;
+        event.preventDefault();
+        handle.focus({ preventScroll: true });
+        drag = { pointerId: event.pointerId, y: event.clientY, height: preview.getBoundingClientRect().height };
+        handle.setPointerCapture(event.pointerId);
+        document.documentElement.classList.add('resizing-preview');
+    });
+    handle.addEventListener('pointermove', event => { if (drag && event.pointerId === drag.pointerId) {
+        event.preventDefault();
+        setHeight(drag.height + drag.y - event.clientY);
+    } });
+    handle.addEventListener('pointerup', event => { if (drag && event.pointerId === drag.pointerId)
+        finish(false); });
+    handle.addEventListener('pointercancel', () => finish(true));
+    handle.addEventListener('lostpointercapture', () => finish(true));
+    window.addEventListener('blur', () => finish(true));
+    document.addEventListener('keydown', event => { if (event.key === 'Escape' && drag) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        finish(true);
+    } }, true);
+    handle.addEventListener('dblclick', reset);
+    handle.addEventListener('keydown', event => {
+        if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key))
+            return;
+        event.preventDefault();
+        event.stopPropagation();
+        const height = preview.getBoundingClientRect().height, step = event.shiftKey ? 50 : 10;
+        setHeight(event.key === 'Home' ? minimum : event.key === 'End' ? maximum() : height + (event.key === 'ArrowUp' ? step : -step));
+        save();
+    });
+    new ResizeObserver(() => {
+        const height = preview.getBoundingClientRect().height;
+        if (preview.style.height && Math.abs(clamp(height) - height) > .5)
+            setHeight(height);
+        describe();
+        redraw();
+    }).observe(workspace);
+    describe();
+}
+
+// A modifier held alone opens transient help; ordinary shortcuts keep working.
+class ModifierHelp {
+    constructor(show, hide, { setTimer = setTimeout, clearTimer = clearTimeout } = {}) { this.show = show; this.hide = hide; this.setTimer = setTimer; this.clearTimer = clearTimer; this.held = new Set(); this.timer = null; this.blocked = false; }
+    keydown(event) {
+        if (!['Meta', 'Alt'].includes(event.key)) {
+            if (this.held.size) {
+                this.blocked = true;
+                this.stop();
+            }
+            return;
+        }
+        const code = event.code || event.key;
+        if (event.repeat || this.held.has(code))
+            return;
+        this.held.add(code);
+        if (this.timer === null && !this.blocked)
+            this.timer = this.setTimer(() => { this.timer = null; if (this.held.size && !this.blocked)
+                this.show(); }, 2000);
+    }
+    keyup(event) { if (!['Meta', 'Alt'].includes(event.key))
+        return; this.held.delete(event.code || event.key); if (!this.held.size)
+        this.reset(); }
+    stop() { if (this.timer !== null)
+        this.clearTimer(this.timer); this.timer = null; this.hide(); }
+    reset() { this.stop(); this.held.clear(); this.blocked = false; }
+}
+function installShortcutHelp(panel) {
+    const help = new ModifierHelp(() => { panel.hidden = false; }, () => { panel.hidden = true; });
+    window.addEventListener('keydown', e => help.keydown(e));
+    window.addEventListener('keyup', e => help.keyup(e));
+    window.addEventListener('blur', () => help.reset());
+    document.addEventListener('visibilitychange', () => { if (document.hidden)
+        help.reset(); });
+    return help;
+}
+
+// Monotonic timestamps are injected so the 2 s hold can be tested without sleeps.
+class ReturnHold {
+    constructor() { this.deadline = null; }
+    get active() { return this.deadline !== null; }
+    begin(now) { if (!this.active)
+        this.deadline = now + 2000; }
+    finish(now) { if (!this.active || now < this.deadline)
+        return false; this.deadline = null; return true; }
+    cancel() { this.deadline = null; }
+}
+
+// Scene-side navigation only. Device calibration and shared memory belong to the rig.
+function validateNavigation(nav) {
+    if (!nav || !['static', 'wheel'].includes(nav.mode))
+        throw new Error('Choose static or wheel navigation.');
+    if (nav.mode === 'static')
+        return;
+    for (const key of ['device', 'axis'])
+        if (typeof nav[key] !== 'string' || !/^[A-Za-z0-9_.-]{1,64}$/.test(nav[key]))
+            throw new Error(`Invalid wheel ${key} name.`);
+    if (typeof nav.loop !== 'boolean')
+        throw new Error('Choose whether to return at the end of the track.');
+    if (nav.loop) {
+        if (!Number.isFinite(nav.track_length_cm) || nav.track_length_cm < .1 || nav.track_length_cm > 100000)
+            throw new Error('Track length must be between 0.1 and 100000 cm.');
+        if (!Number.isInteger(nav.fade_frames) || nav.fade_frames < 0 || nav.fade_frames > 600)
+            throw new Error('Fade must be a whole number between 0 and 600 frames.');
+    }
+}
+function wheelAnimation(nav) {
+    if (nav === undefined || nav.mode === 'static')
+        return null;
+    validateNavigation(nav);
+    return { name: 'wheel_navigation', state: 'Armed', target: { kind: 'Camera' }, start_action: 0, start_action_trigger_line: null, final_action: 0, final_action_trigger_line: null, start_trigger: null, animation: { LinearNav3D: { speed_cm_per_s: 0, wrap_period_cm: null, source: { device: nav.device, axis: nav.axis }, track: nav.loop ? { length_cm: nav.track_length_cm, fade_frames: 0 } : null } } };
+}
+function suggestTrackLength(objects, camera) {
+    const heading = camera.yaw * Math.PI / 180, forwardX = Math.sin(heading), forwardS = Math.cos(heading);
+    let max = 0;
+    for (const o of objects.filter(o => o.kind === 'floor')) {
+        const a = o.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+        for (const u of [-o.w / 2, o.w / 2])
+            for (const v of [-o.d / 2, o.d / 2]) {
+                const x = o.x + c * u - s * v, along = o.s + s * u + c * v;
+                max = Math.max(max, (x - camera.x) * forwardX + (along - camera.s) * forwardS);
+            }
+    }
+    return max > 0 ? Math.max(.1, Math.min(100000, Number(max.toFixed(1)))) : 400;
+}
+function previewTrackLength(project) {
+    if (project.navigation?.loop === false)
+        return null;
+    return project.navigation?.track_length_cm ?? suggestTrackLength(project.objects, project.camera);
+}
+function previewTrackProgress(camera, point) {
+    const yaw = camera.yaw * Math.PI / 180;
+    return (point.x - camera.x) * Math.sin(yaw) + (point.s - camera.s) * Math.cos(yaw);
+}
+
+// Temporary preview coordinates; these helpers never edit scene.camera.
+function minimapTransform(bounds, width, height, padding = 8) {
+    const spanX = Math.max(20, bounds.maxX - bounds.minX), spanS = Math.max(20, bounds.maxS - bounds.minS);
+    return { x: (bounds.minX + bounds.maxX) / 2, s: (bounds.minS + bounds.maxS) / 2, scale: Math.max(.00001, Math.min(Math.max(1, width - 2 * padding) / spanS, Math.max(1, height - 2 * padding) / spanX)), width, height };
+}
+function worldToMinimap(point, map) { return { x: map.width / 2 + (point.s - map.s) * map.scale, y: map.height / 2 + (point.x - map.x) * map.scale }; }
+function minimapToWorld(point, map) { return { x: map.x + (point.y - map.height / 2) / map.scale, s: map.s + (point.x - map.width / 2) / map.scale }; }
+function previewOffsets(camera, point) { return { walkX: point.x - camera.x, walk: point.s - camera.s }; }
+
+// Analytic surfaces for the editor preview. Coordinates are local cm, Y up.
+function surfaceDimensions(o) { const shape = o.shape || 'sphere'; return { w: o.w, h: shape === 'sphere' ? o.w : o.h, d: ['sphere', 'cylinder'].includes(shape) ? o.w : o.d }; }
+function intersectSurface(shape, dimensions, origin, direction, near = 1, out = null) {
+    const { w, h, d } = dimensions, rx = w / 2, ry = h / 2, rz = d / 2;
+    if (shape === 'sphere') {
+        const x = origin[0], y = origin[1], z = origin[2], dx = direction[0], dy = direction[1], dz = direction[2];
+        const a = dx * dx + dy * dy + dz * dz, b = x * dx + y * dy + z * dz, c = x * x + y * y + z * z - rx * rx, discriminant = b * b - a * c;
+        if (discriminant < 0 || a < 1e-16)
+            return null;
+        const root = Math.sqrt(discriminant), low = (-b - root) / a, high = (-b + root) / a, t = low >= near ? low : high >= near ? high : null;
+        if (t === null)
+            return null;
+        const result = out || { point: [0, 0, 0], normal: [0, 0, 0] };
+        result.t = t;
+        for (let i = 0; i < 3; i++) {
+            result.point[i] = origin[i] + t * direction[i];
+            result.normal[i] = result.point[i] / rx;
+        }
+        return result;
+    }
+    let low = -Infinity, high = Infinity;
+    const interval = (a, b) => { low = Math.max(low, a); high = Math.min(high, b); return low <= high; };
+    const slab = (p, v, r) => Math.abs(v) < 1e-12 ? Math.abs(p) <= r : interval(Math.min((-r - p) / v, (r - p) / v), Math.max((-r - p) / v, (r - p) / v));
+    if (shape === 'sphere' || shape === 'cylinder') {
+        const [x, y, z] = origin, [dx, dy, dz] = direction;
+        const a = dx * dx + dz * dz + (shape === 'sphere' ? dy * dy : 0), b = x * dx + z * dz + (shape === 'sphere' ? y * dy : 0), c = x * x + z * z + (shape === 'sphere' ? y * y : 0) - rx * rx;
+        if (a < 1e-16) {
+            if (c > 0)
+                return null;
+        }
+        else {
+            const discriminant = b * b - a * c;
+            if (discriminant < 0)
+                return null;
+            const root = Math.sqrt(discriminant);
+            if (!interval((-b - root) / a, (-b + root) / a))
+                return null;
+        }
+        if (shape === 'cylinder' && !slab(y, dy, ry))
+            return null;
+    }
+    else if (shape === 'cube') {
+        for (let i = 0; i < 3; i++)
+            if (!slab(origin[i], direction[i], [rx, ry, rz][i]))
+                return null;
+    }
+    else if (shape === 'diamond') {
+        if (!slab(origin[2], direction[2], rz))
+            return null;
+        for (const sx of [-1, 1])
+            for (const sy of [-1, 1]) {
+                const p = sx * origin[0] / rx + sy * origin[1] / ry, v = sx * direction[0] / rx + sy * direction[1] / ry;
+                if (Math.abs(v) < 1e-12) {
+                    if (p > 1)
+                        return null;
+                }
+                else {
+                    const t = (1 - p) / v;
+                    if (v > 0)
+                        high = Math.min(high, t);
+                    else
+                        low = Math.max(low, t);
+                    if (low > high)
+                        return null;
+                }
+            }
+    }
+    else
+        return null;
+    const t = low >= near ? low : high >= near ? high : null;
+    if (t === null || !Number.isFinite(t))
+        return null;
+    const point = origin.map((v, i) => v + t * direction[i]);
+    let normal;
+    if (shape === 'sphere')
+        normal = point.map(v => v / rx);
+    else if (shape === 'cylinder')
+        normal = Math.abs(Math.abs(point[1]) - ry) < 1e-6 * Math.max(1, ry) ? [0, Math.sign(point[1]), 0] : [point[0] / rx, 0, point[2] / rx];
+    else if (shape === 'diamond')
+        normal = Math.abs(Math.abs(point[2]) - rz) < 1e-6 * Math.max(1, rz) ? [0, 0, Math.sign(point[2])] : [Math.sign(point[0]) / rx, Math.sign(point[1]) / ry, 0];
+    else {
+        const relative = point.map((v, i) => Math.abs(v) / [rx, ry, rz][i]), axis = relative.indexOf(Math.max(...relative));
+        normal = [0, 0, 0];
+        normal[axis] = Math.sign(point[axis]);
+    }
+    const norm = Math.hypot(...normal) || 1;
+    return { t, point, normal: normal.map(v => v / norm) };
+}
+const fract = v => v - Math.floor(v);
+function surfacePattern(o, point, normal = null) {
+    const pattern = o.pattern || 'solid';
+    if (pattern === 'solid')
+        return 0;
+    const shape = o.shape || 'sphere', { w, h, d } = o._surface_dimensions || surfaceDimensions(o), size = o.pattern_size_cm || 5;
+    let [x, y, z] = point;
+    const tilt = (o.pattern_tilt_deg || 0) * Math.PI / 180, c = o._tiltCos ?? Math.cos(tilt), s = o._tiltSin ?? Math.sin(tilt);
+    if (shape === 'sphere') {
+        const rotatedX = c * x - s * y;
+        y = s * x + c * y;
+        x = rotatedX;
+    }
+    let u = x / size, v = y / size, phase;
+    if (shape === 'sphere') {
+        const r = w / 2, angle = pattern === 'bands' ? 0 : Math.atan2(x, -z), latitude = Math.asin(Math.max(-1, Math.min(1, y / r)));
+        if (pattern === 'spiral' || pattern === 'bands') {
+            phase = latitude * r / size + (pattern === 'spiral' ? angle / (Math.PI * 2) : 0);
+            return fract(phase) < .5 ? 0 : 1;
+        }
+        const around = Math.max(2, 2 * Math.round(Math.PI * r / size));
+        u = (angle / (Math.PI * 2) + .5) * around + .25;
+        v = (latitude / Math.PI + .5) * Math.max(1, Math.round(Math.PI * r / size));
+    }
+    else if (shape === 'cylinder' && Math.abs(y) < h / 2 - 1e-6 * Math.max(1, h)) {
+        const r = w / 2, angle = Math.atan2(x, -z);
+        u = (angle / (Math.PI * 2) + .5) * Math.max(2, 2 * Math.round(Math.PI * r / size)) + .25;
+        v = y / size;
+        if (pattern === 'spiral')
+            return fract(y / size + angle / (Math.PI * 2)) < .5 ? 0 : 1;
+    }
+    else {
+        const n = normal || [x / (w / 2), y / (h / 2), z / (d / 2)];
+        if (Math.abs(n[1]) >= Math.abs(n[0]) && Math.abs(n[1]) >= Math.abs(n[2])) {
+            u = x / size;
+            v = z / size;
+        }
+        else if (Math.abs(n[0]) > Math.abs(n[2])) {
+            u = z / size;
+            v = y / size;
+        }
+    }
+    // Rotate the planar pattern without rotating the object itself.
+    if (shape !== 'sphere') {
+        const ru = c * u - s * v;
+        v = s * u + c * v;
+        u = ru;
+    }
+    if (pattern === 'bands')
+        return fract(v) < .5 ? 0 : 1;
+    if (pattern === 'spiral')
+        return fract(Math.hypot(u, v) + Math.atan2(v, u) / (Math.PI * 2)) < .5 ? 0 : 1;
+    const value = pattern === 'diamonds' ? Math.floor(u + v) + Math.floor(u - v) : Math.floor(u) + Math.floor(v);
+    return ((value % 2) + 2) % 2;
+}
+
+// Four subpixel samples keep silhouettes and pattern boundaries smooth.
+class SurfacePreview {
+    render(objects, camera, width, height, data, depth, toCamera) {
+        const count = width * height;
+        if (this.count !== count) {
+            this.count = count;
+            this.sampleDepth = new Float64Array(count * 4);
+            this.samples = new Uint8ClampedArray(count * 16);
+            this.stamps = new Uint32Array(count);
+            this.frame = 0;
+        }
+        this.frame++;
+        if (this.frame === 0xffffffff) {
+            this.stamps.fill(0);
+            this.frame = 1;
+        }
+        const touched = [], yaw = camera.yaw * Math.PI / 180, pitch = camera.pitch || 0, cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch), f = height / 2 / Math.tan(camera.fov * Math.PI / 360);
+        const offsets = [[.25, .25], [.75, .25], [.25, .75], [.75, .75]];
+        for (const o of objects) {
+            const shape = o.shape || 'sphere', dimensions = surfaceDimensions(o), patternSource = { ...o, _surface_dimensions: dimensions, _tiltCos: Math.cos((o.pattern_tilt_deg || 0) * Math.PI / 180), _tiltSin: Math.sin((o.pattern_tilt_deg || 0) * Math.PI / 180) }, a = o.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+            const dx = camera.x - o.x, dy = camera.y - o.y, ds = camera.s - o.s, origin = [c * dx + s * ds, dy, -s * dx + c * ds];
+            const corners = [];
+            for (const x of [-1, 1])
+                for (const y of [-1, 1])
+                    for (const z of [-1, 1])
+                        corners.push(toCamera([o.x + c * x * dimensions.w / 2 - s * z * dimensions.d / 2, o.y + y * dimensions.h / 2, o.s + s * x * dimensions.w / 2 + c * z * dimensions.d / 2]));
+            if (corners.every(p => p[2] < 1))
+                continue;
+            let left = 0, right = width - 1, top = 0, bottom = height - 1;
+            if (corners.every(p => p[2] >= 1)) {
+                const xs = corners.map(p => width / 2 + p[0] * f / p[2]), ys = corners.map(p => height / 2 - p[1] * f / p[2]);
+                left = Math.max(0, Math.floor(Math.min(...xs)));
+                right = Math.min(width - 1, Math.ceil(Math.max(...xs)));
+                top = Math.max(0, Math.floor(Math.min(...ys)));
+                bottom = Math.min(height - 1, Math.ceil(Math.max(...ys)));
+            }
+            const base = o.color.match(/\w\w/g).map(v => parseInt(v, 16)), ink = (o.pattern_color || '#ffffff').match(/\w\w/g).map(v => parseInt(v, 16));
+            const direction = [0, 0, 0], hitBuffer = { point: [0, 0, 0], normal: [0, 0, 0] };
+            for (let py = top; py <= bottom; py++)
+                for (let px = left; px <= right; px++) {
+                    const index = py * width + px;
+                    for (let sample = 0; sample < 4; sample++) {
+                        const [ox, oy] = offsets[sample], u = (px + ox - width / 2) / f, v = (height / 2 - py - oy) / f, forward = sp * v + cp;
+                        const wx = cy * u + sy * forward, wy = cp * v - sp, ws = -sy * u + cy * forward;
+                        direction[0] = c * wx + s * ws;
+                        direction[1] = wy;
+                        direction[2] = -s * wx + c * ws;
+                        const hit = intersectSurface(shape, dimensions, origin, direction, 1, hitBuffer);
+                        if (!hit)
+                            continue;
+                        const inverse = 1 / hit.t;
+                        if (this.stamps[index] !== this.frame) {
+                            if (inverse <= depth[index])
+                                continue;
+                            this.stamps[index] = this.frame;
+                            touched.push(index);
+                            for (let j = 0; j < 4; j++) {
+                                this.sampleDepth[index * 4 + j] = depth[index];
+                                this.samples.set(data.subarray(index * 4, index * 4 + 4), index * 16 + j * 4);
+                            }
+                        }
+                        const slot = index * 4 + sample;
+                        if (inverse <= this.sampleDepth[slot])
+                            continue;
+                        const color = surfacePattern(patternSource, hit.point, hit.normal) ? ink : base;
+                        const nx = c * hit.normal[0] - s * hit.normal[2], ny = hit.normal[1], ns = s * hit.normal[0] + c * hit.normal[2];
+                        const diffuse = Math.max(0, (-.4 * nx + .7 * ny - .6 * ns) / Math.hypot(.4, .7, .6));
+                        const rayNorm = Math.hypot(wx, wy, ws), hx = -.4 - wx / rayNorm, hy = .7 - wy / rayNorm, hs = -.6 - ws / rayNorm;
+                        const specular = Math.pow(Math.max(0, (nx * hx + ny * hy + ns * hs) / (Math.hypot(hx, hy, hs) || 1)), 64) * 28;
+                        const factor = .48 + .52 * diffuse, p = index * 16 + sample * 4;
+                        this.samples[p] = color[0] * factor + specular;
+                        this.samples[p + 1] = color[1] * factor + specular;
+                        this.samples[p + 2] = color[2] * factor + specular;
+                        this.samples[p + 3] = 255;
+                        this.sampleDepth[slot] = inverse;
+                    }
+                }
+        }
+        for (const index of touched) {
+            let alpha = 0, r = 0, g = 0, b = 0, maxDepth = 0;
+            for (let j = 0; j < 4; j++) {
+                const p = index * 16 + j * 4, weight = this.samples[p + 3] / 255;
+                alpha += weight;
+                r += this.samples[p] * weight;
+                g += this.samples[p + 1] * weight;
+                b += this.samples[p + 2] * weight;
+                maxDepth = Math.max(maxDepth, this.sampleDepth[index * 4 + j]);
+            }
+            if (alpha) {
+                const p = index * 4;
+                data[p] = r / alpha;
+                data[p + 1] = g / alpha;
+                data[p + 2] = b / alpha;
+                data[p + 3] = alpha / 4 * 255;
+                depth[index] = maxDepth;
+            }
+        }
+    }
+}
+
+// All generated surfaces are ordinary cubes/spheres supported by vstimd v5.
+// Curved patterned surfaces are a bounded geometric approximation, not textures.
+const landmarkShapes = ['sphere', 'cube', 'diamond', 'cylinder'];
+const landmarkPatterns = ['solid', 'diamonds', 'spiral', 'checker', 'bands'];
+const isLandmark = o => o.kind === 'sphere' || o.kind === 'landmark';
+const isRoundLandmark = o => o.kind === 'sphere' || (o.kind === 'landmark' && ['sphere', 'cylinder'].includes(o.shape));
+function landmarkFootprint(o) {
+    if (!isLandmark(o))
+        return o;
+    return { ...o, d: isRoundLandmark(o) ? o.w : o.d, angle: (o.kind === 'sphere' || o.shape === 'sphere') ? 0 : o.angle };
+}
+function landmarkHeight(o) { return o.kind === 'sphere' || o.shape === 'sphere' ? o.w : o.h; }
+function landmarkElevation(o) { return o.y - landmarkHeight(o) / 2; }
+function landmarkAtElevation(o, elevation_cm) { return { ...o, y: elevation_cm + landmarkHeight(o) / 2 }; }
+const geometryCache = new Map();
+function landmarkGeometry(o) {
+    const shape = o.shape || 'sphere', pattern = o.pattern || 'solid', w = o.w, h = shape === 'sphere' ? w : o.h, d = ['sphere', 'cylinder'].includes(shape) ? w : o.d;
+    const key = JSON.stringify([shape, pattern, w, h, d, o.color, o.pattern_color || '#ffffff', o.pattern_size_cm || 5, o.pattern_tilt_deg || 0]);
+    let local = geometryCache.get(key);
+    if (!local) {
+        local = [];
+        const box = (x, y, s, bw, bh, bd, color = o.color) => local.push({ x, y, s, w: bw, h: bh, d: bd, color, kind: 'box' });
+        if (shape === 'sphere' && pattern === 'solid')
+            local.push({ x: 0, y: 0, s: 0, w, h, d, color: o.color, kind: 'sphere' });
+        else if (shape === 'cube' && pattern === 'solid')
+            box(0, 0, 0, w, h, d);
+        else if (pattern === 'solid') {
+            const n = 48;
+            for (let i = 0; i < n; i++) {
+                if (shape === 'diamond') {
+                    const y = -h / 2 + (i + .5) * h / n;
+                    box(0, y, 0, w * (1 - Math.abs(y) / (h / 2)), h / n, d);
+                }
+                else {
+                    const s = -d / 2 + (i + .5) * d / n;
+                    box(0, 0, s, 2 * Math.sqrt(Math.max(0, (w / 2) ** 2 - s * s)), h, d / n);
+                }
+            }
+        }
+        else {
+            const n = 24, sx = w / n, sy = h / n, sz = d / n, occupied = new Uint8Array(n * n * n);
+            const index = (x, y, z) => x + n * (y + n * z);
+            const inside = (x, y, z) => x >= 0 && y >= 0 && z >= 0 && x < n && y < n && z < n && occupied[index(x, y, z)];
+            for (let z = 0; z < n; z++)
+                for (let y = 0; y < n; y++)
+                    for (let x = 0; x < n; x++) {
+                        const u = (x + .5) / n * 2 - 1, v = (y + .5) / n * 2 - 1, t = (z + .5) / n * 2 - 1;
+                        if (shape === 'cube' || (shape === 'sphere' ? u * u + v * v + t * t <= 1 : shape === 'cylinder' ? u * u + t * t <= 1 : Math.abs(u) + Math.abs(v) <= 1))
+                            occupied[index(x, y, z)] = 1;
+                    }
+            function colorAt(x, y, z) {
+                const point = [-w / 2 + (x + .5) * sx, -h / 2 + (y + .5) * sy, -d / 2 + (z + .5) * sz];
+                return surfacePattern(o, point) ? (o.pattern_color || '#ffffff') : o.color;
+            }
+            const shell = (x, y, z) => inside(x, y, z) && (!inside(x - 1, y, z) || !inside(x + 1, y, z) || !inside(x, y - 1, z) || !inside(x, y + 1, z) || !inside(x, y, z - 1) || !inside(x, y, z + 1));
+            // Merge runs on the shell to reduce native primitive count.
+            for (let z = 0; z < n; z++)
+                for (let y = 0; y < n; y++)
+                    for (let x = 0; x < n;) {
+                        if (!shell(x, y, z)) {
+                            x++;
+                            continue;
+                        }
+                        const start = x, color = colorAt(x, y, z);
+                        x++;
+                        while (x < n && shell(x, y, z) && colorAt(x, y, z) === color)
+                            x++;
+                        box(-w / 2 + (start + x) * sx / 2, -h / 2 + (y + .5) * sy, -d / 2 + (z + .5) * sz, (x - start) * sx, sy, sz, color);
+                    }
+        }
+        if (geometryCache.size >= 32)
+            geometryCache.delete(geometryCache.keys().next().value);
+        geometryCache.set(key, local);
+    }
+    const a = o.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    const preview_landmark = { shape, x: o.x, y: o.y, s: o.s, w, h, d, angle: o.angle };
+    return local.map((part, i) => ({ ...o, ...part, preview_landmark, id: o.id, name: `${o.name.slice(0, 100)} ${i + 1}`, x: o.x + c * part.x - s * part.s, s: o.s + s * part.x + c * part.s, y: o.y + part.y, angle: o.angle }));
+}
+
+// Same swept-volume contract as vstimd/dev/CAMERA_MOVEMENT.md. Units: cm.
+function cameraMovement(project) {
+    const obstacles = [];
+    for (const o of project.objects) {
+        const box = (x, y, s, w, h, d) => obstacles.push({ type: 'Box', position_cm: [x, y, -s], yaw_deg: o.angle, size_cm: [w, h, d] });
+        if (o.kind === 'floor')
+            continue;
+        if (isLandmark(o)) {
+            const shape = o.shape || 'sphere';
+            if (shape === 'sphere')
+                obstacles.push({ type: 'Sphere', position_cm: [o.x, o.y, -o.s], diameter_cm: o.w });
+            else
+                obstacles.push({ type: { cube: 'Box', diamond: 'Diamond', cylinder: 'Cylinder' }[shape], position_cm: [o.x, o.y, -o.s], yaw_deg: o.angle, size_cm: [o.w, landmarkHeight(o), shape === 'cylinder' ? o.w : o.d] });
+        }
+        else if (o.kind === 'arch') {
+            const a = o.angle * Math.PI / 180;
+            for (const dx of [-o.w / 2 - 2, o.w / 2 + 2])
+                box(o.x + dx * Math.cos(a), o.y + o.h / 2, o.s + dx * Math.sin(a), 4, o.h, o.d);
+            box(o.x, o.y + o.h + 2, o.s, o.w + 8, 4, o.d);
+        }
+        else
+            box(o.x, o.y + o.h / 2, o.s, o.w, o.h, o.d);
+    }
+    return { start_position_cm: [project.camera.x, project.camera.y, -project.camera.s], start_yaw_deg: -project.camera.yaw, clearance_cm: 1, end_blackout_ms: 2000, obstacles };
+}
+const collisionDot = (a, b) => a.reduce((v, x, i) => v + x * b[i], 0), collisionSub = (a, b) => a.map((x, i) => x - b[i]), collisionLength = a => Math.hypot(...a);
+function obstacleHit(o, from, delta, margin) {
+    const a = (o.yaw_deg || 0) * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    const local = v => [c * v[0] - s * v[2], v[1], s * v[0] + c * v[2]];
+    const p = local(collisionSub(from, o.position_cm)), d = local(delta), half = o.size_cm?.map(v => v / 2);
+    let lo = -Infinity, hi = Infinity;
+    function plane(n, bound) { const a = collisionDot(n, p) - bound, b = collisionDot(n, d); if (Math.abs(b) < 1e-12) {
+        if (a >= -1e-10)
+            hi = -Infinity;
+    }
+    else if (b > 0)
+        hi = Math.min(hi, -a / b);
+    else
+        lo = Math.max(lo, -a / b); }
+    function slab(n, e) { plane(n, e); plane(n.map(v => -v), e); }
+    function ball(p, d, r) {
+        const a = collisionDot(d, d), b = collisionDot(p, d), cc = collisionDot(p, p) - r * r;
+        if (a < 1e-24) {
+            if (cc >= -1e-10)
+                hi = -Infinity;
+            return;
+        }
+        const disc = b * b - a * cc;
+        if (disc <= 0) {
+            hi = -Infinity;
+            return;
+        }
+        lo = Math.max(lo, (-b - Math.sqrt(disc)) / a);
+        hi = Math.min(hi, (-b + Math.sqrt(disc)) / a);
+    }
+    if (o.type === 'Sphere')
+        ball(p, d, o.diameter_cm / 2 + margin);
+    else if (o.type === 'Cylinder') {
+        ball([p[0], 0, p[2]], [d[0], 0, d[2]], half[0] + margin);
+        slab([0, 1, 0], half[1] + margin);
+    }
+    else if (o.type === 'Diamond') {
+        for (const x of [-1, 1])
+            for (const y of [-1, 1]) {
+                const n = [x / half[0], y / half[1], 0];
+                plane(n, 1 + margin * collisionLength(n));
+            }
+        slab([0, 0, 1], half[2] + margin);
+    }
+    else {
+        slab([1, 0, 0], half[0] + margin);
+        slab([0, 1, 0], half[1] + margin);
+        slab([0, 0, 1], half[2] + margin);
+    }
+    return hi > Math.max(lo, 0) + 1e-10 && lo < 1 && hi > 1e-10 ? Math.max(lo, 0) : null;
+}
+function validateMovementStart(movement) {
+    if (movement.obstacles.some(o => obstacleHit(o, movement.start_position_cm, [0, 0, 0], movement.clearance_cm) !== null))
+        throw new Error('Initial camera overlaps a wall or landmark (including 1 cm clearance). Move the initial camera to free space.');
+}
+function constrainMovement(m, from, to) {
+    const delta = collisionSub(to, from), distance = collisionLength(delta);
+    if (distance < 1e-12)
+        return [...from];
+    const yaw = m.start_yaw_deg * Math.PI / 180, forward = [-Math.sin(yaw), 0, -Math.cos(yaw)];
+    const along = collisionDot(collisionSub(from, m.start_position_cm), forward), step = collisionDot(delta, forward);
+    let t = step < 0 ? Math.min(1, Math.max(0, along) / -step) : 1;
+    for (const o of m.obstacles) {
+        const hit = obstacleHit(o, from, delta, m.clearance_cm);
+        if (hit !== null)
+            t = Math.min(t, Math.max(0, hit - .001 / distance));
+    }
+    return from.map((v, i) => v + delta[i] * t);
+}
+function constrainPreview(project, from, to) {
+    const end = previewTrackLength(project), along = previewTrackProgress(project.camera, from), step = previewTrackProgress(project.camera, to) - along;
+    if (end !== null && step > 0 && along + step > end) {
+        const t = Math.max(0, (end - along) / step);
+        to = { x: from.x + (to.x - from.x) * t, s: from.s + (to.s - from.s) * t };
+    }
+    const point = constrainMovement(cameraMovement(project), [from.x, project.camera.y, -from.s], [to.x, project.camera.y, -to.s]);
+    return { x: point[0], s: -point[2] };
+}
+
+// Coordinates in cm: x right, s forward. vstimd uses z = -s.
+const clone = value => JSON.parse(JSON.stringify(value));
+const backgroundColor = project => project.background_color ?? '#111617';
+const uid = () => globalThis.crypto.randomUUID();
+function object(kind, values = {}) {
+    return { id: uid(), kind, name: ({ wall: 'Wall', floor: 'Floor', sphere: 'Landmark', landmark: 'Landmark', arch: 'Arch' })[kind], x: 0, s: 100, y: 0, w: 40, d: 4, h: 30, angle: 0, color: '#ed8b43', ...values };
+}
+function template(type = 'corridor') {
+    const items = [];
+    const add = (kind, v) => items.push(object(kind, v));
+    if (type === 'corridor') {
+        for (let r = 0; r < 20; r++)
+            for (let c = 0; c < 2; c++)
+                add('floor', { name: `Tile ${r + 1} · ${c + 1}`, x: c * 20 - 10, s: r * 20 + 10, w: 20, d: 20, h: 1, color: (r + c) % 2 ? '#353b3c' : '#aab2ae' });
+        for (const x of [-22, 22]) {
+            add('wall', { x, s: 200, w: 4, d: 400, h: 25, color: '#252b2c', name: x < 0 ? 'Left wall' : 'Right wall' });
+            for (let r = 0; r < 20; r++)
+                add('wall', { x: x < 0 ? -19.8 : 19.8, s: 5 + r * 20, w: .3, d: 10, h: 25, color: '#ed8b43', name: 'Orange stripe' });
+        }
+        add('arch', { s: 0, w: 40, d: 4, h: 40, color: '#b5bfba', name: 'Entrance arch' });
+        add('arch', { s: 400, w: 40, d: 4, h: 40, color: '#b5bfba', name: 'Exit arch' });
+        add('sphere', { x: 60, s: 550, y: 65, w: 30, d: 30, h: 30, color: '#437aff', name: 'Blue landmark' });
+    }
+    else if (type === 'tee') {
+        add('floor', { s: 125, w: 40, d: 250, color: '#aab2ae' });
+        add('floor', { s: 270, w: 240, d: 40, color: '#aab2ae' });
+        for (const x of [-22, 22])
+            add('wall', { x, s: 125, w: 4, d: 250, h: 30, color: '#ed8b43' });
+        add('wall', { s: 292, w: 248, d: 4, h: 30, color: '#ed8b43' });
+        for (const x of [-82, 82])
+            add('wall', { x, s: 248, w: 124, d: 4, h: 30, color: '#ed8b43' });
+        add('sphere', { x: -100, s: 270, y: 45, w: 15, d: 15, h: 15, color: '#437aff', name: 'Left landmark' });
+        add('sphere', { x: 100, s: 270, y: 45, w: 15, d: 15, h: 15, color: '#f1c95d', name: 'Right landmark' });
+    }
+    return { format: 'braemons-maze-editor', version: 1, name: type === 'tee' ? 'T-maze' : type === 'empty' ? 'My maze' : 'Maze project', background_color: '#111617', camera: { x: 0, s: 0, y: 10, yaw: 0, fov: 60 }, objects: items };
+}
+function validate(p) {
+    const fail = m => { throw new Error(m); };
+    if (!p || p.format !== 'braemons-maze-editor' || p.version !== 1)
+        fail('Choose an editor .maze.json project (version 1).');
+    if (typeof p.name !== 'string' || p.name.length > 120)
+        fail('Invalid project name.');
+    if (p.background_color !== undefined && (typeof p.background_color !== 'string' || !/^#[0-9a-f]{6}$/i.test(p.background_color)))
+        fail('Invalid environment background colour.');
+    const num = (v, min, max, label) => { if (!Number.isFinite(v) || v < min || v > max)
+        fail(`${label}: value outside the range ${min}–${max}.`); };
+    if (!p.camera)
+        fail('Camera is missing.');
+    for (const k of ['x', 's', 'y', 'yaw', 'fov'])
+        num(p.camera[k], k === 'fov' ? 20 : k === 'y' ? 1 : -10000, k === 'fov' ? 120 : 10000, `Camera ${k}`);
+    if (!Array.isArray(p.objects) || p.objects.length > 1000)
+        fail('Projects support up to 1000 objects.');
+    if (p.navigation !== undefined)
+        validateNavigation(p.navigation);
+    const ids = new Set();
+    for (const o of p.objects) {
+        if (!o || !['wall', 'floor', 'sphere', 'arch', 'landmark'].includes(o.kind) || typeof o.id !== 'string' || !o.id || ids.has(o.id))
+            fail('Unknown object or duplicate identifier.');
+        ids.add(o.id);
+        if (typeof o.name !== 'string' || o.name.length > 120 || !/^#[0-9a-f]{6}$/i.test(o.color))
+            fail('Invalid object name or colour.');
+        if (o.kind === 'landmark') {
+            if (!landmarkShapes.includes(o.shape) || !landmarkPatterns.includes(o.pattern) || !/^#[0-9a-f]{6}$/i.test(o.pattern_color))
+                fail('Invalid landmark shape, pattern or colour.');
+            num(o.pattern_size_cm, .1, 10000, 'Pattern size · cm');
+            if (o.pattern_tilt_deg !== undefined)
+                num(o.pattern_tilt_deg, -180, 180, 'Pattern tilt · degrees');
+        }
+        for (const k of ['x', 's', 'y', 'angle'])
+            num(o[k], -10000, 10000, k);
+        for (const k of ['w', 'd', 'h'])
+            num(o[k], .1, 10000, k);
+    }
+    return clone(p);
+}
+function solids(p, { preview = false } = {}) {
+    const result = [];
+    for (const o of p.objects) {
+        const push = (dx, dy, w, h, d) => {
+            const a = o.angle * Math.PI / 180;
+            result.push({ ...o, x: o.x + dx * Math.cos(a), s: o.s + dx * Math.sin(a), y: dy, w, h, d, kind: 'box' });
+        };
+        if (preview && isLandmark(o))
+            result.push({ ...o, kind: 'analytic-landmark', shape: o.shape || 'sphere' });
+        else if (o.kind === 'landmark')
+            result.push(...landmarkGeometry(o));
+        else if (o.kind === 'sphere')
+            result.push({ ...o, kind: 'sphere' });
+        else if (o.kind === 'arch') {
+            push(-o.w / 2 - 2, o.y + o.h / 2, 4, o.h, o.d);
+            push(o.w / 2 + 2, o.y + o.h / 2, 4, o.h, o.d);
+            push(0, o.y + o.h + 2, o.w + 8, 4, o.d);
+        }
+        else
+            push(0, o.kind === 'floor' ? o.y - .5 : o.y + o.h / 2, o.w, o.kind === 'floor' ? 1 : o.h, o.d);
+    }
+    return result;
+}
+function exportScene(project) {
+    const p = validate(project), stimuli = {};
+    const movement = cameraMovement(p);
+    validateMovementStart(movement);
+    const geometry = solids(p);
+    if (geometry.length > 50000)
+        throw new Error('This scene is too detailed to export. Reduce the number of patterned landmarks.');
+    geometry.forEach((o, i) => {
+        const rgb = o.color.match(/\w\w/g).map(v => parseInt(v, 16) / 255);
+        // Preserve volume cues, as in vstimd's corridor example. Pattern fragments
+        // carry preview_landmark after their kind has become box/sphere.
+        const shading = isLandmark(o) || o.preview_landmark ? 'Phong' : 'Unlit';
+        stimuli[i + 1] = { id: uid(), name: o.name, stimulus: { common: { flags: { enabled: true, protected: false }, opacity: 1 }, body: { type: 'Mesh3d', transform: { position_cm: [o.x, o.y, -o.s], rotation_deg: [o.angle, 0, 0], scale: [1, 1, 1] }, material: { albedo: [...rgb, 1], emissive: [0, 0, 0], shading }, geometry: o.kind === 'sphere' ? { type: 'Sphere', diameter_cm: o.w, rings: 16, sectors: 24 } : { type: 'Cube', size_cm: [o.w, o.h, o.d] }, texture_path: null } } };
+    });
+    const navigation = wheelAnimation(p.navigation);
+    return { version: 6, scene: { camera_movement: movement, background: [...backgroundColor(p).match(/\w\w/g).map(v => parseInt(v, 16) / 255), 1], default_fill: [1, 1, 1, 1], default_outline: [0, 0, 0, 1], photodiode: { enabled: false, lit: false, flicker: false, position: 0 }, stimuli, next_stim_handle: Object.keys(stimuli).length + 1, animations: navigation ? { 1: navigation } : {}, next_anim_handle: navigation ? 2 : 1, camera: { position_cm: [p.camera.x, p.camera.y, -p.camera.s], yaw_deg: -p.camera.yaw, pitch_deg: 0, roll_deg: 0, fov_y_deg: p.camera.fov, near_cm: .1, far_cm: 30000 }, lighting: { ambient_color: [.4, .4, .4], sun_direction: [-.5, -1, -.3], sun_color: [.6, .6, .6] }, camera_zones: [] }, io: { vtl: { names: [] } } };
+}
+function corners(o) {
+    if (isLandmark(o))
+        o = landmarkFootprint(o);
+    const a = o.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    return [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([u, v]) => [o.x + c * u * o.w / 2 - s * v * o.d / 2, o.s + s * u * o.w / 2 + c * v * o.d / 2]);
+}
+function hit(o, x, s) {
+    if (isRoundLandmark(o))
+        return Math.hypot(x - o.x, s - o.s) <= Math.max(o.w / 2, 3);
+    if (isLandmark(o))
+        o = landmarkFootprint(o);
+    const a = -o.angle * Math.PI / 180, dx = x - o.x, ds = s - o.s;
+    return Math.abs(Math.cos(a) * dx - Math.sin(a) * ds) <= Math.max(o.w / 2, 3) && Math.abs(Math.sin(a) * dx + Math.cos(a) * ds) <= Math.max(o.d / 2, 3);
+}
+// Equal clear gaps along the row joining the furthest selected centres.
+// Keep the two outer objects fixed and preserve perpendicular offsets.
+function distributeEvenly(objects) {
+    if (objects.length < 3)
+        throw new Error('Select at least 3 objects to distribute.');
+    let first = objects[0], last = objects[1], distance2 = 0;
+    for (let i = 0; i < objects.length; i++)
+        for (let j = i + 1; j < objects.length; j++) {
+            const d = (objects[j].x - objects[i].x) ** 2 + (objects[j].s - objects[i].s) ** 2;
+            if (d > distance2) {
+                distance2 = d;
+                first = objects[i];
+                last = objects[j];
+            }
+        }
+    if (distance2 < 1e-12)
+        throw new Error('Move the outer objects apart before distributing.');
+    const length = Math.sqrt(distance2);
+    let ux = (last.x - first.x) / length, us = (last.s - first.s) / length;
+    if (ux < 0 || (Math.abs(ux) < 1e-12 && us < 0)) {
+        ux = -ux;
+        us = -us;
+    }
+    const extent = o => {
+        if (isRoundLandmark(o))
+            return o.w;
+        const a = o.angle * Math.PI / 180, w = o.w + (o.kind === 'arch' ? 8 : 0);
+        return Math.abs(ux * Math.cos(a) + us * Math.sin(a)) * w + Math.abs(-ux * Math.sin(a) + us * Math.cos(a)) * o.d;
+    };
+    const row = objects.map(o => ({ o, t: o.x * ux + o.s * us, width: extent(o) })).sort((a, b) => a.t - b.t || a.o.id.localeCompare(b.o.id));
+    const start = row[0], end = row.at(-1);
+    const gapCm = (end.t - start.t - start.width / 2 - end.width / 2 - row.slice(1, -1).reduce((sum, r) => sum + r.width, 0)) / (row.length - 1);
+    if (gapCm < -1e-8)
+        throw new Error('Not enough room. Move the outer objects further apart.');
+    const gap = Math.max(0, gapCm), positions = [{ id: start.o.id, x: start.o.x, s: start.o.s }];
+    let t = start.t;
+    for (let i = 1; i < row.length - 1; i++) {
+        t += row[i - 1].width / 2 + gap + row[i].width / 2;
+        const shift = t - row[i].t;
+        positions.push({ id: row[i].o.id, x: row[i].o.x + ux * shift, s: row[i].o.s + us * shift });
+    }
+    positions.push({ id: end.o.id, x: end.o.x, s: end.o.s });
+    return { positions, gapCm: gap };
+}
+// Decorative strips on the long faces of a wall; ordinary editable wall boxes.
+function wallPanels(wall, { width_cm = 10, gap_cm = 10, color = '#ed8b43', sides = 'both' } = {}, maxPanels = 1000) {
+    if (!wall || wall.kind !== 'wall')
+        throw new Error('Select a single wall to add panels.');
+    for (const [name, value] of [['Panel width', width_cm], ['Gap', gap_cm]])
+        if (!Number.isFinite(value) || value < .1 || value > 10000)
+            throw new Error(`${name} must be between 0.1 and 10000 cm.`);
+    if (!/^#[0-9a-f]{6}$/i.test(color) || !['both', 'a', 'b'].includes(sides))
+        throw new Error('Invalid panel colour or side.');
+    const alongWidth = wall.w >= wall.d, length = alongWidth ? wall.w : wall.d;
+    const signs = sides === 'both' ? [-1, 1] : [sides === 'a' ? -1 : 1], period = width_cm + gap_cm;
+    let count = Math.ceil(length / period);
+    if (count && length - (count - 1) * period < .1)
+        count--;
+    if (count * signs.length > maxPanels)
+        throw new Error('Too many panels for this project. Increase width or gap, or choose one side.');
+    const angle = wall.angle * Math.PI / 180, c = Math.cos(angle), s = Math.sin(angle), panels = [];
+    for (const sign of signs)
+        for (let i = 0; i < count; i++) {
+            const width = Math.min(width_cm, length - i * period), along = -length / 2 + i * period + width / 2;
+            const normal = sign * ((alongWidth ? wall.d : wall.w) / 2 + .1 + .02);
+            const u = alongWidth ? along : normal, v = alongWidth ? normal : along;
+            panels.push(object('wall', { name: `${wall.name.slice(0, 85)} · panel ${i + 1}${sign < 0 ? ' A' : ' B'}`, x: wall.x + c * u - s * v, s: wall.s + s * u + c * v, y: wall.y, w: alongWidth ? width : .2, d: alongWidth ? .2 : width, h: wall.h, angle: wall.angle, color }));
+        }
+    return panels;
+}
+function resizeCorners(o) { return corners(isLandmark(o) ? landmarkFootprint(o) : o); }
+function resizeFromCorner(original, index, pointer, grid_cm = 1) {
+    if (!Number.isInteger(index) || index < 0 || index > 3 || !Number.isFinite(pointer.x) || !Number.isFinite(pointer.s) || !Number.isFinite(grid_cm) || grid_cm <= 0)
+        throw new Error('Invalid resize position.');
+    const signs = [[-1, -1], [1, -1], [1, 1], [-1, 1]], [sx, ss] = signs[index];
+    const anchor = resizeCorners(original)[(index + 2) % 4];
+    const angle = ((original.kind === 'sphere' || original.shape === 'sphere') ? 0 : original.angle) * Math.PI / 180, c = Math.cos(angle), s = Math.sin(angle);
+    const dx = pointer.x - anchor[0], ds = pointer.s - anchor[1];
+    const quantize = value => Math.max(.1, Math.min(10000, Math.round(value / grid_cm) * grid_cm));
+    let w = quantize(sx * (c * dx + s * ds)), d = quantize(ss * (-s * dx + c * ds));
+    if (isRoundLandmark(original))
+        w = d = Math.max(w, d);
+    const u = sx * w / 2, v = ss * d / 2;
+    return { x: anchor[0] + c * u - s * v, s: anchor[1] + s * u + c * v, w, d };
+}
+function objectsInsideRect(objects, start, end) {
+    const x0 = Math.min(start.x, end.x), x1 = Math.max(start.x, end.x), s0 = Math.min(start.s, end.s), s1 = Math.max(start.s, end.s), eps = 1e-8;
+    return objects.filter(o => {
+        const shape = isLandmark(o) ? landmarkFootprint(o) : o.kind === 'arch' ? { ...o, w: o.w + 8 } : o;
+        return corners(shape).every(([x, s]) => x >= x0 - eps && x <= x1 + eps && s >= s0 - eps && s <= s1 + eps);
+    }).map(o => o.id);
+}
+
+// Per-pixel depth keeps a long wall/floor consistent with the same shape tiled
+// into smaller pieces. There is no distance-based object loading or culling.
+class DepthPreview {
+    render(objects, camera, width, height) {
+        width = Math.max(1, Math.round(width));
+        height = Math.max(1, Math.round(height));
+        if (this.width !== width || this.height !== height) {
+            this.width = width;
+            this.height = height;
+            this.data = new Uint8ClampedArray(width * height * 4);
+            this.depth = new Float32Array(width * height);
+        }
+        this.data.fill(0);
+        this.depth.fill(0);
+        const yaw = camera.yaw * Math.PI / 180, pitch = camera.pitch || 0;
+        const cy = Math.cos(yaw), sy = Math.sin(yaw), cp = Math.cos(pitch), sp = Math.sin(pitch);
+        const focal = height / 2 / Math.tan(camera.fov * Math.PI / 360);
+        const toCamera = ([x, y, s]) => {
+            const dx = x - camera.x, dy = y - camera.y, ds = s - camera.s, forward = sy * dx + cy * ds;
+            return [cy * dx - sy * ds, cp * dy + sp * forward, -sp * dy + cp * forward];
+        };
+        const face = (points, color, factor) => {
+            const vertices = points.map(toCamera), clipped = [];
+            for (let i = 0; i < vertices.length; i++) {
+                const a = vertices[i], b = vertices[(i + 1) % vertices.length], inside = a[2] >= 1, next = b[2] >= 1;
+                if (inside)
+                    clipped.push(a);
+                if (inside !== next) {
+                    const t = (1 - a[2]) / (b[2] - a[2]);
+                    clipped.push(a.map((v, k) => v + (b[k] - v) * t));
+                }
+            }
+            if (clipped.length < 3)
+                return;
+            const projected = clipped.map(([x, y, z]) => [width / 2 + x * focal / z, height / 2 - y * focal / z, 1 / z]);
+            const rgb = color.map(v => Math.round(v * factor));
+            for (let i = 1; i < projected.length - 1; i++)
+                this.triangle(projected[0], projected[i], projected[i + 1], rgb);
+        };
+        const smooth = [];
+        for (const o of objects) {
+            if (o.kind === 'analytic-landmark') {
+                smooth.push(o);
+                continue;
+            }
+            const rgb = o.color.match(/\w\w/g).map(v => parseInt(v, 16));
+            const shadedFace = (points, factor) => {
+                const source = o.preview_landmark;
+                if (source) {
+                    const center = points.reduce((sum, p) => sum.map((v, i) => v + p[i] / points.length), [0, 0, 0]);
+                    const dx = center[0] - source.x, dy = center[1] - source.y, ds = center[2] - source.s, a = source.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+                    const x = c * dx + s * ds, z = -s * dx + c * ds;
+                    let nx = 0, ny = 0, nz = 0;
+                    if (source.shape === 'sphere') {
+                        nx = x;
+                        ny = dy;
+                        nz = z;
+                    }
+                    else if (source.shape === 'cylinder') {
+                        if (Math.abs(dy) > source.h * .46)
+                            ny = Math.sign(dy);
+                        else {
+                            nx = x;
+                            nz = z;
+                        }
+                    }
+                    else if (source.shape === 'diamond') {
+                        if (Math.abs(z) > source.d * .45)
+                            nz = Math.sign(z);
+                        else {
+                            nx = Math.sign(x) / source.w;
+                            ny = Math.sign(dy) / source.h;
+                        }
+                    }
+                    else {
+                        const ux = Math.abs(x) / source.w, uy = Math.abs(dy) / source.h, uz = Math.abs(z) / source.d;
+                        if (uy >= ux && uy >= uz)
+                            ny = Math.sign(dy);
+                        else if (ux > uz)
+                            nx = Math.sign(x);
+                        else
+                            nz = Math.sign(z);
+                    }
+                    const worldX = c * nx - s * nz, worldS = s * nx + c * nz, norm = Math.hypot(nx, ny, nz) || 1;
+                    factor = .6 + .4 * Math.max(0, (-.4 * worldX + .7 * ny - .6 * worldS) / norm);
+                }
+                face(points, rgb, factor);
+            };
+            if (o.kind === 'sphere') {
+                const r = o.w / 2, n = 12, m = 8;
+                const point = (lat, lon) => [o.x + r * Math.cos(lat) * Math.cos(lon), o.y + r * Math.sin(lat), o.s + r * Math.cos(lat) * Math.sin(lon)];
+                for (let i = 0; i < m; i++)
+                    for (let j = 0; j < n; j++) {
+                        const a = -Math.PI / 2 + i * Math.PI / m, b = a + Math.PI / m, c = j * Math.PI * 2 / n, d = c + Math.PI * 2 / n;
+                        face([point(a, c), point(a, d), point(b, d), point(b, c)], rgb, .75 + .25 * i / m);
+                    }
+            }
+            else {
+                const cs = corners(o), lo = cs.map(([x, s]) => [x, o.y - o.h / 2, s]), hi = cs.map(([x, s]) => [x, o.y + o.h / 2, s]);
+                shadedFace(hi, 1);
+                shadedFace(lo, .5);
+                for (let i = 0; i < 4; i++) {
+                    const j = (i + 1) % 4;
+                    shadedFace([lo[i], lo[j], hi[j], hi[i]], .62 + i * .08);
+                }
+            }
+        }
+        if (smooth.length) {
+            this.surfaces ??= new SurfacePreview();
+            this.surfaces.render(smooth, camera, width, height, this.data, this.depth, toCamera);
+        }
+        return { width, height, data: this.data };
+    }
+    triangle(a, b, c, rgb) {
+        const denominator = (b[1] - c[1]) * (a[0] - c[0]) + (c[0] - b[0]) * (a[1] - c[1]);
+        if (Math.abs(denominator) < 1e-10)
+            return;
+        const left = Math.max(0, Math.ceil(Math.min(a[0], b[0], c[0]) - .5));
+        const right = Math.min(this.width - 1, Math.floor(Math.max(a[0], b[0], c[0]) - .5));
+        const top = Math.max(0, Math.ceil(Math.min(a[1], b[1], c[1]) - .5));
+        const bottom = Math.min(this.height - 1, Math.floor(Math.max(a[1], b[1], c[1]) - .5));
+        if (left > right || top > bottom)
+            return;
+        const ax = (b[1] - c[1]) / denominator, ay = (c[0] - b[0]) / denominator;
+        const bx = (c[1] - a[1]) / denominator, by = (a[0] - c[0]) / denominator;
+        let rowA = ax * (left + .5 - c[0]) + ay * (top + .5 - c[1]);
+        let rowB = bx * (left + .5 - c[0]) + by * (top + .5 - c[1]);
+        const za = a[2] - c[2], zb = b[2] - c[2], stepZ = ax * za + bx * zb;
+        for (let y = top; y <= bottom; y++) {
+            let wa = rowA, wb = rowB, z = wa * za + wb * zb + c[2], index = y * this.width + left;
+            for (let x = left; x <= right; x++, index++, wa += ax, wb += bx, z += stepZ) {
+                if (wa >= -1e-8 && wb >= -1e-8 && wa + wb <= 1 + 1e-8 && z > this.depth[index]) {
+                    this.depth[index] = z;
+                    const p = index * 4;
+                    this.data[p] = rgb[0];
+                    this.data[p + 1] = rgb[1];
+                    this.data[p + 2] = rgb[2];
+                    this.data[p + 3] = 255;
+                }
+            }
+            rowA += ay;
+            rowB += by;
+        }
+    }
+}
+
+const length = (a, b) => Math.hypot(b[0] - a[0], b[1] - a[1]);
+const cm = value => `${Number(value.toFixed(2))} cm`;
+function footprint(o) { return corners(isLandmark(o) ? landmarkFootprint(o) : o.kind === 'arch' ? { ...o, w: o.w + 8 } : o); }
+// Distance from a centre to its boundary along a given unit direction.
+function radiusAlong(o, ux, us) {
+    if (isRoundLandmark(o))
+        return o.w / 2;
+    const a = o.angle * Math.PI / 180, c = Math.cos(a), s = Math.sin(a);
+    const u = Math.abs(ux * c + us * s), v = Math.abs(-ux * s + us * c);
+    return Math.min(u > 1e-12 ? (o.w + (o.kind === 'arch' ? 8 : 0)) / 2 / u : Infinity, v > 1e-12 ? o.d / 2 / v : Infinity);
+}
+function planMeasurements(objects, selectedIds = []) {
+    if (!objects.length)
+        return [];
+    const segments = [], selected = new Set(selectedIds), chosen = objects.filter(o => selected.has(o.id));
+    const add = (from, to, label, offset = 18, type = 'size', priority = false) => segments.push({ from, to, label, offset, type, priority });
+    const all = objects.flatMap(footprint), xs = all.map(p => p[0]), ss = all.map(p => p[1]);
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), s0 = Math.min(...ss), s1 = Math.max(...ss);
+    add([x0, s0], [x1, s0], cm(x1 - x0), 36, 'overall', true);
+    add([x0, s1], [x0, s0], cm(s1 - s0), 36, 'overall', true);
+    for (const o of chosen.length ? chosen : objects) {
+        const points = corners({ ...o, d: o.kind === 'sphere' ? o.w : o.d, angle: o.kind === 'sphere' ? 0 : o.angle });
+        add(points[0], points[1], isRoundLandmark(o) ? `Ø ${cm(o.w)}` : cm(o.w), 18, 'size', selected.has(o.id));
+        if (!isRoundLandmark(o))
+            add(points[3], points[0], cm(o.d), 18, 'size', selected.has(o.id));
+    }
+    if (chosen.length >= 2) {
+        let a = chosen[0], b = chosen[1], max = 0;
+        for (let i = 0; i < chosen.length; i++)
+            for (let j = i + 1; j < chosen.length; j++) {
+                const d = length([chosen[i].x, chosen[i].s], [chosen[j].x, chosen[j].s]);
+                if (d > max) {
+                    max = d;
+                    a = chosen[i];
+                    b = chosen[j];
+                }
+            }
+        if (max) {
+            const ux = (b.x - a.x) / max, us = (b.s - a.s) / max;
+            const row = [...chosen].sort((a, b) => (a.x - b.x) * ux + (a.s - b.s) * us);
+            for (let i = 1; i < row.length; i++) {
+                const a = row[i - 1], b = row[i], distance = Math.hypot(b.x - a.x, b.s - a.s);
+                if (distance < 1e-8)
+                    continue;
+                const dx = (b.x - a.x) / distance, ds = (b.s - a.s) / distance, ra = radiusAlong(a, dx, ds), rb = radiusAlong(b, dx, ds);
+                const gap = distance - ra - rb;
+                if (gap >= 0)
+                    add([a.x + ra * dx, a.s + ra * ds], [b.x - rb * dx, b.s - rb * ds], `${cm(gap)} gap`, -24, 'gap', true);
+                else
+                    add([a.x, a.s], [b.x, b.s], `${cm(distance)} centres`, -24, 'position', true);
+            }
+        }
+    }
+    return segments;
+}
+function rulerDistance(from, to) { return Math.hypot(to.x - from.x, to.s - from.s); }
+function snapRulerPoint(objects, point, tolerance_cm) {
+    let corner = null, cornerDistance = tolerance_cm;
+    for (const o of objects)
+        if (!isRoundLandmark(o))
+            for (const p of footprint(o)) {
+                const d = Math.hypot(point.x - p[0], point.s - p[1]);
+                if (d < cornerDistance) {
+                    cornerDistance = d;
+                    corner = { x: p[0], s: p[1] };
+                }
+            }
+    if (corner)
+        return { ...corner, snapped: true };
+    let closest = null, best = tolerance_cm;
+    const candidate = (x, s) => { const d = Math.hypot(point.x - x, point.s - s); if (d < best) {
+        best = d;
+        closest = { x, s };
+    } };
+    for (const o of objects) {
+        if (isRoundLandmark(o)) {
+            const dx = point.x - o.x, ds = point.s - o.s, d = Math.hypot(dx, ds);
+            if (d > 1e-10)
+                candidate(o.x + dx / d * o.w / 2, o.s + ds / d * o.w / 2);
+        }
+        else {
+            const points = footprint(o);
+            for (let i = 0; i < 4; i++) {
+                const a = points[i], b = points[(i + 1) % 4], dx = b[0] - a[0], ds = b[1] - a[1], den = dx * dx + ds * ds;
+                const t = den ? Math.max(0, Math.min(1, ((point.x - a[0]) * dx + (point.s - a[1]) * ds) / den)) : 0;
+                candidate(a[0] + dx * t, a[1] + ds * t);
+            }
+        }
+    }
+    return closest ? { ...closest, snapped: true } : { x: point.x, s: point.s, snapped: false };
+}
+
+const $ = s => document.querySelector(s), plan = $('#plan'), preview = $('#preview'), minimap = $('#minimap');
+const key = 'braemons.maze-editor.v1';
+const previewReturn = new ReturnHold();
+let returnTimer = null;
+let project = template(), selected = null, tool = 'select', history = [], future = [], drag = null, hover = null, grid = 10, view = { x: 0, s: 200, scale: 1 }, mode = 'orbit', walk = 0, walkX = 0, turn = 0;
+const defaultOrbit = () => ({ azimuth: -32 * Math.PI / 180, elevation: 30 * Math.PI / 180, distance: 1 });
+let orbit = defaultOrbit(), orbitDrag = null;
+let overviewFocus = null, minimapView = null, navigationTrail = [];
+let copiedObjects = null, pointerClient = null;
+let selectedIds = new Set(), cameraSelected = false;
+let dimensionsVisible = false;
+let ruler = null;
+const selectedObjects = () => project.objects.filter(o => selectedIds.has(o.id));
+function selectOnly(id) { cameraSelected = false; selectedIds = new Set(id ? [id] : []); selected = id; }
+function toggleSelection(id) { cameraSelected = false; if (selectedIds.has(id))
+    selectedIds.delete(id);
+else
+    selectedIds.add(id); selected = [...selectedIds].at(-1) || null; }
+function reconcileSelection() { selectedIds = new Set([...selectedIds].filter(id => project.objects.some(o => o.id === id))); if (!selectedIds.has(selected))
+    selected = [...selectedIds].at(-1) || null; }
+let storageAvailable = true;
+try {
+    const saved = localStorage.getItem(key);
+    if (saved)
+        project = validate(JSON.parse(saved));
+}
+catch {
+    storageAvailable = false;
+}
+let workshopRig = null, rigBusy = false, lastRigSave = null;
+let toastTimer;
+function toast(message) { $('#toast').textContent = message; $('#toast').style.display = 'block'; clearTimeout(toastTimer); toastTimer = setTimeout(() => $('#toast').style.display = 'none', 4500); }
+function persist() { try {
+    localStorage.setItem(key, JSON.stringify(project));
+    storageAvailable = true;
+}
+catch {
+    storageAvailable = false;
+} }
+function change(fn) { cancelPreviewReturn(); const before = clone(project), selectionBefore = [...selectedIds], primaryBefore = selected; try {
+    fn();
+    project = validate(project);
+    history.push(before);
+    if (history.length > 60)
+        history.shift();
+    future = [];
+    persist();
+    refresh();
+    return true;
+}
+catch (e) {
+    project = before;
+    selectedIds = new Set(selectionBefore);
+    selected = primaryBefore;
+    refresh();
+    toast(e.message);
+    return false;
+} }
+function undo(redo = false) { cancelPreviewReturn(); const source = redo ? future : history, dest = redo ? history : future; if (!source.length)
+    return; dest.push(clone(project)); project = source.pop(); reconcileSelection(); persist(); refresh(); }
+function size(canvas) { const r = canvas.getBoundingClientRect(), dpr = window.devicePixelRatio || 1; if (canvas.width !== Math.round(r.width * dpr) || canvas.height !== Math.round(r.height * dpr)) {
+    canvas.width = Math.round(r.width * dpr);
+    canvas.height = Math.round(r.height * dpr);
+} const ctx = canvas.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); return { ctx, w: r.width, h: r.height }; }
+function worldToScreen(x, s, w, h) { return [w / 2 + (x - view.x) * view.scale, h / 2 - (s - view.s) * view.scale]; }
+function resizeHandleHit(e) {
+    if (tool !== 'select' || selectedIds.size !== 1)
+        return null;
+    const o = selectedObjects()[0];
+    if (!o)
+        return null;
+    const rect = plan.getBoundingClientRect(), points = resizeCorners(o);
+    let best = null, bestDistance = 10;
+    points.forEach((p, index) => { const [x, y] = worldToScreen(...p, rect.width, rect.height), distance = Math.hypot(e.clientX - rect.left - x, e.clientY - rect.top - y); if (distance < bestDistance) {
+        bestDistance = distance;
+        best = { object: o, index };
+    } });
+    return best;
+}
+function resizeCursor(o, index) {
+    const [u, v] = [[-1, -1], [1, -1], [1, 1], [-1, 1]][index], a = ((o.kind === 'sphere' || o.shape === 'sphere') ? 0 : o.angle) * Math.PI / 180;
+    const angle = Math.atan2(-(Math.sin(a) * u + Math.cos(a) * v), Math.cos(a) * u - Math.sin(a) * v);
+    return ['ew-resize', 'nwse-resize', 'ns-resize', 'nesw-resize'][((Math.round(angle / (Math.PI / 4)) % 4) + 4) % 4];
+}
+function drawResizeHandles(ctx, w, h) {
+    if (tool !== 'select' || selectedIds.size !== 1)
+        return;
+    const o = selectedObjects()[0];
+    if (!o)
+        return;
+    ctx.save();
+    ctx.lineWidth = 1.5;
+    ctx.strokeStyle = '#315c48';
+    ctx.fillStyle = '#fffef9';
+    for (const p of resizeCorners(o)) {
+        const [x, y] = worldToScreen(...p, w, h);
+        ctx.fillRect(x - 4, y - 4, 8, 8);
+        ctx.strokeRect(x - 4, y - 4, 8, 8);
+    }
+    ctx.restore();
+}
+function cameraHit(e) { const rect = plan.getBoundingClientRect(), [x, y] = worldToScreen(project.camera.x, project.camera.s, rect.width, rect.height); return Math.hypot(e.clientX - rect.left - x, e.clientY - rect.top - y) <= 14; }
+function eventPoint(e) { const r = plan.getBoundingClientRect(); return { x: view.x + (e.clientX - r.left - r.width / 2) / view.scale, s: view.s - (e.clientY - r.top - r.height / 2) / view.scale }; }
+const snap = v => Math.round(v / grid) * grid;
+function bounds() { const points = project.objects.flatMap(corners); points.push([project.camera.x, project.camera.s]); if (points.length === 1)
+    points.push([-80, -20], [80, 400]); return { minX: Math.min(...points.map(p => p[0])), maxX: Math.max(...points.map(p => p[0])), minS: Math.min(...points.map(p => p[1])), maxS: Math.max(...points.map(p => p[1])) }; }
+function fit() { const b = bounds(), r = plan.getBoundingClientRect(); view = { x: (b.minX + b.maxX) / 2, s: (b.minS + b.maxS) / 2, scale: Math.max(.03, Math.min(5, (r.width - 100) / Math.max(100, b.maxX - b.minX), (r.height - 90) / Math.max(100, b.maxS - b.minS))) }; draw(); }
+function polygon(ctx, points, fill, stroke) { ctx.beginPath(); points.forEach(([x, y], i) => i ? ctx.lineTo(x, y) : ctx.moveTo(x, y)); ctx.closePath(); if (fill) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+} if (stroke) {
+    ctx.strokeStyle = stroke;
+    ctx.stroke();
+} }
+function drawPlan() {
+    const { ctx, w, h } = size(plan);
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#f9faf4';
+    ctx.fillRect(0, 0, w, h);
+    let spacing = grid;
+    while (spacing * view.scale < 12)
+        spacing *= 2;
+    ctx.strokeStyle = '#e7ebdf';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let x = Math.ceil((view.x - w / 2 / view.scale) / spacing) * spacing; x < view.x + w / 2 / view.scale; x += spacing) {
+        const [sx] = worldToScreen(x, 0, w, h);
+        ctx.moveTo(sx, 0);
+        ctx.lineTo(sx, h);
+    }
+    for (let s = Math.ceil((view.s - h / 2 / view.scale) / spacing) * spacing; s < view.s + h / 2 / view.scale; s += spacing) {
+        const [, sy] = worldToScreen(0, s, w, h);
+        ctx.moveTo(0, sy);
+        ctx.lineTo(w, sy);
+    }
+    ctx.stroke();
+    const ordered = [...project.objects].sort((a, b) => (a.kind === 'floor' ? 0 : 1) - (b.kind === 'floor' ? 0 : 1));
+    for (const o of ordered) {
+        ctx.lineWidth = selectedIds.has(o.id) ? 2 : 1;
+        const stroke = selectedIds.has(o.id) ? '#236344' : o.kind === 'floor' ? '#c1c9bc' : '#ffffff88';
+        if (isRoundLandmark(o)) {
+            const [x, y] = worldToScreen(o.x, o.s, w, h);
+            ctx.beginPath();
+            ctx.arc(x, y, Math.max(4, o.w * view.scale / 2), 0, Math.PI * 2);
+            ctx.fillStyle = o.color;
+            ctx.fill();
+            ctx.strokeStyle = stroke;
+            ctx.stroke();
+        }
+        else
+            polygon(ctx, corners(o).map(p => worldToScreen(...p, w, h)), o.kind === 'arch' ? o.color + '99' : o.color, stroke);
+        if (selectedIds.has(o.id)) {
+            ctx.setLineDash([4, 3]);
+            polygon(ctx, corners({ ...o, w: o.w + 8 / view.scale, d: o.d + 8 / view.scale }).map(p => worldToScreen(...p, w, h)), null, '#315c48');
+            ctx.setLineDash([]);
+        }
+    }
+    const cam = project.camera, [cx, cy] = worldToScreen(cam.x, cam.s, w, h), a = cam.yaw * Math.PI / 180;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.rotate(a);
+    polygon(ctx, [[-7, 8], [7, 8], [0, -12]], '#315c48', '#fff');
+    ctx.strokeStyle = '#315c4850';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(-22, -40);
+    ctx.moveTo(0, 0);
+    ctx.lineTo(22, -40);
+    ctx.stroke();
+    ctx.restore();
+    if (drag && !drag.marquee && !drag.ruler && !drag.cameraOriginal && !drag.resizeOriginal && tool !== 'select' && hover) {
+        const [x, y] = worldToScreen(drag.start.x, drag.start.s, w, h), [ex, ey] = worldToScreen(snap(hover.x), snap(hover.s), w, h);
+        ctx.strokeStyle = '#315c48';
+        ctx.setLineDash([5, 4]);
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(x, y);
+        ctx.lineTo(ex, ey);
+        ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    if (dimensionsVisible)
+        drawDimensions(ctx, w, h);
+    drawResizeHandles(ctx, w, h);
+    if (tool === 'ruler' && ruler)
+        drawRuler(ctx, w, h);
+    if (drag?.marquee) {
+        const a = worldToScreen(drag.start.x, drag.start.s, w, h), b = worldToScreen(drag.end.x, drag.end.s, w, h);
+        ctx.save();
+        ctx.fillStyle = '#5b956222';
+        ctx.strokeStyle = '#315c48';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([5, 3]);
+        ctx.fillRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
+        ctx.strokeRect(Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.abs(b[0] - a[0]), Math.abs(b[1] - a[1]));
+        ctx.restore();
+    }
+    $('#zoom-label').textContent = Math.round(view.scale * 100) + '%';
+}
+function rulerEndpoint(e) { const p = eventPoint(e); return e.altKey ? { ...p, snapped: false } : snapRulerPoint(project.objects, p, 9 / view.scale); }
+function rulerHint() {
+    $('#hint').textContent = !ruler ? 'Click the first point. Snap to object edges; hold Alt for free measurement.' : !ruler.complete ? 'Click the second point, or drag. Hold Alt to disable snapping.' : `Ruler: ${Number(rulerDistance(ruler.from, ruler.to).toFixed(2))} cm. Click to start again; Esc to exit.`;
+}
+function drawRuler(ctx, w, h) {
+    const a = worldToScreen(ruler.from.x, ruler.from.s, w, h), b = worldToScreen(ruler.to.x, ruler.to.s, w, h);
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = '#216c96';
+    ctx.fillStyle = '#fffef9';
+    ctx.setLineDash(ruler.complete ? [] : [5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(...a);
+    ctx.lineTo(...b);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    for (const p of [a, b]) {
+        ctx.beginPath();
+        ctx.arc(...p, 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+    }
+    const label = `${Number(rulerDistance(ruler.from, ruler.to).toFixed(2))} cm`;
+    ctx.font = '600 12px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const labelWidth = ctx.measureText(label).width + 18, x = Math.max(labelWidth / 2 + 3, Math.min(w - labelWidth / 2 - 3, (a[0] + b[0]) / 2)), y = Math.max(14, Math.min(h - 14, (a[1] + b[1]) / 2 - 16));
+    ctx.fillRect(x - labelWidth / 2, y - 11, labelWidth, 22);
+    ctx.strokeRect(x - labelWidth / 2, y - 11, labelWidth, 22);
+    ctx.fillStyle = '#216c96';
+    ctx.fillText(label, x, y);
+    ctx.restore();
+}
+function drawDimensions(ctx, w, h) {
+    const segments = planMeasurements(project.objects, [...selectedIds]);
+    // Selected spacing first, then overall bounds, then object dimensions.
+    const rank = s => s.type === 'gap' || s.type === 'position' ? 0 : s.type === 'overall' ? 1 : s.priority ? 2 : 3;
+    segments.sort((a, b) => rank(a) - rank(b));
+    const labels = [];
+    ctx.save();
+    ctx.font = '10px -apple-system, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (const segment of segments) {
+        const a = worldToScreen(...segment.from, w, h), b = worldToScreen(...segment.to, w, h), dx = b[0] - a[0], dy = b[1] - a[1], len = Math.hypot(dx, dy);
+        if (len < 1 || (!segment.priority && len < 55))
+            continue;
+        const nx = -dy / len, ny = dx / len, offset = segment.offset;
+        const x0 = a[0] + nx * offset, y0 = a[1] + ny * offset, x1 = b[0] + nx * offset, y1 = b[1] + ny * offset;
+        if (Math.max(x0, x1) < 0 || Math.min(x0, x1) > w || Math.max(y0, y1) < 0 || Math.min(y0, y1) > h)
+            continue;
+        let angle = Math.atan2(dy, dx);
+        if (angle > Math.PI / 2 || angle < -Math.PI / 2)
+            angle += Math.PI;
+        const textWidth = ctx.measureText(segment.label).width + 10, tx = (x0 + x1) / 2, ty = (y0 + y1) / 2;
+        const tw = Math.abs(Math.cos(angle)) * textWidth + Math.abs(Math.sin(angle)) * 16, th = Math.abs(Math.sin(angle)) * textWidth + Math.abs(Math.cos(angle)) * 16;
+        const rect = { x: tx - tw / 2, y: ty - th / 2, w: tw, h: th };
+        if (rect.x < 2 || rect.y < 2 || rect.x + rect.w > w - 2 || rect.y + rect.h > h - 2 || labels.some(r => rect.x < r.x + r.w + 3 && rect.x + rect.w + 3 > r.x && rect.y < r.y + r.h + 3 && rect.y + rect.h + 3 > r.y))
+            continue;
+        labels.push(rect);
+        ctx.lineWidth = 1;
+        ctx.strokeStyle = segment.type === 'gap' || segment.type === 'position' ? '#386f91' : '#426c59';
+        ctx.setLineDash([2, 3]);
+        ctx.beginPath();
+        ctx.moveTo(...a);
+        ctx.lineTo(x0 + nx * 4, y0 + ny * 4);
+        ctx.moveTo(...b);
+        ctx.lineTo(x1 + nx * 4, y1 + ny * 4);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        for (const [x, y] of [[x0, y0], [x1, y1]]) {
+            ctx.moveTo(x - nx * 4 - dx / len * 3, y - ny * 4 - dy / len * 3);
+            ctx.lineTo(x + nx * 4 + dx / len * 3, y + ny * 4 + dy / len * 3);
+        }
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(tx, ty);
+        ctx.rotate(angle);
+        ctx.fillStyle = '#fffef9ed';
+        ctx.fillRect(-textWidth / 2, -8, textWidth, 16);
+        ctx.fillStyle = ctx.strokeStyle;
+        ctx.fillText(segment.label, 0, 0);
+        ctx.restore();
+    }
+    ctx.restore();
+}
+$('#dimensions').onclick = () => { dimensionsVisible = !dimensionsVisible; $('#dimensions').setAttribute('aria-checked', String(dimensionsVisible)); $('#dimensions').classList.toggle('active', dimensionsVisible); $('#dimensions-state').textContent = dimensionsVisible ? 'On' : 'Off'; drawPlan(); };
+// Software preview with near-plane clipping and per-pixel depth.
+const depthPreview = new DepthPreview(), previewSurface = document.createElement('canvas');
+const previewSurfaceContext = previewSurface.getContext('2d');
+function drawPreview() {
+    const { ctx, w, h } = size(preview);
+    if (mode === 'eye' && previewReturn.active) {
+        ctx.fillStyle = '#000';
+        ctx.fillRect(0, 0, w, h);
+        drawMinimap();
+        return;
+    }
+    ctx.fillStyle = backgroundColor(project);
+    ctx.fillRect(0, 0, w, h);
+    const b = bounds();
+    let camera, pitch;
+    if (mode === 'orbit') {
+        const span = Math.max(160, b.maxX - b.minX, b.maxS - b.minS), radius = (overviewFocus ? 120 : span * 1.45) * orbit.distance, horizontal = radius * Math.cos(orbit.elevation), target = overviewFocus || { x: (b.minX + b.maxX) / 2, s: (b.minS + b.maxS) / 2 };
+        camera = { x: target.x + horizontal * Math.sin(orbit.azimuth), s: target.s - horizontal * Math.cos(orbit.azimuth), y: radius * Math.sin(orbit.elevation), yaw: -orbit.azimuth * 180 / Math.PI, fov: 55 };
+        pitch = orbit.elevation;
+    }
+    else {
+        camera = { ...project.camera, x: project.camera.x + walkX, s: project.camera.s + walk, yaw: project.camera.yaw + turn };
+        pitch = 0;
+    }
+    const ratio = Math.min(1, 1600 / Math.max(1, w), 800 / Math.max(1, h));
+    const image = depthPreview.render(solids(project, { preview: true }), { ...camera, pitch }, w * ratio, h * ratio);
+    if (previewSurface.width !== image.width || previewSurface.height !== image.height) {
+        previewSurface.width = image.width;
+        previewSurface.height = image.height;
+    }
+    previewSurfaceContext.putImageData(new ImageData(image.data, image.width, image.height), 0, 0);
+    ctx.drawImage(previewSurface, 0, 0, w, h);
+    ctx.fillStyle = '#f3f5e8b0';
+    ctx.font = '10px sans-serif';
+    ctx.fillText(mode === 'orbit' ? 'OVERVIEW · PREVIEW' : 'CAMERA · PREVIEW', 17, 22);
+    if (!project.objects.length) {
+        ctx.font = '16px sans-serif';
+        ctx.fillText('Start drawing on the floor plan.', 25, h / 2);
+    }
+    drawMinimap();
+}
+function previewPosition() { return { x: project.camera.x + walkX, s: project.camera.s + walk }; }
+function syncWalkControl() { const slider = $('#walk'), along = previewTrackProgress(project.camera, previewPosition()), end = previewTrackLength(project); slider.min = 0; slider.max = end ?? Math.max(800, Math.ceil(along)); slider.value = along; $('#distance').value = `${Math.round(along)} cm`; }
+function cancelPreviewReturn() { clearTimeout(returnTimer); returnTimer = null; previewReturn.cancel(); }
+function completePreviewReturn() {
+    if (!previewReturn.active)
+        return;
+    const now = performance.now();
+    if (!previewReturn.finish(now)) {
+        returnTimer = setTimeout(completePreviewReturn, Math.max(1, previewReturn.deadline - now));
+        return;
+    }
+    returnTimer = null;
+    walk = 0;
+    walkX = 0;
+    turn = 0;
+    overviewFocus = null;
+    recordPreviewPosition(true);
+    syncWalkControl();
+    draw();
+}
+function movePreviewTo(point) {
+    if (previewReturn.active)
+        return false;
+    const accepted = constrainPreview(project, previewPosition(), point);
+    ({ walkX, walk } = previewOffsets(project.camera, accepted));
+    recordPreviewPosition();
+    syncWalkControl();
+    const end = previewTrackLength(project);
+    if (end !== null && previewTrackProgress(project.camera, accepted) >= end - 1e-6) {
+        previewReturn.begin(performance.now());
+        returnTimer = setTimeout(completePreviewReturn, 2000);
+    }
+    return true;
+}
+function recordPreviewPosition(newSegment = false) {
+    const position = previewPosition(), last = navigationTrail.at(-1);
+    if (newSegment && navigationTrail.length)
+        navigationTrail.push(null);
+    if (newSegment || !last || Math.hypot(last.x - position.x, last.s - position.s) > .1)
+        navigationTrail.push(position);
+    if (navigationTrail.length > 500)
+        navigationTrail = navigationTrail.slice(-500);
+}
+function resetNavigation() { cancelPreviewReturn(); overviewFocus = null; navigationTrail = []; walk = 0; walkX = 0; turn = 0; orbit = defaultOrbit(); syncWalkControl(); }
+function drawMinimap() {
+    if ($('#minimap-panel').hidden)
+        return;
+    const { ctx, w, h } = size(minimap);
+    if (w < 1 || h < 1)
+        return;
+    const b = bounds(), position = previewPosition();
+    minimapView = minimapTransform({ ...b, minX: Math.min(b.minX, position.x), maxX: Math.max(b.maxX, position.x), minS: Math.min(b.minS, position.s), maxS: Math.max(b.maxS, position.s) }, w, h);
+    const screen = p => { const q = worldToMinimap(p, minimapView); return [q.x, q.y]; };
+    ctx.clearRect(0, 0, w, h);
+    const objects = [...project.objects].sort((a, b) => (a.kind === 'floor' ? 0 : 1) - (b.kind === 'floor' ? 0 : 1));
+    for (const o of objects) {
+        ctx.fillStyle = o.color;
+        ctx.strokeStyle = '#53695b';
+        ctx.lineWidth = .5;
+        if (isRoundLandmark(o)) {
+            const [x, y] = screen(o);
+            ctx.beginPath();
+            ctx.arc(x, y, Math.max(1.5, o.w * minimapView.scale / 2), 0, Math.PI * 2);
+            ctx.fill();
+        }
+        else
+            polygon(ctx, corners(o).map(([x, s]) => screen({ x, s })), o.color, o.kind === 'floor' ? null : '#53695b');
+    }
+    ctx.beginPath();
+    ctx.strokeStyle = '#3c88ad';
+    ctx.lineWidth = 1.5;
+    let drawing = false;
+    for (const point of navigationTrail) {
+        if (!point) {
+            drawing = false;
+            continue;
+        }
+        const [x, y] = screen(point);
+        if (drawing)
+            ctx.lineTo(x, y);
+        else
+            ctx.moveTo(x, y);
+        drawing = true;
+    }
+    ctx.stroke();
+    const [x, y] = screen(position), a = (project.camera.yaw + turn) * Math.PI / 180 + Math.PI / 2;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    polygon(ctx, [[-4, 4], [4, 4], [0, -7]], '#187caa', '#fff');
+    ctx.restore();
+    if (overviewFocus) {
+        const [fx, fy] = screen(overviewFocus);
+        ctx.strokeStyle = '#187caa';
+        ctx.beginPath();
+        ctx.arc(fx, fy, 7, 0, Math.PI * 2);
+        ctx.stroke();
+    }
+}
+function navigateMinimap(e) {
+    if (e.button !== 0 || !minimapView)
+        return;
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = minimap.getBoundingClientRect(), point = minimapToWorld({ x: e.clientX - rect.left, y: e.clientY - rect.top }, minimapView);
+    Object.assign(point, { x: Math.max(-10000, Math.min(10000, point.x)), s: Math.max(-10000, Math.min(10000, point.s)) });
+    if (!movePreviewTo(point))
+        return;
+    overviewFocus = { ...previewPosition() };
+    orbit.distance = 1;
+    drawPreview();
+    preview.focus({ preventScroll: true });
+}
+minimap.addEventListener('pointerdown', navigateMinimap);
+$('#toggle-map').onclick = () => { const panel = $('#minimap-panel'); panel.hidden = !panel.hidden; $('#toggle-map').setAttribute('aria-pressed', String(!panel.hidden)); $('#toggle-map').classList.toggle('active', !panel.hidden); if (!panel.hidden)
+    drawMinimap(); };
+function draw() { drawPlan(); drawPreview(); }
+function field(label, value, { type = 'number', step = 1, min, max, mixed = false, onchange } = {}) {
+    const l = document.createElement('label');
+    l.className = 'field' + (type === 'text' ? ' name' : '');
+    const s = document.createElement('span');
+    s.textContent = label + (mixed && type === 'color' ? ' · Mixed' : '');
+    const input = document.createElement('input');
+    input.type = type;
+    input.value = mixed && type !== 'color' ? '' : value;
+    if (mixed) {
+        input.placeholder = 'Mixed';
+        input.title = 'Mixed values. Enter a value to apply it to every selected object.';
+    }
+    if (type === 'number') {
+        input.step = step;
+        if (min !== undefined)
+            input.min = min;
+        if (max !== undefined)
+            input.max = max;
+    }
+    if (type === 'text')
+        input.maxLength = 120;
+    input.addEventListener('change', () => { if (type === 'number' && input.value === '') {
+        refresh();
+        return;
+    } if (!input.checkValidity()) {
+        input.reportValidity();
+        refresh();
+        return;
+    } onchange(type === 'number' ? Number(input.value) : input.value); });
+    l.append(s, input);
+    return l;
+}
+function objectFields(o) { if (o.kind === 'landmark')
+    return [['x', 'X · cm'], ['s', 'Forward · cm'], ['elevation_cm', 'Elevation · cm'], ['w', isRoundLandmark(o) ? 'Diameter · cm' : 'Width · cm'], ...(['cube', 'diamond'].includes(o.shape) ? [['d', 'Depth · cm']] : []), ...(o.shape !== 'sphere' ? [['h', 'Object height · cm']] : []), ['angle', 'Rotation · degrees']]; return [['x', 'X · cm'], ['s', 'Forward · cm'], [o.kind === 'sphere' ? 'elevation_cm' : 'y', o.kind === 'sphere' ? 'Elevation · cm' : 'Base · cm'], ['w', o.kind === 'sphere' ? 'Diameter · cm' : o.kind === 'arch' ? 'Opening · cm' : 'Width · cm'], ...(o.kind === 'sphere' ? [] : [['d', 'Depth · cm'], ...(o.kind === 'floor' ? [] : [['h', o.kind === 'arch' ? 'Clear height · cm' : 'Height · cm']]), ['angle', 'Rotation · degrees']])]; }
+function objectProperty(o, key) { return key === 'elevation_cm' ? landmarkElevation(o) : o[key]; }
+function applyObjectProperty(o, key, value) {
+    if (isLandmark(o)) {
+        const elevation = landmarkElevation(o);
+        if (key === 'elevation_cm') {
+            Object.assign(o, landmarkAtElevation(o, value));
+            return;
+        }
+        o[key] = value;
+        if (key === 'w' || key === 'h')
+            Object.assign(o, landmarkAtElevation(o, elevation));
+    }
+    else
+        o[key] = value;
+}
+function syncInspector() {
+    const objects = selectedIds.size > 0, camera = cameraSelected || tool === 'camera';
+    $('#object-inspector').hidden = !objects;
+    $('#camera-inspector').hidden = !camera;
+    $('#inspector').hidden = !objects && !camera;
+}
+function refresh() {
+    $('#background-color').value = backgroundColor(project);
+    reconcileSelection();
+    syncInspector();
+    const objects = selectedObjects(), count = objects.length, o = objects[0];
+    $('#selection-title').textContent = count > 1 ? `${count} objects selected` : o ? o.name : 'Select an object';
+    $('#distribute').disabled = count < 3;
+    const props = $('#properties');
+    props.replaceChildren();
+    if (count) {
+        if (count === 1)
+            props.append(field('Name', o.name, { type: 'text', onchange: v => change(() => o.name = v) }));
+        else {
+            const hint = document.createElement('p');
+            hint.className = 'muted';
+            hint.textContent = 'Changes apply to all selected objects. Mixed means their values differ.';
+            props.append(hint);
+        }
+        const fields = objectFields(o).filter(([key]) => objects.every(item => objectFields(item).some(([k]) => k === key)));
+        for (const [key, label] of [...fields, ['color', 'Color']]) {
+            const mixed = objects.some(item => objectProperty(item, key) !== objectProperty(o, key));
+            const sameLabel = key === 'color' || objects.every(item => objectFields(item).find(([k]) => k === key)?.[1] === label);
+            const sharedLabel = sameLabel ? label : ({ y: 'Base / centre · cm', w: 'Width / size · cm', h: 'Height / opening · cm' })[key] || label;
+            props.append(field(sharedLabel, objectProperty(o, key), { type: key === 'color' ? 'color' : 'number', step: .1, min: ['w', 'd', 'h'].includes(key) ? .1 : -10000, max: 10000, mixed, onchange: value => change(() => { for (const item of objects)
+                    applyObjectProperty(item, key, value); }) }));
+        }
+        if (count === 1 && isLandmark(o)) {
+            const edit = document.createElement('button');
+            edit.className = 'full';
+            edit.textContent = 'Shape & pattern';
+            edit.onclick = () => openLandmarkDialog(o.id);
+            props.append(edit);
+        }
+        if (count === 1 && o.kind === 'wall') {
+            const add = document.createElement('button');
+            add.className = 'full';
+            add.textContent = 'Add panels';
+            add.onclick = () => openPanelDialog(o.id);
+            props.append(add);
+        }
+        const row = document.createElement('div');
+        row.className = 'row';
+        for (const [text, fn] of [['Duplicate', duplicate], ['Delete', remove]]) {
+            const button = document.createElement('button');
+            button.textContent = text;
+            button.onclick = fn;
+            row.append(button);
+        }
+        props.append(row);
+    }
+    else {
+        const hint = document.createElement('p');
+        hint.className = 'muted';
+        hint.textContent = 'Select an object to edit. Shift + click adds or removes objects.';
+        props.append(hint);
+    }
+    const cp = $('#camera-properties');
+    cp.replaceChildren();
+    for (const [k, label] of [['x', 'X · cm'], ['s', 'Forward · cm'], ['y', 'Height · cm'], ['yaw', 'Heading · degrees'], ['fov', 'Vertical FOV · degrees']])
+        cp.append(field(label, project.camera[k], { min: k === 'fov' ? 20 : k === 'y' ? 1 : -10000, max: k === 'fov' ? 120 : 10000, onchange: v => change(() => project.camera[k] = v) }));
+    const list = $('#object-list');
+    list.replaceChildren();
+    const filter = $('#filter').value.toLowerCase();
+    for (const o of project.objects.filter(o => o.name.toLowerCase().includes(filter))) {
+        const button = document.createElement('button');
+        if (selectedIds.has(o.id))
+            button.className = 'active';
+        const swatch = document.createElement('span');
+        swatch.className = 'swatch';
+        swatch.style.background = o.color;
+        const name = document.createElement('span');
+        name.className = 'item-name';
+        name.textContent = o.name;
+        button.append(swatch, name);
+        button.onclick = e => { if (e.shiftKey)
+            toggleSelection(o.id);
+        else
+            selectOnly(o.id); setTool('select'); refresh(); };
+        list.append(button);
+    }
+    $('#count').textContent = project.objects.length;
+    $('#undo').disabled = !history.length;
+    $('#redo').disabled = !future.length;
+    draw();
+}
+function setTool(t) { if (t !== tool)
+    ruler = null; tool = t; if (t === 'camera') {
+    selectOnly(null);
+    cameraSelected = true;
+}
+else
+    cameraSelected = false; for (const button of document.querySelectorAll('[data-tool]')) {
+    button.classList.toggle('active', button.dataset.tool === t);
+    button.setAttribute('aria-pressed', String(button.dataset.tool === t));
+} syncInspector(); $('#hint').textContent = ({ select: 'Drag background to box-select. Ctrl + drag to pan. Shift adds to selection.', wall: 'Drag between two points to draw a wall.', floor: 'Drag opposite corners to draw a floor.', landmark: 'Click the plan to place the landmark.', arch: 'Click to place an arch. Adjust its opening and rotation.', camera: 'Click to place the initial camera.', ruler: 'Click two points or drag to measure in cm. Snap to edges; Alt disables snapping.' })[t]; plan.style.cursor = t === 'select' ? 'default' : 'crosshair'; drawPlan(); }
+let landmarkConfig = { shape: 'sphere', pattern: 'solid', pattern_color: '#ffffff', pattern_size_cm: 5, pattern_tilt_deg: 0, color: '#437aff', w: 30, d: 30, h: 30, y: 15 };
+let landmarkEditingId = null;
+const landmarkPreview = new DepthPreview();
+function landmarkOptions() {
+    const shape = $('#landmark-shape').value, w = $('#landmark-size').valueAsNumber;
+    const height = shape === 'sphere' ? w : $('#landmark-height').valueAsNumber, y = $('#landmark-elevation').valueAsNumber + height / 2;
+    return { shape, y, pattern: $('#landmark-pattern').value, color: $('#landmark-color').value, pattern_color: $('#landmark-ink').value, pattern_size_cm: $('#landmark-pattern-size').valueAsNumber, pattern_tilt_deg: $('#landmark-tilt').valueAsNumber, w, d: ['sphere', 'cylinder'].includes(shape) ? w : $('#landmark-depth').valueAsNumber, h: shape === 'sphere' ? w : $('#landmark-height').valueAsNumber };
+}
+function updateLandmarkPreview() {
+    const shape = $('#landmark-shape').value, pattern = $('#landmark-pattern').value;
+    $('#landmark-size-label').textContent = ['sphere', 'cylinder'].includes(shape) ? 'Diameter · cm' : 'Width · cm';
+    $('#landmark-height-row').hidden = shape === 'sphere';
+    $('#landmark-depth-row').hidden = !['cube', 'diamond'].includes(shape);
+    $('#landmark-tilt-row').hidden = pattern === 'solid';
+    $('#landmark-tilt').disabled = pattern === 'solid';
+    $('#landmark-ink-row').hidden = pattern === 'solid';
+    $('#landmark-pattern-size-row').hidden = pattern === 'solid';
+    $('#landmark-height').disabled = shape === 'sphere';
+    $('#landmark-depth').disabled = !['cube', 'diamond'].includes(shape);
+    $('#landmark-pattern-size').disabled = pattern === 'solid';
+    try {
+        const options = landmarkOptions();
+        if (!Number.isFinite(options.y) || Math.abs(options.y) > 10000)
+            throw new Error('Choose an elevation that keeps the centre between −10000 and 10000 cm.');
+        for (const value of [options.w, options.d, options.h, options.pattern_size_cm])
+            if (!Number.isFinite(value) || value < .1 || value > 10000)
+                throw new Error('Enter dimensions between 0.1 and 10000 cm.');
+        const o = object('landmark', { ...options, x: 0, s: 0, y: 0, angle: 0 });
+        const span = Math.max(options.w, options.d, options.h), x = -span * 1.4, s = -span * 2.2, y = span * .9;
+        const camera = { x, s, y, yaw: Math.atan2(-x, -s) * 180 / Math.PI, pitch: Math.atan2(y, Math.hypot(x, s)), fov: 40 };
+        const image = landmarkPreview.render(solids({ objects: [o] }, { preview: true }), camera, 320, 200), canvas = $('#landmark-preview'), ctx = canvas.getContext('2d');
+        const backdrop = ctx.createLinearGradient(0, 0, 0, 200);
+        backdrop.addColorStop(0, '#1b3031');
+        backdrop.addColorStop(1, '#536762');
+        ctx.fillStyle = backdrop;
+        ctx.fillRect(0, 0, 320, 200);
+        const surface = document.createElement('canvas');
+        surface.width = 320;
+        surface.height = 200;
+        surface.getContext('2d').putImageData(new ImageData(image.data, 320, 200), 0, 0);
+        ctx.drawImage(surface, 0, 0);
+        $('#landmark-message').textContent = '';
+        $('#apply-landmark').disabled = false;
+    }
+    catch (e) {
+        $('#landmark-message').textContent = e.message;
+        $('#apply-landmark').disabled = true;
+    }
+}
+function openLandmarkDialog(id = null) {
+    landmarkEditingId = id;
+    const source = id ? project.objects.find(o => o.id === id) : landmarkConfig;
+    const o = { ...landmarkConfig, ...source, shape: source?.shape || 'sphere', pattern: source?.pattern || 'solid' };
+    for (const [field, key] of [['shape', 'shape'], ['pattern', 'pattern'], ['color', 'color'], ['ink', 'pattern_color'], ['pattern-size', 'pattern_size_cm'], ['tilt', 'pattern_tilt_deg'], ['size', 'w'], ['height', 'h'], ['depth', 'd']])
+        $('#landmark-' + field).value = o[key] ?? (key === 'pattern_tilt_deg' ? 0 : landmarkConfig[key]);
+    $('#landmark-elevation').value = landmarkElevation({ ...o, kind: o.kind || 'landmark' });
+    $('#apply-landmark').textContent = id ? 'Apply changes' : 'Place landmark';
+    updateLandmarkPreview();
+    $('#landmark-dialog').showModal();
+}
+$('#landmark-form').addEventListener('input', updateLandmarkPreview);
+$('#landmark-form').addEventListener('submit', e => {
+    e.preventDefault();
+    if (!e.target.reportValidity())
+        return;
+    const options = landmarkOptions();
+    if (landmarkEditingId) {
+        if (!change(() => { const o = project.objects.find(o => o.id === landmarkEditingId); Object.assign(o, options, { kind: 'landmark' }); }))
+            return;
+    }
+    else {
+        landmarkConfig = { ...options };
+        setTool('landmark');
+    }
+    $('#landmark-dialog').close();
+    if (!landmarkEditingId)
+        toast('Click the floor plan to place the landmark.');
+});
+$('#cancel-landmark').onclick = () => $('#landmark-dialog').close();
+let panelWallId = null;
+function panelOptions() { return { width_cm: $('#panel-width').valueAsNumber, gap_cm: $('#panel-gap').valueAsNumber, color: $('#panel-color').value, sides: $('#panel-sides').value }; }
+function updatePanelSummary() {
+    const wall = project.objects.find(o => o.id === panelWallId);
+    try {
+        const panels = wallPanels(wall, panelOptions(), 1000 - project.objects.length);
+        $('#panels-summary').textContent = `${Math.max(wall.w, wall.d)} cm wall · ${panels.length} panels. The last panel is trimmed if needed.`;
+        $('#create-panels').disabled = false;
+    }
+    catch (e) {
+        $('#panels-summary').textContent = e.message;
+        $('#create-panels').disabled = true;
+    }
+}
+function openPanelDialog(id) { panelWallId = id; updatePanelSummary(); $('#panels-dialog').showModal(); }
+$('#panels-form').addEventListener('input', updatePanelSummary);
+$('#panels-form').addEventListener('submit', e => {
+    e.preventDefault();
+    if (!e.target.reportValidity())
+        return;
+    try {
+        const wall = project.objects.find(o => o.id === panelWallId), panels = wallPanels(wall, panelOptions(), 1000 - project.objects.length);
+        if (change(() => { project.objects.push(...panels); selectedIds = new Set(panels.map(o => o.id)); selected = panels.at(-1)?.id || null; setTool('select'); })) {
+            $('#panels-dialog').close();
+            toast(`${panels.length} panels added. The new panels are selected for editing.`);
+        }
+    }
+    catch (error) {
+        toast(error.message);
+    }
+});
+$('#cancel-panels').onclick = () => $('#panels-dialog').close();
+function duplicate() {
+    const sources = selectedObjects();
+    if (!sources.length)
+        return;
+    change(() => { const copies = sources.map(o => ({ ...clone(o), id: uid(), x: o.x + grid, s: o.s + grid, name: o.name.slice(0, 115) + ' copy' })); project.objects.push(...copies); selectedIds = new Set(copies.map(o => o.id)); selected = copies.at(-1).id; });
+}
+function copySelected() {
+    const sources = selectedObjects();
+    if (!sources.length)
+        return;
+    copiedObjects = clone(sources);
+    toast(`${sources.length === 1 ? 'Object' : sources.length + ' objects'} copied. Point at the plan and press ⌘V / Ctrl+V to paste.`);
+}
+function pasteAtPointer() {
+    if (!copiedObjects)
+        return;
+    const rect = plan.getBoundingClientRect();
+    if (!pointerClient || pointerClient.clientX < rect.left || pointerClient.clientX >= rect.right || pointerClient.clientY < rect.top || pointerClient.clientY >= rect.bottom) {
+        toast('Move the pointer over the floor plan to paste.');
+        return;
+    }
+    const position = eventPoint(pointerClient), xs = copiedObjects.map(o => o.x), ss = copiedObjects.map(o => o.s);
+    const dx = snap(position.x) - (Math.min(...xs) + Math.max(...xs)) / 2, ds = snap(position.s) - (Math.min(...ss) + Math.max(...ss)) / 2;
+    change(() => { const copies = copiedObjects.map(o => ({ ...clone(o), id: uid(), x: o.x + dx, s: o.s + ds, name: o.name.slice(0, 115) + ' copy' })); project.objects.push(...copies); selectedIds = new Set(copies.map(o => o.id)); selected = copies.at(-1).id; setTool('select'); });
+}
+function distributeSelection() {
+    try {
+        const { positions, gapCm } = distributeEvenly(selectedObjects());
+        if (change(() => { for (const position of positions)
+            Object.assign(project.objects.find(o => o.id === position.id), position); }))
+            toast(`Objects distributed with ${Number(gapCm.toFixed(2))} cm gaps.`);
+    }
+    catch (e) {
+        toast(e.message);
+    }
+}
+$('#distribute').onclick = distributeSelection;
+function trackPointer(e) { pointerClient = { clientX: e.clientX, clientY: e.clientY }; }
+document.addEventListener('pointermove', trackPointer);
+document.addEventListener('pointerdown', trackPointer);
+function remove() { if (selectedIds.size)
+    change(() => { project.objects = project.objects.filter(o => !selectedIds.has(o.id)); selectOnly(null); }); }
+plan.addEventListener('pointerdown', e => {
+    if (e.button !== 0 && e.button !== 1 && !(e.ctrlKey && e.button === 2))
+        return;
+    e.preventDefault();
+    plan.focus({ preventScroll: true });
+    plan.setPointerCapture(e.pointerId);
+    const p = eventPoint(e);
+    hover = p;
+    if (e.ctrlKey || e.button === 1) {
+        drag = { pan: true, clientX: e.clientX, clientY: e.clientY, view: { ...view } };
+        plan.style.cursor = 'grabbing';
+        return;
+    }
+    if (tool === 'ruler') {
+        const point = rulerEndpoint(e);
+        if (!ruler || ruler.complete) {
+            ruler = { from: point, to: point, complete: false };
+            drag = { ruler: true, startClient: { x: e.clientX, y: e.clientY } };
+        }
+        else {
+            ruler.to = point;
+            ruler.complete = true;
+            drag = null;
+        }
+        rulerHint();
+        drawPlan();
+        return;
+    }
+    const handle = !e.shiftKey ? resizeHandleHit(e) : null;
+    if (handle) {
+        drag = { resizeOriginal: clone(handle.object), corner: handle.index, before: clone(project) };
+        plan.style.cursor = resizeCursor(handle.object, handle.index);
+        return;
+    }
+    if ((tool === 'select' || tool === 'camera') && !e.shiftKey && cameraHit(e)) {
+        drag = { start: p, cameraOriginal: clone(project.camera), before: clone(project) };
+        selectOnly(null);
+        cameraSelected = true;
+        plan.style.cursor = 'move';
+        refresh();
+        return;
+    }
+    if (tool === 'select') {
+        const hits = [...project.objects].reverse().filter(o => hit(o, p.x, p.s)), o = hits.find(o => o.kind !== 'floor') || hits[0];
+        if (e.shiftKey && o && o.kind !== 'floor') {
+            toggleSelection(o.id);
+            drag = null;
+            refresh();
+            return;
+        }
+        if (o && !(o.kind === 'floor' && !selectedIds.has(o.id)) && !e.shiftKey) {
+            if (!selectedIds.has(o.id))
+                selectOnly(o.id);
+            else
+                selected = o.id;
+            drag = { start: p, originals: clone(selectedObjects()), before: clone(project) };
+            plan.style.cursor = 'move';
+        }
+        else {
+            drag = { marquee: true, start: p, end: p, startClient: { x: e.clientX, y: e.clientY }, selectionBefore: [...selectedIds], clickedId: o?.id || null, additive: e.shiftKey };
+            if (!e.shiftKey)
+                selectOnly(null);
+            plan.style.cursor = 'crosshair';
+        }
+        refresh();
+    }
+    else if (tool === 'camera') {
+        change(() => { project.camera.x = snap(p.x); project.camera.s = snap(p.s); });
+    }
+    else if (tool === 'landmark' || tool === 'arch') {
+        change(() => { const o = tool === 'landmark' ? object('landmark', { ...landmarkConfig, x: snap(p.x), s: snap(p.s) }) : object('arch', { x: snap(p.x), s: snap(p.s), w: 40, h: 40, color: '#b5bfba' }); project.objects.push(o); selectOnly(o.id); });
+    }
+    else
+        drag = { start: { x: snap(p.x), s: snap(p.s) } };
+});
+plan.addEventListener('pointermove', e => {
+    hover = eventPoint(e);
+    $('#coordinates').textContent = `X ${Math.round(hover.x)} · Forward ${Math.round(hover.s)} cm`;
+    if (!drag) {
+        const handle = resizeHandleHit(e);
+        plan.style.cursor = e.ctrlKey ? 'grab' : handle ? resizeCursor(handle.object, handle.index) : tool === 'select' ? (cameraHit(e) || project.objects.some(o => hit(o, hover.x, hover.s) && (o.kind !== 'floor' || selectedIds.has(o.id))) ? 'move' : 'crosshair') : 'crosshair';
+    }
+    if (tool === 'ruler' && ruler && !ruler.complete && !drag?.pan) {
+        ruler.to = rulerEndpoint(e);
+        rulerHint();
+        drawPlan();
+        return;
+    }
+    if (drag?.marquee) {
+        drag.end = hover;
+        selectedIds = new Set([...(drag.additive ? drag.selectionBefore : []), ...objectsInsideRect(project.objects, drag.start, drag.end)]);
+        selected = [...selectedIds].at(-1) || null;
+        drawPlan();
+        return;
+    }
+    if (drag?.pan) {
+        view.x = drag.view.x - (e.clientX - drag.clientX) / view.scale;
+        view.s = drag.view.s + (e.clientY - drag.clientY) / view.scale;
+    }
+    else if (drag?.resizeOriginal) {
+        const patch = resizeFromCorner(drag.resizeOriginal, drag.corner, hover, e.altKey ? 0.1 : grid);
+        if (Math.abs(patch.x) <= 10000 && Math.abs(patch.s) <= 10000) {
+            const o = project.objects.find(o => o.id === drag.resizeOriginal.id), elevation = isLandmark(o) ? landmarkElevation(drag.resizeOriginal) : null;
+            Object.assign(o, patch);
+            if (elevation !== null)
+                Object.assign(o, landmarkAtElevation(o, elevation));
+        }
+    }
+    else if (drag?.cameraOriginal) {
+        project.camera.x = Math.max(-10000, Math.min(10000, snap(drag.cameraOriginal.x + hover.x - drag.start.x)));
+        project.camera.s = Math.max(-10000, Math.min(10000, snap(drag.cameraOriginal.s + hover.s - drag.start.s)));
+    }
+    else if (drag?.originals) {
+        const xs = drag.originals.map(o => o.x), ss = drag.originals.map(o => o.s);
+        const dx = Math.max(-10000 - Math.min(...xs), Math.min(10000 - Math.max(...xs), snap(hover.x - drag.start.x)));
+        const ds = Math.max(-10000 - Math.min(...ss), Math.min(10000 - Math.max(...ss), snap(hover.s - drag.start.s)));
+        for (const original of drag.originals) {
+            const o = project.objects.find(o => o.id === original.id);
+            o.x = original.x + dx;
+            o.s = original.s + ds;
+        }
+    }
+    draw();
+});
+function finishDrag(e, cancel = false) {
+    if (!drag)
+        return;
+    const current = drag;
+    drag = null;
+    if (current.ruler) {
+        if (cancel)
+            ruler = null;
+        else if (Math.hypot(e.clientX - current.startClient.x, e.clientY - current.startClient.y) > 4) {
+            ruler.to = rulerEndpoint(e);
+            ruler.complete = true;
+        }
+        rulerHint();
+        drawPlan();
+        return;
+    }
+    if (current.pan) {
+        plan.style.cursor = tool === 'select' ? 'default' : 'crosshair';
+        draw();
+        return;
+    }
+    if (current.marquee) {
+        selectedIds = new Set(current.selectionBefore);
+        reconcileSelection();
+        if (!cancel) {
+            const moved = Math.hypot(e.clientX - current.startClient.x, e.clientY - current.startClient.y) > 4;
+            if (moved) {
+                selectedIds = new Set([...(current.additive ? current.selectionBefore : []), ...objectsInsideRect(project.objects, current.start, eventPoint(e))]);
+                selected = [...selectedIds].at(-1) || null;
+            }
+            else if (current.clickedId) {
+                if (current.additive)
+                    toggleSelection(current.clickedId);
+                else
+                    selectOnly(current.clickedId);
+            }
+            else if (!current.additive)
+                selectOnly(null);
+        }
+        plan.style.cursor = 'default';
+        refresh();
+        return;
+    }
+    if (current.originals || current.cameraOriginal || current.resizeOriginal) {
+        if (cancel)
+            project = current.before;
+        else if (JSON.stringify(current.before) !== JSON.stringify(project)) {
+            history.push(current.before);
+            if (history.length > 60)
+                history.shift();
+            future = [];
+            persist();
+        }
+        refresh();
+        return;
+    }
+    if (cancel) {
+        draw();
+        return;
+    }
+    const p = eventPoint(e), dx = snap(p.x) - current.start.x, ds = snap(p.s) - current.start.s;
+    if (Math.hypot(dx, ds) < 1) {
+        draw();
+        toast('Drag to define the size.');
+        return;
+    }
+    change(() => { const o = object(tool, { x: current.start.x + dx / 2, s: current.start.s + ds / 2, ...(tool === 'wall' ? { w: Math.hypot(dx, ds), d: 4, h: 30, angle: Math.atan2(ds, dx) * 180 / Math.PI } : { w: Math.max(grid, Math.abs(dx)), d: Math.max(grid, Math.abs(ds)), color: '#aab2ae' }) }); project.objects.push(o); selectOnly(o.id); });
+}
+// macOS maps Ctrl + click to a context menu; reserve it here for panning.
+plan.addEventListener('contextmenu', e => { if (e.ctrlKey || drag?.pan)
+    e.preventDefault(); });
+plan.addEventListener('pointerup', e => finishDrag(e));
+plan.addEventListener('pointercancel', e => finishDrag(e, true));
+plan.addEventListener('lostpointercapture', e => finishDrag(e, true));
+plan.addEventListener('wheel', e => { e.preventDefault(); const before = eventPoint(e); view.scale = Math.max(.03, Math.min(12, view.scale * Math.exp(-e.deltaY * .0015))); const after = eventPoint(e); view.x += before.x - after.x; view.s += before.s - after.s; draw(); }, { passive: false });
+function toggleTools(open) { $('#tools-card').hidden = !open; $('#tools-toggle').setAttribute('aria-expanded', String(open)); }
+$('#tools-toggle').onclick = () => toggleTools($('#tools-card').hidden);
+for (const button of document.querySelectorAll('[data-tool]'))
+    button.onclick = () => { toggleTools(false); if (button.dataset.tool === 'landmark')
+        openLandmarkDialog();
+    else {
+        setTool(button.dataset.tool);
+        plan.focus({ preventScroll: true });
+    } };
+document.addEventListener('pointerdown', e => { if (!e.target.closest('.tools-disclosure'))
+    toggleTools(false); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#tools-card').hidden) {
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    toggleTools(false);
+    $('#tools-toggle').focus();
+} }, true);
+$('#close-inspector').onclick = () => { selectOnly(null); setTool('select'); refresh(); };
+installShortcutHelp($('#shortcut-overlay'));
+$('#fit').onclick = fit;
+$('#zoom-in').onclick = () => { view.scale = Math.min(12, view.scale * 1.25); draw(); };
+$('#zoom-out').onclick = () => { view.scale = Math.max(.03, view.scale / 1.25); draw(); };
+$('#grid').onchange = e => { grid = +e.target.value; draw(); };
+$('#filter').oninput = refresh;
+$('#undo').onclick = () => undo();
+$('#redo').onclick = () => undo(true);
+function setMode(value) { orbitDrag = null; mode = value; preview.style.cursor = mode === 'orbit' ? 'grab' : 'default'; preview.setAttribute('aria-label', mode === 'orbit' ? '3D overview: drag to rotate, scroll to zoom.' : '3D camera view: W/S or up/down to move, A/D or left/right to turn.'); $('#orbit').classList.toggle('active', mode === 'orbit'); $('#eye').classList.toggle('active', mode === 'eye'); draw(); }
+preview.addEventListener('pointerdown', e => {
+    if (mode === 'eye') {
+        preview.focus({ preventScroll: true });
+        return;
+    }
+    if (mode !== 'orbit' || e.button !== 0 || orbitDrag)
+        return;
+    e.preventDefault();
+    preview.focus({ preventScroll: true });
+    preview.setPointerCapture(e.pointerId);
+    orbitDrag = { pointerId: e.pointerId, x: e.clientX, y: e.clientY, azimuth: orbit.azimuth, elevation: orbit.elevation };
+    preview.style.cursor = 'grabbing';
+});
+preview.addEventListener('pointermove', e => {
+    if (!orbitDrag || e.pointerId !== orbitDrag.pointerId)
+        return;
+    orbit.azimuth = (orbitDrag.azimuth - (e.clientX - orbitDrag.x) * .008) % (Math.PI * 2);
+    // Keep away from the poles; allow looking at the scene from above or below.
+    const pole = Math.PI / 2 - .01;
+    orbit.elevation = Math.max(-pole, Math.min(pole, orbitDrag.elevation + (e.clientY - orbitDrag.y) * .008));
+    drawPreview();
+});
+function finishOrbit(e) { if (!orbitDrag || e.pointerId !== orbitDrag.pointerId)
+    return; orbitDrag = null; preview.style.cursor = mode === 'orbit' ? 'grab' : 'default'; }
+preview.addEventListener('pointerup', finishOrbit);
+preview.addEventListener('pointercancel', finishOrbit);
+preview.addEventListener('lostpointercapture', finishOrbit);
+preview.addEventListener('wheel', e => {
+    if (mode !== 'orbit')
+        return;
+    e.preventDefault();
+    const unit = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? preview.clientHeight : 1;
+    const delta = Math.max(-500, Math.min(500, e.deltaY * unit));
+    orbit.distance = Math.max(.04, Math.min(8, orbit.distance * Math.exp(delta * .0015)));
+    drawPreview();
+}, { passive: false });
+$('#orbit').onclick = () => setMode('orbit');
+$('#eye').onclick = () => { setMode('eye'); preview.focus({ preventScroll: true }); };
+$('#reset-view').onclick = () => { resetNavigation(); draw(); };
+$('#walk').oninput = e => { const distance = +e.target.value, yaw = project.camera.yaw * Math.PI / 180; movePreviewTo({ x: project.camera.x + Math.sin(yaw) * distance, s: project.camera.s + Math.cos(yaw) * distance }); syncWalkControl(); setMode('eye'); };
+$('#background-color').onchange = e => { const color = e.target.value; change(() => { project.background_color = color; }); };
+$('#new').onclick = () => { if (!confirm('Create a project from this template? You can undo this change. Save a copy first to keep the current project.'))
+    return; change(() => { project = template($('#template').value); selectOnly(null); resetNavigation(); }); fit(); };
+function exportNavigationOptions() { return { mode: $('#export-mode').value, device: $('#wheel-device').value.trim(), axis: $('#wheel-axis').value.trim(), loop: $('#wheel-loop').checked, track_length_cm: $('#wheel-length').valueAsNumber, fade_frames: 0 }; }
+function updateExportOptions() {
+    syncRigLoad();
+    const wheel = $('#export-mode').value === 'wheel', loop = $('#wheel-loop').checked;
+    $('#wheel-export-options').hidden = !wheel;
+    for (const id of ['wheel-device', 'wheel-axis', 'wheel-loop'])
+        $('#' + id).disabled = !wheel;
+    $('#wheel-length').disabled = !wheel || !loop;
+    $('#wheel-fade').disabled = !wheel || !loop;
+    try {
+        validateNavigation(exportNavigationOptions());
+        validateMovementStart(cameraMovement(project));
+        $('#export-message').textContent = wheel ? 'The rig wheel drives the camera along its initial heading. Browser exploration stays temporary.' : 'Export geometry and the initial camera without navigation.';
+        $('#download-scene').disabled = false;
+    }
+    catch (e) {
+        $('#export-message').textContent = e.message;
+        $('#download-scene').disabled = true;
+    }
+}
+function openExportDialog() {
+    const settings = project.navigation || { mode: 'wheel', device: 'wheel', axis: 'wheel', loop: true, track_length_cm: suggestTrackLength(project.objects, project.camera), fade_frames: 15 };
+    $('#export-mode').value = settings.mode;
+    $('#wheel-device').value = settings.device || 'wheel';
+    $('#wheel-axis').value = settings.axis || 'wheel';
+    $('#wheel-loop').checked = settings.loop !== false;
+    $('#wheel-length').value = Number.isFinite(settings.track_length_cm) ? settings.track_length_cm : suggestTrackLength(project.objects, project.camera);
+    $('#wheel-fade').value = settings.fade_frames ?? 15;
+    if (!$('#rig-scene').value)
+        $('#rig-scene').value = filename().slice(0, 64);
+    updateExportOptions();
+    $('#export-dialog').showModal();
+}
+function currentNavigation() { const input = exportNavigationOptions(); return input.mode === 'static' ? { mode: 'static' } : input; }
+function currentRigName() { return $('#rig-project').value.trim() + '/' + $('#rig-scene').value.trim(); }
+function rigSignature() { return JSON.stringify({ ...project, navigation: currentNavigation() }); }
+function syncRigLoad() {
+    $('#rig-load').disabled = rigBusy || !lastRigSave || lastRigSave.name !== currentRigName() || lastRigSave.signature !== rigSignature();
+}
+function prepareWorkshopScene() {
+    const settings = currentNavigation();
+    validateNavigation(settings);
+    const scene = exportScene({ ...project, navigation: settings });
+    if (JSON.stringify(project.navigation) !== JSON.stringify(settings) && !change(() => { project.navigation = settings; }))
+        throw new Error('Could not save navigation settings.');
+    return scene;
+}
+function rigStatus(message, error = false) { $('#rig-status').textContent = message; $('#rig-status').dataset.error = String(error); }
+async function runRig(action) {
+    if (rigBusy || !workshopRig)
+        return;
+    rigBusy = true;
+    for (const id of ['rig-save', 'rig-connect'])
+        $('#' + id).disabled = true;
+    syncRigLoad();
+    try {
+        await action();
+    }
+    catch (e) {
+        rigStatus(e.message || String(e), true);
+    }
+    finally {
+        rigBusy = false;
+        for (const id of ['rig-save', 'rig-connect'])
+            $('#' + id).disabled = false;
+        syncRigLoad();
+    }
+}
+export function installWorkshopRig(api) {
+    workshopRig = api;
+    $('#rig-actions').hidden = false;
+    $('#control-panel').hidden = false;
+    $('#rig-project').addEventListener('input', syncRigLoad);
+    $('#rig-scene').addEventListener('input', syncRigLoad);
+    $('#rig-connect').onclick = () => runRig(async () => rigStatus(await api.connect()));
+    $('#rig-save').onclick = () => runRig(async () => {
+        if (!$('#export-form').reportValidity())
+            return;
+        const json = JSON.stringify(prepareWorkshopScene()), name = currentRigName(), signature = rigSignature();
+        // A failed or timed-out write leaves its server-side outcome uncertain.
+        // Require a successful save before enabling a subsequent display load.
+        lastRigSave = null;
+        syncRigLoad();
+        rigStatus('Saving ' + name + '…');
+        await api.save(name, json, $('#rig-overwrite').checked);
+        lastRigSave = { name, json, signature };
+        rigStatus('Saved ' + name + '. Ready to load on the display.');
+    });
+    $('#rig-load').onclick = () => runRig(async () => {
+        if (!lastRigSave || lastRigSave.name !== currentRigName() || lastRigSave.signature !== rigSignature())
+            throw new Error('The design or navigation has changed. Save it before loading.');
+        rigStatus('Checking inputs and loading ' + lastRigSave.name + '…');
+        await api.load(lastRigSave.name, lastRigSave.json);
+        rigStatus('Loaded ' + lastRigSave.name + ' on the display.');
+    });
+    void runRig(async () => rigStatus(await api.connect()));
+}
+$('#export-form').addEventListener('input', updateExportOptions);
+$('#export-form').addEventListener('submit', e => {
+    e.preventDefault();
+    if (!e.target.reportValidity())
+        return;
+    const input = exportNavigationOptions(), settings = input.mode === 'static' ? { mode: 'static' } : input;
+    try {
+        validateNavigation(settings);
+        const scene = prepareWorkshopScene();
+        download(scene, filename() + (settings.mode === 'wheel' ? '_wheel' : '') + '.config.json');
+        $('#export-dialog').close();
+        const approximate = project.objects.some(o => o.kind === 'landmark' && o.pattern !== 'solid');
+        toast((settings.mode === 'wheel' ? 'Wheel scene exported. Save project to keep its navigation settings.' : 'Static scene exported.') + (approximate ? ' Landmark patterns use a coarse approximation in vstimd.' : ''));
+    }
+    catch (error) {
+        toast(error.message);
+    }
+});
+$('#cancel-export').onclick = () => $('#export-dialog').close();
+function filename() { return project.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9_-]+/g, '_').replace(/^[-_]+/, '').slice(0, 50) || 'maze'; }
+function download(data, name) { const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2) + '\n'], { type: 'application/json' })), link = document.createElement('a'); link.href = url; link.download = name; link.click(); setTimeout(() => URL.revokeObjectURL(url), 10000); }
+$('#save').onclick = () => { download(project, filename() + '.maze.json'); toast('Project downloaded. You can open it again in the editor.'); };
+$('#export').onclick = openExportDialog;
+$('#load').onclick = () => $('#file').click();
+$('#file').onchange = async (e) => { const file = e.target.files[0]; if (!file)
+    return; try {
+    if (file.size > 2000000)
+        throw new Error('Project exceeds the 2 MB limit.');
+    const incoming = validate(JSON.parse(await file.text()));
+    change(() => { project = incoming; selectOnly(null); resetNavigation(); });
+    fit();
+    toast('Project opened.');
+}
+catch (err) {
+    toast('Could not open: ' + err.message);
+}
+finally {
+    e.target.value = '';
+} };
+function handleCameraKey(e) {
+    if (e.target !== preview || mode !== 'eye' || e.metaKey || e.ctrlKey || e.altKey)
+        return false;
+    const key = e.key.toLowerCase();
+    if (!['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'].includes(key))
+        return false;
+    e.preventDefault();
+    if (previewReturn.active)
+        return true;
+    if (key === 'a' || key === 'arrowleft')
+        turn -= 5;
+    if (key === 'd' || key === 'arrowright')
+        turn += 5;
+    const forward = ['w', 'arrowup'].includes(key) ? 5 : ['s', 'arrowdown'].includes(key) ? -5 : 0;
+    const heading = (project.camera.yaw + turn) * Math.PI / 180;
+    const from = previewPosition(), to = { x: Math.max(-10000, Math.min(10000, from.x + Math.sin(heading) * forward)), s: Math.max(-10000, Math.min(10000, from.s + Math.cos(heading) * forward)) };
+    movePreviewTo(to);
+    syncWalkControl();
+    draw();
+    return true;
+}
+document.addEventListener('keydown', e => { if (['INPUT', 'SELECT', 'TEXTAREA'].includes(e.target.tagName) || e.target.isContentEditable || $('#panels-dialog').open || $('#landmark-dialog').open || $('#export-dialog').open)
+    return; if (e.key === 'Escape' && drag) {
+    e.preventDefault();
+    finishDrag(e, true);
+    return;
+} if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+    const key = e.key.toLowerCase();
+    if (key === 'c' && selectedIds.size) {
+        e.preventDefault();
+        if (!e.repeat)
+            copySelected();
+        return;
+    }
+    if (key === 'v' && copiedObjects) {
+        e.preventDefault();
+        if (!e.repeat)
+            pasteAtPointer();
+        return;
+    }
+} if (e.code === 'Space' && e.target === plan)
+    e.preventDefault(); if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') {
+    e.preventDefault();
+    undo(e.shiftKey);
+    return;
+} if (handleCameraKey(e))
+    return; if (e.key === 'Delete' || e.key === 'Backspace') {
+    e.preventDefault();
+    remove();
+} if (e.key === 'Escape') {
+    selectOnly(null);
+    setTool('select');
+    refresh();
+} if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'd') {
+    e.preventDefault();
+    duplicate();
+    return;
+} if (!e.metaKey && !e.ctrlKey) {
+    const tools = { v: 'select', w: 'wall', f: 'floor', l: 'landmark', a: 'arch', c: 'camera', r: 'ruler' };
+    if (e.key.toLowerCase() === 'l')
+        openLandmarkDialog();
+    else if (tools[e.key.toLowerCase()])
+        setTool(tools[e.key.toLowerCase()]);
+} });
+preview.style.cursor = 'grab';
+installPreviewResizer({ handle: $('#preview-resizer'), preview, plan: $('.plan-wrap'), workspace: $('.workspace'), onResize: draw });
+persist();
+refresh();
+fit();
+setTool('select');
+
+</script></body></html>

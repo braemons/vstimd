@@ -67,6 +67,8 @@ export interface InputAxisView {
   /** The last frame's scaled value, and its change (cumulative axes only). */
   value: number;
   delta: number;
+  /** Rig raw units to axis units; supplied by vstimd. */
+  scale?: number;
 }
 
 export interface InputDeviceView {
@@ -105,6 +107,7 @@ export function toInputDeviceView(d: InputDeviceInfo): InputDeviceView {
     axes: d.axes.map((a) => ({
       name: a.name,
       semantic: semantics[a.semantic as keyof typeof semantics] ?? "unknown",
+      scale: a.scale,
       value: a.value,
       delta: a.delta,
     })),

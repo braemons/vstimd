@@ -5,13 +5,13 @@
 //! see that `animations` and `stimuli` are disjoint fields being borrowed
 //! independently. `SceneState::advance_animations` drives them once per frame.
 
+use super::AnimationTarget;
+use super::animation_input::{self, AxisMap, TransformChannel, Update};
 use super::{AnimState, Animation, CancelAction, FinalAction, StartAction};
 use crate::scene::SceneState;
 use crate::scene::units::Pos2Px;
-use super::animation_input::{self, AxisMap, TransformChannel, Update};
-use super::AnimationTarget;
 use crate::scene::{Camera3D, Stimulus};
-use crate::vtl_state::{VtlEdge, VtlBit, VtlEdges, VtlOutputs};
+use crate::vtl_state::{VtlBit, VtlEdge, VtlEdges, VtlOutputs};
 use vtl::VtlKind;
 
 /// Pick the edge set (input vs. output) that a trigger's kind addresses.
@@ -343,14 +343,25 @@ pub(crate) fn advance_one(
                 let dt_s = scene.frame_dt_s();
                 let camera = matches!(entry.config.target, AnimationTarget::Camera);
                 for map in axes {
+                    if camera && scene.camera_blackout() {
+                        break;
+                    }
                     let Some(update) =
                         animation_input::axis_update(&scene.runtime.input, device, map, dt_s)
                     else {
                         continue;
                     };
                     if camera {
+                        let from = scene.config.camera.live.position_cm.0;
                         apply_to_camera(&mut scene.config.camera.live, map, update);
                         apply_to_camera(&mut scene.config.camera.copy, map, update);
+                        if let Some(movement) = &scene.config.camera_movement {
+                            let to = scene.config.camera.live.position_cm.0;
+                            let accepted =
+                                movement.constrain(from.as_dvec3(), to.as_dvec3()).as_vec3();
+                            scene.config.camera.live.position_cm.0 = accepted;
+                            scene.config.camera.copy.position_cm.0 = accepted;
+                        }
                     } else {
                         for &sh in &stim_handles {
                             if let Some(e) = scene.config.stimuli.get_mut(&sh) {
@@ -362,12 +373,27 @@ pub(crate) fn advance_one(
                 false
             }
 
-            Animation::LinearNav3D { speed_cm_per_s, wrap_period_cm, source, track } => {
+            Animation::LinearNav3D {
+                speed_cm_per_s,
+                wrap_period_cm,
+                source,
+                track,
+            } => {
+                if scene.camera_blackout()
+                    && !matches!(
+                        entry.track_progress.phase,
+                        super::TrackPhase::BlackoutUntil(_)
+                    )
+                {
+                    return;
+                }
                 let step_cm = match source {
                     // Nominal rate, like MoveAlongSegments2D: a scripted run covers
                     // the same distance in the same number of frames every time (#120).
-                    None => f64::from(*speed_cm_per_s)
-                        / f64::from(scene.runtime.nominal_frame_rate_hz.max(1.0)),
+                    None => {
+                        f64::from(*speed_cm_per_s)
+                            / f64::from(scene.runtime.nominal_frame_rate_hz.max(1.0))
+                    }
                     // A device's speed is real: integrate over real frame time.
                     Some(src) => {
                         animation_input::nav_step_cm(&scene.runtime.input, src, scene.frame_dt_s())
@@ -378,7 +404,12 @@ pub(crate) fn advance_one(
                 let nav = entry.nav_position_cm;
                 let mut progress = entry.track_progress;
                 let (nav, moved_cm) = match track {
-                    None => (advance_camera_along_forward(scene, nav, step_cm, wrap), step_cm),
+                    None => {
+                        let before = scene.config.camera.live.position_cm.0;
+                        let nav = advance_camera_along_forward(scene, nav, step_cm, wrap);
+                        let moved = accepted_step(scene, before, nav.written, step_cm);
+                        (nav, moved)
+                    }
                     Some(track) => advance_on_track(scene, nav, step_cm, track, &mut progress),
                 };
                 if let Some(entry) = scene.config.animations.get_mut(&handle) {
@@ -435,23 +466,39 @@ fn advance_camera_along_forward(
     step_cm: f64,
     wrap_period_cm: Option<f32>,
 ) -> super::NavPosition {
-    let camera = &mut scene.config.camera;
-    let current = camera.live.position_cm.0;
+    let current = scene.config.camera.live.position_cm.0;
     let (x, z) = match nav {
         Some(n) if n.written == current => (n.x, n.z),
         _ => (f64::from(current.x), f64::from(current.z)),
     };
-    let yaw = f64::from(camera.live.yaw_deg).to_radians();
+    let from = glam::DVec3::new(x, f64::from(current.y), z);
+    let yaw = f64::from(scene.config.camera.live.yaw_deg).to_radians();
     // Forward is -Z at yaw 0; positive yaw turns left, towards -X.
     let x = x - yaw.sin() * step_cm;
     let mut z = z - yaw.cos() * step_cm;
     if let Some(period) = wrap_period_cm.filter(|p| *p > 0.0) {
         z = z.rem_euclid(f64::from(period));
     }
-    let written = glam::Vec3::new(x as f32, current.y, z as f32);
+    let target = glam::DVec3::new(x, f64::from(current.y), z);
+    let target = match &scene.config.camera_movement {
+        Some(movement) => movement.constrain(from, target),
+        None => target,
+    };
+    let (x, z) = (target.x, target.z);
+    let written = target.as_vec3();
+    let camera = &mut scene.config.camera;
     camera.live.position_cm = crate::scene::units::Pos3Cm(written);
     camera.copy.position_cm = crate::scene::units::Pos3Cm(written);
     super::NavPosition { x, z, written }
+}
+
+/// Preserve legacy unwrapped distance; constrained scenes count accepted motion.
+fn accepted_step(scene: &SceneState, before: glam::Vec3, after: glam::Vec3, requested: f64) -> f64 {
+    if scene.config.camera_movement.is_some() {
+        (after.as_dvec3() - before.as_dvec3()).length() * requested.signum()
+    } else {
+        requested
+    }
 }
 
 /// One frame of a finite track: move, fade out at the end, jump back to the
@@ -469,6 +516,13 @@ fn advance_on_track(
 ) -> (super::NavPosition, f64) {
     use super::TrackPhase;
     let start = *progress.start.get_or_insert_with(|| {
+        if let Some(movement) = &scene.config.camera_movement {
+            return super::animation_entry::TrackStart {
+                x: f64::from(movement.start_position_cm[0]),
+                z: f64::from(movement.start_position_cm[2]),
+                yaw_deg: movement.start_yaw_deg,
+            };
+        }
         let c = &scene.config.camera.live;
         super::animation_entry::TrackStart {
             x: f64::from(c.position_cm.0.x),
@@ -477,6 +531,19 @@ fn advance_on_track(
         }
     });
     let fade_frames = track.fade_frames;
+    let blackout_ms = scene
+        .config
+        .camera_movement
+        .as_ref()
+        .map_or(0, |m| m.end_blackout_ms);
+    if let TrackPhase::BlackoutUntil(deadline) = progress.phase {
+        if std::time::Instant::now() < deadline {
+            return (hold_camera(scene, nav), 0.0);
+        }
+        progress.laps += 1;
+        progress.phase = TrackPhase::Moving;
+        return (jump_to_track_start(scene, start), 0.0);
+    }
 
     if let TrackPhase::FadingOut(left) = progress.phase {
         if left > 1 {
@@ -489,7 +556,24 @@ fn advance_on_track(
         return (nav, 0.0);
     }
 
+    let before = scene.config.camera.live.position_cm.0;
+    let step_cm = if blackout_ms > 0 {
+        let start_yaw = f64::from(start.yaw_deg).to_radians();
+        let yaw = f64::from(scene.config.camera.live.yaw_deg).to_radians();
+        let integrated = hold_camera(scene, nav);
+        let along = -(integrated.x - start.x) * start_yaw.sin()
+            - (integrated.z - start.z) * start_yaw.cos();
+        let ahead = step_cm * (yaw - start_yaw).cos();
+        if ahead > 0.0 {
+            step_cm * ((f64::from(track.length_cm) - along).max(0.0) / ahead).min(1.0)
+        } else {
+            step_cm
+        }
+    } else {
+        step_cm
+    };
     let nav = advance_camera_along_forward(scene, nav, step_cm, None);
+    let moved_cm = accepted_step(scene, before, nav.written, step_cm);
     if let TrackPhase::FadingIn(left) = progress.phase {
         progress.phase = match left {
             0 | 1 => TrackPhase::Moving,
@@ -499,14 +583,21 @@ fn advance_on_track(
     let yaw = f64::from(start.yaw_deg).to_radians();
     // Forward is -Z at yaw 0; positive yaw turns left, towards -X.
     let along_cm = -(nav.x - start.x) * yaw.sin() - (nav.z - start.z) * yaw.cos();
-    if along_cm >= f64::from(track.length_cm) && progress.phase == TrackPhase::Moving {
+    if along_cm >= f64::from(track.length_cm) - 1e-6 && progress.phase == TrackPhase::Moving {
+        if blackout_ms > 0 {
+            progress.phase = TrackPhase::BlackoutUntil(
+                std::time::Instant::now()
+                    + std::time::Duration::from_millis(u64::from(blackout_ms)),
+            );
+            return (nav, moved_cm);
+        }
         if fade_frames == 0 {
             progress.laps += 1;
-            return (jump_to_track_start(scene, start), step_cm);
+            return (jump_to_track_start(scene, start), moved_cm);
         }
         progress.phase = TrackPhase::FadingOut(fade_frames);
     }
-    (nav, step_cm)
+    (nav, moved_cm)
 }
 
 /// The integration state for a frame the camera does not move.
@@ -528,8 +619,14 @@ fn jump_to_track_start(
     scene: &mut SceneState,
     start: super::animation_entry::TrackStart,
 ) -> super::NavPosition {
+    let y = scene
+        .config
+        .camera_movement
+        .as_ref()
+        .map_or(scene.config.camera.live.position_cm.0.y, |m| {
+            m.start_position_cm[1]
+        });
     let camera = &mut scene.config.camera;
-    let y = camera.live.position_cm.0.y;
     let written = glam::Vec3::new(start.x as f32, y, start.z as f32);
     for cam in [&mut camera.live, &mut camera.copy] {
         cam.position_cm = crate::scene::units::Pos3Cm(written);
@@ -601,7 +698,9 @@ fn apply_to_stimulus(stim: &mut Stimulus, map: &AxisMap, update: Update) {
     if !animation_input::applies_to_2d(map.channel) {
         return;
     }
-    let Some(t) = stim.transform2d().map(|t| t.live) else { return };
+    let Some(t) = stim.transform2d().map(|t| t.live) else {
+        return;
+    };
     let _ = match map.channel {
         TransformChannel::PosX => stim.move_to_2d(
             false,

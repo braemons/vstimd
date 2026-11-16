@@ -1,0 +1,53 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { ReturnHold } from './return.mjs';
+import { template, object, exportScene } from './model.mjs';
+import { constrainPreview } from './collisions.mjs';
+import { previewTrackLength, previewTrackProgress } from './wheel.mjs';
+test('black hold lasts 2000 ms, repeated input cannot extend it, return happens once', () => {
+    const hold = new ReturnHold();
+    assert.equal(hold.active, false);
+    hold.begin(500);
+    assert.equal(hold.active, true);
+    assert.equal(hold.finish(2499.99), false);
+    hold.begin(2400);
+    assert.equal(hold.deadline, 2500);
+    assert.equal(hold.finish(2500), true);
+    assert.equal(hold.active, false);
+    assert.equal(hold.finish(9999), false);
+});
+test('reset/project change cancels pending return and a later lap gets its own deadline', () => {
+    const hold = new ReturnHold();
+    hold.begin(0);
+    hold.cancel();
+    assert.equal(hold.finish(3000), false);
+    hold.begin(4000);
+    assert.equal(hold.finish(5999), false);
+    assert.equal(hold.finish(6000), true);
+});
+test('preview stops at end plane before blackout; walls before end prevent return', () => {
+    const p = template();
+    assert.equal(previewTrackLength(p), 400);
+    p.navigation = { mode: 'static' };
+    assert.equal(previewTrackLength(p), 400);
+    let point = constrainPreview(p, { x: 0, s: 0 }, { x: 0, s: 999 });
+    assert.equal(point.s, 400);
+    assert.equal(previewTrackProgress(p.camera, point), 400);
+    p.objects.push(object('wall', { s: 200, w: 40, d: 1 }));
+    point = constrainPreview(p, { x: 0, s: 0 }, { x: 0, s: 999 });
+    assert.ok(point.s < 200);
+});
+test('track end follows initial heading and configured length; continuous mode does not return', () => {
+    const p = template('empty');
+    p.camera = { ...p.camera, x: 100, s: 200, yaw: 90 };
+    p.navigation = { mode: 'wheel', device: 'wheel', axis: 'wheel', loop: true, track_length_cm: 50, fade_frames: 0 };
+    assert.equal(previewTrackLength(p), 50);
+    const point = constrainPreview(p, { x: 100, s: 200 }, { x: 1000, s: 200 });
+    assert.equal(point.x, 150);
+    const scene = exportScene(p).scene;
+    assert.equal(scene.camera_movement.end_blackout_ms, 2000);
+    assert.equal(scene.animations[1].animation.LinearNav3D.track.fade_frames, 0);
+    p.navigation.loop = false;
+    assert.equal(previewTrackLength(p), null);
+    assert.equal(constrainPreview(p, { x: 100, s: 200 }, { x: 1000, s: 200 }).x, 1000);
+});

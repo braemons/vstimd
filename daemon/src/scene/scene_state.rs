@@ -537,6 +537,16 @@ impl SceneState {
         })
     }
 
+    /// A navigation return hold: clear the scene black, independent of background.
+    pub fn camera_blackout(&self) -> bool {
+        use super::animation::{AnimState, TrackPhase};
+        self.animations.values().any(|e| {
+            e.cond_enabled
+                && matches!(e.state, AnimState::Running { .. })
+                && matches!(e.track_progress.phase, TrackPhase::BlackoutUntil(_))
+        })
+    }
+
     /// How far the 3-D view is faded to the background colour this frame, `[0, 1]`:
     /// the strongest fade of any running finite-track navigation. 2-D stimuli are
     /// never faded.
@@ -544,7 +554,7 @@ impl SceneState {
         use crate::scene::animation::{AnimState, Animation};
         self.animations
             .values()
-            .filter(|e| matches!(e.state, AnimState::Running { .. }))
+            .filter(|e| e.cond_enabled && matches!(e.state, AnimState::Running { .. }))
             .filter_map(|e| match &e.animation {
                 Animation::LinearNav3D { track: Some(t), .. } => {
                     Some(e.track_progress.fade(t.fade_frames))
@@ -753,6 +763,11 @@ impl SceneState {
     ) -> anyhow::Result<()> {
         let path = self.scene_config_path_for(name)?;
         let (scene_cfg, sections) = load_config(&path)?;
+        anyhow::ensure!(
+            !additive
+                || (self.config.camera_movement.is_none() && scene_cfg.camera_movement.is_none()),
+            "Constrained camera scenes require replace, not additive load"
+        );
         if let Some(v) = vtl {
             v.config.names = sections.vtl.names;
             v.sync_names_to_shm();

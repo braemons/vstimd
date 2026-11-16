@@ -74,7 +74,7 @@ PKG_SRCS      := $(shell find packaging -type f 2>/dev/null)
 
 WEB_DIR  := client/web
 WEB_DIST := $(WEB_DIR)/dist/index.html
-WEB_SRCS := $(shell find $(WEB_DIR)/src -type f 2>/dev/null) \
+WEB_SRCS := $(shell find $(WEB_DIR)/src $(WEB_DIR)/maze-workshop -type f 2>/dev/null) \
             $(WEB_DIR)/index.html $(WEB_DIR)/package.json $(WEB_DIR)/vite.config.ts
 
 .PHONY: build build-server web install uninstall setup-user \

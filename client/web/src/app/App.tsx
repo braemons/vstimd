@@ -15,6 +15,7 @@ export function App() {
     <div style={{ fontFamily: "sans-serif", color: "#ddd", background: "#1a1a1a", minHeight: "100vh", padding: 16 }}>
       <header style={{ display: "flex", alignItems: "baseline", gap: 16, marginBottom: 12 }}>
         <h1 style={{ margin: 0, fontSize: 20 }}>vstimd</h1>
+        <a href="/maze-workshop/" style={{ color: "#9bd5b6", fontSize: 14 }}>Maze Workshop ↗</a>
         <span style={{ color: connected ? "#4c8" : "#c44" }}>
           {connected ? "connected" : "connecting…"}
         </span>

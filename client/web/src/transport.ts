@@ -20,8 +20,10 @@ function openSocket(url: string): Promise<WebSocket> {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(url);
     ws.binaryType = "arraybuffer";
-    ws.onopen = () => resolve(ws);
-    ws.onerror = (e) => reject(new Error(`WebSocket connect failed: ${url} (${String(e)})`));
+    const timer = setTimeout(() => { ws.close(); reject(new Error("Connection timed out. Check that vstimd is running.")); }, 10000);
+    ws.onopen = () => { clearTimeout(timer); resolve(ws); };
+    ws.onerror = () => { clearTimeout(timer); ws.close(); reject(new Error("Cannot connect to vstimd. Check that the service is running.")); };
+    ws.onclose = () => { clearTimeout(timer); reject(new Error("Connection to vstimd closed.")); };
   });
 }
 
@@ -44,25 +46,32 @@ export class CommandTransport {
 
   private sendOne(req: Request): Promise<Response> {
     return new Promise((resolve, reject) => {
+      if (this.ws.readyState !== WebSocket.OPEN) { reject(new Error("Connection to vstimd is closed. Check the connection and try again.")); return; }
       const onMessage = (ev: MessageEvent) => {
         cleanup();
-        try {
-          resolve(fromBinary(ResponseSchema, new Uint8Array(ev.data as ArrayBuffer)));
-        } catch (err) {
-          reject(err);
-        }
+        try { resolve(fromBinary(ResponseSchema, new Uint8Array(ev.data as ArrayBuffer))); }
+        catch (err) { reject(err); }
       };
-      const onError = () => {
+      const onError = () => { cleanup(); this.ws.close(); reject(new Error("Connection to vstimd was interrupted. Check its status before retrying.")); };
+      const onClose = () => { cleanup(); reject(new Error("Connection to vstimd closed. Check its status before retrying.")); };
+      const timer = setTimeout(() => {
         cleanup();
-        reject(new Error("command channel socket error"));
-      };
+        // A late response must never be matched with a later command. Close,
+        // report uncertainty and let the operator decide whether to retry.
+        this.ws.close();
+        reject(new Error("vstimd did not reply. Check whether the scene was saved before retrying."));
+      }, 10000);
       const cleanup = () => {
+        clearTimeout(timer);
         this.ws.removeEventListener("message", onMessage);
         this.ws.removeEventListener("error", onError);
+        this.ws.removeEventListener("close", onClose);
       };
       this.ws.addEventListener("message", onMessage);
       this.ws.addEventListener("error", onError);
-      this.ws.send(toBinary(RequestSchema, req));
+      this.ws.addEventListener("close", onClose);
+      try { this.ws.send(toBinary(RequestSchema, req)); }
+      catch (err) { cleanup(); reject(err); }
     });
   }
 

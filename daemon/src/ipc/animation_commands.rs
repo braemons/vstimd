@@ -9,10 +9,10 @@ use super::convert::{
 };
 use super::response::{err, ok_ack, ok_body, ok_handle};
 use crate::proto;
+use crate::scene::SceneState;
 use crate::scene::animation::{
     AnimState, Animation, AnimationEntry, AnimationTarget, CancelAction, FinalAction, StartAction,
 };
-use crate::scene::SceneState;
 use crate::vtl_state::{VtlNameEntry, VtlState};
 
 impl SceneState {
@@ -105,6 +105,11 @@ impl SceneState {
             return err(proto::ErrorCode::InvalidArgument, msg);
         }
 
+        if let Some(movement) = &self.config.camera_movement
+            && let Err(msg) = movement.check_animation(&target, &animation)
+        {
+            return err(proto::ErrorCode::InvalidArgument, msg);
+        }
         let handle = self.alloc_anim_handle();
         self.config.animations.insert(
             handle,

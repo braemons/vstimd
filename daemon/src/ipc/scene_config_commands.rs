@@ -53,6 +53,15 @@ impl SceneState {
             Ok(v) => v,
             Err(e) => return err(proto::ErrorCode::FileFormat, e.to_string()),
         };
+        if cmd.apply_now
+            && cmd.additive
+            && (self.config.camera_movement.is_some() || scene_cfg.camera_movement.is_some())
+        {
+            return err(
+                proto::ErrorCode::InvalidArgument,
+                "Constrained camera scenes require replace, not additive load",
+            );
+        }
         // Resolve before writing: a name that names an illegal project or
         // escapes the tree is refused, never sanitised.
         let scene_config_ref = match self.scene_config_ref(&cmd.name) {

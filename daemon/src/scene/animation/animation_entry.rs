@@ -3,7 +3,7 @@
 
 use super::{AnimState, Animation, CancelAction, FinalAction, StartAction};
 use crate::scene::conditions::ConditionAction;
-use crate::vtl_state::{VtlEdge, VtlBit};
+use crate::vtl_state::{VtlBit, VtlEdge};
 
 /// What an animation drives.
 ///
@@ -144,6 +144,8 @@ pub struct TrackStart {
 pub enum TrackPhase {
     #[default]
     Moving,
+    /// A real-time black hold at a finite-track end. Runtime only.
+    BlackoutUntil(std::time::Instant),
     /// Fading out, frames left before the jump. The camera holds still.
     FadingOut(u32),
     /// Fading in after the jump, frames left. The camera moves.
@@ -158,6 +160,7 @@ impl TrackProgress {
         let f = fade_frames.max(1) as f32;
         match self.phase {
             TrackPhase::Moving => 0.0,
+            TrackPhase::BlackoutUntil(_) => 1.0,
             TrackPhase::FadingOut(left) => 1.0 - left as f32 / f,
             TrackPhase::FadingIn(left) => left as f32 / f,
         }

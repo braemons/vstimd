@@ -21,17 +21,17 @@
 
 use std::sync::{Arc, Mutex, RwLock};
 
+#[cfg(not(feature = "embed-ui"))]
+use axum::response::Html;
 use axum::{
+    Router,
     extract::{
-        ws::{Message, WebSocket, WebSocketUpgrade},
         State,
+        ws::{Message, WebSocket, WebSocketUpgrade},
     },
     response::IntoResponse,
     routing::get,
-    Router,
 };
-#[cfg(not(feature = "embed-ui"))]
-use axum::response::Html;
 use futures_util::{SinkExt, StreamExt};
 use prost::Message as _;
 use tower_http::cors::CorsLayer;
@@ -267,9 +267,13 @@ struct Assets;
 /// Serve an embedded asset by path, falling back to index.html for SPA routes.
 #[cfg(feature = "embed-ui")]
 async fn static_handler(uri: axum::http::Uri) -> axum::response::Response {
-    use axum::http::{header, StatusCode};
+    use axum::http::{StatusCode, header};
     let path = uri.path().trim_start_matches('/');
-    let path = if path.is_empty() { "index.html" } else { path };
+    let path = match path {
+        "" => "index.html",
+        "maze-workshop" | "maze-workshop/" => "maze-workshop/index.html",
+        _ => path,
+    };
     if let Some(file) = Assets::get(path) {
         let mut response = (
             [(header::CONTENT_TYPE, file.metadata.mimetype())],
@@ -280,10 +284,11 @@ async fn static_handler(uri: axum::http::Uri) -> axum::response::Response {
         // imports by URL; a browser holding yesterday's panel list against
         // today's daemon is exactly the failure a cache header prevents.
         // Matches statemachined's and triald's `/elements/` routes.
-        if path.starts_with("elements/") {
-            response
-                .headers_mut()
-                .insert(header::CACHE_CONTROL, "no-cache, must-revalidate".parse().unwrap());
+        if path.starts_with("elements/") || path.ends_with(".html") {
+            response.headers_mut().insert(
+                header::CACHE_CONTROL,
+                "no-cache, must-revalidate".parse().unwrap(),
+            );
         }
         return response;
     }

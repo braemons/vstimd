@@ -72,7 +72,7 @@ describe("vstimd web client e2e (--null)", () => {
     server = spawn(
       serverBinary(),
       [
-        "--null", "--web-port", String(WEB_PORT),
+        "--null", "--no-mdns", "--no-events", "--web-port", String(WEB_PORT),
         "--zmq-port", String(ZMQ_PORT), "--rig-config", rig,
         "--storage-dir", storageDir,
       ],
